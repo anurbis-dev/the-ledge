@@ -1,6 +1,7 @@
 import { VOLUME_MASKS } from '../entities/volumes.js';
 import { initSliders, bindResetHover } from './slider.js';
 import { touchOp } from './history.js';
+import { raiseFloat, placeFloat, hasFloatPos } from './float.js';
 
 var DEF = {
   sound: { mode: 'falloff', vol: 0.4, radius: 96, freq: 220, type: 'sine' },
@@ -27,6 +28,8 @@ export function showInspect(sel){
   root.hidden = false;
   if (titleEl) titleEl.textContent = sel.type === 'volume' ? 'Volume' : (sel.type === 'light' ? 'Light' : 'Sound');
   fillBody(sel);
+  if (!hasFloatPos(root)) placeFloat(root, innerWidth - 250, 8);
+  raiseFloat(root);
 }
 
 function notify(){

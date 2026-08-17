@@ -7,6 +7,7 @@ import {
 import { invalidateAll } from '../render/tiles.js';
 import { initSliders, bindResetHover } from './slider.js';
 import { beginOp, endOp, touchOp } from './history.js';
+import { raiseFloat } from './float.js';
 
 var root = document.getElementById('edLayers');
 var listEl = document.getElementById('edLayerList');
@@ -45,7 +46,7 @@ function notify(){
 export function showLayersPanel(on){
   if (!root) return;
   root.hidden = !on;
-  if (on) renderLayersPanel();
+  if (on){ renderLayersPanel(); raiseFloat(root); }
 }
 
 export function renderLayersPanel(){

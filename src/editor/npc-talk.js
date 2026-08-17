@@ -1,6 +1,7 @@
 import { TALK_VOICES } from '../audio/talk.js';
 import { treeIds, cloneTree, ensureDialog, nodeIds } from '../speech/trees.js';
 import { touchOp } from './history.js';
+import { placeFloat, hasFloatPos, raiseFloat } from './float.js';
 
 var root = document.getElementById('edNpcTalk');
 var titleEl = document.getElementById('edNpcTalkTitle');
@@ -33,12 +34,6 @@ function notify(){
   if (onChange) onChange();
 }
 
-function clampPopup(el, clientX, clientY){
-  var mw = el.offsetWidth || 320, mh = el.offsetHeight || 200;
-  el.style.left = Math.max(4, Math.min(clientX, innerWidth - mw - 4)) + 'px';
-  el.style.top = Math.max(4, Math.min(clientY, innerHeight - mh - 4)) + 'px';
-}
-
 export function closeNpcTalk(){
   if (!root || root.hidden) return;
   root.hidden = true;
@@ -60,7 +55,8 @@ export function openNpcTalk(npc, clientX, clientY){
   if (titleEl) titleEl.textContent = (npc.tree || 'npc') + ' talk';
   fill();
   root.hidden = false;
-  clampPopup(root, clientX != null ? clientX : 80, clientY != null ? clientY : 80);
+  if (!hasFloatPos(root)) placeFloat(root, clientX != null ? clientX : 80, clientY != null ? clientY : 80);
+  raiseFloat(root);
   document.removeEventListener('pointerdown', onOutside, true);
   setTimeout(function(){ document.addEventListener('pointerdown', onOutside, true); }, 0);
 }
