@@ -12,6 +12,23 @@ var propsEl = document.getElementById('edLayerProps');
 var onChange = null;
 var dragFrom = -1;
 
+function eyeSvg(){
+  var s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  s.setAttribute('viewBox', '0 0 16 16');
+  s.setAttribute('class', 'eye-svg');
+  s.setAttribute('aria-hidden', 'true');
+  var outline = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  outline.setAttribute('d', 'M1.4 8s2.8-4.6 6.6-4.6S14.6 8 14.6 8s-2.8 4.6-6.6 4.6S1.4 8 1.4 8z');
+  outline.setAttribute('fill', 'none');
+  outline.setAttribute('stroke', 'currentColor');
+  outline.setAttribute('stroke-width', '1.5');
+  var pupil = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  pupil.setAttribute('cx', '8'); pupil.setAttribute('cy', '8'); pupil.setAttribute('r', '2');
+  pupil.setAttribute('fill', 'currentColor');
+  s.appendChild(outline); s.appendChild(pupil);
+  return s;
+}
+
 export function bindLayersPanel(hooks){
   onChange = hooks && hooks.onChange;
 }
@@ -44,12 +61,16 @@ export function renderLayersPanel(){
       row.dataset.ix = String(ix);
 
       var eye = document.createElement('span');
-      eye.className = 'eye' + (L.visible === false ? ' eye-off' : '');
-      eye.textContent = '👁';
-      eye.title = L.visible === false ? 'Show' : 'Hide';
+      eye.className = 'eye' + (L.visible === false ? ' eye-off' : '') +
+        (solo === L.id ? ' solo-on' : '');
+      eye.appendChild(eyeSvg());
+      eye.title = solo === L.id
+        ? 'Exit solo (Ctrl+click)'
+        : (L.visible === false ? 'Show · Ctrl+click to solo' : 'Hide · Ctrl+click to solo');
       eye.addEventListener('pointerdown', function(e){
         e.stopPropagation(); e.preventDefault();
-        L.visible = L.visible === false;
+        if (e.ctrlKey || e.metaKey) toggleSolo(L.id);
+        else L.visible = L.visible === false;
         notify();
       });
       row.appendChild(eye);
@@ -64,17 +85,6 @@ export function renderLayersPanel(){
         notify();
       });
       row.appendChild(lock);
-
-      var soloBtn = document.createElement('span');
-      soloBtn.className = 'eye solo' + (solo === L.id ? ' solo-on' : '');
-      soloBtn.textContent = '◎';
-      soloBtn.title = solo === L.id ? 'Exit solo' : 'Solo this layer';
-      soloBtn.addEventListener('pointerdown', function(e){
-        e.stopPropagation(); e.preventDefault();
-        toggleSolo(L.id);
-        notify();
-      });
-      row.appendChild(soloBtn);
 
       var name = document.createElement('span');
       name.className = 'layername';

@@ -102,15 +102,15 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
   font-size:11px;color:#e9e4ff}
 .layer input.layername-edit{flex:1;min-width:0;background:#0d0a18;border:1px solid #8f88bb;
   color:#fff;font:inherit;font-size:11px;padding:1px 4px}
-.layer .eye{cursor:pointer;opacity:.9;width:1.25rem;text-align:center;flex-shrink:0;position:relative;
+.layer .eye{cursor:pointer;color:#9a94b0;width:1.25rem;text-align:center;flex-shrink:0;position:relative;
   display:inline-flex;align-items:center;justify-content:center;line-height:1;font-size:12px}
-.layer .eye.eye-off{opacity:.7}
-.layer .eye.eye-off::after{content:"";position:absolute;left:10%;right:10%;top:50%;height:2px;
+.layer .eye .eye-svg{width:14px;height:14px;display:block}
+.layer .eye.eye-off{color:#6a628f;opacity:.85}
+.layer .eye.eye-off::after{content:"";position:absolute;left:8%;right:8%;top:50%;height:1.5px;
   background:#e6685e;transform:rotate(-42deg);border-radius:1px;pointer-events:none}
-.layer .lock{opacity:.3}
+.layer .eye.solo-on{color:#c8c4d4}
+.layer .lock{opacity:.3;color:#9a94b0}
 .layer .lock.lock-on{opacity:1;color:#e6685e}
-.layer .solo{opacity:.35}
-.layer .solo.solo-on{opacity:1;color:#ffd9a0}
 #edLayerProps{padding:6px;border-top:1px solid #2a2444;display:flex;flex-direction:column;gap:5px}
 .ed-check{display:flex;align-items:center;gap:6px;font-size:11px;color:#cfc6ff}
 .ed-field{display:flex;align-items:center;justify-content:space-between;gap:6px;
