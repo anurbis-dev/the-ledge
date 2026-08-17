@@ -5,12 +5,14 @@ import {
 import { isMenu } from '../ui/menu.js';
 import { hushLift } from '../audio/sfx.js';
 import { findById } from '../entities/ids.js';
+import { isSlopeBrush, fitSlopeStroke } from './slopes.js';
 
 var G = GAME;
 
 export var ED = {
   on: false, tool: 'tile', pal: 0, painting: false, panId: -1,
-  panX: 0, panY: 0, camX: 0, camY: 0, last: null
+  panX: 0, panY: 0, camX: 0, camY: 0, last: null,
+  stroke: null, strokeOrig: null
 };
 export var ED_TILES = [
   ['пусто',   0,        '#241a30'],
@@ -18,8 +20,14 @@ export var ED_TILES = [
   ['хрупкий', 2,        '#96705a'],
   ['лест.',   3,        '#bd8347'],
   ['лест.Ф',  4,        '#d09b5c'],
-  ['скос →',  9,        '#8f86b8'],
-  ['скос ←',  10,       '#8f86b8'],
+  ['скос →',  G.SLR,    '#8f86b8'],
+  ['скос ←',  G.SLL,    '#8f86b8'],
+  ['½ → низ', G.SLR2,   '#9a92c4'],
+  ['½ → верх',G.SLR3,   '#9a92c4'],
+  ['½ ← верх',G.SLL2,   '#9a92c4'],
+  ['½ ← низ', G.SLL3,   '#9a92c4'],
+  ['дуга →',  G.SLRCA,  '#a89ed0'],
+  ['дуга ←',  G.SLLCB,  '#a89ed0'],
   ['полпот.', 7,        '#4a4069'],
   ['перекл.', 8,        '#a9743f'],
   ['вода',    13,       '#49a0cf'],
@@ -99,6 +107,7 @@ export function edApply(cell){
   ED.last = key;
   if (ED.tool === 'tile'){
     var nv = ED_TILES[ED.pal][1];
+    if (isSlopeBrush(nv)){ edPaintSlope(cell, nv); return; }
     var old = G.tileAt(cell.c, cell.r);
     G.setTile(cell.c, cell.r, nv);
     G.buildGates(S);
@@ -139,6 +148,32 @@ function edPlaceObject(cell){
   else if (kind === 'chest') G.mkChestAt(S, cell.c*T, floorY, 'coin', false);
   else if (kind === 'chestL') G.mkChestAt(S, cell.c*T, floorY, 'gem', true);
   else G.mkItemAt(S, cx, cy, kind);
+}
+function edPaintSlope(cell, brush){
+  var S = world();
+  if (!ED.stroke){ ED.stroke = []; ED.strokeOrig = {}; }
+  ED.stroke.push({ c: cell.c, r: cell.r });
+  applySlopePlan(fitSlopeStroke(ED.stroke, brush));
+  G.buildGates(S);
+}
+function applySlopePlan(plan){
+  var keep = {}, i, p, k, cr;
+  for (i = 0; i < plan.length; i++){
+    p = plan[i];
+    k = p.c + ':' + p.r;
+    keep[k] = true;
+    if (ED.strokeOrig[k] === undefined) ED.strokeOrig[k] = G.tileAt(p.c, p.r);
+  }
+  for (k in ED.strokeOrig){
+    if (keep[k]) continue;
+    cr = k.split(':');
+    G.setTile(+cr[0], +cr[1], ED.strokeOrig[k]);
+    delete ED.strokeOrig[k];
+  }
+  for (i = 0; i < plan.length; i++){
+    p = plan[i];
+    G.setTile(p.c, p.r, p.v);
+  }
 }
 export function edExportText(){
   var S = world();
@@ -221,7 +256,7 @@ cv.addEventListener('pointerdown', function(e){
   if (ED.tool === 'pan'){
     ED.panId = e.pointerId; ED.panX = e.clientX; ED.panY = e.clientY;
     ED.camX = cam.x; ED.camY = cam.y;
-  } else { ED.painting = true; ED.last = null; edApply(cell); }
+  } else { ED.painting = true; ED.last = null; ED.stroke = null; ED.strokeOrig = null; edApply(cell); }
   ED.hover = cell;
   try { cv.setPointerCapture(e.pointerId); } catch(_){}
 });
@@ -236,7 +271,7 @@ cv.addEventListener('pointermove', function(e){
     cam.x = cl.x; cam.y = cl.y;
   } else if (ED.painting) edApply(cell);
 });
-function edUp(e){ ED.painting = false; ED.panId = -1; ED.last = null; }
+function edUp(e){ ED.painting = false; ED.panId = -1; ED.last = null; ED.stroke = null; ED.strokeOrig = null; }
 cv.addEventListener('pointerup', edUp);
 cv.addEventListener('pointercancel', edUp);
 

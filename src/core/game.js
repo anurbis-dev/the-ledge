@@ -1,10 +1,13 @@
 import {
   T, C, E, ROCK, CRUMB, LADW, LADF, LADR, LADL, HTOP, BAR,
-  SLR, SLL, RNDA, RNDB, WATER, FALL
+  SLR, SLL, RNDA, RNDB, WATER, FALL,
+  SLR2, SLR3, SLL2, SLL3, SLR4A, SLR4B, SLR4C, SLR4D,
+  SLL4A, SLL4B, SLL4C, SLL4D, SLRCA, SLRCB, SLLCB, SLLCA
 } from './constants.js';
 import { runtime, setWorld, hooks } from './runtime.js';
 import {
   isHalfV, isBarV, ladderTop, isSlopeV, isWaterV, isFlowV, isWetV, slopeSurfaceY,
+  slopeTop, slopeSpec, slopeFamily, slopeRiseRight, SLOPE_SEQ,
   tileAt, isSolidV, isLadV, solidTile, ladderTile, solidAt, ladderAt, rectFree
 } from './map.js';
 import { mkPlayer, resetPlayer, stanceH, hangBox, standBox } from './player.js';
@@ -80,7 +83,10 @@ export const GAME = {
   E, ROCK, CRUMB, LADW, LADF, LADR, LADL, HTOP, BAR,
   isHalfV, isBarV, ladderTop, stanceH,
   SLR, SLL, RNDA, RNDB, WATER, FALL,
-  isSlopeV, isWaterV, isFlowV, isWetV, slopeSurfaceY,
+  SLR2, SLR3, SLL2, SLL3, SLR4A, SLR4B, SLR4C, SLR4D,
+  SLL4A, SLL4B, SLL4C, SLL4D, SLRCA, SLRCB, SLLCB, SLLCA,
+  isSlopeV, isWaterV, isFlowV, isWetV, slopeSurfaceY, slopeTop,
+  slopeSpec, slopeFamily, slopeRiseRight, SLOPE_SEQ,
   tileAt, isSolidV, isLadV,
   solidTile, ladderTile, solidAt, ladderAt,
   setTile,

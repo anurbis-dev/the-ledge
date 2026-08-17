@@ -3,7 +3,7 @@ import { runtime, setWorld } from './runtime.js';
 import { tileAt, rectFree, isWaterV, waterSurfaceY, ladderTile } from './map.js';
 import {
   moveX, moveY, damage, updateBars, ease, updateClimb, updateHang, updateLadder,
-  setStance, setH, slopeUnder, grounded, autoLadder, tryBars,
+  setStance, setH, slopeUnder, slopeGradeUnder, grounded, autoLadder, tryBars,
   tryLadder, tryGrab, tryClimbOut, tryCrawlEdge, ladderTopUnder, attach, tryDescend, tryMantle,
   markGap, canDescend, awayFromEdge, startFallRecover, finishFallRecover
 } from './player.js';
@@ -375,7 +375,7 @@ export function step(S, dt, inp){
   }
   p.onGround = false;
   var dx = p.vx * dt;
-  if (slPre !== null) dx *= C.SLOPE_ALONG / Math.SQRT2;  // 45°: путь не быстрее бега
+  if (slPre !== null) dx *= C.SLOPE_ALONG / Math.hypot(1, slopeGradeUnder(p));
   moveX(S, p, dx);
   moveY(S, p, p.vy * dt);
   if (!p.onGround && grounded(S, p) && p.vy >= 0){ p.onGround = true; p.vy = 0; }

@@ -143,21 +143,24 @@ export function drawTile(c, r, x, y, dyn){
     }
     return;
   }
-  if (G.isSlopeV(v)){                                    // скос
-    var up = (v === G.SLR || v === G.LADR);
+  if (G.isSlopeV(v)){                                    // скос (любой угол / дуга)
     var deepS = r > 30;
     var bsS = deepS ? TINT.deepA : TINT.rock, bdS = deepS ? TINT.deepB : TINT.rockD, blS = deepS ? TINT.deepC : TINT.rockL;
     setFill(bsS);
     ctx.beginPath();
-    if (up){ ctx.moveTo(x, y + T); ctx.lineTo(x + T, y); ctx.lineTo(x + T, y + T); }
-    else   { ctx.moveTo(x, y); ctx.lineTo(x + T, y + T); ctx.lineTo(x, y + T); }
+    ctx.moveTo(x, y + T);
+    for (var k2 = 0; k2 <= T; k2 += 2){
+      ctx.lineTo(x + k2, y + G.slopeTop(v, c, c * T + k2));
+    }
+    ctx.lineTo(x + T, y + T);
     ctx.closePath(); ctx.fill();
-    for (var k2 = 0; k2 < T; k2 += 2){                   // кромка ровно по линии склона
-      var yy = up ? (y + T - k2 - 1) : (y + k2);
+    for (k2 = 0; k2 < T; k2 += 2){                       // кромка по поверхности
+      var yy = y + G.slopeTop(v, c, c * T + k2);
       rc(x + k2, yy, 2, 2, P.edgeL);
       rc(x + k2, yy + 2, 2, 1, bdS);
     }
-    if (hashT(c, r) % 3 === 0) rc(x + 6, y + 10, 3, 1, blS);
+    if (hashT(c, r) % 3 === 0 && 10 >= G.slopeTop(v, c, c * T + 8))
+      rc(x + 6, y + 10, 3, 1, blS);
     return;
   }
   if (v === G.BAR){                                  // потолочные перекладины

@@ -1,7 +1,7 @@
 import { T, C, LADR, LADL, LADW } from './constants.js';
 import { runtime } from './runtime.js';
 import {
-  tileAt, rectFree, solidAt, isSlopeV, slopeTop, isLadV, ladderTop,
+  tileAt, rectFree, solidAt, isSlopeV, slopeTop, slopeGrade, isLadV, ladderTop,
   isBarV, ladderTile, solidTile, tileBlocks, isWaterV
 } from './map.js';
 import { dropTorch } from '../entities/torches.js';
@@ -107,6 +107,18 @@ export function slopeUnder(p){
     }
   }
   return best;
+}
+export function slopeGradeUnder(p){
+  var px = p.x + p.w / 2;
+  var c = Math.floor(px / T), r = Math.floor((p.y + p.h + 1) / T);
+  for (var k = -1; k <= 1; k++){
+    var v = tileAt(c, r + k);
+    if (!isSlopeV(v)) continue;
+    var sy = (r + k)*T + slopeTop(v, c, px);
+    if (p.y + p.h >= sy - 12 && p.y + p.h <= sy + 20)
+      return slopeGrade(v, c, px);
+  }
+  return 0;
 }
 export function grounded(S, p, noLadTop){
   if (slopeUnder(p) !== null) return true;

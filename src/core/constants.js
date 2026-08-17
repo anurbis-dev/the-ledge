@@ -1,7 +1,12 @@
 export const T = 16;
 export const E = 0, ROCK = 1, CRUMB = 2, LADW = 3, LADF = 4, LADR = 5, LADL = 6, HTOP = 7, BAR = 8;
-/* скосы: пол поднимается вправо (SLR) или влево (SLL); RND* — скруглённые углы (только вид) */
+/* скосы: пол поднимается вправо (SLR*) или влево (SLL*); RND* — скруглённые углы (только вид) */
 export const SLR = 9, SLL = 10, RNDA = 11, RNDB = 12, WATER = 13, FALL = 14;
+/* 2:1 — полтайла за тайл; 4:1 — четверть; *C* — квадратичная дуга */
+export const SLR2 = 15, SLR3 = 16, SLL2 = 17, SLL3 = 18;
+export const SLR4A = 19, SLR4B = 20, SLR4C = 21, SLR4D = 22;
+export const SLL4A = 23, SLL4B = 24, SLL4C = 25, SLL4D = 26;
+export const SLRCA = 27, SLRCB = 28, SLLCB = 29, SLLCA = 30;
 
 export const C = {
   W: 10, H: 22, RH: 12, CRH: 14, PRH: 8, PRW: 17,

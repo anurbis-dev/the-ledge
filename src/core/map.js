@@ -1,5 +1,58 @@
-import { T, E, ROCK, CRUMB, LADW, LADF, LADR, LADL, HTOP, BAR, SLR, SLL, RNDA, RNDB, WATER, FALL } from './constants.js';
+import {
+  T, E, ROCK, CRUMB, LADW, LADF, LADR, LADL, HTOP, BAR, SLR, SLL, RNDA, RNDB, WATER, FALL,
+  SLR2, SLR3, SLL2, SLL3, SLR4A, SLR4B, SLR4C, SLR4D, SLL4A, SLL4B, SLL4C, SLL4D,
+  SLRCA, SLRCB, SLLCB, SLLCA
+} from './constants.js';
 import { runtime, hooks } from './runtime.js';
+
+function spec(y0, y1, ease){ return { y0: y0, y1: y1, ease: ease || 0 }; }
+
+export const SLOPE_SPEC = {};
+SLOPE_SPEC[SLR] = spec(T, 0);
+SLOPE_SPEC[SLL] = spec(0, T);
+SLOPE_SPEC[LADR] = spec(T, 0);
+SLOPE_SPEC[LADL] = spec(0, T);
+SLOPE_SPEC[SLR2] = spec(T, T / 2);
+SLOPE_SPEC[SLR3] = spec(T / 2, 0);
+SLOPE_SPEC[SLL2] = spec(0, T / 2);
+SLOPE_SPEC[SLL3] = spec(T / 2, T);
+SLOPE_SPEC[SLR4A] = spec(T, 12);
+SLOPE_SPEC[SLR4B] = spec(12, 8);
+SLOPE_SPEC[SLR4C] = spec(8, 4);
+SLOPE_SPEC[SLR4D] = spec(4, 0);
+SLOPE_SPEC[SLL4A] = spec(0, 4);
+SLOPE_SPEC[SLL4B] = spec(4, 8);
+SLOPE_SPEC[SLL4C] = spec(8, 12);
+SLOPE_SPEC[SLL4D] = spec(12, T);
+SLOPE_SPEC[SLRCA] = spec(T, T / 2, 'in');
+SLOPE_SPEC[SLRCB] = spec(T / 2, 0, 'out');
+SLOPE_SPEC[SLLCB] = spec(0, T / 2, 'in');
+SLOPE_SPEC[SLLCA] = spec(T / 2, T, 'out');
+
+export const SLOPE_SEQ = {
+  45: { r: [SLR], l: [SLL] },
+  2: { r: [SLR2, SLR3], l: [SLL2, SLL3] },
+  4: { r: [SLR4A, SLR4B, SLR4C, SLR4D], l: [SLL4A, SLL4B, SLL4C, SLL4D] },
+  curve: { r: [SLRCA, SLRCB], l: [SLLCB, SLLCA] }
+};
+
+export function slopeSpec(v){ return SLOPE_SPEC[v] || null; }
+export function slopeFamily(v){
+  if (v === SLR || v === SLL || v === LADR || v === LADL) return '45';
+  if (v === SLR2 || v === SLR3 || v === SLL2 || v === SLL3) return '2';
+  if (v === SLRCA || v === SLRCB || v === SLLCA || v === SLLCB) return 'curve';
+  if (SLOPE_SPEC[v]) return '4';
+  return null;
+}
+export function slopeRiseRight(v){
+  var s = SLOPE_SPEC[v];
+  return !!(s && s.y1 < s.y0);
+}
+function easeF(f, ease){
+  if (ease === 'in') return f * f;
+  if (ease === 'out') return 1 - (1 - f) * (1 - f);
+  return f;
+}
 
 export function fillR(c, r, w, h, v){
   v = v === undefined ? ROCK : v;
@@ -23,16 +76,28 @@ export function tileAt(c, r){
   return runtime.base[r * runtime.MAP_W + c];
 }
 export function isSolidV(v){ return v === ROCK || v === CRUMB || v === HTOP || v === RNDA || v === RNDB; }
-export function isSlopeV(v){ return v === SLR || v === SLL || v === LADR || v === LADL; }
+export function isSlopeV(v){ return !!SLOPE_SPEC[v]; }
 export function isWaterV(v){ return v === WATER; }          // плавание только в бассейнах
 export function isFlowV(v){ return v === FALL; }            // падающая вода — не жидкость для физики
 export function isWetV(v){ return v === WATER || v === FALL; }
-/* высота поверхности скоса внутри тайла: 0 у высокого края, T у низкого */
+/* высота поверхности скоса внутри тайла: 0 у верха тайла, T у низа */
 export function slopeTop(v, c, px){
+  var s = SLOPE_SPEC[v];
+  if (!s) return 0;
   var f = (px - c*T) / T;
   if (f < 0) f = 0; if (f > 1) f = 1;
-  var up = (v === SLR || v === LADR);        // поднимается вправо
-  return up ? (T - f*T) : (f*T);
+  return s.y0 + (s.y1 - s.y0) * easeF(f, s.ease);
+}
+/* |dy/dx| в точке — для скорости вдоль склона */
+export function slopeGrade(v, c, px){
+  var s = SLOPE_SPEC[v];
+  if (!s) return 0;
+  var f = (px - c*T) / T;
+  if (f < 0) f = 0; if (f > 1) f = 1;
+  var df = 1;
+  if (s.ease === 'in') df = 2 * f;
+  else if (s.ease === 'out') df = 2 * (1 - f);
+  return Math.abs(s.y1 - s.y0) / T * df;
 }
 export function slopeSurfaceY(c, r, px){
   var v = tileAt(c, r);
