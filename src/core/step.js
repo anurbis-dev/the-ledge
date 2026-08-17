@@ -13,6 +13,7 @@ import { stepTorches, tryAction, resolvePickup } from '../entities/torches.js';
 import { stepEnemies } from '../entities/enemies.js';
 import { stepFliers, stepDrops } from '../entities/fliers.js';
 import { stepSpiders } from '../entities/spiders.js';
+import { stepTendrils, tickSnareAir } from '../entities/tendrils.js';
 import { stepLoot } from '../entities/loot.js';
 import { tryDoor, updateWarp, tryExit } from '../entities/doors.js';
 import { pickups } from '../entities/items.js';
@@ -32,6 +33,7 @@ export function step(S, dt, inp){
   stepEnemies(S, dt);
   stepFliers(S, dt);
   stepSpiders(S, dt);
+  stepTendrils(S, dt, inp);
   stepDrops(S, dt);
   stepLoot(S, dt);
   if (S.p.hurtCd > 0) S.p.hurtCd -= dt;
@@ -93,6 +95,10 @@ export function step(S, dt, inp){
     if (p.stunT <= 0){ p.state = 'normal'; p.apexY = p.y; }
     crumbCheck(S, p); pickups(S, p); return;
   }
+  if (p.state === 'snare'){
+    tickSnareAir(S, p, dt);
+    pickups(S, p); return;
+  }
   if (p.state === 'warp'){ updateWarp(S, p, dt); return; }
   if (p.state === 'bars'){ updateBars(S, p, dt, inp); pickups(S, p); return; }
   if (p.state === 'snap'){
@@ -125,6 +131,10 @@ export function step(S, dt, inp){
     else if (inp.downHeld && p.stance === 0 && Math.abs(p.vx) <= 58) setStance(S, p, 1);
     if ((inp.upPressed || inp.upHeld || inp.jumpPressed) && p.stance > 0){
       if (setStance(S, p, p.stance - 1)) { p.buf = 0; }   // удержание ↑ поднимает до стойки
+    }
+    // выход из лаза: нет потолка — стоя; щель только для приседа — присед
+    if (p.stance === 2 && !inp.downHeld && !inp.downPressed){
+      if (!setStance(S, p, 0)) setStance(S, p, 1);
     }
   }
   if (p.stance !== stanceBefore){ p.stanceFrom = stanceBefore; p.stanceT = C.STANCE_T; }  // плавный переход позы
@@ -357,7 +367,8 @@ export function step(S, dt, inp){
     if (!inWater && !rolling && p.state === 'normal') tryBars(S, p);
     if (!inWater && !rolling && p.state === 'normal') tryLadder(S, p, inp);
     if (!inWater && p.state === 'normal') tryGrab(S, p);
-    else if (inWater && p.atSurface && p.state === 'normal' && Math.abs(inp.x) > 0.35)
+    else if (inWater && p.atSurface && p.state === 'normal' && Math.abs(inp.x) > 0.35
+             && !inp.downHeld && !inp.downPressed)
       tryClimbOut(S, p, inp.x > 0 ? 1 : -1);
   } else {
     var slY = slopeUnder(p);

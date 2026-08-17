@@ -2,7 +2,7 @@ import { T, C, LADR, LADL, LADW } from './constants.js';
 import { runtime } from './runtime.js';
 import {
   tileAt, rectFree, solidAt, isSlopeV, slopeTop, isLadV, ladderTop,
-  isBarV, ladderTile, solidTile, tileBlocks
+  isBarV, ladderTile, solidTile, tileBlocks, isWaterV
 } from './map.js';
 import { dropTorch } from '../entities/torches.js';
 import { platUnder } from '../entities/plats.js';
@@ -286,6 +286,7 @@ export function autoLadder(S, p, prevBottom){
 
 /* --- захват края / нижней перекладины --- */
 export function tryGrab(S, p){
+  if (p.inWater) return false;                              // под водой кромки не берём
   if (p.grabCd > 0 || p.onGround || p.state !== 'normal' || p.rollT > 0) return false;
   if (p.vy < C.GRAB_VY) return false;
   var handY = p.y + C.HAND, dir = p.facing, dy;
@@ -340,13 +341,18 @@ export function grabTo(p, cx, cy, facing, kind, tc, tr){
   p.hang = { cx: cx, cy: cy, kind: kind, tc: tc, tr: tr, lt: tileAt(tc, tr) };
   p.events.push('grab');
 }
-/* с поверхности воды: к краю и забраться, если есть щель; под водой не вызывать */
+/* с поверхности воды: к сухому берегу; подводные полки не вылаз */
 export function tryClimbOut(S, p, dir){
   if (!dir || p.state !== 'normal' || p.grabCd > 0 || p.rollT > 0) return false;
+  if (!p.atSurface || !p.inWater) return false;
+  var surf = p.swimSurf;
+  if (surf == null || p.y > surf + 2) return false;         // голова уже ниже линии воды
   var led = findLedge(p, dir, T + 4);                       // с поверхности достаём губу в тайл
-  if (!led) return false;
+  if (!led || led.top > surf + 2) return false;             // кромка под водой
   var land = bestLand(led.cx, led.top, dir);
   if (land){
+    var lcx = land.x + land.w / 2, lcy = land.y + land.h / 2;
+    if (isWaterV(tileAt(Math.floor(lcx / T), Math.floor(lcy / T)))) return false;
     p.facing = dir;
     startClimb(p, 1, led.cx, led.top, dir, 'ledge', land);
     return true;
@@ -357,15 +363,20 @@ export function tryClimbOut(S, p, dir){
   return true;
 }
 
-function standFitsAt(p){
-  return rectFree(p.x + p.w / 2 - C.W / 2, p.y + p.h - C.H, C.W, C.H);
+function stanceFitsAt(p, st){
+  var h = stanceH(st), w = stanceW(st);
+  return rectFree(p.x + p.w / 2 - w / 2, p.y + p.h - h, w, h);
 }
-/* конец приседа/лаза: без потолка — встать на край; с потолком — в вис */
+/* конец приседа/лаза: стоя / присед по щели; ниже приседа — в вис */
 export function tryCrawlEdge(S, p, dir){
   if (!dir || p.stance <= 0 || !p.onGround) return 0;
   if (groundAhead(S, p, dir)) return 0;
-  if (standFitsAt(p)){
+  if (stanceFitsAt(p, 0)){
     setStance(S, p, 0);
+    return 1;
+  }
+  if (stanceFitsAt(p, 1)){
+    setStance(S, p, 1);
     return 1;
   }
   if (tryDescend(S, p, dir)) return 2;
@@ -395,6 +406,7 @@ export function tryDescend(S, p, want){
 }
 /* --- автоподъём на уступ в один тайл при ходьбе: рывок через колено, без хвата и без потери скорости --- */
 export function tryMantle(S, p, dir, vx){
+  if (p.inWater) return false;
   if (p.state !== 'normal' || !p.onGround || p.rollT > 0 || p.stance !== 0) return false;
   var groundY = Math.round(p.y + p.h);
   var wallX = dir > 0 ? p.x + p.w + 2 : p.x - 2;
