@@ -1,5 +1,6 @@
 import { view } from '../render/index.js';
 import { actx, getActx, resumeAudio } from './context.js';
+import { getFxVol } from '../ui/settings.js';
 
 export { actx, getActx, resumeAudio };
 
@@ -14,7 +15,7 @@ export function blip(f, d, type, vol){
     getActx();
     var o = actx.createOscillator(), g = actx.createGain();
     o.type = type || 'square'; o.frequency.value = f;
-    g.gain.value = vol || 0.035; o.connect(g); g.connect(actx.destination);
+    g.gain.value = (vol || 0.035) * getFxVol(); o.connect(g); g.connect(actx.destination);
     o.start(); g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + d); o.stop(actx.currentTime + d);
   }catch(e){}
 }

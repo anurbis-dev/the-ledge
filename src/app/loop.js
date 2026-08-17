@@ -9,11 +9,11 @@ import {
   setViewScale, applyVolumes, drawCollideOverlay
 } from '../render/index.js';
 import { blip, liftSound, hushLift, hushSounds, stepSounds } from '../audio/sfx.js';
-import { startMusic, hushMusic, resumeMusic, musicPlaying, getMix } from '../audio/music.js';
+import { startMusic, hushMusic, resumeMusic, musicPlaying, getMix, setScore, listScores } from '../audio/music.js';
 import { held, latch, ax, stick, bindInput } from '../input/input.js';
 import { ED, edOpen, edClose, edApply, edExportText, edDrawOverlay, bindEditor, snapEditCam, syncDelBtn } from '../editor/editor.js';
 import { hooks } from '../core/runtime.js';
-import { prog, buildMenu, showMenu, isMenu, setMenu, saveProgress, dropProgressAt } from '../ui/menu.js';
+import { prog, buildMenu, showMenu, showMenuHome, menuScreen, isMenu, setMenu, saveProgress, dropProgressAt, applyBootSettings } from '../ui/menu.js';
 import { showSplash } from '../ui/splash.js';
 import { findById } from '../entities/ids.js';
 import { entitiesShown } from '../core/layers.js';
@@ -581,7 +581,10 @@ export function start(){
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       if (ED.on) return;
       e.preventDefault();
-      if (isMenu()) resumeGame();
+      if (isMenu()){
+        if (menuScreen() !== 'home'){ showMenuHome(); return; }
+        resumeGame();
+      }
       else openGameMenu();
       return;
     }
@@ -596,7 +599,13 @@ export function start(){
   addEventListener('resize', function(){ resize(); });
   addEventListener('orientationchange', function(){ setTimeout(resize, 160); });
 
-  buildMenu(startLevel, function(idx){ deleteLevelAt(idx, false); });
+  applyBootSettings();
+  buildMenu({
+    onStart: startLevel,
+    onDelete: function(idx){ deleteLevelAt(idx, false); },
+    onResume: resumeGame,
+    canResume: function(){ return canResume; }
+  });
   var devLevel = resolveDevLevel();
   if (devLevel !== null){
     var splashEl = document.getElementById('splash');
@@ -613,7 +622,7 @@ export function start(){
     window.__skip = function(){ introT = 0; paused = false; gameOver = null; setOutro(null); };
     window.__screens = function(){ return { intro: introT, paused: paused, outro: !!outro, dead: !!gameOver, resume: canResume }; };
     window.__game = G;
-    window.__music = { start: startMusic, hush: hushMusic, resume: resumeMusic, playing: musicPlaying, mix: getMix };
+    window.__music = { start: startMusic, hush: hushMusic, resume: resumeMusic, playing: musicPlaying, mix: getMix, set: setScore, list: listScores };
     window.__fish = getFish;
     window.__editor = { open: edOpen, close: edClose, state: ED,
                         apply: function(c, r){ edApply({ c:c, r:r }); },

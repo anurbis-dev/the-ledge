@@ -13,11 +13,30 @@
   <canvas id="splashCv"></canvas>
   <div class="shint" id="splashHint">tap to continue</div>
 </div>
-<div id="menu" class="hide">
-  <div class="mtitle"><span class="the">the</span>LEDGE</div>
-  <div class="msub">caves and ledges</div>
-  <div class="mlist" id="mlist"></div>
-  <div class="mhint">↑ cave · ✋ action · ↓ crouch · Esc resume · Tab editor</div>
+<div id="menu" class="hide" data-screen="home">
+  <canvas id="mEmbers" class="m-embers"></canvas>
+  <div class="m-fg">
+    <div class="mtitle"><span class="the">the</span>LEDGE</div>
+    <div class="msub">caves and ledges</div>
+    <div class="mpane" id="mHome"></div>
+    <div class="mpane hide" id="mPath">
+      <div class="mpane-head">Пройденный путь <button type="button" class="mback" id="mPathBack">✕</button></div>
+      <div class="mlist" id="mlist"></div>
+    </div>
+    <div class="mpane hide" id="mSettings">
+      <div class="mpane-head"><button type="button" class="mback" id="mSetBack">‹</button> SETTINGS</div>
+      <div class="mset" id="mSetList"></div>
+    </div>
+    <div class="mpane hide" id="mCredits">
+      <div class="mpane-head"><button type="button" class="mback" id="mCredBack">‹</button> CREDITS</div>
+      <div class="mcred">
+        <p>the LEDGE</p>
+        <p>caves and ledges</p>
+        <p>a climb through dark stone</p>
+      </div>
+    </div>
+    <div class="mfoot" id="mFoot"></div>
+  </div>
 </div>
 <div id="dbg"></div>
 <div id="ring"></div><div id="knob"></div>
