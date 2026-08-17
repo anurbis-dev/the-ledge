@@ -7,6 +7,7 @@ import { tryChest } from './chests.js';
 import { giveGear } from './gear.js';
 import { attack } from './enemies.js';
 import { findById } from './ids.js';
+import { fireHarpoon, tryHarpoonPickup } from './harpoons.js';
 
 export function mkTorches(){
   var LV = runtime.LV;
@@ -133,6 +134,11 @@ export function tryAction(S){
   if (p.torch >= 0){
     if (p.throwT <= 0){ p.throwT = C.THROW_T; p.throwPend = true; }
     return true;
+  }
+  if (p.state === 'snare' && p.stick) return attack(S);
+  if (p.harpoonGun && p.gear.harpoon){
+    if (tryHarpoonPickup(S)) return true;
+    if (p.inWater && fireHarpoon(S)) return true;
   }
   var pk = S.pick;
   if (!pk.stick.taken && p.state === 'normal' && p.pickT <= 0 &&

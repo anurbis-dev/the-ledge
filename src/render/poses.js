@@ -21,6 +21,8 @@ export const FALLP = po({head:[5,4],neck:[5,8],hip:[5,14],eF:[9,11],hF:[10,8],eB
 export const LANDP = po({head:[5,7],neck:[5,10],hip:[5,16],eF:[8,14],hF:[8,17],eB:[2,14],hB:[2,17],kF:[8,19],fF:[7,22],kB:[2,19],fB:[3,22]});
 export const SLIDEP = po({head:[5,5],neck:[5,9],hip:[5,15],eF:[8,8],hF:[10,4],eB:[3,12],hB:[2,15],kF:[7,17],fF:[7,21],kB:[3,18],fB:[3,22]});
 export const STUNP = po({head:[5,10],neck:[5,13],hip:[5,17],eF:[8,16],hF:[9,20],eB:[2,16],hB:[2,20],kF:[7,20],fF:[8,22],kB:[3,20],fB:[2,22]});
+/* руки прижаты, корпус скрючен — обвили водоросли */
+export const SNAREP = po({head:[5,8],neck:[5,11],hip:[5,16],eF:[7,14],hF:[8,17],eB:[3,14],hB:[2,17],kF:[7,19],fF:[8,22],kB:[3,19],fB:[2,22]});
 export const ROLLP = po({head:[5,7],neck:[5,9],hip:[5,13],eF:[8,10],hF:[7,13],eB:[2,10],hB:[3,13],kF:[8,13],fF:[6,16],kB:[2,13],fB:[4,16]});
 export const LADP0 = po({head:[5,5],neck:[5,9],hip:[5,15],eF:[6,7],hF:[5,2],eB:[5,10],hB:[6,8],kF:[7,17],fF:[6,21],kB:[4,18],fB:[5,23]});
 export const LADP1 = po({head:[5,5],neck:[5,9],hip:[5,15],eF:[5,10],hF:[6,7],eB:[6,6],hB:[5,2],kF:[6,18],fF:[5,23],kB:[5,17],fB:[6,21]});

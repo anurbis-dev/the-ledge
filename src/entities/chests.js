@@ -21,6 +21,9 @@ export function tryChest(S){
     else if (ch.kind === 'helmet'){ giveGear(S, ['lhelm','ihelm','ghelm'][ch.id % 3]); }
     else if (ch.kind === 'shield'){ giveGear(S, ['wshield','ishield','gshield'][ch.id % 3]); }
     else if (ch.kind === 'sword'){ giveGear(S, ch.id % 2 ? 'blade' : 'sword'); }
+    else if (ch.kind === 'scuba'){ giveGear(S, 'scuba'); }
+    else if (ch.kind === 'flippers'){ giveGear(S, 'flippers'); }
+    else if (ch.kind === 'harpoon'){ giveGear(S, 'harpoon'); }
     else if (ch.kind === 'shroom'){ if (S.hp < 3) S.hp++; S.bag.shroom++; }
     else if (ch.kind === 'gem'){ S.bag.gem += 3; }
     else { S.bag.coin += 5; }

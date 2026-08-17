@@ -8,7 +8,10 @@ export var GEAR = {
   gshield:{ slot:'shield', uses:14, name:'щит'  },
   lhelm:  { slot:'helmet', uses:3,  name:'шлем' },
   ihelm:  { slot:'helmet', uses:6,  name:'шлем' },
-  ghelm:  { slot:'helmet', uses:10, name:'шлем' }
+  ghelm:  { slot:'helmet', uses:10, name:'шлем' },
+  scuba:    { slot:'scuba',    uses:1, name:'акваланг' },
+  flippers: { slot:'flippers', uses:1, name:'ласты'    },
+  harpoon:  { slot:'harpoon',  uses:4, name:'гарпун'    }
 };
 export function mkItem(type){
   var d = GEAR[type];
@@ -21,6 +24,9 @@ export function giveGear(S, type){
   if (it.slot === 'weapon') p.stick = true;
   if (it.slot === 'helmet') p.helmet = true;
   if (it.slot === 'shield') p.shield = true;
+  if (it.slot === 'scuba') p.scuba = true;
+  if (it.slot === 'flippers') p.flippers = true;
+  if (it.slot === 'harpoon') p.harpoonGun = true;
   p.events.push('gear:' + type);
 }
 export function wearGear(S, slot, n){

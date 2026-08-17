@@ -2,7 +2,7 @@ import GAME from '../core/game.js';
 import {
   cv, ctx, VW, VH, cam, view,
   sky, tiles, plats, lifts, caveExit, doors, chests,
-  lootDrops, items, pickables, drawTorches, enemies, spiders, fliers,
+  lootDrops, items, pickables, drawTorches, drawHarpoons, enemies, spiders, fliers, tendrils,
   hero, lightPass, drawWeeds, drawFish, drawParts, drawHearts,
   vignette, hud, drawIntro, drawPaused, drawOutro,
   applyPal, buildWater, stepWater, invalidateAll, fore, rc, getFish, spark, clampCam
@@ -42,8 +42,13 @@ function onEvent(ev){
     var tag = ev.split(':')[1] || '', vic;
     if (tag.charAt(0) === 'f') vic = findById(S.fliers, +tag.slice(1));
     else if (tag.charAt(0) === 's') vic = findById(S.spiders, +tag.slice(1));
+    else if (tag.charAt(0) === 't') vic = findById(S.tendrils, +tag.slice(1));
     else vic = findById(S.enemies, +tag);
-    if (vic) spark(vic.x + vic.w/2, vic.y + vic.h/2, 14, '#c79ae0', 110, 70);
+    if (vic){
+      var vx = vic.tx !== undefined ? vic.tx : vic.x + (vic.w || 0) / 2;
+      var vy = vic.ty !== undefined ? vic.ty : vic.y + (vic.h || 0) / 2;
+      spark(vx, vy, 14, '#c79ae0', 110, 70);
+    }
   }
   else if (k === 'getstick'){ blip(700, 0.16, 'triangle'); view.flash = 0.4; }
   else if (k === 'getkey'){ blip(880, 0.18, 'triangle'); view.flash = 0.4; }
@@ -129,6 +134,17 @@ function onEvent(ev){
   }
   else if (k === 'take'){ blip(660, 0.07, 'triangle'); }
   else if (k === 'throw'){ blip(340, 0.08); spark(p.x+5, p.y+14, 5, '#ffb060', 70); }
+  else if (k === 'harpoon'){
+    var hSub = ev.split(':')[1];
+    if (hSub === 'shoot'){ blip(380, 0.09, 'square', 0.05); spark(p.x+5+p.facing*8, p.y+p.h/2, 4, '#c9d4dc', 60); }
+    else { blip(700, 0.08, 'triangle'); }
+  }
+  else if (k === 'tank'){ blip(500, 0.14, 'sine', 0.045); view.flash = 0.25; }
+  else if (k === 'kelpsting'){ blip(180, 0.16, 'sawtooth', 0.06); view.flash = 0.3; spark(p.x+5, p.y+10, 8, '#c9de6a', 80); }
+  else if (k === 'kelpwrap'){ blip(140, 0.2, 'sine', 0.05); S.shake = Math.max(S.shake, 2); spark(p.x+5, p.y+10, 10, '#4a8a7a', 70); }
+  else if (k === 'kelphold'){ blip(90, 0.12, 'sine', 0.04); }
+  else if (k === 'kelprelease'){ blip(280, 0.1, 'triangle', 0.04); spark(p.x+5, p.y+8, 6, '#8fd0b0', 50); }
+  else if (k === 'kelpreach' || k === 'kelpstir'){ blip(210, 0.06, 'sine', 0.03); }
   else if (k === 'droptorch'){ blip(220, 0.06); }
   else if (k === 'crack'){ blip(120, 0.05, 'sawtooth'); }
   else if (k === 'crumble'){ blip(70, 0.25, 'sawtooth', 0.05); }
@@ -240,8 +256,8 @@ function frame(now){
     hushLift();
     ctx.clearRect(0, 0, VW, VH);
     sky(); tiles(); plats(); lifts(); caveExit(); doors(); chests();
-    lootDrops(); items(); pickables(); drawTorches(); enemies(); spiders(); fliers();
-    hero(); drawFish(); drawWeeds(); vignette();
+    lootDrops(); items(); pickables(); drawTorches(); drawHarpoons(); enemies(); spiders(); fliers();
+    hero(); drawFish(); drawWeeds(); tendrils(); vignette();
     edDrawOverlay();
     requestAnimationFrame(frame);
     return;
@@ -252,8 +268,8 @@ function frame(now){
     hushLift();
     ctx.clearRect(0, 0, VW, VH);
     sky(); tiles(); plats(); lifts(); caveExit(); doors(); chests();
-    lootDrops(); items(); pickables(); drawTorches(); enemies(); spiders(); fliers();
-    hero(); drawFish(); lightPass(); drawWeeds(); fore(); vignette(); hud();
+    lootDrops(); items(); pickables(); drawTorches(); drawHarpoons(); enemies(); spiders(); fliers();
+    hero(); drawFish(); lightPass(); drawWeeds(); tendrils(); fore(); vignette(); hud();
     if (introT > 0) drawIntro();
     else if (outro){ outro.t += dt; drawOutro(); }
     else drawPaused();
@@ -324,6 +340,7 @@ function frame(now){
   items();
   pickables();
   drawTorches();
+  drawHarpoons();
   enemies();
   spiders();
   fliers();
@@ -333,6 +350,7 @@ function frame(now){
   drawHearts(dt);
   lightPass();
   drawWeeds();
+  tendrils();
   fore();
   vignette();
   if (S.fade > 0){

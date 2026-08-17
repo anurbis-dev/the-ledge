@@ -26,6 +26,16 @@ export function drawTorches(){
   }
 }
 
+export function drawHarpoons(){
+  var S = world();
+  for (var i = 0; i < S.harpoons.length; i++){
+    var b = S.harpoons[i], x = Math.round(b.x - cam.x), y = Math.round(b.y - cam.y);
+    if (x < -14 || x > VW+14) continue;
+    var d = b.vx >= 0 ? 1 : -1;
+    lb([x - d*7, y], [x + d*7, y], 2, P.stickD);
+    rc(x + d*5, y - 1, d*3, 3, '#c9d4dc');           // наконечник
+  }
+}
 export function liftButtons(){
   var S = world(), time = view.time;
   for (var i = 0; i < S.lifts.length; i++){
@@ -322,6 +332,58 @@ export function spiders(){
     rc(x - 3, y - 2, 6, 5, body);
     rc(x - 1, y - 1, 2, 2, mark);
     rc(x - 3 + (sp.dir > 0 ? 4 : 0), y - 2, 2, 1, mark);
+  }
+}
+export function tendrils(){
+  var S = world(), time = view.time;
+  var list = S.tendrils || [];
+  for (var i = 0; i < list.length; i++){
+    var w = list[i];
+    if (w.dead && w.hitT <= 0) continue;
+    var bx = Math.round(w.bx - cam.x), by = Math.round(w.by - cam.y);
+    var tx = Math.round(w.tx - cam.x), ty = Math.round(w.ty - cam.y);
+    if (bx < -30 && tx < -30) continue;
+    if (bx > VW + 30 && tx > VW + 30) continue;
+    var sting = w.kind === 0;
+    var col = w.dead ? '#4a4038' : (sting ? '#2f8a4a' : '#245a62');
+    var colD = w.dead ? '#322820' : (sting ? '#1c5a32' : '#163840');
+    var thick = sting ? 2 : 3;
+    var segs = sting ? 5 : 6;
+    var px = bx, py = by;
+    for (var k = 1; k <= segs; k++){
+      var t = k / segs;
+      var sway = Math.sin(time * 2.1 + w.ph + k * 0.7) * (w.state === 'idle' ? 3.2 : 1.1) * (1 - t * 0.35);
+      var nx = bx + (tx - bx) * t + sway;
+      var ny = by + (ty - by) * t;
+      lb([px, py], [nx, ny], thick + (k < 2 ? 1 : 0), k < 3 ? colD : col);
+      if (!sting && !w.dead && k > 1 && k < segs){
+        var sx = Math.round((px + nx) / 2), sy = Math.round((py + ny) / 2);
+        rc(sx - 1, sy - 1, 2, 2, '#6aa08a');
+      }
+      px = nx; py = ny;
+    }
+    if (w.dead){
+      rc(tx - 2, ty - 1, 4, 2, colD);
+      continue;
+    }
+    if (sting){
+      var barb = w.state === 'reach' ? 5 : 3;
+      rc(tx - 1, ty - barb, 2, barb, '#d4de6a');
+      rc(tx, ty - barb - 1, 1, 2, '#f2f0a8');
+    } else {
+      rc(tx - 2, ty - 2, 4, 4, col);
+      rc(tx - 1, ty - 1, 2, 2, '#8fc4b0');
+      if (w.holding){
+        var pcx = Math.round(S.p.x + S.p.w / 2 - cam.x);
+        var pcy = Math.round(S.p.y + S.p.h / 2 - cam.y);
+        for (var c = 0; c < 3; c++){
+          var a = time * 5 + c * 2.1 + w.ph;
+          var rx = 6 + c, ry = 5 + (c % 2);
+          lb([pcx + Math.cos(a) * rx, pcy + Math.sin(a) * ry],
+             [pcx + Math.cos(a + 1.4) * rx, pcy + Math.sin(a + 1.4) * ry], 2, col);
+        }
+      }
+    }
   }
 }
 export function pickables(){

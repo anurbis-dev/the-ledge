@@ -26,7 +26,8 @@ export const P = {
   helm:'#b8c4d8', helmD:'#6f7d94', shld:'#c98a3f', shldD:'#8a5a20',
   gearCol: { stick:['#c3bccf','#8a8399'], sword:['#d8dde8','#8f97a8'], blade:['#cfe6ff','#7fa8cc'],
              wshield:['#a9743f','#6d4423'], ishield:['#b8c0cc','#6f7885'], gshield:['#e0b452','#96751f'],
-             lhelm:['#a9743f','#6d4423'], ihelm:['#b8c4d8','#6f7d94'], ghelm:['#e6c357','#9a7c1e'] }
+             lhelm:['#a9743f','#6d4423'], ihelm:['#b8c4d8','#6f7d94'], ghelm:['#e6c357','#9a7c1e'],
+             scuba:['#5a8fae','#365a70'], flippers:['#e0813f','#96521f'], harpoon:['#8a94a0','#586570'] }
 };
 
 export const PALS = {

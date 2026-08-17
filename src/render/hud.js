@@ -43,26 +43,33 @@ export function hud(){
     rc(sx3 + 2, sy3, 4, 2, '#4a4368');
   }
   // инвентарь: активное снаряжение с прочностью и число запасных
-  var slots = [['weapon', 84], ['helmet', 108], ['shield', 130]];
+  var slots = [['weapon', 84], ['helmet', 108], ['shield', 130], ['scuba', 152], ['flippers', 174], ['harpoon', 196]];
   for (var si = 0; si < slots.length; si++){
     var sl = slots[si][0], ox2 = bx + slots[si][1], g2 = S.p.gear[sl];
     if (!g2) continue;
     var gc = P.gearCol[g2.type] || ['#cfc6ff', '#7a72a8'];
-    if (sl === 'weapon'){ rc(ox2, by + 2, 14, 2, gc[0]); rc(ox2, by + 4, 14, 1, gc[1]); }
+    if (sl === 'weapon' || sl === 'harpoon'){ rc(ox2, by + 2, 14, 2, gc[0]); rc(ox2, by + 4, 14, 1, gc[1]); }
     else if (sl === 'helmet'){ rc(ox2, by, 8, 4, gc[1]); rc(ox2 - 1, by + 4, 10, 2, gc[0]); }
+    else if (sl === 'scuba'){ rc(ox2, by, 6, 8, gc[0]); rc(ox2+6, by+2, 3, 4, gc[1]); }
+    else if (sl === 'flippers'){ rc(ox2, by+2, 10, 4, gc[0]); rc(ox2-1, by+5, 4, 3, gc[1]); rc(ox2+7, by+5, 4, 3, gc[1]); }
     else { rc(ox2, by, 7, 9, gc[0]); rc(ox2, by, 7, 1, '#ffe9a8'); }
-    var wgt = Math.max(0, Math.round(g2.uses / g2.max * 14));   // полоска прочности
+    var wgt = Math.max(0, Math.round(g2.uses / g2.max * 14));   // полоска прочности (у ласт/акваланга всегда полная)
     rc(ox2, by + 8, 14, 2, '#2a2444');
     rc(ox2, by + 8, wgt, 2, g2.uses <= 2 ? '#ff7a6a' : '#7de08a');
     var sp2 = 0;
     for (var q2 = 0; q2 < S.p.spare.length; q2++) if (S.p.spare[q2].slot === sl) sp2++;
     if (sp2 > 0) num(sp2, ox2 + 16, by + 1, '#cfc6ff');
   }
-  if (S.p.inWater || S.p.air < C.AIR_MAX - 0.1){
-    var aw = Math.max(0, Math.round(S.p.air / C.AIR_MAX * 40));
+  var airMax2 = S.p.scuba ? C.SCUBA_AIR : C.AIR_MAX;
+  if (S.p.inWater || S.p.air < airMax2 - 0.1){
+    var aw = Math.max(0, Math.round(S.p.air / airMax2 * 40));
     rc(6, 24, 42, 5, '#1b2436');
     rc(7, 25, aw, 3, S.p.air < 4 ? '#ff7a6a' : '#7fd0ff');
     for (var ab = 0; ab < 3; ab++) rc(50 + ab*4, 25 + (ab%2), 2, 2, '#7fd0ff');
+    if (S.p.scuba){
+      rc(70, 24, 3, 5, '#8a94a0'); rc(71, 22, 1, 2, '#8a94a0');
+      num(S.bag.tank, 75, 25, '#cfeaff');
+    }
   }
   if (S.done){
     var a = 0.5 + Math.sin(time*3)*0.3;

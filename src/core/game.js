@@ -23,6 +23,8 @@ import { mkSpiders } from '../entities/spiders.js';
 import { mkDark, inDark, lightAt } from '../entities/dark.js';
 import { mkChests, tryChest } from '../entities/chests.js';
 import { GEAR, giveGear, wearGear } from '../entities/gear.js';
+import { mkHarpoons } from '../entities/harpoons.js';
+import { mkTendrils, mkTendrilAt } from '../entities/tendrils.js';
 
 export function mkWorld(li){
   if (li !== undefined || !runtime.LV) loadLevel(li === undefined ? runtime.LVI : li);
@@ -31,7 +33,8 @@ export function mkWorld(li){
     doors: mkDoors(), enemies: mkEnemies(), pick: mkPickable(), keys: 0, msg: null,
     lifts: mkLifts(), fade: 0, gates: null, fliers: mkFliers(), drops: [], spiders: mkSpiders(),
     dark: mkDark(), darkNow: false, darkT: 0, darkDist: 999, chests: mkChests(), loot: [],
-    gone: {}, hp: 3, bag: { gem:0, shroom:0, coin:0, relic:0 },
+    harpoons: mkHarpoons(), tendrils: mkTendrils(),
+    gone: {}, hp: 3, bag: { gem:0, shroom:0, coin:0, relic:0, tank:0 },
     respawn: { x: runtime.LV.spawn.x, y: runtime.LV.spawn.y }, t: 0, hitStop: 0, shake: 0, fx: [], done: false
   };
   buildGates(w);
@@ -81,7 +84,7 @@ export const GAME = {
   solidTile, ladderTile, solidAt, ladderAt,
   setTile,
   buildGates: function(S){ buildGates(S); },
-  mkItemAt, mkEnemyAt, mkFlierAt, mkSpiderAt, mkTorchAt, mkChestAt,
+  mkItemAt, mkEnemyAt, mkFlierAt, mkSpiderAt, mkTorchAt, mkChestAt, mkTendrilAt,
   rectFree, mkWorld, step, resetPlayer,
   LEVELS, loadLevel, levelIndex(){ return runtime.LVI; },
   levelSpec(){ return runtime.LV; },

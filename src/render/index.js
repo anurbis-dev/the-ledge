@@ -4,7 +4,7 @@ export { tiles } from './tiles.js';
 export { invalidateChunk, invalidateAll } from './tiles.js';
 export { clampCam } from './camera.js';
 export { sky, fore, stepWater, buildWater, drawWeeds, drawFish, drawParts, drawHearts, vignette, getFish, spark } from './fx.js';
-export { plats, lifts, caveExit, doors, chests, lootDrops, items, pickables, drawTorches, enemies, spiders, fliers } from './sprites.js';
+export { plats, lifts, caveExit, doors, chests, lootDrops, items, pickables, drawTorches, drawHarpoons, enemies, spiders, fliers, tendrils } from './sprites.js';
 export { hero } from './hero.js';
 export { lightPass } from './light.js';
 export { hud, drawIntro, drawPaused, drawOutro } from './hud.js';

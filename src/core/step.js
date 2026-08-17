@@ -10,6 +10,7 @@ import { stepPlats, platUnder } from '../entities/plats.js';
 import { stepLifts, inLift, liftConstrain } from '../entities/lifts.js';
 import { stepCrumbs, crumbCheck } from '../entities/crumbs.js';
 import { stepTorches, tryAction, resolvePickup } from '../entities/torches.js';
+import { stepHarpoons } from '../entities/harpoons.js';
 import { stepEnemies } from '../entities/enemies.js';
 import { stepFliers, stepDrops } from '../entities/fliers.js';
 import { stepSpiders } from '../entities/spiders.js';
@@ -30,6 +31,7 @@ export function step(S, dt, inp){
   stepLifts(S, dt);
   stepCrumbs(S, dt);
   stepTorches(S, dt);
+  stepHarpoons(S, dt);
   stepEnemies(S, dt);
   stepFliers(S, dt);
   stepSpiders(S, dt);
@@ -181,7 +183,8 @@ export function step(S, dt, inp){
       var slow = p.stance > 0;
       p.walking = slow;
       p.vx += ax * C.ACC * dt;
-      var lim = p.inWater ? (p.dashT > 0 ? C.DASH_V : C.SWIM_V) : (p.wading ? C.WALK_V + 10 :
+      var lim = p.inWater ? (p.dashT > 0 ? C.DASH_V : C.SWIM_V) * (p.flippers ? C.FLIP_MUL : 1) :
+                (p.wading ? C.WALK_V + 10 :
                 (p.stance === 2 ? C.PRONE_V : (p.stance === 1 ? C.CROUCH_V : C.RUN)));
       lim *= Math.max(0.45, Math.abs(ax));
       if (p.vx > lim) p.vx = lim;
@@ -302,14 +305,19 @@ export function step(S, dt, inp){
     }
     if (surf !== null && p.swimLaunch <= 0 && p.vy < -22 && dip < 16)
       p.vy = -22;                                        // гребок у поверхности не бьёт головой
+    var airMax = p.scuba ? C.SCUBA_AIR : C.AIR_MAX;
     if (atSurf) {
-      if (p.air < C.AIR_MAX){ p.air = C.AIR_MAX; p.events.push('gasp'); }
+      if (p.air < airMax){ p.air = airMax; p.events.push('gasp'); }
     } else {
       p.air -= dt;
       if (p.air <= 0){
-        p.air = 1.4;
-        damage(S, 1, 0.2);
-        p.events.push('drown');
+        if (p.scuba && S.bag.tank > 0){
+          S.bag.tank--; p.air = airMax; p.events.push('tank');
+        } else {
+          p.air = 1.4;
+          damage(S, 1, 0.2);
+          p.events.push('drown');
+        }
       } else if (p.air < 4 && Math.floor(p.air*2) !== Math.floor((p.air+dt)*2)) p.events.push('lowair');
     }
     if (p.dashT > 0){ p.dashT -= dt; }

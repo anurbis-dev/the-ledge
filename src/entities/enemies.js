@@ -82,7 +82,7 @@ export function attack(S){
   var p = S.p;
   if (!p.stick || p.atkCd > 0 || p.atkT > 0) return false;
   if (p.stance > 0) return false;                        // бьём только стоя
-  if (p.state !== 'normal' && p.state !== 'ladder') return false;
+  if (p.state !== 'normal' && p.state !== 'ladder' && p.state !== 'snare') return false;
   p.atkT = C.ATK_T; p.atkCd = C.ATK_T + C.ATK_CD;
   p.events.push('swing');
   var reach = p.gear.weapon ? (GEAR[p.gear.weapon.type].reach || 1) : 1;

@@ -1,7 +1,7 @@
 import GAME from '../core/game.js';
 import { cam, view, world } from './ctx.js';
 import {
-  K, IDLE_A, IDLE_B, RUN, JUMPP, FALLP, LANDP, SLIDEP, STUNP, ROLLP,
+  K, IDLE_A, IDLE_B, RUN, JUMPP, FALLP, LANDP, SLIDEP, STUNP, SNAREP, ROLLP,
   LADP0, LADP1, LADF0, LADF1, ATK0, ATK1, ATK2, CROUCH, CROUCH_W,
   PRONE0, PRONE1, BARS0, BARS1, LADD0, LADD1, SWIM0, SWIM1,
   HANGL, HANG_A, HANG_B, lerpPose, climbPose, vaultPose, pickPose, throwPose,
@@ -16,6 +16,7 @@ function stancePose(st){ return st === 2 ? PRONE0 : (st === 1 ? CROUCH : IDLE_A)
 
 export function boxPose(p){
   var animT = view.animT, runPh = view.runPh;
+  if (p.state === 'snare') return SNAREP;
   if (p.inWater) return (Math.sin(animT*7) > 0) ? SWIM0 : SWIM1;   // одна поза, наклон задаётся поворотом
   if (p.state === 'bars') return (Math.sin(p.bars.ph*2.4) > 0) ? BARS0 : BARS1;
   if (p.stanceT > 0)                                  // плавный переход стоя/присед/лёжа
@@ -95,7 +96,7 @@ export function hero(){
     var vt = p.climb.p, lean = Math.sin(Math.min(1, Math.max(0, vt)) * Math.PI) * 0.5;
     rot = lean * (p.facing > 0 ? 1 : -1); cxs = 6; cys = 12;  // пригибание с наклоном вперёд
   }
-  else if (p.inWater && Math.abs(p.swimAng) > 0.02){
+  else if (p.state !== 'snare' && p.inWater && Math.abs(p.swimAng) > 0.02){
     rot = p.swimAng * (p.facing > 0 ? 1 : -1);            // наклон корпуса по ходу плавания
     cxs = 5; cys = 6;
   }
