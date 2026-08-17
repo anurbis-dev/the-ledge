@@ -27,10 +27,20 @@ Vanilla JS ES6 + Vite + `vite-plugin-singlefile`. Сборка = один `dist/
 - Агент коммитит и пушит `origin` / текущую ветку сам. Не просить пользователя.
 - Не force-push.
 
+## Dev server
+
+Параллельные агент-сессии и соседние проекты (PixisEditor) дерутся за `:5173`. Порт не хардкодить.
+
+1. Сначала проверить: слушает ли уже `vite` с cwd этого репо. Если да — открыть его фактический URL, новый не поднимать.
+2. Если нет — `npm run dev`. Vite сам берёт свободный порт (5173, 5174, …). URL только из stdout (`Local: http://localhost:NNNN/`), не угадывать.
+3. `strictPort` не включать. `--port 5173` не форсить.
+4. Сервер, который подняла **эта** сессия, после проверки убить (pid / task). Чужие `vite` и другие проекты не трогать.
+5. Не оставлять хвосты: не плодить процессы на 5174/5175/… на каждую сессию.
+
 ## Post-fix
 
 1. Минорный фикс → строка в `docs/CHANGELOG.md`. API/поведение → синк `docs/` + `Context_map.md`.
 2. `CHANGELOG.md` только unreleased. При коммите старое → `docs/CHANGELOG_ARCHIVE.md`.
 3. MemPalace.
-4. Браузер: `http://localhost:5173/` (Vite), глобали нет `editor` — проверять canvas/`GAME` через evaluate.
+4. Браузер: URL своего Vite (см. Dev server), не `:5173` по умолчанию. Глобали нет `editor` — проверять canvas/`GAME` через evaluate.
 5. Commit + push.
