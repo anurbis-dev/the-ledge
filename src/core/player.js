@@ -24,6 +24,7 @@ export function mkPlayer(){
     atSurface: false, swimSurf: null, swimAng: 0, wasWet: false, bubT: 0,
     air: C.AIR_MAX, swimLaunch: 0, stam: C.STAM_MAX, dashT: 0,
     stanceT: 0, stanceFrom: 0, lookUp: 0,
+    gapCrawl: false, edgeHoldT: 0,
     events: []
   };
 }
@@ -366,14 +367,20 @@ export function tryClimbOut(S, p, dir){
   return true;
 }
 
-function stanceFitsAt(p, st){
+export function stanceFitsAt(p, st){
   var h = stanceH(st), w = stanceW(st);
   return rectFree(p.x + p.w / 2 - w / 2, p.y + p.h - h, w, h);
 }
-/* конец приседа/лаза: стоя / присед по щели; ниже приседа — в вис */
+/* были в щели (встать нельзя) — авто-подъём только на выходе */
+export function markGap(p){
+  if (p.stance > 0 && !stanceFitsAt(p, 0)) p.gapCrawl = true;
+  else if (p.stance === 0) p.gapCrawl = false;
+}
+/* конец приседа/лаза: встаём сами только после щели; иначе стоп у губы */
 export function tryCrawlEdge(S, p, dir){
   if (!dir || p.stance <= 0 || !p.onGround) return 0;
   if (groundAhead(S, p, dir)) return 0;
+  if (!p.gapCrawl) return -1;                          // открытый край: стойку не трогаем
   if (stanceFitsAt(p, 0)){
     setStance(S, p, 0);
     return 1;
@@ -385,12 +392,11 @@ export function tryCrawlEdge(S, p, dir){
   if (tryDescend(S, p, dir)) return 2;
   return -1;
 }
-/* --- спуск спиной с края --- */
-export function tryDescend(S, p, want){
+function findDescend(p, want){
   var gy = Math.floor((p.y + p.h + 2) / T) * T;
   // если у края вплотную стоит лестница — кромка не работает, уходим на лестницу
   var lc0 = Math.floor((p.x + p.w/2) / T), lr0 = Math.floor((gy + 2) / T);
-  if (ladderTile(lc0, lr0) || ladderTile(lc0 - 1, lr0) || ladderTile(lc0 + 1, lr0)) return false;
+  if (ladderTile(lc0, lr0) || ladderTile(lc0 - 1, lr0) || ladderTile(lc0 + 1, lr0)) return null;
   var order = want ? [want, -want] : [p.facing, -p.facing];
   for (var i = 0; i < order.length; i++){
     var dir = order[i], col = -1;
@@ -402,10 +408,19 @@ export function tryDescend(S, p, want){
     var cx = dir > 0 ? (col + 1) * T : col * T, f = -dir;
     var hb = hangBox(cx, gy, f, 'ledge');
     if (!rectFree(hb.x, hb.y, C.W, C.H)) continue;       // вис всегда в полный рост
-    startClimb(p, -1, cx, gy, f, 'ledge');
-    return true;
+    return { cx: cx, gy: gy, facing: f };
   }
-  return false;
+  return null;
+}
+export function canDescend(p, want){
+  return !!findDescend(p, want);
+}
+/* --- спуск спиной с края --- */
+export function tryDescend(S, p, want){
+  var d = findDescend(p, want);
+  if (!d) return false;
+  startClimb(p, -1, d.cx, d.gy, d.facing, 'ledge');
+  return true;
 }
 /* --- автоподъём на уступ в один тайл при ходьбе: рывок через колено, без хвата и без потери скорости --- */
 export function tryMantle(S, p, dir, vx){

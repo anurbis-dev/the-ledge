@@ -3,8 +3,9 @@ import { runtime, setWorld } from './runtime.js';
 import { tileAt, rectFree, isWaterV, waterSurfaceY, ladderTile } from './map.js';
 import {
   moveX, moveY, damage, updateBars, ease, updateClimb, updateHang, updateLadder,
-  setStance, setH, groundAhead, slopeUnder, grounded, autoLadder, tryBars,
-  tryLadder, tryGrab, tryClimbOut, tryCrawlEdge, ladderTopUnder, attach, tryDescend, tryMantle
+  setStance, setH, slopeUnder, grounded, autoLadder, tryBars,
+  tryLadder, tryGrab, tryClimbOut, tryCrawlEdge, ladderTopUnder, attach, tryDescend, tryMantle,
+  markGap, canDescend
 } from './player.js';
 import { stepPlats, platUnder } from '../entities/plats.js';
 import { stepLifts, inLift, liftConstrain } from '../entities/lifts.js';
@@ -128,15 +129,16 @@ export function step(S, dt, inp){
   if (inCab && p.stance > 0) setStance(S, p, 0);
   var onLadTop = ladderTopUnder(p, p.y + p.h + 1) !== null;
   var stanceBefore = p.stance;
+  var onEdge = p.onGround && !inCab && !onLadTop && !p.inWater && canDescend(p, inp.x);
   if (!rolling && p.onGround && !inCab && !onLadTop && !p.inWater){    // на верхушке лестницы ↓ — это спуск
     if (inp.downPressed && p.stance < 2 && Math.abs(p.vx) <= 58) setStance(S, p, p.stance + 1);
-    else if (inp.downHeld && p.stance === 0 && Math.abs(p.vx) <= 58) setStance(S, p, 1);
+    else if (!onEdge && inp.downHeld && p.stance === 0 && Math.abs(p.vx) <= 58) setStance(S, p, 1);
     if ((inp.upPressed || inp.upHeld || inp.jumpPressed) && p.stance > 0){
       if (setStance(S, p, p.stance - 1)) { p.buf = 0; }   // удержание ↑ поднимает до стойки
     }
-    // выход из лаза: нет потолка — стоя; щель только для приседа — присед
-    if (p.stance === 2 && !inp.downHeld && !inp.downPressed){
-      if (!setStance(S, p, 0)) setStance(S, p, 1);
+    // авто-подъём только после щели, не в открытом месте перед ней
+    if (p.gapCrawl && p.stance > 0 && !inp.downHeld && !inp.downPressed){
+      if (!setStance(S, p, 0) && p.stance === 2) setStance(S, p, 1);
     }
   }
   if (p.stance !== stanceBefore){ p.stanceFrom = stanceBefore; p.stanceT = C.STANCE_T; }  // плавный переход позы
@@ -159,6 +161,7 @@ export function step(S, dt, inp){
     else if (!fitStand && fitCrouch && p.stance <= 1){ setH(p, C.CRH); p.stance = 1; }
     else if (!fitStand && !fitCrouch && p.h > C.PRH){ setH(p, C.PRH); p.stance = 2; }
   }
+  markGap(p);
 
   if (rolling && p.inWater){ p.rollT = 0; setStance(S, p, 0); rolling = false; }
   if (rolling){
@@ -198,7 +201,7 @@ export function step(S, dt, inp){
       if (!rectFree(p.x + p.facing*2, p.y, p.w, p.h) && slopeUnder(p) === null){
         var wasVx = p.vx;
         p.vx = 0;                                 // упор в стену — не толкаемся (на склоне не мешаем)
-        if (p.onGround && p.stance === 0 && tryMantle(S, p, p.facing, wasVx)){
+        if (p.onGround && stanceBefore === 0 && p.stance === 0 && tryMantle(S, p, p.facing, wasVx)){
           crumbCheck(S, p); pickups(S, p);
           return;
         }
@@ -423,13 +426,24 @@ export function step(S, dt, inp){
         }
       }
       if (!tryLadder(S, p, inp)){
-        if ((inp.downPressed || inp.downHeld) && p.grabCd <= 0) tryDescend(S, p, inp.x);
+        onEdge = canDescend(p, inp.x);
+        if (onEdge && p.grabCd <= 0){
+          if (inp.downHeld) p.edgeHoldT += dt; else p.edgeHoldT = 0;
+          var tapHang = inp.downPressed && stanceBefore === 2;
+          var holdHang = inp.downHeld && p.edgeHoldT >= C.EDGE_HOLD;
+          if (tapHang || holdHang){
+            if (tryDescend(S, p, inp.x)) p.edgeHoldT = 0;
+          }
+        } else {
+          p.edgeHoldT = 0;
+        }
       }
     }
   }
 
   liftConstrain(S);
   stepDark(S, dt, preX, preY);
+  markGap(p);
   crumbCheck(S, p);
   pickups(S, p);
 
