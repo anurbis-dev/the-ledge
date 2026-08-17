@@ -1,6 +1,6 @@
 # the LEDGE — agent instructions
 
-Канон для Grok Build / Claude / других агентов. Ориентация: `Context_map.md`, план `tmp/revision-plan.md`.
+Канон для Grok Build / Claude / других агентов. Ориентация: `Context_map.md`.
 
 Источник правды по геймплею: `tmp/ledge-v19.html`, пока модули не стабилизированы. Если память и код расходятся — верить текущему коду.
 

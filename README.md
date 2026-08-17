@@ -25,7 +25,6 @@ npm run build    # → dist/index.html (один файл)
 | `src/input/` | клавиши + виртуальный стик |
 | `src/editor/` | встроенный тайл-редактор |
 | `src/audio/` | WebAudio blips |
-| `tmp/revision-plan.md` | план ревизии |
 | `tmp/ledge-v19.html` | канон монолита |
 
 ## Version
@@ -35,4 +34,3 @@ SemVer в `package.json`. Перед коммитом: `npm run bump:dev` (WIP) 
 ## Links
 
 - Repo: https://github.com/anurbis-dev/the-ledge
-- План: `tmp/revision-plan.md`

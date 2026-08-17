@@ -1,6 +1,6 @@
 {
   "name": "the-ledge",
-  "version": "0.1.0-dev.0",
+  "version": "0.1.0-dev.1",
   "description": "the LEDGE — пещеры и кромки",
   "type": "module",
   "scripts": {
@@ -20,7 +20,11 @@
     "type": "git",
     "url": "git+https://github.com/anurbis-dev/the-ledge.git"
   },
-  "keywords": ["game", "platformer", "ledge"],
+  "keywords": [
+    "game",
+    "platformer",
+    "ledge"
+  ],
   "author": "anurbis-dev",
   "license": "ISC",
   "bugs": {
