@@ -5,14 +5,21 @@ import { level as halls } from './halls.js';
 import { level as crucible } from './crucible.js';
 import { runtime, resetMap } from '../core/runtime.js';
 import { fillR } from '../core/map.js';
+import { stashLayers, restoreLayers, initDefaultLayers } from '../core/layers.js';
 
 export const LEVELS = [caves, cliff, waterfall, halls, crucible];
 
 export function loadLevel(i){
+  stashLayers(runtime.LV);
   runtime.LVI = Math.max(0, Math.min(LEVELS.length - 1, i));
   runtime.LV = LEVELS[runtime.LVI];
-  resetMap(runtime.LV.w, runtime.LV.h);
-  runtime.LV.build();
+  if (runtime.LV._stash){
+    restoreLayers(runtime.LV);
+  } else {
+    resetMap(runtime.LV.w, runtime.LV.h);
+    runtime.LV.build();
+    initDefaultLayers();
+  }
   return runtime.LV;
 }
 
@@ -22,7 +29,7 @@ export function addBlankLevel(){
     id: n, name: 'LEVEL ' + n, pal: 'stone', w: 16, h: 16, blank: true,
     spawn: { x: 16, y: 6 * 16 - 22 },
     exit: { x: 12 * 16, y: 8 * 16 },
-    lights: [],
+    lights: [], sounds: [], volumes: [],
     items: function(){ return []; },
     enemies: [], fliers: [], spiders: [], tendrils: [],
     torches: [], chests: [], doors: [], lifts: [], plats: [], dark: [],

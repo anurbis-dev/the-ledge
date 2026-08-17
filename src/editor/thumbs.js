@@ -155,6 +155,15 @@ export function paintObjIcon(c, kind, s){
     r(7, 3, 2, 1, P.gem); r(5, 4, 6, 3, P.gem); r(6, 7, 4, 4, P.gemD); r(6, 4, 1, 2, '#fff');
   } else if (kind === 'shroom'){
     r(7, 8, 2, 5, P.stem); r(4, 5, 8, 4, P.shroom); r(5, 3, 6, 3, P.shroom); r(6, 4, 1, 1, '#ffe9c9');
+  } else if (kind === 'sound'){
+    r(3, 6, 3, 4, '#7ad0ff'); r(6, 5, 2, 6, '#7ad0ff');
+    r(9, 4, 1, 8, '#4aa0c8'); r(11, 5, 1, 6, '#4aa0c8'); r(13, 6, 1, 4, '#4aa0c8');
+  } else if (kind === 'light'){
+    r(7, 8, 2, 6, P.woodD); r(5, 4, 6, 5, '#ffcf7a'); r(6, 2, 4, 3, '#fff3c4'); r(7, 1, 2, 2, '#fff');
+  } else if (kind === 'volume'){
+    r(2, 3, 12, 10, '#241a40'); r(3, 4, 10, 8, '#3a5080aa');
+    r(2, 3, 12, 1, '#88a0ff'); r(2, 12, 12, 1, '#88a0ff');
+    r(2, 3, 1, 10, '#88a0ff'); r(13, 3, 1, 10, '#88a0ff');
   } else {
     r(4, 4, 8, 8, '#cfc6ff');
   }

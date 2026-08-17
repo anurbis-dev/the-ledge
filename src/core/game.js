@@ -5,10 +5,11 @@ import {
   SLL4A, SLL4B, SLL4C, SLL4D, SLRCA, SLRCB, SLLCB, SLLCA
 } from './constants.js';
 import { runtime, setWorld, hooks, ensureMap, mapIx, inMap, mapMinC, mapMaxC, mapMinR, mapMaxR } from './runtime.js';
+import { getActiveLayer, getLayers } from './layers.js';
 import {
   isHalfV, isBarV, ladderTop, isSlopeV, isWaterV, isFlowV, isWetV, slopeSurfaceY,
   slopeTop, slopeSpec, slopeFamily, slopeRiseRight, SLOPE_SEQ,
-  tileAt, isSolidV, isLadV, solidTile, ladderTile, solidAt, ladderAt, rectFree
+  tileAt, varAt, varR, isSolidV, isLadV, solidTile, ladderTile, solidAt, ladderAt, rectFree
 } from './map.js';
 import { mkPlayer, resetPlayer, stanceH, hangBox, standBox } from './player.js';
 import { step } from './step.js';
@@ -28,6 +29,9 @@ import { mkChests, tryChest } from '../entities/chests.js';
 import { GEAR, giveGear, wearGear } from '../entities/gear.js';
 import { mkHarpoons } from '../entities/harpoons.js';
 import { mkTendrils, mkTendrilAt } from '../entities/tendrils.js';
+import { mkLights, mkLightAt } from '../entities/lights.js';
+import { mkSounds, mkSoundAt } from '../entities/sounds.js';
+import { mkVolumes, mkVolumeAt } from '../entities/volumes.js';
 
 export function mkWorld(li){
   if (li !== undefined || !runtime.LV) loadLevel(li === undefined ? runtime.LVI : li);
@@ -37,6 +41,7 @@ export function mkWorld(li){
     lifts: mkLifts(), fade: 0, gates: null, fliers: mkFliers(), drops: [], spiders: mkSpiders(),
     dark: mkDark(), darkNow: false, darkT: 0, darkDist: 999, chests: mkChests(), loot: [],
     harpoons: mkHarpoons(), tendrils: mkTendrils(),
+    lights: mkLights(), sounds: mkSounds(), volumes: mkVolumes(),
     gone: {}, hp: 3, bag: { gem:0, shroom:0, coin:0, relic:0, tank:0 },
     respawn: { x: runtime.LV.spawn.x, y: runtime.LV.spawn.y }, t: 0, hitStop: 0, shake: 0, fx: [], done: false,
     dead: false
@@ -46,10 +51,25 @@ export function mkWorld(li){
 }
 
 function setTile(c, r, v){
+  var L = getActiveLayer();
+  if (L && L.locked) return false;
   if (!inMap(c, r) && !v) return false;
   ensureMap(c, r);
   if (!inMap(c, r)) return false;
-  runtime.base[mapIx(c, r)] = v;
+  var buf = L && L.base ? L.base : runtime.base;
+  var vr = L && L.vary ? L.vary : runtime.vary;
+  var ix = mapIx(c, r);
+  if (buf[ix] !== v) vr[ix] = 0;   // смена типа тайла сбрасывает ручной узор
+  buf[ix] = v;
+  if (hooks.onSetTile) hooks.onSetTile(c, r);
+  return true;
+}
+function setVar(c, r, v){
+  var L = getActiveLayer();
+  if (L && L.locked) return false;
+  if (!inMap(c, r)) return false;
+  var vr = L && L.vary ? L.vary : runtime.vary;
+  vr[mapIx(c, r)] = v;
   if (hooks.onSetTile) hooks.onSetTile(c, r);
   return true;
 }
@@ -92,9 +112,10 @@ export const GAME = {
   slopeSpec, slopeFamily, slopeRiseRight, SLOPE_SEQ,
   tileAt, isSolidV, isLadV,
   solidTile, ladderTile, solidAt, ladderAt,
-  setTile,
+  setTile, varAt, setVar, varR,
   buildGates: function(S){ buildGates(S); },
   mkItemAt, mkEnemyAt, mkFlierAt, mkSpiderAt, mkTorchAt, mkChestAt, mkTendrilAt,
+  mkLightAt, mkSoundAt, mkVolumeAt, getLayers, getActiveLayer,
   rectFree, mkWorld, step, resetPlayer,
   LEVELS, loadLevel, newBlankLevel: addBlankLevel, levelIndex(){ return runtime.LVI; },
   levelSpec(){ return runtime.LV; },

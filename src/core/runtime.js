@@ -1,6 +1,10 @@
 let originC = 0, originR = 0;
 let MAP_W = 186, MAP_H = 48;
 let base = new Uint8Array(MAP_W * MAP_H);
+let vary = new Uint8Array(MAP_W * MAP_H);   // ручной выбор узора тайла: 0 — авто (по хэшу), 1..N — конкретный вариант
+let layers = [];
+let activeLayer = 0;
+let soloLayer = 0;
 let LV = null, LVI = 0;
 let W = null;                     // активный мир (для solid-запросов)
 var GROW = 16;
@@ -16,6 +20,14 @@ export const runtime = {
   set MAP_H(v){ MAP_H = v; },
   get base(){ return base; },
   set base(v){ base = v; },
+  get vary(){ return vary; },
+  set vary(v){ vary = v; },
+  get layers(){ return layers; },
+  set layers(v){ layers = v || []; },
+  get activeLayer(){ return activeLayer; },
+  set activeLayer(v){ activeLayer = v; },
+  get soloLayer(){ return soloLayer; },
+  set soloLayer(v){ soloLayer = v; },
   get LV(){ return LV; },
   set LV(v){ LV = v; },
   get LVI(){ return LVI; },
@@ -45,6 +57,10 @@ export function resetMap(w, h){
   originC = 0; originR = 0;
   MAP_W = Math.max(1, w); MAP_H = Math.max(1, h);
   base = new Uint8Array(MAP_W * MAP_H);
+  vary = new Uint8Array(MAP_W * MAP_H);
+  layers = [];
+  activeLayer = 0;
+  soloLayer = 0;
 }
 
 function remapPacked(obj, oc, or, ow, nc0, nr0, nw){
@@ -69,15 +85,32 @@ export function ensureMap(c, r){
   if (c >= oc + ow) nc1 = oc + ow + Math.ceil((c + 1 - oc - ow) / GROW) * GROW;
   if (r >= or + oh) nr1 = or + oh + Math.ceil((r + 1 - or - oh) / GROW) * GROW;
   var nw = nc1 - nc0, nh = nr1 - nr0;
-  var next = new Uint8Array(nw * nh);
-  for (var y = 0; y < oh; y++)
-    next.set(base.subarray(y * ow, y * ow + ow), (y + or - nr0) * nw + (oc - nc0));
+  function growBuf(src){
+    var out = new Uint8Array(nw * nh);
+    for (var y = 0; y < oh; y++)
+      out.set(src.subarray(y * ow, y * ow + ow), (y + or - nr0) * nw + (oc - nc0));
+    return out;
+  }
+  if (layers && layers.length){
+    for (var i = 0; i < layers.length; i++){
+      layers[i].base = growBuf(layers[i].base);
+      layers[i].vary = growBuf(layers[i].vary);
+      layers[i]._chunks = {};
+    }
+    var main = null;
+    for (i = 0; i < layers.length; i++) if (layers[i].collide){ main = layers[i]; break; }
+    if (!main) main = layers[0];
+    base = main.base; vary = main.vary;
+  } else {
+    base = growBuf(base);
+    vary = growBuf(vary);
+  }
   if (W){
     if (W.gone) W.gone = remapPacked(W.gone, oc, or, ow, nc0, nr0, nw);
     if (W.crumbT) W.crumbT = remapPacked(W.crumbT, oc, or, ow, nc0, nr0, nw);
     if (W.gates) W.gates = remapPacked(W.gates, oc, or, ow, nc0, nr0, nw);
   }
-  originC = nc0; originR = nr0; MAP_W = nw; MAP_H = nh; base = next;
+  originC = nc0; originR = nr0; MAP_W = nw; MAP_H = nh;
   if (hooks.onGrowMap) hooks.onGrowMap();
   return true;
 }

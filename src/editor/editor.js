@@ -9,6 +9,11 @@ import { findById } from '../entities/ids.js';
 import { isSlopeBrush, fitSlopeStroke } from './slopes.js';
 import { tileThumb, objThumb } from './thumbs.js';
 import { renderParams, resetAllParams } from './params.js';
+import { getActiveLayer, getLayers, layerTile, layerVar } from '../core/layers.js';
+import { showLayersPanel, bindLayersPanel } from './layers-panel.js';
+import { showInspect, bindInspect } from './inspect.js';
+import { pickSpecial, hitGizmo, beginGizmo, moveGizmo, endGizmo, gizmoActive, drawGizmos } from './gizmos.js';
+
 
 var G = GAME;
 var HOLD_MS = 450;
@@ -16,6 +21,7 @@ var ZOOM_STEPS = [0.25, 0.5, 1, 2, 4];
 var ICON_MIN = 16, ICON_MAX = 56;
 var HKEY = 'ledge.ed.h';
 var IKEY = 'ledge.ed.icon';
+var GKEY = 'ledge.ed.geo';
 
 export var ED = {
   on: false, tab: 'tile', tool: 'tile', pal: 0, painting: false, erasing: false,
@@ -23,29 +29,32 @@ export var ED = {
   stroke: null, strokeOrig: null, waterShade: 0.75,
   zoom: 1, icon: 28, hover: null,
   clickCell: null, clickBrush: -1,
-  holdT: null, holdErased: false, holdX: 0, holdY: 0
+  holdT: null, holdErased: false, holdX: 0, holdY: 0,
+  dragObj: null, showGeo: false, sel: null, dragPal: null, giz: false
 };
 
+/* varN — сколько ручных узоров держит тайл; повторный клик по уже стоящему тайлу того же брашка
+   перебирает узоры 1..varN (0 — авто-узор по хэшу позиции, применяется по умолчанию) */
 export var ED_TILES = [
-  { name: 'Empty',   id: 0,       color: '#241a30', variants: [] },
-  { name: 'Stone',   id: 1,       color: '#635c8c', variants: [G.RNDA, G.RNDB] },
-  { name: 'Crumb',   id: 2,       color: '#96705a', variants: [] },
-  { name: 'Ladder',  id: 3,       color: '#bd8347', variants: [] },
-  { name: 'Ladder F',id: 4,       color: '#d09b5c', variants: [] },
-  { name: 'Slope R', id: G.SLR,   color: '#8f86b8', variants: [], slope: 'r' },
-  { name: 'Slope L', id: G.SLL,   color: '#8f86b8', variants: [], slope: 'l' },
-  { name: 'Half R lo', id: G.SLR2, color: '#9a92c4', variants: [], slope: 'r2' },
-  { name: 'Half R hi', id: G.SLR3, color: '#9a92c4', variants: [], slope: 'r3' },
-  { name: 'Half L hi', id: G.SLL2, color: '#9a92c4', variants: [], slope: 'l2' },
-  { name: 'Half L lo', id: G.SLL3, color: '#9a92c4', variants: [], slope: 'l3' },
-  { name: 'Arc R',   id: G.SLRCA, color: '#a89ed0', variants: [], slope: 'arcR' },
-  { name: 'Arc L',   id: G.SLLCB, color: '#a89ed0', variants: [], slope: 'arcL' },
-  { name: 'Half top',id: 7,       color: '#4a4069', variants: [] },
-  { name: 'Bar',     id: 8,       color: '#a9743f', variants: [] },
-  { name: 'Water',   id: 13,      color: '#49a0cf', variants: [] },
-  { name: 'Fall',    id: 14,      color: '#2f7fae', variants: [] },
-  { name: 'Diag R',  id: 5,       color: '#c9a06a', variants: [], slope: 'r' },
-  { name: 'Diag L',  id: 6,       color: '#c9a06a', variants: [], slope: 'l' }
+  { name: 'Empty',   id: 0,       color: '#241a30' },
+  { name: 'Stone',   id: 1,       color: '#635c8c', varN: 5 },
+  { name: 'Crumb',   id: 2,       color: '#96705a' },
+  { name: 'Ladder',  id: 3,       color: '#bd8347' },
+  { name: 'Ladder F',id: 4,       color: '#d09b5c' },
+  { name: 'Slope R', id: G.SLR,   color: '#8f86b8', slope: 'r', varN: 5 },
+  { name: 'Slope L', id: G.SLL,   color: '#8f86b8', slope: 'l', varN: 5 },
+  { name: 'Half R lo', id: G.SLR2, color: '#9a92c4', slope: 'r2', varN: 5 },
+  { name: 'Half R hi', id: G.SLR3, color: '#9a92c4', slope: 'r3', varN: 5 },
+  { name: 'Half L hi', id: G.SLL2, color: '#9a92c4', slope: 'l2', varN: 5 },
+  { name: 'Half L lo', id: G.SLL3, color: '#9a92c4', slope: 'l3', varN: 5 },
+  { name: 'Arc R',   id: G.SLRCA, color: '#a89ed0', slope: 'arcR', varN: 5 },
+  { name: 'Arc L',   id: G.SLLCB, color: '#a89ed0', slope: 'arcL', varN: 5 },
+  { name: 'Half top',id: 7,       color: '#4a4069', varN: 5 },
+  { name: 'Bar',     id: 8,       color: '#a9743f' },
+  { name: 'Water',   id: 13,      color: '#49a0cf' },
+  { name: 'Fall',    id: 14,      color: '#2f7fae' },
+  { name: 'Diag R',  id: 5,       color: '#c9a06a', slope: 'r', varN: 5 },
+  { name: 'Diag L',  id: 6,       color: '#c9a06a', slope: 'l', varN: 5 }
 ];
 export var ED_OBJS = [
   { name: 'Foe 1',   kind: 'enemy0' },
@@ -61,8 +70,55 @@ export var ED_OBJS = [
   { name: 'Locked',  kind: 'chestL' },
   { name: 'Coin',    kind: 'coin' },
   { name: 'Gem',     kind: 'gem' },
-  { name: 'Shroom',  kind: 'shroom' }
+  { name: 'Shroom',  kind: 'shroom' },
+  { name: 'Sound',   kind: 'sound' },
+  { name: 'Light',   kind: 'light' },
+  { name: 'Volume',  kind: 'volume' }
 ];
+
+/* единый список типов объектов: откуда брать массив в мире и как считать точку попадания курсора */
+var OBJ_KINDS = [
+  { type: 'enemy',   get: function(S){ return S.enemies; },        set: function(S, a){ S.enemies = a; },
+    pos: function(o){ return [o.x + o.w/2, o.y + o.h/2]; } },
+  { type: 'flier',   get: function(S){ return S.fliers; },         set: function(S, a){ S.fliers = a; },
+    pos: function(o){ return [o.x + o.w/2, o.y + o.h/2]; } },
+  { type: 'spider',  get: function(S){ return S.spiders; },        set: function(S, a){ S.spiders = a; },
+    pos: function(o){ return [o.hx, o.hy - 8]; } },
+  { type: 'tendril', get: function(S){ return S.tendrils || []; }, set: function(S, a){ S.tendrils = a; },
+    pos: function(o){ return [o.bx, o.by]; } },
+  { type: 'torch',   get: function(S){ return S.torches; },        set: function(S, a){ S.torches = a; },
+    pos: function(o){ return [o.x, o.y - 8]; } },
+  { type: 'chest',   get: function(S){ return S.chests; },         set: function(S, a){ S.chests = a; },
+    pos: function(o){ return [o.x + 10, o.y - 6]; } },
+  { type: 'item',    get: function(S){ return S.items; },          set: function(S, a){ S.items = a; },
+    pos: function(o){ return [o.x, o.y]; } }
+];
+function objNear(pos, ox, oy){ return Math.abs(pos[0] - ox) < 14 && Math.abs(pos[1] - oy) < 18; }
+function findObjectAt(px, py){
+  var S = world();
+  for (var i = 0; i < OBJ_KINDS.length; i++){
+    var k = OBJ_KINDS[i], arr = k.get(S);
+    for (var j = arr.length - 1; j >= 0; j--)
+      if (objNear(k.pos(arr[j]), px, py)) return { kindDef: k, type: k.type, obj: arr[j] };
+  }
+  return null;
+}
+function removeObject(entry){
+  var S = world(), k = entry.kindDef;
+  k.set(S, k.get(S).filter(function(o){ return o !== entry.obj; }));
+  if (entry.type === 'torch' && S.p.torch >= 0 && !findById(S.torches, S.p.torch)) S.p.torch = -1;
+}
+function respawnObjectAt(entry, cell){
+  var S = world(), T = G.T;
+  var cx = cell.c*T + 8, cy = cell.r*T + 8, floorY = (cell.r + 1)*T, o = entry.obj;
+  if (entry.type === 'enemy') G.mkEnemyAt(S, cx - 5, floorY, o.kind);
+  else if (entry.type === 'flier') G.mkFlierAt(S, cx - 6, cy - 4, o.kind);
+  else if (entry.type === 'spider') G.mkSpiderAt(S, cx, floorY, o.kind);
+  else if (entry.type === 'tendril') G.mkTendrilAt(S, cx, cy, o.kind);
+  else if (entry.type === 'torch') G.mkTorchAt(S, cx, floorY);
+  else if (entry.type === 'chest') G.mkChestAt(S, cell.c*T, floorY, o.kind, o.locked);
+  else if (entry.type === 'item') G.mkItemAt(S, cx, cy, o.kind);
+}
 
 var edBar = document.getElementById('edbar');
 var edPal = document.getElementById('edPal');
@@ -77,7 +133,11 @@ var onOpen = null, onNewLevel = null;
 try {
   var ih = +localStorage.getItem(IKEY);
   if (ih >= ICON_MIN && ih <= ICON_MAX) ED.icon = ih;
+  ED.showGeo = localStorage.getItem(GKEY) === '1';
 } catch (_){}
+
+bindLayersPanel({ onChange: function(){} });
+bindInspect({ onChange: function(){}, onClose: function(){ ED.sel = null; } });
 
 export function bindEditor(hooks){
   onOpen = hooks && hooks.onOpen;
@@ -105,11 +165,11 @@ function syncTabs(){
   if (edParams) edParams.hidden = ED.tab !== 'params';
 }
 
-function swatch(parent, canvas, label, active, onClick){
+function swatch(parent, canvas, label, active, onPick, kind, pal){
   var b = document.createElement('button');
   b.type = 'button';
   b.className = 'ed-swatch' + (active ? ' on' : '');
-  b.title = label;
+  b.title = label + ' — drag onto canvas';
   b.style.width = (ED.icon + 6) + 'px';
   b.style.height = (ED.icon + 6) + 'px';
   var img = canvas;
@@ -117,9 +177,59 @@ function swatch(parent, canvas, label, active, onClick){
   img.style.width = ED.icon + 'px';
   img.style.height = ED.icon + 'px';
   b.appendChild(img);
-  b.addEventListener('click', function(e){ e.stopPropagation(); onClick(); edRefresh(); });
+  b.addEventListener('pointerdown', function(e){
+    if (e.button !== 0) return;
+    e.stopPropagation(); e.preventDefault();
+    onPick();
+    startPaletteDrag(e, kind, pal, img);
+    edRefresh();
+  });
   parent.appendChild(b);
   return b;
+}
+
+function startPaletteDrag(e, kind, pal, img){
+  ED.dragPal = { kind: kind, pal: pal, x: e.clientX, y: e.clientY, moved: false, pointerId: e.pointerId };
+  var ghost = document.getElementById('edGhost');
+  if (ghost){
+    ghost.textContent = '';
+    var c = document.createElement('canvas');
+    c.width = img.width; c.height = img.height;
+    c.getContext('2d').drawImage(img, 0, 0);
+    c.style.width = ED.icon + 'px'; c.style.height = ED.icon + 'px';
+    ghost.appendChild(c);
+    ghost.hidden = false;
+    ghost.style.left = e.clientX + 8 + 'px';
+    ghost.style.top = e.clientY + 8 + 'px';
+  }
+  function move(ev){
+    if (!ED.dragPal || ev.pointerId !== ED.dragPal.pointerId) return;
+    if (Math.abs(ev.clientX - ED.dragPal.x) > 4 || Math.abs(ev.clientY - ED.dragPal.y) > 4)
+      ED.dragPal.moved = true;
+    if (ghost){
+      ghost.style.left = ev.clientX + 8 + 'px';
+      ghost.style.top = ev.clientY + 8 + 'px';
+    }
+  }
+  function up(ev){
+    if (!ED.dragPal || ev.pointerId !== ED.dragPal.pointerId) return;
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', up);
+    var r = cv.getBoundingClientRect();
+    var over = ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom;
+    if (over && ED.dragPal.moved){
+      ED.tool = ED.dragPal.kind === 'obj' ? 'obj' : 'tile';
+      ED.pal = ED.dragPal.pal;
+      var cell = edCell(ev.clientX, ev.clientY);
+      edApply(cell, true);
+    }
+    ED.dragPal = null;
+    if (ghost) ghost.hidden = true;
+  }
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', up);
 }
 
 function extraBtn(parent, label, active, onClick){
@@ -140,14 +250,14 @@ function fillPal(){
     for (var j = 0; j < ED_TILES.length; j++){
       (function(k){
         var spec = ED_TILES[k];
-        swatch(edPal, tileThumb(spec, ED.icon), spec.name, ED.pal === k, function(){ ED.pal = k; });
+        swatch(edPal, tileThumb(spec, ED.icon), spec.name, ED.pal === k, function(){ ED.pal = k; }, 'tile', k);
       })(j);
     }
   } else if (ED.tab === 'obj'){
     for (var m = 0; m < ED_OBJS.length; m++){
       (function(k){
         var spec = ED_OBJS[k];
-        swatch(edPal, objThumb(spec.kind, ED.icon), spec.name, ED.pal === k, function(){ ED.pal = k; });
+        swatch(edPal, objThumb(spec.kind, ED.icon), spec.name, ED.pal === k, function(){ ED.pal = k; }, 'obj', k);
       })(m);
     }
   }
@@ -195,6 +305,8 @@ export function edOpen(){
   edBar.classList.add('on');
   restoreHeight();
   edRefresh();
+  showLayersPanel(true);
+  syncGeoBtn();
   dispatchEvent(new Event('resize'));
 }
 export function edClose(){
@@ -203,6 +315,12 @@ export function edClose(){
   setViewScale(1);
   document.body.classList.remove('edit-mode');
   edBar.classList.remove('on');
+  showLayersPanel(false);
+  showInspect(null);
+  ED.sel = null;
+  endGizmo();
+  closeVarMenu();
+  ED.dragObj = null;
   clearHold();
   ED.painting = false; ED.erasing = false; ED.panId = -1;
   dispatchEvent(new Event('resize'));
@@ -211,22 +329,82 @@ export function edToggle(){
   if (ED.on) edClose(); else edOpen();
 }
 
-function edCell(clientX, clientY){
+function layerParallax(){
+  var L = getActiveLayer();
+  return { px: L && L.px != null ? L.px : 1, py: L && L.py != null ? L.py : 1 };
+}
+
+function edCell(clientX, clientY, worldSpace){
   var T = G.T, z = ED.zoom || 1;
   var r = cv.getBoundingClientRect();
   var sx = (clientX - r.left) / r.width * VW;
   var sy = (clientY - r.top) / r.height * VH;
-  var wx = cam.x + sx / z, wy = cam.y + sy / z;
+  var P = worldSpace ? { px: 1, py: 1 } : layerParallax();
+  var wx = cam.x * P.px + sx / z, wy = cam.y * P.py + sy / z;
   return { c: Math.floor(wx / T), r: Math.floor(wy / T), x: wx, y: wy, sx: sx, sy: sy };
 }
 
-function pickVariant(spec, cur){
-  var pool = [spec.id].concat(spec.variants || []);
-  if (pool.length < 2) return spec.id;
-  var opts = [];
-  for (var i = 0; i < pool.length; i++) if (pool[i] !== cur) opts.push(pool[i]);
-  if (!opts.length) opts = pool;
-  return opts[(Math.random() * opts.length) | 0];
+function brushTile(c, r){
+  var L = getActiveLayer();
+  return L ? layerTile(L, c, r) : G.tileAt(c, r);
+}
+function brushVar(c, r){
+  var L = getActiveLayer();
+  return L ? layerVar(L, c, r) : G.varAt(c, r);
+}
+
+function selectSpecial(sel){
+  ED.sel = sel;
+  showInspect(sel);
+}
+
+function isSpecialKind(kind){
+  return kind === 'sound' || kind === 'light' || kind === 'volume';
+}
+
+function tileMatchesBrush(spec, v){
+  return spec.slope ? G.isSlopeV(v) : v === spec.id;
+}
+function findVarSpec(v){
+  if (!v) return null;
+  for (var i = 0; i < ED_TILES.length; i++)
+    if (ED_TILES[i].varN && tileMatchesBrush(ED_TILES[i], v)) return ED_TILES[i];
+  return null;
+}
+
+var edVarMenu = document.getElementById('edVarMenu');
+function closeVarMenu(){
+  if (!edVarMenu || edVarMenu.hidden) return;
+  edVarMenu.hidden = true;
+  edVarMenu.textContent = '';
+  document.removeEventListener('pointerdown', onVarMenuOutside, true);
+}
+function onVarMenuOutside(e){
+  if (edVarMenu && !edVarMenu.contains(e.target)) closeVarMenu();
+}
+function openVarMenu(cell, spec, clientX, clientY){
+  if (!edVarMenu) return;
+  edVarMenu.textContent = '';
+  var cur = brushVar(cell.c, cell.r);
+  function addOpt(label, val){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'edb' + (cur === val ? ' on' : '');
+    b.textContent = label;
+    b.addEventListener('click', function(e){
+      e.stopPropagation();
+      G.setVar(cell.c, cell.r, val);
+      closeVarMenu();
+    });
+    edVarMenu.appendChild(b);
+  }
+  addOpt('Auto', 0);
+  for (var i = 1; i <= spec.varN; i++) addOpt(String(i), i);
+  edVarMenu.hidden = false;
+  var mw = edVarMenu.offsetWidth || 160, mh = edVarMenu.offsetHeight || 40;
+  edVarMenu.style.left = Math.max(4, Math.min(clientX, innerWidth - mw - 4)) + 'px';
+  edVarMenu.style.top = Math.max(4, Math.min(clientY, innerHeight - mh - 4)) + 'px';
+  setTimeout(function(){ document.addEventListener('pointerdown', onVarMenuOutside, true); }, 0);
 }
 
 export function edApply(cell, isClick){
@@ -238,10 +416,13 @@ export function edApply(cell, isClick){
   if (ED.tool === 'tile'){
     var spec = ED_TILES[ED.pal];
     var nv = spec.id;
-    if (isClick && ED.clickCell === key && ED.clickBrush === ED.pal && spec.variants && spec.variants.length)
-      nv = pickVariant(spec, G.tileAt(cell.c, cell.r));
+    if (isClick && ED.clickCell === key && ED.clickBrush === ED.pal && spec.varN &&
+        tileMatchesBrush(spec, brushTile(cell.c, cell.r))){
+      G.setVar(cell.c, cell.r, (brushVar(cell.c, cell.r) % spec.varN) + 1);
+      return;
+    }
     if (isSlopeBrush(nv)){ edPaintSlope(cell, nv); return; }
-    var old = G.tileAt(cell.c, cell.r);
+    var old = brushTile(cell.c, cell.r);
     if (nv === G.WATER && old === G.WATER){
       setPondShade(cell.c, cell.r, ED.waterShade);
       return;
@@ -253,6 +434,12 @@ export function edApply(cell, isClick){
       if (nv === G.WATER) setPondShade(cell.c, cell.r, ED.waterShade);
     }
   } else if (ED.tool === 'obj'){
+    var ospec = ED_OBJS[ED.pal];
+    if (ospec && isSpecialKind(ospec.kind)){
+      if (!isClick) return;
+      var hit = pickSpecial(S, cell.x, cell.y);
+      if (hit && hit.type === ospec.kind){ selectSpecial(hit); return; }
+    }
     edPlaceObject(cell);
   }
 }
@@ -270,22 +457,34 @@ function edErase(cell){
 }
 function edEraseObjects(cell){
   var S = world();
-  var T = G.T;
-  var near = function(ox, oy){ return Math.abs(ox - (cell.c*T + 8)) < 14 && Math.abs(oy - (cell.r*T + 8)) < 18; };
-  S.enemies = S.enemies.filter(function(e){ return !near(e.x + e.w/2, e.y + e.h/2); });
-  S.fliers  = S.fliers.filter(function(f){ return !near(f.x + f.w/2, f.y + f.h/2); });
-  S.spiders = S.spiders.filter(function(s2){ return !near(s2.hx, s2.hy - 8); });
-  S.tendrils = (S.tendrils || []).filter(function(td){ return !near(td.bx, td.by); });
-  S.torches = S.torches.filter(function(t){ return !near(t.x, t.y - 8); });
-  S.chests  = S.chests.filter(function(c2){ return !near(c2.x + 10, c2.y - 6); });
-  S.items   = S.items.filter(function(i2){ return !near(i2.x, i2.y); });
+  var T = G.T, ox = cell.c*T + 8, oy = cell.r*T + 8;
+  for (var i = 0; i < OBJ_KINDS.length; i++){
+    (function(k){
+      k.set(S, k.get(S).filter(function(o){ return !objNear(k.pos(o), ox, oy); }));
+    })(OBJ_KINDS[i]);
+  }
   if (S.p.torch >= 0 && !findById(S.torches, S.p.torch)) S.p.torch = -1;
+  function away(o){ return Math.abs(o.x - ox) >= 14 || Math.abs(o.y - oy) >= 18; }
+  if (S.lights) S.lights = S.lights.filter(away);
+  if (S.sounds) S.sounds = S.sounds.filter(away);
+  if (S.volumes) S.volumes = S.volumes.filter(function(v){
+    return Math.abs(v.x + v.w/2 - ox) >= v.w/2 + 4 || Math.abs(v.y + v.h/2 - oy) >= v.h/2 + 4;
+  });
+  if (ED.sel && ED.sel.obj){
+    var still = pickSpecial(S, ox, oy);
+    if (!still || still.obj !== ED.sel.obj) selectSpecial(null);
+  }
 }
 function edPlaceObject(cell){
   var S = world();
   var T = G.T;
-  var kind = ED_OBJS[ED.pal].kind;
+  var spec = ED_OBJS[ED.pal];
+  if (!spec) return;
+  var kind = spec.kind;
   var cx = cell.c*T + 8, cy = cell.r*T + 8, floorY = (cell.r + 1)*T;
+  if (kind === 'sound'){ selectSpecial({ type: 'sound', obj: G.mkSoundAt(S, cx, cy) }); return; }
+  if (kind === 'light'){ selectSpecial({ type: 'light', obj: G.mkLightAt(S, cx, cy) }); return; }
+  if (kind === 'volume'){ selectSpecial({ type: 'volume', obj: G.mkVolumeAt(S, cx, cy) }); return; }
   if (kind.indexOf('enemy') === 0) G.mkEnemyAt(S, cx - 5, floorY, +kind.slice(5));
   else if (kind.indexOf('flier') === 0) G.mkFlierAt(S, cx - 6, cy - 4, +kind.slice(5));
   else if (kind.indexOf('spider') === 0) G.mkSpiderAt(S, cx, floorY, 0);
@@ -340,6 +539,23 @@ export function edExportText(){
     }
   }
   out.push(runs.join('\n'));
+  var varRuns = [];
+  for (var rv = r0; rv < r1; rv++){
+    var cv = c0e;
+    while (cv < c1e){
+      var vv = G.varAt(cv, rv);
+      if (!vv){ cv++; continue; }
+      var nv2 = 1;
+      while (cv + nv2 < c1e && G.varAt(cv + nv2, rv) === vv) nv2++;
+      varRuns.push('varR(' + cv + ', ' + rv + ', ' + nv2 + ', 1, ' + vv + ');');
+      cv += nv2;
+    }
+  }
+  if (varRuns.length){
+    out.push('');
+    out.push('// узоры (варианты рисунка, import varR из core/map.js)');
+    out.push(varRuns.join('\n'));
+  }
   out.push('');
   out.push('// objects');
   out.push('enemies: [' + S.enemies.map(function(e){
@@ -376,33 +592,67 @@ export function edExportText(){
   }).join(',') + '],');
   out.push('water: [' + waterExport().map(function(e){
     return '[' + e[0] + ',' + e[1] + ',' + e[2] + ']';
+  }).join(',') + '],');
+  out.push('lights: [' + (S.lights || []).map(function(L){
+    return '{x:' + Math.round(L.x) + ',y:' + Math.round(L.y) +
+      ",color:'" + (L.color || '#ffbe74') + "',intensity:" + (L.intensity != null ? L.intensity : 1) +
+      ',radius:' + (L.radius || 82) + ',lantern:' + (L.lantern !== false) + '}';
+  }).join(',') + '],');
+  out.push('sounds: [' + (S.sounds || []).map(function(s){
+    return '{x:' + Math.round(s.x) + ',y:' + Math.round(s.y) +
+      ",mode:'" + (s.mode || 'falloff') + "',vol:" + (s.vol != null ? s.vol : 0.4) +
+      ',radius:' + (s.radius || 96) + ',freq:' + (s.freq || 220) +
+      ",type:'" + (s.type || 'sine') + "'}";
+  }).join(',') + '],');
+  out.push('volumes: [' + (S.volumes || []).map(function(v){
+    return '{x:' + Math.round(v.x) + ',y:' + Math.round(v.y) + ',w:' + Math.round(v.w) +
+      ',h:' + Math.round(v.h) + ',rot:' + (v.rot || 0).toFixed(3) +
+      ",mode:'" + (v.mode || 'color') + "',mask:'" + (v.mask || 'circle') +
+      "',hue:" + (v.hue || 0) + ',sat:' + (v.sat != null ? v.sat : 1) +
+      ',bright:' + (v.bright || 0) + ',contrast:' + (v.contrast != null ? v.contrast : 1) +
+      ",tint:'" + (v.tint || '#88a0ff') + "',tintAmt:" + (v.tintAmt || 0) + '}';
+  }).join(',') + '],');
+  var ls = getLayers();
+  out.push('layers: [' + ls.map(function(L){
+    return "{name:'" + L.name + "',px:" + L.px + ',py:' + L.py + ',collide:' + !!L.collide + '}';
   }).join(',') + ']');
   return out.join('\n');
 }
 export function edDrawOverlay(){
   var T = G.T, z = ED.zoom || 1;
   var visW = VW / z, visH = VH / z;
+  var P = layerParallax();
+  var camx = cam.x * P.px, camy = cam.y * P.py;
   ctx.setTransform(z, 0, 0, z, 0, 0);
-  var c0 = Math.floor(cam.x/T) - 1, c1 = Math.floor((cam.x+visW)/T) + 1;
-  var r0 = Math.floor(cam.y/T) - 1, r1 = Math.floor((cam.y+visH)/T) + 1;
+  var c0 = Math.floor(camx/T) - 1, c1 = Math.floor((camx+visW)/T) + 1;
+  var r0 = Math.floor(camy/T) - 1, r1 = Math.floor((camy+visH)/T) + 1;
   ctx.globalAlpha = 0.22;
-  for (var c = c0; c <= c1 + 1; c++) rc(c*T - cam.x, 0, 1, visH, '#8f88bb');
-  for (var r = r0; r <= r1 + 1; r++) rc(0, r*T - cam.y, visW, 1, '#8f88bb');
+  for (var c = c0; c <= c1 + 1; c++) rc(c*T - camx, 0, 1, visH, '#8f88bb');
+  for (var r = r0; r <= r1 + 1; r++) rc(0, r*T - camy, visW, 1, '#8f88bb');
   ctx.globalAlpha = 1;
   if (ED.hover){
-    var hx = ED.hover.c*T - cam.x, hy = ED.hover.r*T - cam.y;
+    var hx = ED.hover.c*T - camx, hy = ED.hover.r*T - camy;
     rc(hx, hy, T, 2, '#ffd9a0'); rc(hx, hy + T - 2, T, 2, '#ffd9a0');
     rc(hx, hy, 2, T, '#ffd9a0'); rc(hx + T - 2, hy, 2, T, '#ffd9a0');
   }
+  var S = world();
+  if (S) drawGizmos(S, ED.sel);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   rc(0, 0, VW, 9, '#0d0a18cc');
   var spec = ED.tool === 'tile' ? ED_TILES[ED.pal] : ED_OBJS[ED.pal];
   var label = spec ? spec.name : ED.tool;
+  var L = getActiveLayer();
+  if (L) label = L.name + ' · ' + label;
+  if (L && L.locked) label = 'Locked';
   if (ED.erasing) label = 'Erase';
-  if (ED.hover && G.isWaterV(G.tileAt(ED.hover.c, ED.hover.r)))
+  if (ED.hover && G.isWaterV(brushTile(ED.hover.c, ED.hover.r)))
     label += ' · ' + shadePresetName(getPondShade(ED.hover.c, ED.hover.r));
-  var col = ED.erasing ? '#ff7a6a' : '#ffd9a0';
-  for (var i = 0; i < label.length && i < 18; i++)
+  if (ED.hover && spec && spec.varN && tileMatchesBrush(spec, brushTile(ED.hover.c, ED.hover.r))){
+    var hv = brushVar(ED.hover.c, ED.hover.r);
+    label += ' · v' + (hv > 0 ? hv : 'auto') + '/' + spec.varN;
+  }
+  var col = ED.erasing ? '#ff7a6a' : (L && L.locked ? '#ff7a6a' : '#ffd9a0');
+  for (var i = 0; i < label.length && i < 22; i++)
     rc(3 + i*5, 3, 4, 4, col);
 }
 
@@ -470,7 +720,8 @@ function bumpIcon(dir){
 cv.addEventListener('pointerdown', function(e){
   if (!ED.on) return;
   e.preventDefault();
-  var cell = edCell(e.clientX, e.clientY);
+  var cell = edCell(e.clientX, e.clientY, ED.tool === 'obj');
+  var wcell = edCell(e.clientX, e.clientY, true);
   ED.hover = cell;
   if (e.button === 1){
     ED.panId = e.pointerId; ED.panX = e.clientX; ED.panY = e.clientY;
@@ -479,15 +730,50 @@ cv.addEventListener('pointerdown', function(e){
     return;
   }
   if (e.button === 2){
+    closeVarMenu();
+    if (ED.tool === 'tile'){
+      var vspec = findVarSpec(brushTile(cell.c, cell.r));
+      if (vspec){
+        openVarMenu(cell, vspec, e.clientX, e.clientY);
+        return;
+      }
+    }
     ED.erasing = true; ED.painting = true; ED.last = null; ED.stroke = null; ED.strokeOrig = null;
     edErase(cell);
     try { cv.setPointerCapture(e.pointerId); } catch(_){}
     return;
   }
   if (e.button !== 0) return;
+  closeVarMenu();
+  var S0 = world();
+  var giz = S0 && hitGizmo(S0, ED.sel, wcell.x, wcell.y);
+  if (giz){
+    ED.giz = true;
+    beginGizmo(giz, wcell.x, wcell.y);
+    try { cv.setPointerCapture(e.pointerId); } catch(_){}
+    return;
+  }
+  var specHit = S0 && pickSpecial(S0, wcell.x, wcell.y);
+  if (specHit){
+    selectSpecial(specHit);
+    ED.giz = true;
+    beginGizmo({ kind: 'move', type: specHit.type, obj: specHit.obj }, wcell.x, wcell.y);
+    try { cv.setPointerCapture(e.pointerId); } catch(_){}
+    return;
+  }
+  if (ED.tool === 'obj'){
+    var hit = findObjectAt(cell.x, cell.y);
+    if (hit){
+      ED.dragObj = { entry: hit, from: { c: cell.c, r: cell.r } };
+      ED.painting = false;
+      try { cv.setPointerCapture(e.pointerId); } catch(_){}
+      return;
+    }
+  }
   ED.painting = true; ED.erasing = false; ED.last = null; ED.stroke = null; ED.strokeOrig = null;
   ED.holdX = e.clientX; ED.holdY = e.clientY;
-  startHold(cell);
+  var ospec0 = ED.tool === 'obj' ? ED_OBJS[ED.pal] : null;
+  if (!(ospec0 && isSpecialKind(ospec0.kind))) startHold(cell);
   edApply(cell, true);
   ED.clickCell = cell.c + ':' + cell.r;
   ED.clickBrush = ED.pal;
@@ -495,8 +781,15 @@ cv.addEventListener('pointerdown', function(e){
 });
 cv.addEventListener('pointermove', function(e){
   if (!ED.on) return;
-  var cell = edCell(e.clientX, e.clientY);
+  var cell = edCell(e.clientX, e.clientY, ED.tool === 'obj');
+  var wcell = edCell(e.clientX, e.clientY, true);
   ED.hover = cell;
+  if (ED.giz && gizmoActive()){
+    moveGizmo(wcell.x, wcell.y);
+    if (ED.sel) showInspect(ED.sel);
+    return;
+  }
+  if (ED.dragObj) return;
   if (ED.panId === e.pointerId){
     var r = cv.getBoundingClientRect();
     var z = ED.zoom || 1;
@@ -514,8 +807,18 @@ cv.addEventListener('pointermove', function(e){
 });
 function edUp(e){
   if (e && e.pointerId === ED.panId) ED.panId = -1;
+  if (ED.dragObj){
+    var to = ED.hover || ED.dragObj.from;
+    if (to.c !== ED.dragObj.from.c || to.r !== ED.dragObj.from.r){
+      removeObject(ED.dragObj.entry);
+      respawnObjectAt(ED.dragObj.entry, to);
+    }
+    ED.dragObj = null;
+  }
   ED.painting = false; ED.erasing = false;
   ED.last = null; ED.stroke = null; ED.strokeOrig = null;
+  ED.giz = false;
+  endGizmo();
   clearHold();
 }
 cv.addEventListener('pointerup', edUp);
@@ -616,7 +919,40 @@ addEventListener('keydown', function(e){
     e.preventDefault();
     resetZoom();
   }
+  if (ED.on && (e.key === 'g' || e.key === 'G')){
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    e.preventDefault();
+    toggleGeo();
+  }
+  if (ED.on && e.key === 'Delete' && ED.sel && ED.sel.obj){
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    e.preventDefault();
+    deleteSelected();
+  }
 }, true);
+
+function deleteSelected(){
+  var S = world();
+  if (!S || !ED.sel) return;
+  var t = ED.sel.type, o = ED.sel.obj;
+  if (t === 'light') S.lights = (S.lights || []).filter(function(x){ return x !== o; });
+  else if (t === 'sound') S.sounds = (S.sounds || []).filter(function(x){ return x !== o; });
+  else if (t === 'volume') S.volumes = (S.volumes || []).filter(function(x){ return x !== o; });
+  selectSpecial(null);
+}
+
+function toggleGeo(){
+  ED.showGeo = !ED.showGeo;
+  try { localStorage.setItem(GKEY, ED.showGeo ? '1' : '0'); } catch (_){}
+  syncGeoBtn();
+}
+function syncGeoBtn(){
+  var b = document.getElementById('edGeo');
+  if (b) b.classList.toggle('on', !!ED.showGeo);
+}
+
+var bGeo = document.getElementById('edGeo');
+if (bGeo) bGeo.addEventListener('click', function(){ toggleGeo(); });
 
 var bEdit = document.getElementById('bEdit');
 if (bEdit) bEdit.addEventListener('click', function(){

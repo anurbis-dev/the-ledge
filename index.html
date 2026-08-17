@@ -28,6 +28,7 @@
       <button type="button" class="ed-tab" data-tab="params">Params</button>
     </div>
     <div class="ed-head-acts">
+      <button type="button" class="edb" id="edGeo" title="Toggle collision overlay (G)">Geo</button>
       <button type="button" class="edb" id="edNew">New Level</button>
       <button type="button" class="edb" id="edExport">Export</button>
       <button type="button" class="edb" id="edClose">Close</button>
@@ -45,7 +46,27 @@
     </div>
   </div>
 </div>
+<div id="edLayers" class="ed-float" hidden>
+  <div class="ed-float-head">
+    <span>Layers</span>
+    <div class="ed-head-acts">
+      <button type="button" class="edb" id="edLayerAdd" title="Add layer">+</button>
+      <button type="button" class="edb" id="edLayerDel" title="Delete layer">−</button>
+    </div>
+  </div>
+  <div id="edLayerList" class="layerlist"></div>
+  <div id="edLayerProps"></div>
+</div>
+<div id="edInspect" class="ed-float ed-inspect" hidden>
+  <div class="ed-float-head">
+    <span id="edInspectTitle">Object</span>
+    <button type="button" class="edb" id="edInspectX">×</button>
+  </div>
+  <div id="edInspectBody"></div>
+</div>
+<div id="edGhost" hidden></div>
 <div id="edout"><textarea id="edtext" readonly></textarea><button class="mini" id="edOk">Close</button></div>
+<div id="edVarMenu" class="ed-varmenu" hidden></div>
 <div id="sys"><button class="mini" id="bEdit">Edit</button><button class="mini" id="bPause">Pause</button><button class="mini" id="bMenu">Menu</button><button class="mini" id="bFS">⛶ Full</button><button class="mini" id="bReset">Restart</button><button class="mini" id="bDbg">Debug</button></div>
 <script type="module" src="/src/main.js"></script>
 </body>

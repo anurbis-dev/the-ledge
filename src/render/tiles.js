@@ -1,10 +1,22 @@
 import GAME from '../core/game.js';
 import { hooks } from '../core/runtime.js';
+import { getLayers, layerShown, lastCollideIndex, layerTile, layerVar } from '../core/layers.js';
 import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH, viewScale } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
 import { waterDepthK } from './fx.js';
 
 var G = GAME, T = G.T;
+var _L = null;
+
+function tAt(c, r){ return _L ? layerTile(_L, c, r) : G.tileAt(c, r); }
+function vAt(c, r){ return _L ? layerVar(_L, c, r) : G.varAt(c, r); }
+function sAt(c, r){
+  if (!_L) return G.solidTile(c, r);
+  var v = tAt(c, r);
+  if (!G.isSolidV(v)) return false;
+  if (v === G.CRUMB && world() && world().gone && world().gone[G.mapIx(c, r)] > 0) return false;
+  return true;
+}
 
 export function drawLadder(c, r, v, x, y){
   var i;
@@ -39,7 +51,7 @@ export function drawLadder(c, r, v, x, y){
   }
 }
 export function grabby(c, r){
-  return G.solidTile(c,r) && !G.solidTile(c,r-1) && (!G.solidTile(c-1,r) || !G.solidTile(c+1,r));
+  return sAt(c,r) && !sAt(c,r-1) && (!sAt(c-1,r) || !sAt(c+1,r));
 }
 export function hashT(c, r){ var h = (c*73856093) ^ (r*19349663); h = (h ^ (h >> 13)) >>> 0; return h; }
 
@@ -70,6 +82,15 @@ function drawWaterBubbles(c, r, x, y, time, k){
   if (sz > 1) rc(bx, by, 1, 1, '#ffffff');
   rc(x + ((c * 7) % 9), y + 12, 2, 1, mixHex('#6fb8dd', '#143044', k));
 }
+
+/* декор скосов по варианту: [dx, dy, w, h, hi] — hi=1 подсветка, 0 тень; рисуется только там, где точка внутри тела скоса */
+var SLOPE_DECOR = [
+  [[6, 10, 3, 1, 1]],
+  [[3, 11, 1, 1, 1], [11, 9, 1, 1, 0]],
+  [[5, 9, 2, 1, 0], [9, 12, 1, 2, 1]],
+  [[2, 8, 1, 3, 0], [10, 10, 2, 1, 1]],
+  [[7, 7, 1, 2, 1], [4, 13, 2, 1, 0], [12, 11, 1, 1, 1]]
+];
 
 var WAVE_PAD = 4, WAVE_H = 20;
 var wStrip = { t: NaN, c0: 0, c1: -1, lo: null, hi: null };
@@ -133,7 +154,7 @@ function blitWaves(c, x, y, deep){
   return true;
 }
 export function drawTile(c, r, x, y, dyn){
-  var v = G.tileAt(c, r);
+  var v = tAt(c, r);
   var time = view.time;
   var S = world();
   if (G.isLadV(v)){ drawLadder(c, r, v, x, y); return; }
@@ -151,11 +172,11 @@ export function drawTile(c, r, x, y, dyn){
       }
       rc(x, y, T, 1, '#8fd0ef');
     } else {                                             // спокойная вода: бегущая волна
-      var top = !G.isWaterV(G.tileAt(c, r - 1));
-      if (top && G.solidTile(c, r - 1)){                 // камень над водой
+      var top = !G.isWaterV(tAt(c, r - 1));
+      if (top && sAt(c, r - 1)){                 // камень над водой
         var rr = r - 2;
-        while (rr >= 0 && G.solidTile(c, rr)) rr--;
-        if (rr >= 0 && G.isWaterV(G.tileAt(c, rr))) top = false; // камень внутри воды
+        while (rr >= 0 && sAt(c, rr)) rr--;
+        if (rr >= 0 && G.isWaterV(tAt(c, rr))) top = false; // камень внутри воды
       }
       if (!top){                                         // глубина — без волн
         drawWaterBubbles(c, r, x, y, time, kW);
@@ -163,8 +184,8 @@ export function drawTile(c, r, x, y, dyn){
       }
       if (!blitWaves(c, x, y, false)) paintWaves(x, y, c, time, w1);
       drawWaterBubbles(c, r, x, y, time, kW);
-      var shoreL = !G.isWaterV(G.tileAt(c - 1, r));
-      var shoreR = !G.isWaterV(G.tileAt(c + 1, r));
+      var shoreL = !G.isWaterV(tAt(c - 1, r));
+      var shoreR = !G.isWaterV(tAt(c + 1, r));
       if (shoreL || shoreR){
         var lick = Math.round(Math.sin(time * 2.2 + c * 0.7) * 1.5);
         if (shoreL) rc(x, y + lick, 2, 2, '#e8f6ff');
@@ -189,8 +210,16 @@ export function drawTile(c, r, x, y, dyn){
       rc(x + k2, yy, 2, 2, P.edgeL);
       rc(x + k2, yy + 2, 2, 1, bdS);
     }
-    if (hashT(c, r) % 3 === 0 && 10 >= G.slopeTop(v, c, c * T + 8))
-      rc(x + 6, y + 10, 3, 1, blS);
+    var hhS = hashT(c, r), mvS = vAt(c, r);
+    var sPick = mvS > 0 ? (mvS - 1) % SLOPE_DECOR.length : (hhS % 3 === 0 ? hhS % SLOPE_DECOR.length : -1);
+    if (sPick >= 0){
+      var decoS = SLOPE_DECOR[sPick];
+      for (var di = 0; di < decoS.length; di++){
+        var dd = decoS[di];
+        if (dd[1] >= G.slopeTop(v, c, c * T + dd[0]))
+          rc(x + dd[0], y + dd[1], dd[2], dd[3], dd[4] ? blS : bdS);
+      }
+    }
     return;
   }
   if (v === G.BAR){                                  // потолочные перекладины
@@ -202,13 +231,29 @@ export function drawTile(c, r, x, y, dyn){
   if (v === G.HTOP){                                 // полутайл-потолок
     rc(x, y, T, 8, P.rock);
     rc(x, y + 6, T, 2, P.rockD);
-    rc(x + 3, y + 1, 3, 1, P.rockL); rc(x + 10, y + 3, 2, 1, P.rockL);
-    rc(x + ((c*5)%12), y + 8, 2, 2, P.rockX);
+    var mvH = vAt(c, r);
+    var hVariant = mvH > 0 ? (mvH - 1) % 5 : hashT(c, r) % 5;
+    if (hVariant === 0){
+      rc(x + 3, y + 1, 3, 1, P.rockL); rc(x + 10, y + 3, 2, 1, P.rockL);
+      rc(x + ((c*5)%12), y + 8, 2, 2, P.rockX);
+    } else if (hVariant === 1){
+      rc(x + 1, y + 2, 2, 1, P.rockL); rc(x + 8, y + 1, 4, 1, P.rockL);
+      rc(x + 12, y, 1, 6, P.rockD); rc(x + 5, y + 8, 3, 2, P.rockX);
+    } else if (hVariant === 2){
+      rc(x + 2, y, 1, 6, P.rockD); rc(x + 9, y, 1, 6, P.rockD);
+      rc(x + 4, y + 2, 2, 1, P.rockL); rc(x, y + 8, 3, 2, P.rockX);
+    } else if (hVariant === 3){
+      rc(x + 6, y, 1, 6, P.rockD); rc(x + 2, y + 1, 3, 1, P.rockL);
+      rc(x + 9, y + 2, 4, 1, P.rockL); rc(x + 9, y + 8, 3, 2, P.rockX);
+    } else {
+      rc(x + 1, y, 1, 6, P.rockD); rc(x + 14, y, 1, 6, P.rockD);
+      rc(x + 5, y + 1, 6, 1, P.rockL); rc(x + 6, y + 8, 2, 2, P.rockX);
+    }
     return;
   }
   if (!G.isSolidV(v)) return;
   var k = G.mapIx(c, r), crumb = (v === G.CRUMB), hh = hashT(c, r);
-  if (crumb && !G.solidTile(c, r)){
+  if (crumb && !sAt(c, r)){
     rc(x+2, y+5, 3, 2, P.crumD); rc(x+9, y+8, 2, 2, P.crumD); return;
   }
   var sx = 0;
@@ -220,7 +265,8 @@ export function drawTile(c, r, x, y, dyn){
   else if (biome === 2){ bs = '#55507e'; bd = '#3b3660'; bl = '#7f78ab'; }
   else if (biome === 1){ bs = '#6b5f74'; bd = '#4a4055'; bl = '#94879c'; }
   else { bs = P.rock; bd = P.rockD; bl = P.rockL; }
-  var variant = hh % 8;
+  var mv = vAt(c, r);
+  var variant = mv > 0 ? (mv - 1) % 8 : hh % 8;   // 1..5 — ручной выбор из редактора, 0 — авто по хэшу
   rc(x+sx, y, T, T, bs);
   if (variant === 0){
     rc(x+sx, y+9, T, 1, bd); rc(x+sx+((r%2)?4:12), y, 1, 9, bd); rc(x+sx+((r%2)?12:4), y+10, 1, 6, bd);
@@ -256,10 +302,10 @@ export function drawTile(c, r, x, y, dyn){
   if (deep && hh % 9 === 0){ rc(x+sx+4, y+3, 2, 2, '#4d7fa8'); rc(x+sx+5, y+4, 1, 1, '#8fd0ef'); }
   rc(x+sx+2, y+3, 2, 1, bl); rc(x+sx+10, y+12, 2, 1, bl);
   if (crumb){ rc(x+sx+3, y+2, 1, 6, P.crumD); rc(x+sx+8, y+6, 1, 7, P.crumD); rc(x+sx+11, y+3, 1, 4, P.crumD); }
-  if (!G.solidTile(c, r-1)){
+  if (!sAt(c, r-1)){
     if (grabby(c, r)){
       rc(x+sx, y, T, 2, P.edge); rc(x+sx, y, T, 1, P.edgeL); rc(x+sx, y+2, T, 1, P.edgeD);
-      var oc = !G.solidTile(c-1, r) ? 0 : T-2;
+      var oc = !sAt(c-1, r) ? 0 : T-2;
       rc(x+sx+oc, y+2, 2, 4, P.edgeD); rc(x+sx+oc, y+2, 1, 3, P.edge);
     } else if (deep){
       rc(x+sx, y, T, 2, '#6c65a0'); rc(x+sx, y+2, T, 1, bd);
@@ -271,18 +317,18 @@ export function drawTile(c, r, x, y, dyn){
     }
   }
   // автоскругление внешних углов: срезаем пиксели там, где сходятся две открытые стороны
-  var openU = !G.solidTile(c, r-1), openD = !G.solidTile(c, r+1);
-  var openL = !G.solidTile(c-1, r), openR = !G.solidTile(c+1, r);
+  var openU = !sAt(c, r-1), openD = !sAt(c, r+1);
+  var openL = !sAt(c-1, r), openR = !sAt(c+1, r);
   if (openU && openL){ rc(x+sx, y, 2, 1, bd); rc(x+sx, y, 1, 2, bd); rc(x+sx, y, 1, 1, bl); }
   if (openU && openR){ rc(x+sx+T-2, y, 2, 1, bd); rc(x+sx+T-1, y, 1, 2, bd); }
   if (openD && openL){ rc(x+sx, y+T-1, 2, 1, bd); rc(x+sx, y+T-2, 1, 2, bd); }
   if (openD && openR){ rc(x+sx+T-2, y+T-1, 2, 1, bd); rc(x+sx+T-1, y+T-2, 1, 2, bd); }
-  if (!G.solidTile(c, r+1)){
+  if (!sAt(c, r+1)){
     rc(x+sx, y+T-1, T, 1, P.rockX);
     if (hh % 5 === 0){ rc(x+sx+4, y+T, 1, 3, bd); rc(x+sx+10, y+T, 1, 2, bd); }
   }
-  if (!G.solidTile(c-1, r)) rc(x+sx, y, 1, T, P.rockX);
-  if (!G.solidTile(c+1, r)) rc(x+sx+T-1, y, 1, T, bl);
+  if (!sAt(c-1, r)) rc(x+sx, y, 1, T, P.rockX);
+  if (!sAt(c+1, r)) rc(x+sx+T-1, y, 1, T, bl);
 }
 
 /* --- кэш статичных тайлов чанками 8x8; осыпающиеся рисуем каждый кадр --- */
@@ -290,19 +336,30 @@ export const CH = 8, PAD = 6;
 export let chunkCache = {};
 var cacheRev = -1;
 function syncPal(){
-  if (cacheRev !== palRev){ chunkCache = {}; cacheRev = palRev; }
+  if (cacheRev !== palRev){
+    chunkCache = {};
+    var ls = getLayers(), i;
+    for (i = 0; i < ls.length; i++) ls[i]._chunks = {};
+    cacheRev = palRev;
+  }
 }
 
-export function invalidateChunk(c, r){
+function wipeChunk(cache, c, r){
+  if (!cache) return;
   for (var dr = -1; dr <= 1; dr++)
-    for (var dc = -1; dc <= 1; dc++){
-      var cc = c + dc, rr = r + dr;
-      delete chunkCache[Math.floor(cc / CH) + ',' + Math.floor(rr / CH)];
-    }
+    for (var dc = -1; dc <= 1; dc++)
+      delete cache[Math.floor((c + dc) / CH) + ',' + Math.floor((r + dr) / CH)];
+}
+export function invalidateChunk(c, r){
+  wipeChunk(chunkCache, c, r);
+  var ls = getLayers(), i;
+  for (i = 0; i < ls.length; i++) wipeChunk(ls[i]._chunks, c, r);
 }
 hooks.onSetTile = invalidateChunk;
 export function invalidateAll(){
   chunkCache = {};
+  var ls = getLayers(), i;
+  for (i = 0; i < ls.length; i++) ls[i]._chunks = {};
 }
 
 export function chunkOf(cx, cy){
@@ -319,7 +376,7 @@ export function chunkOf(cx, cy){
     for (var r = cy*CH; r < (cy+1)*CH; r++){
       for (var c = cx*CH; c < (cx+1)*CH; c++){
         if (!G.inMap(c, r)) continue;
-        var vv0 = G.tileAt(c, r);
+        var vv0 = tAt(c, r);
         if (vv0 === G.CRUMB || vv0 === G.WATER || vv0 === G.FALL) continue;   // динамика — мимо кэша
         drawTile(c, r, (c - cx*CH)*T + PAD, (r - cy*CH)*T + PAD, false);
       }
@@ -330,28 +387,59 @@ export function chunkOf(cx, cy){
   chunkCache[key] = cv2;
   return cv2;
 }
-export function tiles(){
-  syncPal();
-  var c0 = Math.max(G.mapMinC(), Math.floor(cam.x/T) - 1);
-  var c1 = Math.min(G.mapMaxC() - 1, Math.floor((cam.x+viewW())/T) + 1);
-  var r0 = Math.max(G.mapMinR(), Math.floor(cam.y/T) - 1);
-  var r1 = Math.min(G.mapMaxR() - 1, Math.floor((cam.y+viewH())/T) + 1);
+function blitLayer(camx, camy){
+  var c0 = Math.max(G.mapMinC(), Math.floor(camx/T) - 1);
+  var c1 = Math.min(G.mapMaxC() - 1, Math.floor((camx+viewW())/T) + 1);
+  var r0 = Math.max(G.mapMinR(), Math.floor(camy/T) - 1);
+  var r1 = Math.min(G.mapMaxR() - 1, Math.floor((camy+viewH())/T) + 1);
   var x0 = Math.floor(c0/CH), x1 = Math.floor(c1/CH);
   var y0 = Math.floor(r0/CH), y1 = Math.floor(r1/CH);
-  for (var cy = y0; cy <= y1; cy++){
-    for (var cx = x0; cx <= x1; cx++){
-      var dx = cx*CH*T - cam.x - PAD, dy = cy*CH*T - cam.y - PAD;
-      var z = viewScale;
+  var cy, cx, dx, dy, z, r, c, vd;
+  for (cy = y0; cy <= y1; cy++){
+    for (cx = x0; cx <= x1; cx++){
+      dx = cx*CH*T - camx - PAD; dy = cy*CH*T - camy - PAD;
+      z = viewScale;
       if (z !== 1){ dx = Math.round(dx * z) / z; dy = Math.round(dy * z) / z; }
       ctx.drawImage(chunkOf(cx, cy), dx, dy);
     }
   }
   prepWaveStrip(view.time, c0, c1);
-  for (var r = r0; r <= r1; r++){
-    for (var c = c0; c <= c1; c++){
-      var vd = G.tileAt(c, r);
+  for (r = r0; r <= r1; r++){
+    for (c = c0; c <= c1; c++){
+      vd = tAt(c, r);
       if (vd === G.CRUMB || vd === G.WATER || vd === G.FALL)
-        drawTile(c, r, c*T - cam.x, r*T - cam.y, true);
+        drawTile(c, r, c*T - camx, r*T - camy, true);
     }
   }
+}
+
+export function tilesLayer(L){
+  if (L && !layerShown(L, view.edit)) return;
+  var prev = chunkCache;
+  _L = L || null;
+  var px = L && L.px != null ? L.px : 1;
+  var py = L && L.py != null ? L.py : 1;
+  try {
+    syncPal();
+    if (L) chunkCache = L._chunks || (L._chunks = {});
+    blitLayer(cam.x * px, cam.y * py);
+  } finally {
+    chunkCache = prev;
+    _L = null;
+  }
+}
+
+export function tiles(){
+  var ls = getLayers();
+  if (!ls.length){ tilesLayer(null); return; }
+  var last = lastCollideIndex();
+  var end = last < 0 ? ls.length - 1 : last;
+  for (var i = 0; i <= end; i++) tilesLayer(ls[i]);
+}
+
+export function tilesFront(){
+  var ls = getLayers();
+  var last = lastCollideIndex();
+  if (last < 0) return;
+  for (var i = last + 1; i < ls.length; i++) tilesLayer(ls[i]);
 }

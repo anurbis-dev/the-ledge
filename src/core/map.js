@@ -60,6 +60,11 @@ export function fillR(c, r, w, h, v){
     for (var x = c; x < c + w; x++)
       if (inMap(x, y)) runtime.base[mapIx(x, y)] = v;
 }
+export function varR(c, r, w, h, v){                  // ручной узор рисунка (см. varAt) поверх прямоугольника
+  for (var y = r; y < r + h; y++)
+    for (var x = c; x < c + w; x++)
+      if (inMap(x, y)) runtime.vary[mapIx(x, y)] = v;
+}
 export function slopeRun(c, r, n, dir, downTo){        // косой уступ с телом под ним
   for (var i = 0; i < n; i++){
     var cc = c + dir*i, rr = r - i;
@@ -72,7 +77,28 @@ export function line(c, r, n, dc, dr, v){ for (var i = 0; i < n; i++) fillR(c + 
 
 export function tileAt(c, r){
   if (!inMap(c, r)) return E;
-  return runtime.base[mapIx(c, r)];
+  var ls = runtime.layers, ix = mapIx(c, r);
+  if (!ls || !ls.length) return runtime.base[ix];
+  var i, v, found = false;
+  for (i = ls.length - 1; i >= 0; i--){
+    if (!ls[i].collide || !ls[i].base) continue;
+    found = true;
+    v = ls[i].base[ix];
+    if (v) return v;
+  }
+  return found ? E : runtime.base[ix];
+}
+/* 0 — авто-узор по хэшу позиции, 1..N — узор, выбранный вручную в редакторе */
+export function varAt(c, r){
+  if (!inMap(c, r)) return 0;
+  var ls = runtime.layers, ix = mapIx(c, r);
+  if (!ls || !ls.length) return runtime.vary[ix];
+  var i;
+  for (i = ls.length - 1; i >= 0; i--){
+    if (!ls[i].collide || !ls[i].base) continue;
+    if (ls[i].base[ix]) return ls[i].vary ? ls[i].vary[ix] : 0;
+  }
+  return runtime.vary[ix];
 }
 export function isSolidV(v){ return v === ROCK || v === CRUMB || v === HTOP || v === RNDA || v === RNDB; }
 export function isSlopeV(v){ return !!SLOPE_SPEC[v]; }

@@ -1,14 +1,14 @@
 import GAME from '../core/game.js';
 import {
   cv, ctx, VW, VH, cam, view,
-  sky, tiles, plats, lifts, caveExit, doors, chests,
+  sky, tiles, tilesFront, plats, lifts, caveExit, doors, chests,
   lootDrops, items, pickables, drawTorches, drawHarpoons, enemies, spiders, fliers, tendrils,
   hero, lightPass, drawWeeds, drawFish, drawParts, drawHearts,
   vignette, hud, drawIntro, drawPaused, drawOutro, drawDead,
   applyPal, buildWater, stepWater, invalidateAll, fore, rc, getFish, spark, landDust, bonkDust, clampCam,
-  setViewScale
+  setViewScale, applyVolumes, drawCollideOverlay
 } from '../render/index.js';
-import { blip, liftSound, hushLift } from '../audio/sfx.js';
+import { blip, liftSound, hushLift, hushSounds, stepSounds } from '../audio/sfx.js';
 import { held, latch, ax, stick, bindInput } from '../input/input.js';
 import { ED, edOpen, edClose, edApply, edExportText, edDrawOverlay, bindEditor, snapEditCam } from '../editor/editor.js';
 import { hooks } from '../core/runtime.js';
@@ -289,7 +289,7 @@ function frame(now){
   if (!ED.on && !isMenu()){ view.time += dt; view.animT += dt; }
   if (view.flash > 0) view.flash = Math.max(0, view.flash - dt*2.2);
 
-  if (isMenu()){ acc = 0; hushLift(); requestAnimationFrame(frame); return; }
+  if (isMenu()){ acc = 0; hushLift(); hushSounds(); requestAnimationFrame(frame); return; }
   if (ED.on){
     acc = 0;
     hushLift();
@@ -304,11 +304,18 @@ function frame(now){
     ctx.setTransform(z, 0, 0, z, 0, 0);
     tiles(); plats(); lifts(); caveExit(); doors(); chests();
     lootDrops(); items(); pickables(); drawTorches(); drawHarpoons(); enemies(); spiders(); fliers();
-    hero(); drawFish(); drawWeeds(); tendrils();
+    hero(); drawFish(); tilesFront();
     drawParts(dt); drawHearts(dt);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    applyVolumes();
+    ctx.setTransform(z, 0, 0, z, 0, 0);
+    drawWeeds(); tendrils();
+    if (ED.showGeo) drawCollideOverlay();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     vignette();
     edDrawOverlay();
+    if (ED.sel && ED.sel.type === 'sound') stepSounds(S, ED.sel.obj.id);
+    else hushSounds();
     requestAnimationFrame(frame);
     return;
   }
@@ -318,11 +325,13 @@ function frame(now){
   if (S.dead && !gameOver) gameOver = { t: 0 };
   if (introT > 0 || paused || outro || gameOver){
     acc = 0;
-    hushLift();
+    hushLift(); hushSounds();
     ctx.clearRect(0, 0, VW, VH);
     sky(); tiles(); plats(); lifts(); caveExit(); doors(); chests();
     lootDrops(); items(); pickables(); drawTorches(); drawHarpoons(); enemies(); spiders(); fliers();
-    hero(); drawFish(); lightPass(); drawWeeds(); tendrils(); fore(); vignette(); hud();
+    hero(); drawFish(); tilesFront(); lightPass(); applyVolumes(); drawWeeds(); tendrils();
+    if (ED.showGeo) drawCollideOverlay();
+    fore(); vignette(); hud();
     if (introT > 0) drawIntro();
     else if (outro){ outro.t += dt; drawOutro(); }
     else if (gameOver){ gameOver.t += dt; drawDead(gameOver); }
@@ -386,6 +395,7 @@ function frame(now){
   var anyMoving = false;
   for (var lm = 0; lm < S.lifts.length; lm++) if (S.lifts[lm].st === 'move') anyMoving = true;
   liftSound(anyMoving);
+  stepSounds(S);
 
   ctx.clearRect(0, 0, VW, VH);
   sky();
@@ -405,11 +415,14 @@ function frame(now){
   fliers();
   hero();
   drawFish();
+  tilesFront();
   drawParts(dt);
   drawHearts(dt);
   lightPass();
+  applyVolumes();
   drawWeeds();
   tendrils();
+  if (ED.showGeo) drawCollideOverlay();
   fore();
   vignette();
   if (gameOver){ gameOver.t += dt; drawDead(gameOver); }
@@ -472,7 +485,7 @@ export function start(){
   });
   document.getElementById('bReset').addEventListener('click', hardReset);
   document.addEventListener('visibilitychange', function(){
-    if (document.hidden){ paused = true; hushLift(); }
+    if (document.hidden){ paused = true; hushLift(); hushSounds(); }
   });
   addEventListener('resize', function(){ resize(); });
   addEventListener('orientationchange', function(){ setTimeout(resize, 160); });

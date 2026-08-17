@@ -4,22 +4,37 @@ import { P } from './palette.js';
 
 var G = GAME, T = G.T;
 
-// дефолт уровня 1 (v19:2785); иначе LV.lights
-var DEFAULT_LIGHTS = [[15,21],[28,18],[37,15],[45,11],[53,4],[57,12],[64,18],[92,21]];
+function hexRgba(hex, a){
+  var h = String(hex || '#ffbe74').replace('#', '');
+  if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+  var n = parseInt(h, 16);
+  if (!isFinite(n)) return 'rgba(255,190,116,' + a + ')';
+  return 'rgba(' + (n>>16) + ',' + ((n>>8)&255) + ',' + (n&255) + ',' + a + ')';
+}
 
 export function getLights(){
+  var S = world();
+  if (S && S.lights) return S.lights;
   var lv = G.levelSpec();
-  if (lv && lv.lights) return lv.lights;
-  if (lv && lv.id === 1) return DEFAULT_LIGHTS;
-  return [];
+  return (lv && lv.lights) || [];
 }
+
+function lightXY(L){
+  if (L && L.x != null) return [L.x, L.y];
+  if (Array.isArray(L)) return [L[0]*T+8, L[1]*T+8];
+  return [0, 0];
+}
+
 var _tp = null, _tpT = NaN;
 export function torchPts(){
   if (_tp && _tpT === view.time) return _tp;
   var S = world(), LIGHTS = getLights();
-  var a = [], i;
-  for (i = 0; i < LIGHTS.length; i++) a.push([LIGHTS[i][0]*T+8, LIGHTS[i][1]*T+8]);
-  for (i = 0; i < S.torches.length; i++) if (S.torches[i].lit) a.push([S.torches[i].x, S.torches[i].y - 9]);
+  var a = [], i, xy;
+  for (i = 0; i < LIGHTS.length; i++){
+    xy = lightXY(LIGHTS[i]);
+    a.push([xy[0], xy[1], LIGHTS[i]]);
+  }
+  for (i = 0; i < S.torches.length; i++) if (S.torches[i].lit) a.push([S.torches[i].x, S.torches[i].y - 9, null]);
   _tp = a; _tpT = view.time;
   return a;
 }
@@ -49,17 +64,24 @@ export function lightPass(){
     lx.drawImage(lightSprite(col), x-r, y-r, r*2, r*2);
     lx.globalAlpha = 1;
   }
-  var i;
+  var i, L, xy, rad, inten, col;
   var LP = torchPts();
   for (i = 0; i < LP.length; i++){
     var fx = LP[i][0] - cam.x, fy = LP[i][1] - cam.y;
+    L = LP[i][2];
     var fl = 0.84 + Math.sin(time*7 + i)*0.09 + Math.sin(time*17 + i*3)*0.05;
-    add(fx, fy, 82, 'rgba(255,190,116,0.95)', 0.95 * fl);
+    rad = L && L.radius != null ? L.radius : 82;
+    inten = L && L.intensity != null ? L.intensity : 1;
+    col = L && L.color ? hexRgba(L.color, 0.95) : 'rgba(255,190,116,0.95)';
+    add(fx, fy, rad, col, 0.95 * fl * inten);
   }
   for (i = 0; i < LIGHTS.length; i++){
-    var wx2 = LIGHTS[i][0]*T + 8 - cam.x, wy2 = LIGHTS[i][1]*T + 8 - cam.y;
+    L = LIGHTS[i];
+    if (L && L.lantern === false) continue;
+    xy = lightXY(L);
+    var wx2 = xy[0] - cam.x, wy2 = xy[1] - cam.y;
     rc(wx2-1, wy2-6, 2, 8, P.woodD);
-    rc(wx2-2, wy2-9, 4, 4, '#ffcf7a');
+    rc(wx2-2, wy2-9, 4, 4, L && L.color ? L.color : '#ffcf7a');
     rc(wx2-1, wy2-11+Math.round(Math.sin(time*9+i)*1), 2, 3, '#fff3c4');
   }
   for (i = 0; i < S.items.length; i++){

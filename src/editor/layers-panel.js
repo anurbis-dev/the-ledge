@@ -1,0 +1,175 @@
+import { runtime } from '../core/runtime.js';
+import {
+  getLayers, setActiveLayer, addLayer, deleteLayer, moveLayer,
+  setLayerCollide, toggleSolo, getActiveLayer
+} from '../core/layers.js';
+import { invalidateAll } from '../render/tiles.js';
+import { initSliders } from './slider.js';
+
+var root = document.getElementById('edLayers');
+var listEl = document.getElementById('edLayerList');
+var propsEl = document.getElementById('edLayerProps');
+var onChange = null;
+var dragFrom = -1;
+
+export function bindLayersPanel(hooks){
+  onChange = hooks && hooks.onChange;
+}
+
+function notify(){
+  invalidateAll();
+  if (onChange) onChange();
+  renderLayersPanel();
+}
+
+export function showLayersPanel(on){
+  if (!root) return;
+  root.hidden = !on;
+  if (on) renderLayersPanel();
+}
+
+export function renderLayersPanel(){
+  if (!listEl) return;
+  listEl.textContent = '';
+  var ls = getLayers();
+  var solo = runtime.soloLayer;
+  // сверху — передний слой (как в Pixis)
+  for (var i = ls.length - 1; i >= 0; i--){
+    (function(ix){
+      var L = ls[ix];
+      var row = document.createElement('div');
+      row.className = 'layer' + (ix === runtime.activeLayer ? ' active' : '') +
+        (L.visible === false ? ' hidden-layer' : '') +
+        (solo && solo !== L.id ? ' dim-solo' : '');
+      row.dataset.ix = String(ix);
+
+      var eye = document.createElement('span');
+      eye.className = 'eye' + (L.visible === false ? ' eye-off' : '');
+      eye.textContent = '👁';
+      eye.title = L.visible === false ? 'Show' : 'Hide';
+      eye.addEventListener('pointerdown', function(e){
+        e.stopPropagation(); e.preventDefault();
+        L.visible = L.visible === false;
+        notify();
+      });
+      row.appendChild(eye);
+
+      var lock = document.createElement('span');
+      lock.className = 'eye lock' + (L.locked ? ' lock-on' : '');
+      lock.textContent = '🔒';
+      lock.title = L.locked ? 'Unlock' : 'Lock — prevents painting';
+      lock.addEventListener('pointerdown', function(e){
+        e.stopPropagation(); e.preventDefault();
+        L.locked = !L.locked;
+        notify();
+      });
+      row.appendChild(lock);
+
+      var soloBtn = document.createElement('span');
+      soloBtn.className = 'eye solo' + (solo === L.id ? ' solo-on' : '');
+      soloBtn.textContent = '◎';
+      soloBtn.title = solo === L.id ? 'Exit solo' : 'Solo this layer';
+      soloBtn.addEventListener('pointerdown', function(e){
+        e.stopPropagation(); e.preventDefault();
+        toggleSolo(L.id);
+        notify();
+      });
+      row.appendChild(soloBtn);
+
+      var name = document.createElement('span');
+      name.className = 'layername';
+      name.textContent = L.name + (L.collide ? '  ▣' : '');
+      name.title = 'Double-click to rename';
+      name.addEventListener('dblclick', function(e){
+        e.stopPropagation();
+        var inp = document.createElement('input');
+        inp.type = 'text';
+        inp.className = 'layername-edit';
+        inp.value = L.name;
+        inp.addEventListener('pointerdown', function(ev){ ev.stopPropagation(); });
+        inp.addEventListener('keydown', function(ev){
+          if (ev.key === 'Enter') inp.blur();
+          if (ev.key === 'Escape'){ inp.value = L.name; inp.blur(); }
+        });
+        inp.addEventListener('blur', function(){
+          L.name = inp.value || L.name;
+          notify();
+        });
+        row.replaceChild(inp, name);
+        inp.focus(); inp.select();
+      });
+      row.appendChild(name);
+
+      row.addEventListener('pointerdown', function(e){
+        if (e.button !== 0) return;
+        if (e.target.closest('.eye, input')) return;
+        setActiveLayer(ix);
+        dragFrom = ix;
+        try { row.setPointerCapture(e.pointerId); } catch (_){}
+        notify();
+      });
+      row.addEventListener('pointerup', function(e){
+        if (dragFrom < 0) return;
+        var el = document.elementFromPoint(e.clientX, e.clientY);
+        var dest = el && el.closest ? el.closest('#edLayerList .layer') : null;
+        if (dest && dest !== row){
+          var to = +dest.dataset.ix;
+          if (isFinite(to)) moveLayer(dragFrom, to);
+        }
+        dragFrom = -1;
+        notify();
+      });
+      listEl.appendChild(row);
+    })(i);
+  }
+  fillLayerProps();
+}
+
+function fillLayerProps(){
+  if (!propsEl) return;
+  propsEl.textContent = '';
+  var L = getActiveLayer();
+  if (!L) return;
+  function row(label, min, max, step, val, set){
+    var wrap = document.createElement('label');
+    wrap.className = 'slider-wrap';
+    wrap.innerHTML = '<div class="slider-label-overlay"><span>' + label + '</span><span></span></div>';
+    var inp = document.createElement('input');
+    inp.type = 'range'; inp.min = min; inp.max = max; inp.step = step;
+    inp.value = val; inp.dataset.default = String(val);
+    inp.addEventListener('input', function(){
+      set(+inp.value);
+      invalidateAll();
+      if (onChange) onChange();
+    });
+    wrap.appendChild(inp);
+    propsEl.appendChild(wrap);
+    initSliders(wrap);
+  }
+  row('Parallax X', 0, 2, 0.05, L.px == null ? 1 : L.px, function(v){
+    if (L.collide) return;
+    L.px = v;
+  });
+  row('Parallax Y', 0, 2, 0.05, L.py == null ? 1 : L.py, function(v){
+    if (L.collide) return;
+    L.py = v;
+  });
+  var col = document.createElement('label');
+  col.className = 'ed-check';
+  var cb = document.createElement('input');
+  cb.type = 'checkbox'; cb.checked = !!L.collide;
+  cb.addEventListener('change', function(){
+    setLayerCollide(L, cb.checked);
+    notify();
+  });
+  col.appendChild(cb);
+  col.appendChild(document.createTextNode(' Collision layer'));
+  propsEl.appendChild(col);
+}
+
+var addBtn = document.getElementById('edLayerAdd');
+var delBtn = document.getElementById('edLayerDel');
+if (addBtn) addBtn.addEventListener('click', function(){ addLayer(); notify(); });
+if (delBtn) delBtn.addEventListener('click', function(){
+  if (deleteLayer(runtime.activeLayer | 0)) notify();
+});
