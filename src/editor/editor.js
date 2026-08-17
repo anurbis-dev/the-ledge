@@ -7,7 +7,7 @@ import { isMenu } from '../ui/menu.js';
 import { hushLift } from '../audio/sfx.js';
 import { findById } from '../entities/ids.js';
 import { isSlopeBrush, fitSlopeStroke } from './slopes.js';
-import { tileThumb, objThumb } from './thumbs.js';
+import { tileThumb, objThumb, paintObjIcon } from './thumbs.js';
 import { renderParams, resetAllParams } from './params.js';
 import { getActiveLayer, getLayers, layerTile, layerVar, isTileLayer } from '../core/layers.js';
 import { showLayersPanel, bindLayersPanel } from './layers-panel.js';
@@ -65,7 +65,9 @@ export var ED_TILES = [
   { name: 'Water',   id: 13,      color: '#49a0cf' },
   { name: 'Fall',    id: 14,      color: '#2f7fae' },
   { name: 'Diag R',  id: 5,       color: '#c9a06a', slope: 'r', varN: 5 },
-  { name: 'Diag L',  id: 6,       color: '#c9a06a', slope: 'l', varN: 5 }
+  { name: 'Diag L',  id: 6,       color: '#c9a06a', slope: 'l', varN: 5 },
+  { name: 'Plank',   id: G.PLANK, color: '#a9743f' },
+  { name: 'Give',    id: G.GIVE,  color: '#4a4069' }
 ];
 export var ED_OBJS = [
   { name: 'Foe 1',   kind: 'enemy0' },
@@ -82,10 +84,47 @@ export var ED_OBJS = [
   { name: 'Coin',    kind: 'coin' },
   { name: 'Gem',     kind: 'gem' },
   { name: 'Shroom',  kind: 'shroom' },
+  { name: 'Key',      kind: 'key' },
+  { name: 'Helmet',   kind: 'helmet' },
+  { name: 'Shield',   kind: 'shield' },
+  { name: 'Sword',    kind: 'sword' },
+  { name: 'Scuba',    kind: 'scuba' },
+  { name: 'Flippers', kind: 'flippers' },
+  { name: 'Harpoon',  kind: 'harpoon' },
+  { name: 'Bow',      kind: 'bow' },
   { name: 'Sound',   kind: 'sound' },
   { name: 'Light',   kind: 'light' },
-  { name: 'Volume',  kind: 'volume' }
+  { name: 'Volume',  kind: 'volume' },
+  { name: 'Boulder', kind: 'boulder' },
+  { name: 'Hermit',  kind: 'npc_hermit' },
+  { name: 'Wanderer', kind: 'npc_wanderer' }
 ];
+
+/* предметы, которые можно тащить в сундук/врага; часть из них (не coin/gem/shroom)
+   не работают как отдельный мировой предмет — только как содержимое лута */
+var LOOT_KINDS = { coin:1, gem:1, shroom:1, key:1, helmet:1, shield:1, sword:1,
+                    scuba:1, flippers:1, harpoon:1, bow:1 };
+var LOOT_ONLY_KINDS = { key:1, helmet:1, shield:1, sword:1, scuba:1, flippers:1, harpoon:1, bow:1 };
+var LOOT_NAMES = { key:'Key', coin:'Coin', gem:'Gem', shroom:'Shroom', helmet:'Helmet',
+                    shield:'Shield', sword:'Sword', scuba:'Scuba', flippers:'Flippers',
+                    harpoon:'Harpoon', bow:'Bow' };
+
+/* сундук или враг под указанной мировой точкой — цель для добавления/просмотра лута */
+function findLootTargetAt(wx, wy){
+  var hits = findAllAt(wx, wy);
+  for (var i = 0; i < hits.length; i++)
+    if (hits[i].type === 'chest' || hits[i].type === 'enemy') return hits[i];
+  return null;
+}
+function addLoot(target, kind, qty){
+  if (!target.loot) target.loot = [];
+  var entry = null, i;
+  for (i = 0; i < target.loot.length; i++) if (target.loot[i].kind === kind){ entry = target.loot[i]; break; }
+  qty = Math.max(1, Math.min(99, qty | 0 || 1));
+  if (entry) entry.qty = Math.max(1, Math.min(99, entry.qty + qty));
+  else target.loot.push({ kind: kind, qty: qty });
+  markLevelDirty();
+}
 
 /* единый список типов объектов: откуда брать массив в мире и как считать точку попадания курсора */
 var OBJ_KINDS = [
@@ -102,7 +141,11 @@ var OBJ_KINDS = [
   { type: 'chest',   get: function(S){ return S.chests; },         set: function(S, a){ S.chests = a; },
     pos: function(o){ return [o.x + 10, o.y - 6]; } },
   { type: 'item',    get: function(S){ return S.items; },          set: function(S, a){ S.items = a; },
-    pos: function(o){ return [o.x, o.y]; } }
+    pos: function(o){ return [o.x, o.y]; } },
+  { type: 'boulder', get: function(S){ return S.boulders; },       set: function(S, a){ S.boulders = a; },
+    pos: function(o){ return [o.x + 6, o.y + 5]; } },
+  { type: 'npc',     get: function(S){ return S.npcs || []; },     set: function(S, a){ S.npcs = a; },
+    pos: function(o){ return [o.x + 5, o.y + 9]; } }
 ];
 function objNear(pos, ox, oy){ return Math.abs(pos[0] - ox) < 14 && Math.abs(pos[1] - oy) < 18; }
 function findObjectAt(px, py){
@@ -144,13 +187,15 @@ function removeObject(entry){
 function respawnObjectAt(entry, cell){
   var S = world(), T = G.T;
   var cx = cell.c*T + 8, cy = cell.r*T + 8, floorY = (cell.r + 1)*T, o = entry.obj;
-  if (entry.type === 'enemy') G.mkEnemyAt(S, cx - 5, floorY, o.kind);
+  if (entry.type === 'enemy') G.mkEnemyAt(S, cx - 5, floorY, o.kind, o.loot, o.random);
   else if (entry.type === 'flier') G.mkFlierAt(S, cx - 6, cy - 4, o.kind);
   else if (entry.type === 'spider') G.mkSpiderAt(S, cx, floorY, o.kind);
   else if (entry.type === 'tendril') G.mkTendrilAt(S, cx, cy, o.kind);
   else if (entry.type === 'torch') G.mkTorchAt(S, cx, floorY);
-  else if (entry.type === 'chest') G.mkChestAt(S, cell.c*T, floorY, o.kind, o.locked);
+  else if (entry.type === 'chest') G.mkChestAt(S, cell.c*T, floorY, o.loot, o.locked, o.random);
   else if (entry.type === 'item') G.mkItemAt(S, cx, cy, o.kind);
+  else if (entry.type === 'boulder') G.mkBoulderAt(S, cx, floorY);
+  else if (entry.type === 'npc') G.mkNpcAt(S, cx, floorY, o.tree, o.facing);
 }
 function newestOf(entry){
   var arr = entry.kindDef.get(world());
@@ -311,8 +356,25 @@ function startPaletteDrag(e, kind, pal, img){
     var r = cv.getBoundingClientRect();
     var over = ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom;
     if (over && ED.dragPal.moved){
-      ED.tool = ED.dragPal.kind === 'obj' ? 'obj' : 'tile';
-      ED.pal = ED.dragPal.pal;
+      var dKind = ED.dragPal.kind, dPal = ED.dragPal.pal;
+      var ospec = dKind === 'obj' ? ED_OBJS[dPal] : null;
+      if (ospec && LOOT_KINDS[ospec.kind]){
+        var wcellD = edCell(ev.clientX, ev.clientY, true);
+        var lootHit = findLootTargetAt(wcellD.x, wcellD.y);
+        if (lootHit){
+          openChestAdd(lootHit.obj, ospec.kind, ev.clientX, ev.clientY);
+          ED.dragPal = null;
+          if (ghost) ghost.hidden = true;
+          return;
+        }
+        if (LOOT_ONLY_KINDS[ospec.kind]){
+          ED.dragPal = null;
+          if (ghost) ghost.hidden = true;
+          return;
+        }
+      }
+      ED.tool = dKind === 'obj' ? 'obj' : 'tile';
+      ED.pal = dPal;
       var cell = edCell(ev.clientX, ev.clientY);
       beginOp();
       edApply(cell, true);
@@ -351,7 +413,8 @@ function fillPal(){
     for (var m = 0; m < ED_OBJS.length; m++){
       (function(k){
         var spec = ED_OBJS[k];
-        swatch(edPal, objThumb(spec.kind, ED.icon), spec.name, ED.pal === k, function(){ ED.pal = k; }, 'obj', k);
+        var sw = swatch(edPal, objThumb(spec.kind, ED.icon), spec.name, ED.pal === k, function(){ ED.pal = k; }, 'obj', k);
+        if (LOOT_ONLY_KINDS[spec.kind]) sw.title = spec.name + ' — drag onto a chest or enemy';
       })(m);
     }
   }
@@ -418,6 +481,8 @@ export function edClose(){
   ED.sel = null;
   endGizmo();
   closeVarMenu();
+  closeChestAdd();
+  closeChestList();
   ED.dragObj = null;
   clearHold();
   ED.painting = false; ED.erasing = false; ED.panId = -1;
@@ -508,6 +573,157 @@ function openVarMenu(cell, spec, clientX, clientY){
   setTimeout(function(){ document.addEventListener('pointerdown', onVarMenuOutside, true); }, 0);
 }
 
+function lootIcon(kind, size){
+  var c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  var cx = c.getContext('2d');
+  cx.imageSmoothingEnabled = false;
+  paintObjIcon(cx, kind, size);
+  c.className = 'ed-swatch-img';
+  c.style.width = size + 'px'; c.style.height = size + 'px';
+  return c;
+}
+function clampPopup(el, clientX, clientY){
+  var mw = el.offsetWidth || 160, mh = el.offsetHeight || 40;
+  el.style.left = Math.max(4, Math.min(clientX, innerWidth - mw - 4)) + 'px';
+  el.style.top = Math.max(4, Math.min(clientY, innerHeight - mh - 4)) + 'px';
+}
+
+var edChestAdd = document.getElementById('edChestAdd');
+function closeChestAdd(){
+  if (!edChestAdd || edChestAdd.hidden) return;
+  edChestAdd.hidden = true;
+  edChestAdd.textContent = '';
+  document.removeEventListener('pointerdown', onChestAddOutside, true);
+}
+function onChestAddOutside(e){
+  if (edChestAdd && !edChestAdd.contains(e.target)) closeChestAdd();
+}
+function openChestAdd(chest, kind, clientX, clientY){
+  if (!edChestAdd) return;
+  closeChestList();
+  edChestAdd.textContent = '';
+  edChestAdd.appendChild(lootIcon(kind, 20));
+  var lab = document.createElement('span');
+  lab.className = 'ed-chestadd-label';
+  lab.textContent = LOOT_NAMES[kind] || kind;
+  edChestAdd.appendChild(lab);
+  var inp = document.createElement('input');
+  inp.type = 'number'; inp.min = '1'; inp.max = '99'; inp.value = '1';
+  edChestAdd.appendChild(inp);
+  var btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'edb'; btn.textContent = 'Add';
+  function confirmAdd(){
+    var qty = Math.max(1, Math.min(99, +inp.value || 1));
+    beginOp();
+    addLoot(chest, kind, qty);
+    endOp();
+    closeChestAdd();
+  }
+  btn.addEventListener('click', function(e){ e.stopPropagation(); confirmAdd(); });
+  inp.addEventListener('keydown', function(e){
+    e.stopPropagation();
+    if (e.key === 'Enter') confirmAdd();
+    else if (e.key === 'Escape') closeChestAdd();
+  });
+  edChestAdd.appendChild(btn);
+  edChestAdd.hidden = false;
+  clampPopup(edChestAdd, clientX, clientY);
+  inp.focus(); inp.select();
+  setTimeout(function(){ document.addEventListener('pointerdown', onChestAddOutside, true); }, 0);
+}
+
+var edChestList = document.getElementById('edChestList');
+var edChestListBody = document.getElementById('edChestListBody');
+var edChestListTitle = document.getElementById('edChestListTitle');
+var chestListTarget = null;
+function closeChestList(){
+  if (!edChestList || edChestList.hidden) return;
+  edChestList.hidden = true;
+  chestListTarget = null;
+  document.removeEventListener('pointerdown', onChestListOutside, true);
+}
+function onChestListOutside(e){
+  if (edChestList && !edChestList.contains(e.target)) closeChestList();
+}
+function renderChestList(){
+  if (!edChestListBody || !chestListTarget) return;
+  edChestListBody.textContent = '';
+  var loot = chestListTarget.loot || [];
+  if (loot.length > 1){
+    var randRow = document.createElement('label');
+    randRow.className = 'ed-check';
+    var cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = !!chestListTarget.random;
+    cb.addEventListener('change', function(){
+      beginOp();
+      chestListTarget.random = cb.checked;
+      markLevelDirty();
+      endOp();
+    });
+    randRow.appendChild(cb);
+    var rl = document.createElement('span');
+    rl.textContent = 'Random — drop only one';
+    randRow.appendChild(rl);
+    edChestListBody.appendChild(randRow);
+  }
+  if (!loot.length){
+    var empty = document.createElement('div');
+    empty.className = 'ed-loot-empty';
+    empty.textContent = 'Empty — drag items here';
+    edChestListBody.appendChild(empty);
+    return;
+  }
+  loot.forEach(function(entry){
+    var row = document.createElement('div');
+    row.className = 'ed-loot-row';
+    row.appendChild(lootIcon(entry.kind, 18));
+    var name = document.createElement('span');
+    name.className = 'ed-loot-name';
+    name.textContent = LOOT_NAMES[entry.kind] || entry.kind;
+    row.appendChild(name);
+    var qtyInp = document.createElement('input');
+    qtyInp.type = 'number'; qtyInp.min = '1'; qtyInp.max = '99'; qtyInp.value = String(entry.qty);
+    qtyInp.addEventListener('keydown', function(e){ e.stopPropagation(); });
+    qtyInp.addEventListener('change', function(){
+      var v = Math.max(1, Math.min(99, +qtyInp.value || 1));
+      beginOp();
+      entry.qty = v;
+      markLevelDirty();
+      endOp();
+      qtyInp.value = String(v);
+    });
+    row.appendChild(qtyInp);
+    var del = document.createElement('button');
+    del.type = 'button'; del.className = 'edb'; del.textContent = '×';
+    del.addEventListener('click', function(e){
+      e.stopPropagation();
+      beginOp();
+      chestListTarget.loot = chestListTarget.loot.filter(function(en){ return en !== entry; });
+      markLevelDirty();
+      endOp();
+      renderChestList();
+    });
+    row.appendChild(del);
+    edChestListBody.appendChild(row);
+  });
+}
+function openChestList(target, type, clientX, clientY){
+  if (!edChestList) return;
+  closeChestAdd();
+  chestListTarget = target;
+  if (edChestListTitle){
+    var label = type === 'enemy' ? 'Enemy' : 'Chest';
+    edChestListTitle.textContent = label + (target.locked ? ' (locked)' : '');
+  }
+  renderChestList();
+  edChestList.hidden = false;
+  clampPopup(edChestList, clientX, clientY);
+  setTimeout(function(){ document.addEventListener('pointerdown', onChestListOutside, true); }, 0);
+}
+var edChestListXBtn = document.getElementById('edChestListX');
+if (edChestListXBtn) edChestListXBtn.addEventListener('click', function(){ closeChestList(); });
+
 export function edApply(cell, isClick){
   var S = world();
   if (cell.c !== cell.c || cell.r !== cell.r) return;
@@ -593,13 +809,20 @@ function edPlaceObject(cell){
   if (kind === 'sound'){ selectSpecial({ type: 'sound', obj: G.mkSoundAt(S, cx, cy) }); return; }
   if (kind === 'light'){ selectSpecial({ type: 'light', obj: G.mkLightAt(S, cx, cy) }); return; }
   if (kind === 'volume'){ selectSpecial({ type: 'volume', obj: G.mkVolumeAt(S, cx, cy) }); return; }
+  if (LOOT_KINDS[kind]){
+    var lootAt = findLootTargetAt(cx, cy);
+    if (lootAt){ addLoot(lootAt.obj, kind, 1); return; }
+    if (LOOT_ONLY_KINDS[kind]) return;
+  }
   if (kind.indexOf('enemy') === 0) G.mkEnemyAt(S, cx - 5, floorY, +kind.slice(5));
   else if (kind.indexOf('flier') === 0) G.mkFlierAt(S, cx - 6, cy - 4, +kind.slice(5));
   else if (kind.indexOf('spider') === 0) G.mkSpiderAt(S, cx, floorY, 0);
   else if (kind.indexOf('tendril') === 0) G.mkTendrilAt(S, cx, cy, +kind.slice(7));
   else if (kind === 'torch') G.mkTorchAt(S, cx, floorY);
-  else if (kind === 'chest') G.mkChestAt(S, cell.c*T, floorY, 'coin', false);
-  else if (kind === 'chestL') G.mkChestAt(S, cell.c*T, floorY, 'gem', true);
+  else if (kind === 'chest') G.mkChestAt(S, cell.c*T, floorY, [{ kind:'coin', qty:5 }], false);
+  else if (kind === 'chestL') G.mkChestAt(S, cell.c*T, floorY, [{ kind:'gem', qty:3 }], true);
+  else if (kind === 'boulder') G.mkBoulderAt(S, cx, floorY);
+  else if (kind.indexOf('npc_') === 0) G.mkNpcAt(S, cx, floorY, kind.slice(4));
   else G.mkItemAt(S, cx, cy, kind);
 }
 function edPaintSlope(cell, brush){
@@ -667,8 +890,13 @@ export function edExportText(){
   out.push('');
   out.push('// objects');
   out.push('enemies: [' + S.enemies.map(function(e){
-    return '[' + Math.round(e.x) + ',' + Math.round(e.y + e.h) + ',' +
-           Math.round(e.x0) + ',' + Math.round(e.x1) + ',' + Math.round(e.v) + ',' + e.kind + ']';
+    var base = Math.round(e.x) + ',' + Math.round(e.y + e.h) + ',' +
+      Math.round(e.x0) + ',' + Math.round(e.x1) + ',' + Math.round(e.v) + ',' + e.kind;
+    if (e.loot && e.loot.length){
+      var lootTxt = e.loot.map(function(x){ return "['" + x.kind + "'," + x.qty + ']'; }).join(',');
+      base += ',[' + lootTxt + '],' + !!e.random;
+    }
+    return '[' + base + ']';
   }).join(',') + '],');
   out.push('fliers: [' + S.fliers.map(function(f){
     return '[' + Math.round(f.x) + ',' + Math.round(f.y) + ',' +
@@ -692,8 +920,18 @@ export function edExportText(){
   out.push('torches: [' + S.torches.map(function(t){
     return '[' + Math.floor(t.x / T) + ',' + (Math.floor(t.y / T) - 1) + ']';
   }).join(',') + '],');
+  out.push('boulders: [' + S.boulders.map(function(b){
+    return '[' + Math.floor((b.x + 6) / T) + ',' + (Math.floor((b.y + 11) / T) - 1) + ']';
+  }).join(',') + '],');
+  out.push('npcs: [' + (S.npcs || []).map(function(n){
+    return '[' + Math.floor((n.x + 5) / T) + ',' + (Math.floor((n.y + 18) / T) - 1) +
+      ",'" + (n.tree || 'hermit') + "'," + (n.facing != null ? n.facing : -1) + ']';
+  }).join(',') + '],');
   out.push('chests: [' + S.chests.map(function(c2){
-    return '[' + Math.floor(c2.x / T) + ',' + (Math.floor(c2.y / T) - 1) + ",'" + c2.kind + "'," + !!c2.locked + ']';
+    var loot2 = c2.loot || [];
+    var lootTxt = loot2.map(function(e){ return "['" + e.kind + "'," + e.qty + ']'; }).join(',');
+    return '[' + Math.floor(c2.x / T) + ',' + (Math.floor(c2.y / T) - 1) + ",'" +
+      ((loot2[0] && loot2[0].kind) || 'coin') + "'," + !!c2.locked + ',[' + lootTxt + '],' + !!c2.random + ']';
   }).join(',') + '],');
   out.push('items: [' + S.items.map(function(i2){
     return '[' + Math.floor(i2.x / T) + ',' + Math.floor(i2.y / T) + ",'" + i2.kind + "']";
@@ -823,6 +1061,8 @@ function findObjPal(type, obj){
     if (type === 'sound' && k === 'sound') return i;
     if (type === 'light' && k === 'light') return i;
     if (type === 'volume' && k === 'volume') return i;
+    if (type === 'boulder' && k === 'boulder') return i;
+    if (type === 'npc' && k === 'npc_' + (obj.tree || 'hermit')) return i;
   }
   return 0;
 }
@@ -913,6 +1153,8 @@ cv.addEventListener('pointerdown', function(e){
   }
   if (e.button !== 0) return;
   closeVarMenu();
+  closeChestAdd();
+  closeChestList();
   if (e.ctrlKey || e.metaKey){
     eyedrop(e, cell, wcell);
     return;
@@ -929,7 +1171,7 @@ cv.addEventListener('pointerdown', function(e){
   }
   if (hits.length > 1){
     applyHit(cycleHit(wcell.x, wcell.y));
-    ED.pendHit = { hit: ED.hitObj, x: e.clientX, y: e.clientY, c: wcell.c, r: wcell.r };
+    ED.pendHit = { hit: ED.hitObj, x: e.clientX, y: e.clientY, c: wcell.c, r: wcell.r, single: false };
     ED.painting = false;
     try { cv.setPointerCapture(e.pointerId); } catch(_){}
     return;
@@ -944,7 +1186,7 @@ cv.addEventListener('pointerdown', function(e){
   }
   if (hits.length === 1){
     applyHit(hits[0]);
-    ED.pendHit = { hit: hits[0], x: e.clientX, y: e.clientY, c: wcell.c, r: wcell.r };
+    ED.pendHit = { hit: hits[0], x: e.clientX, y: e.clientY, c: wcell.c, r: wcell.r, single: true };
     ED.painting = false;
     try { cv.setPointerCapture(e.pointerId); } catch(_){}
     return;
@@ -1007,6 +1249,9 @@ cv.addEventListener('pointermove', function(e){
 });
 function edUp(e){
   if (e && e.pointerId === ED.panId) ED.panId = -1;
+  if (e && e.type === 'pointerup' && ED.pendHit && ED.pendHit.single &&
+      (ED.pendHit.hit.type === 'chest' || ED.pendHit.hit.type === 'enemy'))
+    openChestList(ED.pendHit.hit.obj, ED.pendHit.hit.type, ED.pendHit.x, ED.pendHit.y);
   ED.dragObj = null;
   ED.pendHit = null;
   ED.painting = false; ED.erasing = false;

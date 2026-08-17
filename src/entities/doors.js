@@ -2,6 +2,7 @@ import { C } from '../core/constants.js';
 import { runtime } from '../core/runtime.js';
 import { inDark } from './dark.js';
 import { findById } from './ids.js';
+import { mutterHero } from '../speech/runtime.js';
 
 export function mkDoors(){
   var LV = runtime.LV;
@@ -27,7 +28,7 @@ export function tryDoor(S){
   for (var i = 0; i < S.doors.length; i++){
     var d = S.doors[i];
     if (Math.abs(d.x + 8 - cx) > 17 || Math.abs(d.y - 12 - cy) > 22) continue;
-    if (d.locked && !S.keys){ p.events.push('locked'); return true; }
+    if (d.locked && !S.keys){ mutterHero(S, 'locked'); p.events.push('locked'); return true; }
     if (d.locked){
       var pr0 = findById(S.doors, d.pair); d.locked = false; if (pr0) pr0.locked = false;
       S.keys--; p.events.push('unlock');

@@ -36,6 +36,19 @@ export function drawHarpoons(){
     rc(x + d*5, y - 1, d*3, 3, '#c9d4dc');           // наконечник
   }
 }
+
+export function drawArrows(){
+  var S = world();
+  for (var i = 0; i < S.arrows.length; i++){
+    var b = S.arrows[i], x = Math.round(b.x - cam.x), y = Math.round(b.y - cam.y);
+    if (x < -14 || x > viewW()+14) continue;
+    var d = b.vx >= 0 ? 1 : -1;
+    lb([x - d*8, y], [x + d*6, y], 1, P.wood);
+    rc(x + d*5, y - 1, d*3, 2, P.out);                // наконечник
+    lb([x - d*8, y - 1], [x - d*6, y - 1], 1, P.out); // оперение
+    lb([x - d*8, y + 1], [x - d*6, y + 1], 1, P.out);
+  }
+}
 export function liftButtons(){
   var S = world(), time = view.time;
   for (var i = 0; i < S.lifts.length; i++){
@@ -130,6 +143,42 @@ export function plats(){
       rc(x, y, q.w, 2, P.wood); rc(x, y, q.w, 1, P.woodL);
       rc(x+2, y+q.h, 2, 2, P.rockX); rc(x+q.w-4, y+q.h, 2, 2, P.rockX);
     }
+  }
+}
+export function npcs(){
+  var S = world(), time = view.time;
+  var list = S.npcs || [];
+  for (var i = 0; i < list.length; i++){
+    var n = list[i], x = Math.round(n.x - cam.x), y = Math.round(n.y - cam.y);
+    if (x < -16 || x > viewW() + 16) continue;
+    var f = n.facing >= 0 ? 1 : -1;
+    var bob = Math.round(Math.sin(time * 2.2 + n.ph) * 0.5);
+    var cloak = n.tree === 'wanderer' ? '#3a5a4a' : '#4a3a68';
+    var cloakD = n.tree === 'wanderer' ? '#243830' : '#2e2446';
+    var cx = x + 5;
+    rc(cx - 4, y + 8 + bob, 8, 10, cloakD);
+    rc(cx - 3, y + 8 + bob, 6, 9, cloak);
+    rc(cx - 3, y + 2 + bob, 6, 6, cloakD);
+    rc(cx - 2, y + 3 + bob, 4, 4, P.skin);
+    rc(cx - 3, y + 2 + bob, 6, 2, cloak);
+    rc(cx + (f > 0 ? 1 : -2), y + 5 + bob, 2, 1, '#1a1220');
+    rc(cx - 2, y + 16, 2, 2, '#2a2030');
+    rc(cx + 1, y + 16, 2, 2, '#2a2030');
+  }
+}
+export function boulders(){
+  var S = world();
+  for (var i = 0; i < S.boulders.length; i++){
+    var b = S.boulders[i], x = Math.round(b.x - cam.x), y = Math.round(b.y - cam.y);
+    if (x < -20 || x > viewW() + 20) continue;
+    var cx = x + 6, cy = y + 5;
+    setFill('#302c46');
+    ctx.beginPath(); ctx.arc(cx, cy + 1, 6, 0, Math.PI * 2); ctx.fill();
+    setFill('#4a4460');
+    ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI * 2); ctx.fill();
+    setFill('#6e6892');
+    ctx.beginPath(); ctx.arc(cx - 1.5, cy - 1.5, 3, 0, Math.PI * 2); ctx.fill();
+    rc(cx - 2, cy + 1, 2, 2, '#847dab');
   }
 }
 export function caveExit(){

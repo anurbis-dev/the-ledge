@@ -19,13 +19,13 @@ export function mkPlayer(){
     lastWall: 0, stick: false, helmet: false, shield: false, shieldCd: 0,
     scuba: false, flippers: false, harpoonGun: false,
     gear: { weapon:null, shield:null, helmet:null }, spare: [], bashT: 0,
-    atkT: 0, atkCd: 0, hurtCd: 0, snap: null, pickT: 0, pickPend: null, throwT: 0, throwPend: false,
+    atkT: 0, atkCd: 0, hurtCd: 0, snap: null, pickT: 0, pickPend: null, throwT: 0, throwPend: false, bowT: 0,
     stance: 0, bars: null, ladCd: 0, inWater: false, wading: false,
     atSurface: false, swimSurf: null, swimAng: 0, wasWet: false, bubT: 0,
     air: C.AIR_MAX, swimLaunch: 0, stam: C.STAM_MAX, dashT: 0,
-    stanceT: 0, stanceFrom: 0, lookUp: 0,
+    stanceT: 0, stanceFrom: 0, lookUp: 0, pushWall: false,
     gapCrawl: false, edgeHoldT: 0,
-    recoverSt: 0,
+    recoverSt: 0, knockedOut: false, gettingUp: false, getupT: 0,
     events: []
   };
 }
@@ -212,13 +212,25 @@ export function startFallRecover(S, p, st, dur){
   p.recoverSt = p.stance;
   if (p.stance !== from){ p.stanceFrom = from; p.stanceT = C.STANCE_T; }
   p.stunT = dur; p.state = 'stun'; p.vx = 0;
+  p.knockedOut = p.recoverSt === 2;      // лежит без сознания — закрытые глаза, пока не начнёт вставать
 }
+/* после высокого падения — отдельная анимация подъёма, не мгновенный щелчок стойки */
 export function finishFallRecover(S, p){
   if (!p.recoverSt) return false;
   var from = p.recoverSt;
+  p.recoverSt = 0;
+  if (from === 2){
+    p.knockedOut = false;
+    if (!setStance(S, p, 0)) setStance(S, p, Math.min(1, from));  // тесно — встать в полный рост некуда
+    if (p.stance === 0){
+      p.gettingUp = true; p.getupT = C.GETUP_T;
+      return true;
+    }
+    if (p.stance !== from){ p.stanceFrom = from; p.stanceT = C.STANCE_T; }
+    return p.stanceT > 0;
+  }
   if (!setStance(S, p, 0)) setStance(S, p, Math.min(1, from));
   if (p.stance !== from){ p.stanceFrom = from; p.stanceT = C.STANCE_T; }
-  p.recoverSt = 0;
   return p.stanceT > 0;
 }
 
@@ -332,6 +344,17 @@ export function autoLadder(S, p, prevBottom){
   return false;
 }
 
+/* соседняя платформа продолжает поверхность встык с этой стороны — значит это не край, а склейка */
+function platSeam(list, q, side){
+  var ex = side > 0 ? q.x + q.w : q.x;
+  for (var i = 0; i < list.length; i++){
+    var o = list[i];
+    if (o === q || Math.abs(o.y - q.y) > 2) continue;
+    if (side > 0 && Math.abs(o.x - ex) < 2) return true;
+    if (side < 0 && Math.abs(o.x + o.w - ex) < 2) return true;
+  }
+  return false;
+}
 /* --- захват края / нижней перекладины --- */
 export function tryGrab(S, p){
   if (p.inWater) return false;                              // под водой кромки не берём
@@ -351,6 +374,7 @@ export function tryGrab(S, p){
     var q = runtime.W.plats[pi];
     var side = (p.x + p.w/2 < q.x + q.w/2) ? -1 : 1;
     if (side !== dir) continue;
+    if (platSeam(runtime.W.plats, q, side)) continue;      // платформы встык — тут уже не край, хват не даём
     var cxq = side > 0 ? q.x + q.w : q.x;
     if (Math.abs((dir > 0 ? p.x + p.w : p.x) - cxq) > 12) continue;
     if (Math.abs(handY - q.y) > 9) continue;

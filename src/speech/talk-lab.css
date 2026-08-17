@@ -1,0 +1,36 @@
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100%;background:#07060f;color:#e9e4ff;
+  font-family:ui-monospace,Menlo,Consolas,monospace}
+body{padding:24px 20px 64px}
+a{color:#ffd9a0}
+header{max-width:980px;margin:0 auto 22px}
+h1{font-size:22px;letter-spacing:.12em;color:#ffd9a0;font-weight:700}
+h1 span{color:#8f88bb;font-size:12px;letter-spacing:.2em;margin-right:8px}
+.sub{color:#8f88bb;margin-top:8px;font-size:13px;line-height:1.45;max-width:62ch}
+.nav{margin-top:10px;font-size:12px}
+.panel{max-width:980px;margin:0 auto 18px;padding:12px 14px;
+  background:#120c22;border:2px solid #3a3460;border-radius:10px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+label{font-size:11px;color:#8f88bb;letter-spacing:.06em}
+input[type=range]{width:160px;accent-color:#8f88bb}
+input[type=text]{flex:1;min-width:180px;background:#1a152e;border:1px solid #4a4370;
+  color:#fff4dc;padding:6px 8px;border-radius:6px;font:inherit}
+select{background:#1a152e;border:1px solid #4a4370;color:#e9e4ff;
+  padding:6px 8px;border-radius:6px;font:inherit}
+button{background:#1d1734;border:2px solid #55487f;color:#e9e4ff;
+  padding:6px 10px;border-radius:8px;font:inherit;cursor:pointer}
+button:hover{background:#4d3f86}
+button.on{background:#4d3f86;border-color:#ffd9a0;color:#fff}
+.live{margin-top:10px;min-height:28px;color:#fff4dc;font-size:16px;letter-spacing:.08em}
+.live em{color:#6a628f;font-style:normal}
+.grid{max-width:980px;margin:0 auto;display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.card{background:#120c22;border:2px solid #3a3460;border-radius:10px;padding:12px;
+  display:flex;flex-direction:column;gap:8px}
+.card.sel{border-color:#ffd9a0;box-shadow:0 0 0 1px #ffd9a055}
+.card h3{font-size:13px;color:#ffd9a0;letter-spacing:.06em}
+.card p{font-size:11px;color:#8f88bb;line-height:1.4;flex:1}
+.acts{display:flex;gap:6px;flex-wrap:wrap}
+.acts button{font-size:11px}
+.who{max-width:980px;margin:22px auto 8px;color:#cfc6ff;font-size:12px;letter-spacing:.14em}
+.hint{max-width:980px;margin:18px auto 0;color:#6a628f;font-size:11px;line-height:1.45}

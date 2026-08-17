@@ -9,7 +9,7 @@ var dirty = false;
 var endT = null;
 var onChange = null;
 
-var OBJ_KEYS = ['enemies', 'fliers', 'spiders', 'tendrils', 'torches', 'chests', 'items', 'lights', 'sounds', 'volumes'];
+var OBJ_KEYS = ['enemies', 'fliers', 'spiders', 'tendrils', 'torches', 'chests', 'npcs', 'items', 'lights', 'sounds', 'volumes'];
 
 export function bindHistory(hooks){
   onChange = hooks && hooks.onChange;

@@ -1,7 +1,7 @@
 import {
   T, E, ROCK, CRUMB, LADW, LADF, LADR, LADL, HTOP, BAR, SLR, SLL, RNDA, RNDB, WATER, FALL,
   SLR2, SLR3, SLL2, SLL3, SLR4A, SLR4B, SLR4C, SLR4D, SLL4A, SLL4B, SLL4C, SLL4D,
-  SLRCA, SLRCB, SLLCB, SLLCA
+  SLRCA, SLRCB, SLLCB, SLLCA, PLANK, GIVE
 } from './constants.js';
 import { runtime, hooks, inMap, mapIx } from './runtime.js';
 
@@ -100,7 +100,9 @@ export function varAt(c, r){
   }
   return runtime.vary[ix];
 }
-export function isSolidV(v){ return v === ROCK || v === CRUMB || v === HTOP || v === RNDA || v === RNDB; }
+export function isSolidV(v){
+  return v === ROCK || v === CRUMB || v === HTOP || v === RNDA || v === RNDB || v === PLANK || v === GIVE;
+}
 export function isSlopeV(v){ return !!SLOPE_SPEC[v]; }
 export function isWaterV(v){ return v === WATER; }          // плавание только в бассейнах
 export function isFlowV(v){ return v === FALL; }            // падающая вода — не жидкость для физики
@@ -137,6 +139,7 @@ export function solidTile(c, r){
   var v = tileAt(c, r);
   if (!isSolidV(v)) return hooks.gateClosed(c, r);
   if (v === CRUMB && runtime.W && runtime.W.gone[mapIx(c, r)] > 0) return false;
+  if (v === PLANK && runtime.W && runtime.W.burnt && runtime.W.burnt[mapIx(c, r)]) return false;
   return true;
 }
 export function ladderTile(c, r){ return isLadV(tileAt(c, r)); }

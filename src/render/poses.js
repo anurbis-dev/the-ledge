@@ -12,10 +12,8 @@ export const VAULT_B = po({head:[9,9],neck:[8,11],hip:[6,14],eF:[11,10],hF:[13,7
 export const PICK_B = po({head:[7,12],neck:[7,15],hip:[6,17],eF:[10,16],hF:[12,20],eB:[3,15],hB:[2,18],kF:[8,17],fF:[8,21],kB:[3,17],fB:[3,21]});
 /* бросок факела — рука выброшена вперёд, корпус довёрнут за замахом */
 export const THROW_B = po({head:[5,2],neck:[5,5],hip:[5,11],eF:[10,3],hF:[15,-1],eB:[2,10],hB:[0,14],kF:[7,15],fF:[9,19],kB:[3,16],fB:[1,20]});
-/* упор руками в стену перед собой */
-export const WALLPUSH = po({head:[5,4],neck:[5,8],hip:[5,14],eF:[9,9],hF:[12,9],eB:[6,10],hB:[9,10],kF:[7,17],fF:[8,21],kB:[4,18],fB:[4,22]});
-/* смотрим вверх стоя на месте — только голова/шея запрокинуты */
-export const LOOKUP_A = po({head:[6,-2],neck:[5,3],hip:[5,14],eF:[7,11],hF:[7,15],eB:[3,11],hB:[3,15],kF:[6,18],fF:[6,22],kB:[4,18],fB:[4,22]});
+/* упор в стену — ладони на уровне груди, чуть вверх по стене, локти прижаты к корпусу */
+export const WALLPUSH = po({head:[5,4],neck:[5,8],hip:[5,14],eF:[7,10],hF:[10,6],eB:[4,10],hB:[7,7],kF:[7,17],fF:[8,21],kB:[4,18],fB:[4,22]});
 export const JUMPP = po({head:[5,4],neck:[5,8],hip:[5,14],eF:[8,10],hF:[9,6],eB:[3,10],hB:[2,7],kF:[7,17],fF:[6,20],kB:[3,18],fB:[3,22]});
 export const FALLP = po({head:[5,4],neck:[5,8],hip:[5,14],eF:[9,11],hF:[10,8],eB:[1,11],hB:[0,8],kF:[8,18],fF:[8,22],kB:[2,18],fB:[2,22]});
 export const LANDP = po({head:[5,7],neck:[5,10],hip:[5,16],eF:[8,14],hF:[8,17],eB:[2,14],hB:[2,17],kF:[8,19],fF:[7,22],kB:[2,19],fB:[3,22]});
@@ -83,3 +81,28 @@ export function throwPose(t){
   if (t >= 1) return IDLE_A;
   return t <= 0.4 ? lerpPose(IDLE_A, THROW_B, t/0.4) : lerpPose(THROW_B, IDLE_A, (t-0.4)/0.6);
 }
+/* подъём после высокого падения — из лёжки через присед на ноги */
+export function getupPose(t){
+  if (t <= 0) return PRONE0;
+  if (t >= 1) return IDLE_A;
+  return t <= 0.5 ? lerpPose(PRONE0, CROUCH, t/0.5) : lerpPose(CROUCH, IDLE_A, (t-0.5)/0.5);
+}
+
+/* лук — держится в дальней от камеры руке (eB/hB), поднят и вынесен вперёд,
+   не двигается через весь цикл. Ближняя рука (eF/hF) в стойке опущена; на
+   натяжении берёт тетиву по центру и тянет строго горизонтально назад. */
+export const BOW_STANCE = po({head:[5,4],neck:[5,8],hip:[5,14], eF:[7,11],hF:[7,15], eB:[9,6],hB:[15,6], kF:[8,17],fF:[9,21],kB:[3,19],fB:[2,22]});
+export const BOW_DRAW   = po({head:[5,4],neck:[5,8],hip:[5,14], eF:[3,6], hF:[-1,6],eB:[9,6],hB:[15,6], kF:[8,17],fF:[9,21],kB:[3,19],fB:[2,22]});
+export const BOW_RELEASE= po({head:[5,3],neck:[5,7],hip:[5,14], eF:[2,4], hF:[-2,2],eB:[9,6],hB:[15,6], kF:[8,17],fF:[9,21],kB:[3,19],fB:[2,22]});
+/* t — доля цикла выстрела (0..1): стойка -> натяжение -> резкий спуск -> сброс в стойку */
+export function bowPose(t){
+  if (t <= 0 || t >= 1) return BOW_STANCE;
+  if (t < 0.55) return lerpPose(BOW_STANCE, BOW_DRAW, t/0.55);
+  if (t < 0.68) return BOW_DRAW;
+  if (t < 0.78) return lerpPose(BOW_DRAW, BOW_RELEASE, (t-0.68)/0.10);
+  return lerpPose(BOW_RELEASE, BOW_STANCE, (t-0.78)/0.22);
+}
+/* кисть на тетиве только пока идёт натяжение — вне этого окна тетива рисуется прямой */
+export function bowHandOnString(t){ return t > 0 && t < 0.68; }
+/* окно сразу после спуска — тетива уже прямая и независима от кисти */
+export function bowReleaseFx(t){ return t >= 0.68 && t < 0.92; }

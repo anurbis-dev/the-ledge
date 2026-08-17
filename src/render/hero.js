@@ -5,21 +5,24 @@ import {
   K, IDLE_A, IDLE_B, RUN, JUMPP, FALLP, LANDP, SLIDEP, STUNP, SNAREP, ROLLP,
   LADP0, LADP1, LADF0, LADF1, ATK0, ATK1, ATK2, CROUCH, CROUCH_W,
   PRONE0, PRONE1, BARS0, BARS1, LADD0, LADD1, SWIM0, SWIM1,
-  HANGL, HANG_A, HANG_B, lerpPose, climbPose, vaultPose, pickPose, throwPose,
+  HANGL, HANG_A, HANG_B, lerpPose, climbPose, vaultPose, pickPose, throwPose, getupPose,
+  BOW_STANCE, bowPose, bowHandOnString, bowReleaseFx,
   WALLPUSH
 } from './poses.js';
-import { figure } from './figure.js';
+import { figure, drawBow } from './figure.js';
 import { torchPts } from './light.js';
 
 var G = GAME, C = G.C;
 
 function stancePose(st){ return st === 2 ? PRONE0 : (st === 1 ? CROUCH : IDLE_A); }
+function isBow(p){ return !!(p.gear.weapon && p.gear.weapon.type === 'bow'); }
 
 export function boxPose(p){
   var animT = view.animT, runPh = view.runPh;
   if (p.state === 'snare') return SNAREP;
   if (p.inWater) return (Math.sin(animT*7) > 0) ? SWIM0 : SWIM1;   // одна поза, наклон задаётся поворотом
   if (p.state === 'bars') return (Math.sin(p.bars.ph*2.4) > 0) ? BARS0 : BARS1;
+  if (p.gettingUp) return getupPose(1 - p.getupT / C.GETUP_T);  // встаёт после высокого падения
   if (p.stanceT > 0)                                  // плавный переход стоя/присед/лёжа
     return lerpPose(stancePose(p.stanceFrom), stancePose(p.stance), 1 - p.stanceT / C.STANCE_T);
   if (p.stance === 2) return (Math.abs(p.vx) > 4 && Math.sin(animT*7) > 0) ? PRONE1 : PRONE0;
@@ -28,6 +31,7 @@ export function boxPose(p){
     var t = 1 - p.atkT / C.ATK_T;
     return t < 0.32 ? lerpPose(ATK0, ATK1, t/0.32) : lerpPose(ATK1, ATK2, (t-0.32)/0.68);
   }
+  if (isBow(p) && p.bowT > 0) return bowPose(1 - p.bowT / C.BOW_ANIM_T);  // натяжение/спуск лука
   if (p.state === 'stun') return STUNP;
   if (p.rollT > 0) return ROLLP;
   if (p.pickT > 0 && p.onGround) return pickPose(1 - p.pickT / C.PICK_T);
@@ -49,9 +53,9 @@ export function boxPose(p){
     return p.vy < -40 ? JUMPP : (p.vy > 60 ? FALLP : lerpPose(JUMPP, FALLP, 0.5));
   }
   if (p.landT > 0) return LANDP;
-  var pushing = Math.abs(p.vx) < 7 && !G.rectFree(p.x + p.facing*3, p.y, p.w, p.h);
-  if (pushing) return WALLPUSH;                     // упёрлась в стену — руки перед собой
+  if (p.pushWall) return WALLPUSH;                   // жмёт в стену — руки на уровне груди по стене
   if (Math.abs(p.vx) > 8) return RUN[(runPh|0) % 4];
+  if (isBow(p)) return BOW_STANCE;                    // лук наготове, но не тянет тетиву
   return (Math.sin(animT*2.6) > 0) ? IDLE_A : IDLE_B;
 }
 export function lightDirAt(wx, wy){
@@ -111,8 +115,8 @@ export function hero(){
     }
     pt[k] = [Math.round(p.x) + lxp - cam.x, Math.round(p.y) + ly - cam.y];
   }
-  var hs = null, onBack = false;
-  if (p.stick){
+  var hs = null, onBack = false, bow = isBow(p);
+  if (p.stick && !bow){
     if (p.atkT > 0){
       var tt = 1 - p.atkT / C.ATK_T;
       var a0 = -2.1 + tt*3.5;                   // замах -> удар сверху вниз
@@ -126,8 +130,13 @@ export function hero(){
     helmType: p.gear.helmet && p.gear.helmet.type,
     shieldType: p.gear.shield && p.gear.shield.type,
     weaponType: p.gear.weapon && p.gear.weapon.type,
-    bash: p.bashT
+    bash: p.bashT,
+    eyesClosed: p.knockedOut
   }, headTilt);
+  if (bow){
+    var bt = p.bowT > 0 ? (1 - p.bowT / C.BOW_ANIM_T) : 0;
+    drawBow(pt, p.facing, 0, bowHandOnString(bt), bowReleaseFx(bt));
+  }
   tintHero(p, pt, cxw, cyw);
 }
 function tintHero(p, pt, cxw, cyw){

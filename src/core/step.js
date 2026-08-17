@@ -12,6 +12,9 @@ import { stepPlats, platUnder } from '../entities/plats.js';
 import { stepLifts, inLift, liftConstrain } from '../entities/lifts.js';
 import { stepCrumbs, crumbCheck } from '../entities/crumbs.js';
 import { stepTorches, tryAction, resolvePickup } from '../entities/torches.js';
+import { stepPlanks } from '../entities/planks.js';
+import { stepGive } from '../entities/give.js';
+import { stepBoulders, pushBoulders } from '../entities/boulders.js';
 import { stepHarpoons } from '../entities/harpoons.js';
 import { stepEnemies } from '../entities/enemies.js';
 import { stepFliers, stepDrops } from '../entities/fliers.js';
@@ -21,6 +24,8 @@ import { stepLoot } from '../entities/loot.js';
 import { tryDoor, updateWarp, tryExit } from '../entities/doors.js';
 import { pickups } from '../entities/items.js';
 import { stepDark } from '../entities/dark.js';
+import { stepSpeech } from '../speech/runtime.js';
+import { noteFirstItem } from '../speech/runtime.js';
 
 /* --- основной шаг --- */
 export function step(S, dt, inp){
@@ -32,7 +37,10 @@ export function step(S, dt, inp){
   stepPlats(S, dt);
   stepLifts(S, dt);
   stepCrumbs(S, dt);
+  stepGive(S, dt);
   stepTorches(S, dt);
+  stepPlanks(S, dt);
+  stepBoulders(S, dt);
   stepHarpoons(S, dt);
   stepEnemies(S, dt);
   stepFliers(S, dt);
@@ -51,7 +59,7 @@ export function step(S, dt, inp){
   var pk = S.pick;
   if (!pk.key.taken && Math.abs(pk.key.x - (S.p.x + S.p.w/2)) < 12 &&
       Math.abs(pk.key.y - (S.p.y + S.p.h/2)) < 14){
-    pk.key.taken = true; S.keys++; S.p.events.push('getkey');
+    pk.key.taken = true; S.keys++; noteFirstItem(S, 'key'); S.p.events.push('getkey');
   }
   for (var li = 0; li < S.lifts.length; li++){
     var LL = S.lifts[li], PP = S.p;
@@ -70,6 +78,14 @@ export function step(S, dt, inp){
         }
       }
     }
+  }
+  var talking = stepSpeech(S, dt, inp);
+  if (talking){
+    inp.x = 0;
+    inp.jumpPressed = false;
+    inp.actPressed = false;
+    inp.upPressed = false;
+    inp.downPressed = false;
   }
   if (inp.upPressed && (tryExit(S) || tryDoor(S))) { /* вверх: пещера или дверь */ }
   else if (inp.actPressed) tryAction(S);
@@ -379,6 +395,7 @@ export function step(S, dt, inp){
     slPre = slopeUnder(p);
     if (slPre !== null) p.y = slPre - p.h;
   }
+  if (!wasAir) pushBoulders(S, p, dt, inp);
   p.onGround = false;
   var dx = p.vx * dt;
   if (slPre !== null) dx *= C.SLOPE_ALONG / Math.hypot(1, slopeGradeUnder(p));

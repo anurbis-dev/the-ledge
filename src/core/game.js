@@ -2,7 +2,7 @@ import {
   T, C, E, ROCK, CRUMB, LADW, LADF, LADR, LADL, HTOP, BAR,
   SLR, SLL, RNDA, RNDB, WATER, FALL,
   SLR2, SLR3, SLL2, SLL3, SLR4A, SLR4B, SLR4C, SLR4D,
-  SLL4A, SLL4B, SLL4C, SLL4D, SLRCA, SLRCB, SLLCB, SLLCA
+  SLL4A, SLL4B, SLL4C, SLL4D, SLRCA, SLRCB, SLLCB, SLLCA, PLANK, GIVE
 } from './constants.js';
 import { runtime, setWorld, hooks, ensureMap, mapIx, inMap, mapMinC, mapMaxC, mapMinR, mapMaxR } from './runtime.js';
 import { getActiveLayer, getLayers, isTileLayer, wrapIndex, ensureStamp } from './layers.js';
@@ -28,10 +28,14 @@ import { mkDark, inDark, lightAt } from '../entities/dark.js';
 import { mkChests, tryChest } from '../entities/chests.js';
 import { GEAR, giveGear, wearGear } from '../entities/gear.js';
 import { mkHarpoons } from '../entities/harpoons.js';
+import { mkArrows } from '../entities/arrows.js';
 import { mkTendrils, mkTendrilAt } from '../entities/tendrils.js';
 import { mkLights, mkLightAt } from '../entities/lights.js';
 import { mkSounds, mkSoundAt } from '../entities/sounds.js';
 import { mkVolumes, mkVolumeAt } from '../entities/volumes.js';
+import { mkBoulders, mkBoulderAt } from '../entities/boulders.js';
+import { mkNpcs, mkNpcAt } from '../entities/npcs.js';
+import { mutter, mutterHero, startTalk, endTalk } from '../speech/runtime.js';
 
 export function mkWorld(li){
   if (li !== undefined || !runtime.LV) loadLevel(li === undefined ? runtime.LVI : li);
@@ -40,8 +44,10 @@ export function mkWorld(li){
     doors: mkDoors(), enemies: mkEnemies(), pick: mkPickable(), keys: 0, msg: null,
     lifts: mkLifts(), fade: 0, gates: null, fliers: mkFliers(), drops: [], spiders: mkSpiders(),
     dark: mkDark(), darkNow: false, darkT: 0, darkDist: 999, chests: mkChests(), loot: [],
-    harpoons: mkHarpoons(), tendrils: mkTendrils(),
+    harpoons: mkHarpoons(), arrows: mkArrows(), tendrils: mkTendrils(),
     lights: mkLights(), sounds: mkSounds(), volumes: mkVolumes(),
+    boulders: mkBoulders(), npcs: mkNpcs(), burnt: {}, plankT: {}, giveT: {},
+    bubbles: [], talk: null, flags: {},
     gone: {}, hp: 3, bag: { gem:0, shroom:0, coin:0, relic:0, tank:0 },
     respawn: { x: runtime.LV.spawn.x, y: runtime.LV.spawn.y }, t: 0, hitStop: 0, shake: 0, fx: [], done: false,
     dead: false
@@ -95,10 +101,12 @@ function setVar(c, r, v){
 function mkItemAt(S, cx, cy, kind){
   S.items.push({ id:allocId(S.items), x:cx, y:cy, kind:kind, got:false, ph:Math.random()*6.28 });
 }
-function mkEnemyAt(S, x, y, kind){
+function mkEnemyAt(S, x, y, kind, loot, random){
   S.enemies.push({ id:allocId(S.enemies), x:x, y:y-14, w: kind===2?14:11, h: kind===2?18:14,
                    x0:x-64, x1:x+64, v:26, kind:kind, tough: kind===2?2:1,
-                   dir:1, dead:false, hitT:0, ph:0, vy:0 });
+                   dir:1, dead:false, hitT:0, ph:0, vy:0,
+                   loot: (loot && loot.length) ? loot.map(function(e){ return { kind:e.kind, qty:e.qty }; }) : [],
+                   random: !!random });
 }
 function mkFlierAt(S, x, y, kind){
   S.fliers.push({ id:allocId(S.fliers), x:x, y:y, w: kind===2?16:13, h: kind===2?11:9,
@@ -113,15 +121,18 @@ function mkTorchAt(S, x, y){
   S.torches.push({ id:allocId(S.torches), x:x, y:y, vx:0, vy:0, held:false, ground:true,
                    ph:0, ang:0, spin:0, wasAir:false, thrown:false, lit:true, hx:x, hy:y });
 }
-function mkChestAt(S, x, y, kind, locked){
-  S.chests.push({ id:allocId(S.chests), x:x, y:y, kind:kind, locked:!!locked, opened:false, t:0 });
+function mkChestAt(S, x, y, loot, locked, random){
+  var l = (loot && loot.length)
+    ? loot.map(function(e){ return { kind: e.kind, qty: e.qty }; })
+    : [{ kind: 'coin', qty: 5 }];
+  S.chests.push({ id:allocId(S.chests), x:x, y:y, loot:l, locked:!!locked, opened:false, t:0, random: !!random });
 }
 
 export const GAME = {
   T, C,
   get MAP_W(){ return runtime.MAP_W; }, get MAP_H(){ return runtime.MAP_H; }, get base(){ return runtime.base; },
   mapMinC, mapMaxC, mapMinR, mapMaxR, mapIx, inMap,
-  E, ROCK, CRUMB, LADW, LADF, LADR, LADL, HTOP, BAR,
+  E, ROCK, CRUMB, LADW, LADF, LADR, LADL, HTOP, BAR, PLANK, GIVE,
   isHalfV, isBarV, ladderTop, stanceH,
   SLR, SLL, RNDA, RNDB, WATER, FALL,
   SLR2, SLR3, SLL2, SLL3, SLR4A, SLR4B, SLR4C, SLR4D,
@@ -133,13 +144,14 @@ export const GAME = {
   setTile, varAt, setVar, varR,
   buildGates: function(S){ buildGates(S); },
   mkItemAt, mkEnemyAt, mkFlierAt, mkSpiderAt, mkTorchAt, mkChestAt, mkTendrilAt,
-  mkLightAt, mkSoundAt, mkVolumeAt, getLayers, getActiveLayer,
+  mkLightAt, mkSoundAt, mkVolumeAt, mkBoulderAt, mkNpcAt, getLayers, getActiveLayer,
   rectFree, mkWorld, step, resetPlayer,
   LEVELS, loadLevel, newBlankLevel: addBlankLevel, removeLevel, levelIndex(){ return runtime.LVI; },
   levelSpec(){ return runtime.LV; },
   tryAction, dropTorch, attack, tryDoor, inLift,
   GEAR, giveGear, wearGear,
   tryExit, liftSideOpen, tryChest,
+  mutter, mutterHero, startTalk, endTalk,
   inDark, lightAt,
   hangBox, standBox, setWorld,
   get W(){ return runtime.W; },

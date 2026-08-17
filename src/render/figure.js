@@ -2,16 +2,27 @@ import { ctx, rc, lb } from './ctx.js';
 import { P } from './palette.js';
 
 export const HEAD_S = ['.hhhh.','hhhhhh','hhssss','hhsses','.hssss','.hsss.','..ss..'];
+export const HEAD_S_CLOSED = ['.hhhh.','hhhhhh','hhssss','hhssss','.hssss','.hsss.','..ss..'];
 export const HEAD_F = ['.hhhh.','hhhhhh','hhhhhh','hssssh','hssssh','.ssss.','..ss..'];
-export function drawHead(hx, hy, facing, wag, mode, frontal){
-  var rows = frontal ? HEAD_F : HEAD_S, r, c, ch, tx, ty;
+function tiltXY(tx, ty, cs, sn){
+  var dx = tx, dy = ty - 2;                    // пивот — основание черепа у шеи (ty=2 локально)
+  return [Math.round(dx*cs - dy*sn), Math.round(dx*sn + dy*cs + 2)];
+}
+export function drawHead(hx, hy, facing, wag, mode, frontal, tilt, closed){
+  var rows = frontal ? HEAD_F : (closed ? HEAD_S_CLOSED : HEAD_S), r, c, ch, tx, ty, txy;
   var bx = frontal ? hx : hx - facing*3, by = hy - 1;
+  // коса крепится к затылку и свисает по своей физике (wag) — не зависит от поворота черепа
   var t1 = [bx - (frontal?0:facing*2) + (frontal?wag*0.6:0), by + (frontal?4:2) + (frontal?0:wag)];
   var t2 = [bx - (frontal?0:facing*3) + (frontal?wag:0), by + (frontal?9:6) + (frontal?0:wag*2)];
+  var ang = (tilt && !frontal) ? -facing*tilt : 0;              // поворот черепа "взгляд вверх"
+  var cs = ang ? Math.cos(ang) : 1, sn = ang ? Math.sin(ang) : 0;
+  // поворот считаем в JS и округляем до целого пикселя — иначе canvas-transform даёт
+  // субпиксельные прямоугольники и голова "плывёт" (не вписывается в чёткий пиксель-арт стиль)
   if (mode === 2){
     for (r = 0; r < rows.length; r++) for (c = 0; c < 6; c++){
       if (rows[r][c] === '.') continue;
       tx = c-3; ty = r-4; if (!frontal && facing < 0) tx = -tx-1;
+      if (ang){ txy = tiltXY(tx, ty, cs, sn); tx = txy[0]; ty = txy[1]; }
       rc(hx+tx, hy+ty, 1, 1, P.rim);
     }
     return;
@@ -21,6 +32,7 @@ export function drawHead(hx, hy, facing, wag, mode, frontal){
     for (r = 0; r < rows.length; r++) for (c = 0; c < 6; c++){
       if (rows[r][c] === '.') continue;
       tx = c-3; ty = r-4; if (!frontal && facing < 0) tx = -tx-1;
+      if (ang){ txy = tiltXY(tx, ty, cs, sn); tx = txy[0]; ty = txy[1]; }
       rc(hx+tx-1, hy+ty-1, 3, 3, P.out);
     }
     return;
@@ -29,10 +41,12 @@ export function drawHead(hx, hy, facing, wag, mode, frontal){
   for (r = 0; r < rows.length; r++) for (c = 0; c < 6; c++){
     ch = rows[r][c]; if (ch === '.') continue;
     tx = c-3; ty = r-4; if (!frontal && facing < 0) tx = -tx-1;
+    if (ang){ txy = tiltXY(tx, ty, cs, sn); tx = txy[0]; ty = txy[1]; }
     rc(hx+tx, hy+ty, 1, 1, ch==='h' ? (r<2?P.hairL:P.hair) : (ch==='e' ? P.out : (ty<0?P.skinL:P.skin)));
   }
 }
-export function figure(pt, facing, wag, frontal, rim, heldStick, backStick, gear){
+export function figure(pt, facing, wag, frontal, rim, heldStick, backStick, gear, tilt){
+  var closed = gear && gear.eyesClosed;
   var sh = [pt.neck[0], pt.neck[1]+1];
   var seg = [[pt.hip,pt.kB,4],[pt.kB,pt.fB,3],[sh,pt.eB,3],[pt.eB,pt.hB,2],
              [pt.neck,pt.hip,5],[pt.hip,pt.kF,4],[pt.kF,pt.fF,3],[sh,pt.eF,3],[pt.eF,pt.hF,2]];
@@ -40,7 +54,7 @@ export function figure(pt, facing, wag, frontal, rim, heldStick, backStick, gear
   if (rim){                     // контровой свет: только корпус и голова, 1px, полупрозрачно
     ctx.globalAlpha = 0.5;
     lb([pt.neck[0]+rim[0], pt.neck[1]+rim[1]], [pt.hip[0]+rim[0], pt.hip[1]+rim[1]], 7, P.rim);
-    drawHead(pt.head[0]+rim[0], pt.head[1]+rim[1], facing, wag, 2, frontal);
+    drawHead(pt.head[0]+rim[0], pt.head[1]+rim[1], facing, wag, 2, frontal, tilt, closed);
     ctx.globalAlpha = 1;
   }
   if (backStick){                               // палка за спиной, наискось
@@ -53,7 +67,7 @@ export function figure(pt, facing, wag, frontal, rim, heldStick, backStick, gear
   }
   for (i = 0; i < seg.length; i++) lb(seg[i][0], seg[i][1], seg[i][2]+2, P.out);
   rc(pt.hip[0]-5, pt.hip[1]-2, 10, 6, P.out);
-  drawHead(pt.head[0], pt.head[1], facing, wag, 0, frontal);
+  drawHead(pt.head[0], pt.head[1], facing, wag, 0, frontal, tilt, closed);
   lb(pt.hip, pt.kB, 4, P.pantsS); lb(pt.kB, pt.fB, 3, P.pantsS);
   rc(pt.fB[0]-2, pt.fB[1]-2, 4, 3, P.bootS);
   lb(sh, pt.eB, 3, P.shirtS); lb(pt.eB, pt.hB, 2, P.skinS);
@@ -64,7 +78,7 @@ export function figure(pt, facing, wag, frontal, rim, heldStick, backStick, gear
   lb(pt.hip, pt.kF, 4, P.pants); lb(pt.kF, pt.fF, 3, P.pants);
   rc(pt.fF[0]-2, pt.fF[1]-2, 4, 3, P.boot);
   lb(sh, pt.eF, 3, P.shirtL); lb(pt.eF, pt.hF, 2, P.skin);
-  drawHead(pt.head[0], pt.head[1], facing, wag, 1, frontal);
+  drawHead(pt.head[0], pt.head[1], facing, wag, 1, frontal, tilt, closed);
   if (gear && gear.helmet){                        // шлем: форма и цвет по типу
     var ht5 = gear.helmType || 'lhelm';
     var hc5 = P.gearCol[ht5] || [P.helm, P.helmD];
@@ -110,5 +124,41 @@ export function figure(pt, facing, wag, frontal, rim, heldStick, backStick, gear
          [gx5 + Math.sin(ang)*4, gy5 - Math.cos(ang)*4], 2, wc5[1]);
     }
     rc(Math.round(ex2) - 1, Math.round(ey2) - 1, 2, 2, wc5[0]);
+  }
+}
+
+function rotV(vx, vy, cs, sn){ return [vx*cs - vy*sn, vx*sn + vy*cs]; }
+
+/* лук — держится в дальней руке (pt.hB), изогнут вперёд по ходу выстрела.
+   handOnString: ближняя рука (pt.hF) сейчас держит тетиву и тянет её (натяжение);
+   вне этого окна тетива рисуется прямой, независимо от кисти (see poses.js:bowHandOnString).
+   releaseFx: стрела уже сошла с тетивы — рисуем её улетающей по прямой. */
+export function drawBow(pt, facing, tilt, handOnString, releaseFx){
+  var grip = pt.hB, cs = Math.cos(tilt), sn = Math.sin(tilt);
+  var up = rotV(0,-9, cs,sn), dn = rotV(0,9, cs,sn);
+  var tip1 = [grip[0]+up[0], grip[1]+up[1]];
+  var tip2 = [grip[0]+dn[0], grip[1]+dn[1]];
+  var bulge = facing*2.2;
+  var midUp = [grip[0]+up[0]*0.5+bulge, grip[1]+up[1]*0.5];
+  var midDn = [grip[0]+dn[0]*0.5+bulge, grip[1]+dn[1]*0.5];
+  lb(grip, midUp, 2, P.wood); lb(midUp, tip1, 2, P.woodD);
+  lb(grip, midDn, 2, P.wood); lb(midDn, tip2, 2, P.woodD);
+  rc(grip[0]-1, grip[1]-2, 2, 4, P.out);
+  if (handOnString){                   // тетива идёт через кисть — натяжение
+    lb(tip1, pt.hF, 1, P.string);
+    lb(pt.hF, tip2, 1, P.string);
+    var y = grip[1], tip = [grip[0] + facing*4, y], tail = [pt.hF[0], y];
+    lb(tail, tip, 1, P.wood);
+    rc(Math.round(tip[0])-1, y-1, 2, 2, P.out);
+    rc(Math.round(tail[0])-1, y-1, 2, 2, P.out);
+  } else {                             // тетива прямая — в покое или сразу после спуска
+    lb(tip1, tip2, 1, P.string);
+    if (releaseFx){                    // стрела уже ушла — летит по прямой
+      var ry = grip[1];
+      var rtail = [grip[0] + facing*3, ry], rtip = [grip[0] + facing*22, ry];
+      lb(rtail, rtip, 1, P.wood);
+      rc(Math.round(rtip[0])-1, ry-1, 2, 2, P.out);
+      rc(Math.round(rtail[0])-1, ry-1, 2, 2, P.out);
+    }
   }
 }

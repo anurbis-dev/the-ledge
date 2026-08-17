@@ -87,6 +87,7 @@ function packLevel(lv){
     tendrils: lv.tendrils || [],
     torches: lv.torches || [],
     chests: lv.chests || [],
+    npcs: lv.npcs || [],
     items: dumpItems(lv),
     lights: lv.lights || [],
     sounds: lv.sounds || [],
@@ -104,6 +105,7 @@ function applyRecord(lv, rec){
   if (rec.tendrils) lv.tendrils = rec.tendrils;
   if (rec.torches) lv.torches = rec.torches;
   if (rec.chests) lv.chests = rec.chests;
+  if (rec.npcs) lv.npcs = rec.npcs;
   if (rec.items){
     var items = rec.items;
     lv.items = function(){ return items.map(function(a){ return a.slice(); }); };
@@ -130,7 +132,7 @@ function makeBlank(rec){
     items: function(){ return items.map(function(a){ return a.slice(); }); },
     enemies: rec.enemies || [], fliers: rec.fliers || [],
     spiders: rec.spiders || [], tendrils: rec.tendrils || [],
-    torches: rec.torches || [], chests: rec.chests || [],
+    torches: rec.torches || [], chests: rec.chests || [], npcs: rec.npcs || [],
     doors: [], lifts: [], plats: [], dark: [],
     water: rec.water || [],
     stick: { x: 40, y: 8 * T - 6 },
@@ -155,8 +157,13 @@ function writeStore(store){
 function writeObjects(lv, S){
   if (!lv || !S) return;
   lv.enemies = (S.enemies || []).filter(function(e){ return !e.dead; }).map(function(e){
-    return [Math.round(e.x), Math.round(e.y + e.h), Math.round(e.x0), Math.round(e.x1),
-            Math.round(e.v), e.kind];
+    var t = [Math.round(e.x), Math.round(e.y + e.h), Math.round(e.x0), Math.round(e.x1),
+             Math.round(e.v), e.kind];
+    if (e.loot && e.loot.length){
+      t.push(e.loot.map(function(x){ return [x.kind, x.qty]; }));
+      t.push(!!e.random);
+    }
+    return t;
   });
   lv.fliers = (S.fliers || []).filter(function(f){ return !f.dead; }).map(function(f){
     return [Math.round(f.x), Math.round(f.y), Math.round(f.x0), Math.round(f.x1),
@@ -178,7 +185,14 @@ function writeObjects(lv, S){
     return [Math.floor(t.x / T), Math.floor(t.y / T) - 1];
   });
   lv.chests = (S.chests || []).map(function(c){
-    return [Math.floor(c.x / T), Math.floor(c.y / T) - 1, c.kind, !!c.locked];
+    var loot = c.loot || [];
+    return [Math.floor(c.x / T), Math.floor(c.y / T) - 1,
+            (loot[0] && loot[0].kind) || 'coin', !!c.locked,
+            loot.map(function(e){ return [e.kind, e.qty]; }), !!c.random];
+  });
+  lv.npcs = (S.npcs || []).map(function(n){
+    return [Math.floor((n.x + 5) / T), Math.floor((n.y + 18) / T) - 1,
+            n.tree || 'hermit', n.facing != null ? n.facing : -1];
   });
   var items = (S.items || []).filter(function(it){ return !it.got; }).map(function(it){
     return [Math.floor(it.x / T), Math.floor(it.y / T), it.kind];

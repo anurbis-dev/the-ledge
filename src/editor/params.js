@@ -102,7 +102,6 @@ export var PARAM_GROUPS = [
   { id: 'world', name: 'World / Hazards', items: [
     { key: 'WARP_T', label: 'Door warp t', min: 0.2, max: 1.5, step: 0.02 },
     { key: 'CRUMB_T', label: 'Crumb crack t', min: 0.2, max: 3, step: 0.05 },
-    { key: 'CRUMB_BACK', label: 'Crumb restore', min: 0.5, max: 8, step: 0.1 },
     { key: 'TEND_REACH', label: 'Tendril reach', min: 20, max: 180, step: 1 },
     { key: 'TEND_HOLD', label: 'Tendril hold', min: 0.4, max: 6, step: 0.1 }
   ]}

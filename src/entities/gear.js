@@ -1,8 +1,11 @@
+import { noteFirstItem } from '../speech/runtime.js';
+
 /* ---------------- снаряжение ---------------- */
 export var GEAR = {
   stick:  { slot:'weapon', uses:12, reach:1.0, name:'stick'  },
   sword:  { slot:'weapon', uses:20, reach:1.25, name:'sword'  },
   blade:  { slot:'weapon', uses:30, reach:1.45, name:'blade'  },
+  bow:    { slot:'weapon', uses:24, reach:1.0, name:'bow'  },
   wshield:{ slot:'shield', uses:5,  name:'shield' },
   ishield:{ slot:'shield', uses:9,  name:'shield' },
   gshield:{ slot:'shield', uses:14, name:'shield' },
@@ -27,6 +30,7 @@ export function giveGear(S, type){
   if (it.slot === 'scuba') p.scuba = true;
   if (it.slot === 'flippers') p.flippers = true;
   if (it.slot === 'harpoon') p.harpoonGun = true;
+  noteFirstItem(S, type);
   p.events.push('gear:' + type);
 }
 export function wearGear(S, slot, n){

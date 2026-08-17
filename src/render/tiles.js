@@ -3,7 +3,7 @@ import { hooks } from '../core/runtime.js';
 import { getLayers, layerShown, lastCollideIndex, layerTile, layerVar, isTileLayer, wrapSize, layerCssFilter } from '../core/layers.js';
 import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH, viewScale } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
-import { waterDepthK } from './fx.js';
+import { waterDepthK, dust } from './fx.js';
 
 var G = GAME, T = G.T;
 var _L = null;
@@ -15,6 +15,7 @@ function sAt(c, r){
   var v = tAt(c, r);
   if (!G.isSolidV(v)) return false;
   if (v === G.CRUMB && world() && world().gone && world().gone[G.mapIx(c, r)] > 0) return false;
+  if (v === G.PLANK && world() && world().burnt && world().burnt[G.mapIx(c, r)]) return false;
   return true;
 }
 
@@ -251,13 +252,49 @@ export function drawTile(c, r, x, y, dyn){
     }
     return;
   }
+  if (v === G.PLANK){                                // деревянный настил, сгорает от факела навсегда
+    var pIx = G.mapIx(c, r), Sw = world();
+    var burnt = Sw && Sw.burnt && Sw.burnt[pIx];
+    if (burnt){
+      rc(x+2, y+8, 3, 2, '#241d3d'); rc(x+9, y+9, 3, 2, '#241d3d'); rc(x+6, y+11, 2, 2, '#3a3157');
+      return;
+    }
+    var burning = Sw && Sw.plankT && Sw.plankT[pIx] !== undefined;
+    var pk = burning ? Math.max(0, Math.min(1, 1 - Sw.plankT[pIx] / G.C.PLANK_BURN)) : 0;
+    var wc = mixHex(P.wood, '#3a1c14', pk), wd = mixHex(P.woodD, '#1c0d0a', pk), wl = mixHex(P.woodL, '#6a2a1a', pk);
+    rc(x, y, T, T, wd);
+    rc(x, y+1, T, 4, wc); rc(x, y+7, T, 4, wc);
+    rc(x, y+1, T, 1, wl); rc(x, y+7, T, 1, wl);
+    rc(x, y+5, T, 2, wd); rc(x, y+11, T, 2, wd);
+    if (burning){
+      var fl = Math.round(Math.sin(time*20 + c)*1);
+      rc(x + 3, y - 2 + fl, 3, 3, '#ff9b3d'); rc(x + 9, y - 1 + fl, 3, 3, '#ff7a3d');
+      if (Math.random() < 0.2) dust(x + T/2, y, 1, 10, 14);
+    }
+    return;
+  }
+  if (v === G.GIVE){                                 // пружинящий блок: проседает и темнеет под ногами
+    var Sg = world(), gk = (Sg && Sg.giveT && Sg.giveT[G.mapIx(c, r)]) || 0;
+    var gy = Math.round(gk * 3);
+    var gc = mixHex(P.rock, '#1c1730', gk*0.7), gd = mixHex(P.rockD, '#100c1e', gk*0.7), gl = mixHex(P.rockL, '#2a2444', gk*0.7);
+    rc(x, y + gy, T, T - gy, gc);
+    rc(x, y + gy, T, 2, gl);
+    rc(x, y + T - 2, T, 2, gd);
+    rc(x + 2, y + gy + 2, T - 4, 1, gd);
+    return;
+  }
   if (!G.isSolidV(v)) return;
   var k = G.mapIx(c, r), crumb = (v === G.CRUMB), hh = hashT(c, r);
   if (crumb && !sAt(c, r)){
     rc(x+2, y+5, 3, 2, P.crumD); rc(x+9, y+8, 2, 2, P.crumD); return;
   }
   var sx = 0;
-  if (crumb && S.crumbT && S.crumbT[k] !== undefined) sx = Math.round(Math.sin(time*46)*1.2);
+  var cracking = crumb && S.crumbT && S.crumbT[k] !== undefined;
+  if (cracking) sx = Math.round(Math.sin(time*46)*1.2);
+  if (crumb){                                        // с нижней кромки сыплется песок — тайл нестабилен
+    if (cracking){ if (Math.random() < 0.4) dust(x + sx + 2 + Math.random()*(T-4), y + T - 1, 2, 4, 4); }
+    else if (Math.random() < 0.05) dust(x + 2 + Math.random()*(T-4), y + T - 1, 2, 3, 3);
+  }
   var deep = r > 30;
   var biome = deep ? 2 : (c > 112 ? 1 : 0);
   var bs, bd, bl;
@@ -380,7 +417,8 @@ export function chunkOf(cx, cy){
       for (var c = cx*CH; c < (cx+1)*CH; c++){
         if (!G.inMap(c, r)) continue;
         var vv0 = tAt(c, r);
-        if (vv0 === G.CRUMB || vv0 === G.WATER || vv0 === G.FALL) continue;   // динамика — мимо кэша
+        if (vv0 === G.CRUMB || vv0 === G.WATER || vv0 === G.FALL ||
+            vv0 === G.PLANK || vv0 === G.GIVE) continue;                     // динамика — мимо кэша
         drawTile(c, r, (c - cx*CH)*T + PAD, (r - cy*CH)*T + PAD, false);
       }
     }
@@ -452,7 +490,7 @@ function blitLayer(camx, camy){
   for (r = r0; r <= r1; r++){
     for (c = c0; c <= c1; c++){
       vd = tAt(c, r);
-      if (vd === G.CRUMB || vd === G.WATER || vd === G.FALL)
+      if (vd === G.CRUMB || vd === G.WATER || vd === G.FALL || vd === G.PLANK || vd === G.GIVE)
         drawTile(c, r, c*T - camx, r*T - camy, true);
     }
   }

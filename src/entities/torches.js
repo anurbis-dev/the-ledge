@@ -1,13 +1,16 @@
-import { T, C } from '../core/constants.js';
+import { T, C, PLANK } from '../core/constants.js';
 import { runtime } from '../core/runtime.js';
 import { rectFree, tileAt, isWaterV } from '../core/map.js';
 import { inDark } from './dark.js';
+import { ignitePlank } from './planks.js';
 import { dropLoot } from './loot.js';
 import { tryChest } from './chests.js';
+import { tryTalk } from './npcs.js';
 import { giveGear } from './gear.js';
 import { attack } from './enemies.js';
 import { findById } from './ids.js';
 import { fireHarpoon, tryHarpoonPickup } from './harpoons.js';
+import { fireArrow, tryArrowPickup } from './arrows.js';
 
 export function mkTorches(){
   var LV = runtime.LV;
@@ -36,7 +39,12 @@ export function stepTorches(S, dt){
       }
       t.ang = -Math.PI/2; t.spin = 0; t.wasAir = false; continue;
     }
-    if (t.ground && Math.abs(t.vx) < 1){ t.vx = 0; continue; }
+    if (t.ground && Math.abs(t.vx) < 1){
+      t.vx = 0;
+      if (t.lit && t.thrown && tileAt(Math.floor(t.x/T), Math.floor(t.y/T)) === PLANK)
+        ignitePlank(S, Math.floor(t.x/T), Math.floor(t.y/T));
+      continue;
+    }
     t.vy += 760*dt; if (t.vy > 320) t.vy = 320;
     t.x += t.vx*dt;
     if (!rectFree(t.x-2, t.y-7, 5, 7)){ t.x -= t.vx*dt; t.vx *= -0.28; }
@@ -57,6 +65,8 @@ export function stepTorches(S, dt){
         t.wasAir = false; S.p.events.push('torchland:' + t.id);
         if (t.thrown && inDark(S, t.x, t.y - 6)){ t.lit = false; t.thrown = false; S.p.events.push('snuff:' + t.id); }
       }
+      if (t.lit && t.thrown && tileAt(Math.floor(t.x/T), Math.floor(t.y/T)) === PLANK)
+        ignitePlank(S, Math.floor(t.x/T), Math.floor(t.y/T));
     } else {
       t.wasAir = true;
       t.ang += t.spin * dt;
@@ -130,15 +140,21 @@ export function resolvePickup(S){
 }
 export function tryAction(S){
   var p = S.p;
+  if (tryTalk(S)) return true;
   if (tryChest(S)) return true;                          // сундук открываем не выпуская факел
   if (p.torch >= 0){
     if (p.throwT <= 0){ p.throwT = C.THROW_T; p.throwPend = true; }
     return true;
   }
-  if (p.state === 'snare' && p.stick) return attack(S);
+  var isBowEq = !!(p.gear.weapon && p.gear.weapon.type === 'bow');
+  if (p.state === 'snare' && p.stick && !isBowEq) return attack(S);
   if (p.harpoonGun && p.gear.harpoon){
     if (tryHarpoonPickup(S)) return true;
     if (p.inWater && fireHarpoon(S)) return true;
+  }
+  if (isBowEq){
+    if (tryArrowPickup(S)) return true;
+    if (fireArrow(S)) return true;
   }
   var pk = S.pick;
   if (!pk.stick.taken && p.state === 'normal' && p.pickT <= 0 &&
@@ -147,7 +163,7 @@ export function tryAction(S){
     return true;
   }
   if (p.state !== 'normal' && p.state !== 'ladder') return false;
-  if (p.stick && p.stance === 0){                         // враг в досягаемости — бьём
+  if (p.stick && !isBowEq && p.stance === 0){              // враг в досягаемости — бьём
     var ax0 = p.x + p.w/2 + p.facing*(C.ATK_R*0.55), ay0 = p.y + p.h/2, hit = false, q;
     for (var qi = 0; qi < S.enemies.length; qi++){
       q = S.enemies[qi]; if (q.dead) continue;
@@ -159,14 +175,14 @@ export function tryAction(S){
     }
     if (hit) return attack(S);
   }
-  if (p.pickT > 0) return p.stick ? attack(S) : false;   // уже приседаем за предметом
+  if (p.pickT > 0) return (p.stick && !isBowEq) ? attack(S) : false;   // уже приседаем за предметом
   var best = -1, bd = C.ACT_R*C.ACT_R, cx = p.x + p.w/2, cy = p.y + p.h/2;
   for (var i = 0; i < S.torches.length; i++){
     var t = S.torches[i]; if (t.held) continue;
     var dx = t.x - cx, dy = (t.y - 6) - cy, d = dx*dx + dy*dy;
     if (d < bd){ bd = d; best = i; }
   }
-  if (best < 0) return p.stick ? attack(S) : false;    // рядом нет факела — бьём палкой
+  if (best < 0) return (p.stick && !isBowEq) ? attack(S) : false;    // рядом нет факела — бьём палкой
   p.pickT = C.PICK_T; p.pickPend = { kind: 'torch', id: S.torches[best].id };
   return true;
 }

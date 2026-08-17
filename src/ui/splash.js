@@ -3,6 +3,33 @@
 // угольками улетают вверх и открывают меню.
 var DUR = 2000, FORM_T = 1.55;
 
+// Свечение вокруг угольков рисуем заранее отрисованным спрайтом (drawImage),
+// а не ctx.shadowBlur — блюр на сотни фигур в кадр заметно дороже блита текстуры.
+var GLOW_CACHE = {};
+function getGlow(rgb){
+  var cached = GLOW_CACHE[rgb];
+  if (cached) return cached;
+  var s = 48;
+  var c = document.createElement('canvas');
+  c.width = c.height = s;
+  var g = c.getContext('2d');
+  var grad = g.createRadialGradient(s/2,s/2,0, s/2,s/2, s/2);
+  grad.addColorStop(0, 'rgba('+rgb+',1)');
+  grad.addColorStop(.35, 'rgba('+rgb+',.55)');
+  grad.addColorStop(1, 'rgba('+rgb+',0)');
+  g.fillStyle = grad;
+  g.fillRect(0,0,s,s);
+  GLOW_CACHE[rgb] = c;
+  return c;
+}
+function drawGlow(ctx, rgb, x, y, r, alpha){
+  if (alpha <= 0) return;
+  var d = r*7;
+  ctx.globalAlpha = Math.min(1, alpha);
+  ctx.drawImage(getGlow(rgb), x-d/2, y-d/2, d, d);
+  ctx.globalAlpha = 1;
+}
+
 export function showSplash(onDone){
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var root = document.getElementById('splash');
@@ -73,6 +100,10 @@ export function showSplash(onDone){
     var coalMaxX = Math.min(dim.w, scene.maxX + dim.w*0.03);
     var coalY = scene.baseY + dim.h*0.045;
     var span = Math.max(1, coalY-scene.minY);
+    // Точки рисуются в тех же px, что и canvas.width/height (уже умноженных на dpr),
+    // поэтому без масштабирования на больших разрешениях они выглядят мельче буквы.
+    var scale = Math.max(1, dim.w/900);
+    state.scale = scale;
 
     state.particles = scene.pts.map(function(p){
       var tx=p[0], ty=p[1];
@@ -81,19 +112,21 @@ export function showSplash(onDone){
       return {
         sx:sx, sy:sy, tx:tx, ty:ty,
         delay: ((coalY-ty)/span)*0.32 + Math.random()*0.5,
-        size: 1.0+Math.random()*1.7,
+        size: (1.0+Math.random()*1.7)*scale,
         hue: Math.random()<0.5 ? '255,157,61' : '255,217,160',
         flicker: Math.random()*Math.PI*2,
         dDelay:0, dJitter:0, dRise:0
       };
     });
 
-    var coalCount = Math.max(10, Math.round((coalMaxX-coalMinX)/9));
+    var coalR = 1.6*scale;
+    var coalCount = Math.max(10, Math.round((coalMaxX-coalMinX)/(coalR*2.2)));
     state.coal = [];
     for (var i=0;i<coalCount;i++){
       var x = coalMinX + (i+0.5)/coalCount*(coalMaxX-coalMinX);
       state.coal.push({x:x, y:coalY+(Math.random()*3-1.5), phase:Math.random()*Math.PI*2});
     }
+    state.coalR = coalR;
     state.coalMinX=coalMinX; state.coalMaxX=coalMaxX; state.coalY=coalY; state.topY=scene.minY;
     state.sparks = []; state.sparkAcc = 0;
   }
@@ -109,7 +142,7 @@ export function showSplash(onDone){
     }
     state.sparks.push({
       x:x, y:y, vx:(Math.random()*30-15), vy:-(40+Math.random()*70),
-      life:1, maxLife:0.9+Math.random()*0.9, size:0.8+Math.random()*1.4
+      life:1, maxLife:0.9+Math.random()*0.9, size:(0.8+Math.random()*1.4)*state.scale
     });
   }
 
@@ -164,10 +197,11 @@ export function showSplash(onDone){
         var fl = reduced ? 0 : Math.sin(ts/240+c.phase)*0.18;
         var a = Math.max(0, decay + fl);
         if (a > 0.003){
+          var cR = state.coalR*Math.max(0.6, 1+fl*0.6);
+          drawGlow(ctx, '255,140,60', c.x, c.y, cR, a);
           ctx.beginPath();
           ctx.fillStyle = 'rgba(255,140,60,'+a+')';
-          ctx.shadowColor = '#ff9b3d'; ctx.shadowBlur = 5;
-          ctx.arc(c.x, c.y, 1.6, 0, Math.PI*2);
+          ctx.arc(c.x, c.y, cR, 0, Math.PI*2);
           ctx.fill();
         }
       }
@@ -175,12 +209,12 @@ export function showSplash(onDone){
 
     for (var i=0;i<state.particles.length;i++){
       var p = state.particles[i];
-      var x, y, alpha;
+      var x, y, alpha, sizeMul=1;
       if (state.disperse){
         var dlt = (dRawT - p.dDelay)/0.6;
         if (dlt < 0){
           var flw = reduced ? 0 : Math.sin(ts/260+p.flicker)*0.15;
-          x = p.tx; y = p.ty; alpha = 0.85+flw;
+          x = p.tx; y = p.ty; alpha = 0.85+flw; sizeMul = 1+flw*0.6;
         } else {
           var dcl = Math.min(1, dlt);
           var de = dcl*dcl*(3-2*dcl);
@@ -199,14 +233,14 @@ export function showSplash(onDone){
         alpha = cl;
         if (cl >= 1){
           var fl2 = reduced ? 0 : Math.sin(ts/260+p.flicker)*0.15;
-          alpha = 0.85+fl2;
+          alpha = 0.85+fl2; sizeMul = 1+fl2*0.6;
         }
       }
+      var pSize = p.size*sizeMul;
+      drawGlow(ctx, p.hue, x, y, pSize, Math.max(0,alpha)*0.9);
       ctx.beginPath();
       ctx.fillStyle = 'rgba('+p.hue+','+Math.max(0,alpha)+')';
-      ctx.shadowColor = 'rgba('+p.hue+',.85)';
-      ctx.shadowBlur = 6;
-      ctx.arc(x,y,p.size,0,Math.PI*2);
+      ctx.arc(x,y,pSize,0,Math.PI*2);
       ctx.fill();
     }
 
@@ -222,10 +256,11 @@ export function showSplash(onDone){
         s.x += s.vx*dt; s.y += s.vy*dt; s.vy *= 0.995;
         s.life -= dt/s.maxLife;
         if (s.life<=0 || s.y<-20){ state.sparks.splice(i,1); continue; }
+        var sSize = s.size*(0.55+0.45*Math.max(0,s.life));
+        drawGlow(ctx, '255,190,120', s.x, s.y, sSize, Math.max(0,s.life));
         ctx.beginPath();
         ctx.fillStyle = 'rgba(255,190,120,'+Math.max(0,s.life)+')';
-        ctx.shadowColor = '#ffb066'; ctx.shadowBlur = 5;
-        ctx.arc(s.x,s.y,s.size,0,Math.PI*2);
+        ctx.arc(s.x,s.y,sSize,0,Math.PI*2);
         ctx.fill();
       }
     }

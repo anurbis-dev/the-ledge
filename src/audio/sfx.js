@@ -1,19 +1,9 @@
 import { view } from '../render/index.js';
+import { actx, getActx, resumeAudio } from './context.js';
 
-export var actx = null;
+export { actx, getActx, resumeAudio };
+
 var liftOsc = null, liftGain = null;
-
-function ensureActx(){
-  if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
-  return actx;
-}
-
-export function resumeAudio(){
-  try{
-    ensureActx();
-    if (actx && actx.resume) actx.resume();
-  }catch(e){}
-}
 
 export function hushLift(){
   if (liftGain) liftGain.gain.value = 0;
@@ -21,7 +11,7 @@ export function hushLift(){
 
 export function blip(f, d, type, vol){
   try{
-    ensureActx();
+    getActx();
     var o = actx.createOscillator(), g = actx.createGain();
     o.type = type || 'square'; o.frequency.value = f;
     g.gain.value = vol || 0.035; o.connect(g); g.connect(actx.destination);
@@ -55,7 +45,7 @@ function ensureVoice(s){
   if (v){
     try { v.osc.stop(); v.osc.disconnect(); v.gain.disconnect(); } catch (e){}
   }
-  ensureActx();
+  getActx();
   var o = actx.createOscillator(), g = actx.createGain();
   o.type = type; o.frequency.value = freq;
   g.gain.value = 0;
@@ -95,7 +85,7 @@ export function stepSounds(S, previewId){
 export function liftSound(on){
   try{
     if (on){
-      ensureActx();
+      getActx();
       if (!liftOsc){
         liftOsc = actx.createOscillator(); liftGain = actx.createGain();
         liftOsc.type = 'sawtooth'; liftOsc.frequency.value = 62;

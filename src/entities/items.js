@@ -1,5 +1,6 @@
 import { T } from '../core/constants.js';
 import { runtime } from '../core/runtime.js';
+import { noteFirstItem } from '../speech/runtime.js';
 
 export function mkItems(){
   var LV = runtime.LV;
@@ -21,6 +22,7 @@ export function pickups(S, p){
       if (it.kind === 'shroom' && S.hp < 3) S.hp++;
 
       S.hitStop = Math.max(S.hitStop, it.kind === 'relic' ? 0.25 : 0.03);
+      noteFirstItem(S, it.kind);
       p.events.push('pick:' + it.kind + ':' + it.id);
     }
   }

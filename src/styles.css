@@ -90,6 +90,19 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
 #edVarMenu{position:fixed;z-index:25;display:flex;gap:4px;padding:6px;flex-wrap:wrap;max-width:220px;
   background:#0d0a18f2;border:2px solid #4a4370;border-radius:8px;box-shadow:0 10px 30px #000a}
 #edVarMenu[hidden]{display:none}
+.ed-chestadd{position:fixed;z-index:26;display:flex;align-items:center;gap:6px;padding:6px;
+  background:#0d0a18f2;border:2px solid #4a4370;border-radius:8px;box-shadow:0 10px 30px #000a}
+.ed-chestadd[hidden]{display:none}
+.ed-chestadd-label{font-size:11px;color:#e9e4ff;white-space:nowrap}
+.ed-chestadd input[type=number],.ed-loot-row input[type=number]{width:44px;height:24px;
+  background:#150f26;color:#e9e4ff;border:1px solid #3a3460;border-radius:4px;font:inherit;
+  font-size:11px;text-align:center}
+.ed-chestlist{z-index:26}
+#edChestListBody{padding:6px;display:flex;flex-direction:column;gap:4px;overflow:auto;max-height:260px}
+.ed-loot-row{display:flex;align-items:center;gap:6px}
+.ed-loot-row .ed-loot-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;font-size:11px;color:#e9e4ff}
+.ed-loot-empty{font-size:11px;color:#6a628f;padding:4px}
 .ed-float{position:fixed;z-index:13;width:220px;max-height:calc(100vh - 280px);
   background:#0d0a18f2;border:2px solid #3a3460;border-radius:8px;
   box-shadow:0 10px 40px #000a;display:flex;flex-direction:column;overflow:hidden}

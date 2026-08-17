@@ -2,7 +2,7 @@ import { C } from '../core/constants.js';
 import { runtime } from '../core/runtime.js';
 import { rectFree, solidAt } from '../core/map.js';
 import { damage, slopeUnder } from '../core/player.js';
-import { dropLoot } from './loot.js';
+import { dropLoot, dropConfiguredLoot } from './loot.js';
 import { GEAR, wearGear } from './gear.js';
 
 export function mkEnemies(){
@@ -10,11 +10,19 @@ export function mkEnemies(){
   return (LV.enemies || []).map(function(a, i){
     var kind = a[5] !== undefined ? a[5] : (i % 3);
     var hh = kind === 2 ? 18 : 14, ww = kind === 2 ? 14 : 11;
+    var loot = Array.isArray(a[6])
+      ? a[6].map(function(e){ return { kind: e[0], qty: Math.max(1, e[1] | 0 || 1) }; })
+      : [];
     return { id:i, x:a[0], y:a[1]-hh, w:ww, h:hh, x0:a[2], x1:a[3],
              v: a[4] * (kind === 1 ? 1.4 : (kind === 2 ? 0.7 : 1)),
              kind: kind, tough: kind === 2 ? 2 : 1,
-             dir: i%2 ? -1 : 1, dead:false, hitT:0, ph:i*1.3, vy:0 };
+             dir: i%2 ? -1 : 1, dead:false, hitT:0, ph:i*1.3, vy:0,
+             loot: loot, random: !!a[7] };
   });
+}
+function dropForEnemy(S, e, x, y, tag){
+  if (e.loot && e.loot.length) dropConfiguredLoot(S, x, y, e.loot, e.random);
+  else dropLoot(S, x, y, tag);
 }
 export function stepEnemies(S, dt){
   var p = S.p;
@@ -39,7 +47,7 @@ export function stepEnemies(S, dt){
         p.x + p.w > e.x + 1 && p.x < e.x + e.w - 1 &&
         p.y + p.h > e.y - 2 && p.y + p.h < e.y + e.h * 0.7){
       e.dead = true; e.hitT = 0.6;
-      dropLoot(S, e.x + e.w/2, e.y + e.h/2, 's');
+      dropForEnemy(S, e, e.x + e.w/2, e.y + e.h/2, 's');
       p.vy = -190; p.onGround = false; p.apexY = p.y;
       S.hitStop = Math.max(S.hitStop, 0.05); S.shake = Math.max(S.shake, 3);
       p.events.push('stomp:' + e.id);
@@ -96,7 +104,7 @@ export function attack(S){
         S.hitStop = Math.max(S.hitStop, 0.04); p.events.push('clank'); continue; }
       e.dead = true; e.hitT = 0.6; e.vy = -90;
       S.hitStop = Math.max(S.hitStop, 0.06); S.shake = Math.max(S.shake, 3);
-      dropLoot(S, e.x + e.w/2, e.y + e.h/2, 'e');
+      dropForEnemy(S, e, e.x + e.w/2, e.y + e.h/2, 'e');
       wearGear(S, 'weapon');
       p.events.push('kill:' + e.id);
     }

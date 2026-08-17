@@ -18,13 +18,10 @@ export function stepCrumbs(S, dt){
   for (k in S.crumbT){
     S.crumbT[k] -= dt;
     if (S.crumbT[k] <= 0){
-      S.gone[k] = C.CRUMB_BACK; delete S.crumbT[k];
+      S.gone[k] = 1;                  // осыпался — навсегда, назад не восстанавливается
+      delete S.crumbT[k];
       S.shake = Math.max(S.shake, 3); S.p.events.push('crumble:' + k);
     }
-  }
-  for (k in S.gone){
-    S.gone[k] -= dt;
-    if (S.gone[k] <= 0) delete S.gone[k];
   }
 }
 export function crumbCheck(S, p){

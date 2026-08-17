@@ -1,10 +1,10 @@
 import GAME from '../core/game.js';
 import {
   cv, ctx, VW, VH, cam, view,
-  sky, tiles, tilesFront, plats, lifts, caveExit, doors, chests,
-  lootDrops, items, pickables, drawTorches, drawHarpoons, enemies, spiders, fliers, tendrils,
+  sky, tiles, tilesFront, plats, lifts, caveExit, doors, chests, boulders, npcs,
+  lootDrops, items, pickables, drawTorches, drawHarpoons, drawArrows, enemies, spiders, fliers, tendrils,
   hero, lightPass, drawWeeds, drawFish, drawParts, drawHearts,
-  vignette, hud, drawIntro, drawPaused, drawOutro, drawDead,
+  vignette, hud, drawIntro, drawPaused, drawOutro, drawDead, drawBubbles,
   applyPal, buildWater, stepWater, invalidateAll, fore, rc, getFish, spark, landDust, bonkDust, clampCam,
   setViewScale, applyVolumes, drawCollideOverlay
 } from '../render/index.js';
@@ -180,6 +180,9 @@ function onEvent(ev){
   else if (k === 'droptorch'){ blip(220, 0.06); }
   else if (k === 'crack'){ blip(120, 0.05, 'sawtooth'); }
   else if (k === 'crumble'){ blip(70, 0.25, 'sawtooth', 0.05); }
+  else if (k === 'plankburn'){ blip(300, 0.08, 'sawtooth', 0.04); }
+  else if (k === 'plankgone'){ blip(70, 0.22, 'sawtooth', 0.05); }
+  else if (k === 'bouldland'){ blip(90, 0.15, 'square', 0.05); }
   else if (k === 'hurt'){
     blip(120, 0.25, 'sawtooth', 0.07); view.flash = 0.5;
     hearts.push({ x: p.x + p.w/2, y: p.y + 6, vx: (p.facing > 0 ? -1 : 1) * (30 + Math.random()*30),
@@ -356,8 +359,8 @@ function frame(now){
     ctx.setTransform(z, 0, 0, z, 0, 0);
     tiles();
     if (entitiesShown(true)){
-      plats(); lifts(); caveExit(); doors(); chests();
-      lootDrops(); items(); pickables(); drawTorches(); drawHarpoons(); enemies(); spiders(); fliers();
+      plats(); lifts(); caveExit(); doors(); boulders(); chests();
+      lootDrops(); items(); pickables(); drawTorches(); drawHarpoons(); drawArrows(); enemies(); spiders(); fliers(); npcs();
       hero(); drawFish();
     }
     tilesFront();
@@ -387,13 +390,13 @@ function frame(now){
     ctx.clearRect(0, 0, VW, VH);
     sky(); tiles();
     if (entitiesShown(false)){
-      plats(); lifts(); caveExit(); doors(); chests();
-      lootDrops(); items(); pickables(); drawTorches(); drawHarpoons(); enemies(); spiders(); fliers();
+      plats(); lifts(); caveExit(); doors(); boulders(); chests();
+      lootDrops(); items(); pickables(); drawTorches(); drawHarpoons(); drawArrows(); enemies(); spiders(); fliers(); npcs();
       hero(); drawFish();
     }
     tilesFront(); lightPass(); applyVolumes(); drawWeeds(); tendrils();
     if (ED.showGeo) drawCollideOverlay();
-    fore(); vignette(); hud();
+    fore(); vignette(); drawBubbles(); hud();
     if (introT > 0) drawIntro();
     else if (outro){ outro.t += dt; drawOutro(); }
     else if (gameOver){ gameOver.t += dt; drawDead(gameOver); }
@@ -466,15 +469,18 @@ function frame(now){
   lifts();
   caveExit();
   doors();
+  boulders();
   chests();
   lootDrops();
   items();
   pickables();
   drawTorches();
   drawHarpoons();
+  drawArrows();
   enemies();
   spiders();
   fliers();
+  npcs();
   hero();
   drawFish();
   tilesFront();
@@ -487,6 +493,7 @@ function frame(now){
   if (ED.showGeo) drawCollideOverlay();
   fore();
   vignette();
+  drawBubbles();
   if (gameOver){ gameOver.t += dt; drawDead(gameOver); }
   if (S.fade > 0){
     ctx.globalAlpha = Math.min(1, S.fade);

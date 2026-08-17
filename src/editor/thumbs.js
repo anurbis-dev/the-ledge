@@ -109,6 +109,17 @@ export function paintTileIcon(c, spec, s){
     c.quadraticCurveTo(12 * k, 2 * k, 16 * k, 16 * k); c.lineTo(0, 16 * k); c.closePath(); c.fill();
     return;
   }
+  if (id === 31){
+    r(0, 0, 16, 16, P.woodD);
+    r(0, 1, 16, 4, P.wood); r(0, 7, 16, 4, P.wood);
+    r(0, 1, 16, 1, P.woodL); r(0, 7, 16, 1, P.woodL);
+    return;
+  }
+  if (id === 32){
+    r(0, 2, 16, 14, P.rock);
+    r(0, 2, 16, 2, P.rockL); r(0, 14, 16, 2, P.rockD);
+    return;
+  }
   r(0, 0, 16, 16, spec.color || P.rock);
 }
 
@@ -164,6 +175,24 @@ export function paintObjIcon(c, kind, s){
     r(2, 3, 12, 10, '#241a40'); r(3, 4, 10, 8, '#3a5080aa');
     r(2, 3, 12, 1, '#88a0ff'); r(2, 12, 12, 1, '#88a0ff');
     r(2, 3, 1, 10, '#88a0ff'); r(13, 3, 1, 10, '#88a0ff');
+  } else if (kind === 'boulder'){
+    r(2, 4, 12, 11, '#4a4460'); r(2, 4, 12, 2, '#6e6892'); r(3, 6, 3, 2, '#847dab');
+    r(3, 13, 10, 2, '#302c46');
+  } else if (kind === 'npc_hermit' || kind === 'npc_wanderer'){
+    var cloak = kind === 'npc_wanderer' ? '#3a5a4a' : '#4a3a68';
+    var cloakD = kind === 'npc_wanderer' ? '#243830' : '#2e2446';
+    r(4, 8, 8, 8, cloakD); r(5, 8, 6, 7, cloak);
+    r(5, 3, 6, 5, cloakD); r(6, 4, 4, 3, P.skin);
+    r(5, 3, 6, 2, cloak); r(9, 6, 2, 1, '#1a1220');
+    r(5, 15, 2, 1, '#2a2030'); r(9, 15, 2, 1, '#2a2030');
+  } else if (kind === 'key'){
+    r(6, 3, 5, 5, '#160f26'); r(7, 4, 3, 3, P.key);
+    r(8, 8, 2, 6, P.key); r(9, 10, 3, 1, P.keyD); r(9, 12, 2, 1, P.keyD);
+  } else if (kind === 'helmet' || kind === 'shield' || kind === 'sword' ||
+             kind === 'scuba' || kind === 'flippers' || kind === 'harpoon' || kind === 'bow'){
+    var gk = kind === 'helmet' ? 'ihelm' : kind === 'shield' ? 'ishield' : kind;
+    var gc = P.gearCol[gk] || ['#cfc6ff', '#8f88bb'];
+    r(3, 3, 10, 10, gc[1]); r(4, 4, 8, 8, gc[0]);
   } else {
     r(4, 4, 8, 8, '#cfc6ff');
   }

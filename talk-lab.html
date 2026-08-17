@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the LEDGE — talk lab</title>
+<link rel="stylesheet" href="/src/speech/talk-lab.css">
+</head>
+<body>
+<header>
+  <h1><span>the LEDGE</span>TALK LAB</h1>
+  <p class="sub">Letter blips with pitch drift, to fake speech. Play a variant, then pin it for the heroine or for NPCs. Choice is stored in <code>ledge.dev.talk</code> and the game reads it.</p>
+  <p class="nav"><a href="/">← back to the game</a></p>
+</header>
+
+<section class="panel">
+  <div class="row">
+    <label>Voice
+      <select id="who">
+        <option value="hero">Heroine</option>
+        <option value="npc">NPC (hermit)</option>
+      </select>
+    </label>
+    <input id="phrase" type="text" maxlength="80" spellcheck="false">
+    <button type="button" id="play">Play phrase</button>
+    <button type="button" id="playBoth">Hero then NPC</button>
+    <label>Volume <input id="vol" type="range" min="20" max="160" value="100"> <span id="volNum">100%</span></label>
+  </div>
+  <div class="live" id="live"><em>tap play — audio starts after a click</em></div>
+</section>
+
+<div class="who">HEROINE</div>
+<div class="grid" id="heroGrid"></div>
+<div class="who">NPC</div>
+<div class="grid" id="npcGrid"></div>
+<p class="hint">Use for heroine / Use for NPC writes the pick immediately. Play on a card previews without saving. Default: triangle chirp (heroine), square talk (NPC).</p>
+<script type="module" src="/src/speech/talk-lab.js"></script>
+</body>
+</html>
