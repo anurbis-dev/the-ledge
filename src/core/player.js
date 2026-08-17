@@ -223,17 +223,23 @@ export function finishFallRecover(S, p){
   p.recoverSt = 0;
   if (from === 2){
     p.knockedOut = false;
-    if (!setStance(S, p, 0)) setStance(S, p, Math.min(1, from));  // тесно — встать в полный рост некуда
-    if (p.stance === 0){
-      p.gettingUp = true; p.getupT = C.GETUP_T;
+    if (stanceFitsAt(p, 0)){
+      p.gettingUp = true; p.getupT = C.GETUP_T;   // хитбокс лёжа до конца позы — иначе зависает в воздухе
       return true;
     }
+    if (!setStance(S, p, 1)) return false;       // тесно — только в присед
     if (p.stance !== from){ p.stanceFrom = from; p.stanceT = C.STANCE_T; }
     return p.stanceT > 0;
   }
   if (!setStance(S, p, 0)) setStance(S, p, Math.min(1, from));
   if (p.stance !== from){ p.stanceFrom = from; p.stanceT = C.STANCE_T; }
   return p.stanceT > 0;
+}
+/* стойка растёт только когда getupPose доиграла */
+export function finishGetup(S, p){
+  p.gettingUp = false;
+  p.getupT = 0;
+  if (!setStance(S, p, 0)) setStance(S, p, 1);
 }
 
 /* --- потолочные перекладины: движение на руках --- */

@@ -105,6 +105,9 @@ export function hero(){
     rot = p.swimAng * (p.facing > 0 ? 1 : -1);            // наклон корпуса по ходу плавания
     cxs = 5; cys = 6;
   }
+  var oy = p.y;
+  if (p.gettingUp)                              // поза растёт вверх, ноги остаются на земле
+    oy = p.y + p.h - Math.max(pose2.fF[1], pose2.fB[1]);
   for (i = 0; i < K.length; i++){
     k = K[i];
     var lxp = (frontal || p.facing > 0) ? pose2[k][0] : (p.w - pose2[k][0]);
@@ -113,9 +116,10 @@ export function hero(){
       var dx = lxp - cxs, dy = ly - cys, cs = Math.cos(rot), sn = Math.sin(rot);
       lxp = cxs + dx*cs - dy*sn; ly = cys + dx*sn + dy*cs;
     }
-    pt[k] = [Math.round(p.x) + lxp - cam.x, Math.round(p.y) + ly - cam.y];
+    pt[k] = [Math.round(p.x) + lxp - cam.x, Math.round(oy) + ly - cam.y];
   }
   var hs = null, onBack = false, bow = isBow(p);
+  var bowHeld = bow && (p.bowT > 0 || pose2 === BOW_STANCE);  // держит в руках только стоя на месте / в цикле выстрела
   if (p.stick && !bow){
     if (p.atkT > 0){
       var tt = 1 - p.atkT / C.ATK_T;
@@ -123,6 +127,8 @@ export function hero(){
       hs = { ang: p.facing > 0 ? a0 : Math.PI - a0,
            type: p.gear.weapon && p.gear.weapon.type };
     } else onBack = true;                       // иначе палка убрана за спину
+  } else if (bow && !bowHeld){
+    onBack = true;                              // на бегу/в прыжке лук за спиной, руки свободны
   }
   var headTilt = p.lookUp > 0.02 ? p.lookUp * 0.6 : 0;   // голова поворачивается, взгляд вверх
   figure(pt, p.facing, wag, frontal, rim, hs, onBack, {
@@ -133,7 +139,7 @@ export function hero(){
     bash: p.bashT,
     eyesClosed: p.knockedOut
   }, headTilt);
-  if (bow){
+  if (bowHeld){
     var bt = p.bowT > 0 ? (1 - p.bowT / C.BOW_ANIM_T) : 0;
     drawBow(pt, p.facing, 0, bowHandOnString(bt), bowReleaseFx(bt));
   }

@@ -6,7 +6,7 @@ import {
   setStance, setH, slopeUnder, slopeGradeUnder, grounded, autoLadder, tryBars,
   tryLadder, tryGrab, tryClimbOut, tryCrawlEdge, ladderTopUnder, attach, tryDescend, tryMantle,
   tryEnterGap, markGap, canDescend, awayFromEdge, startFallRecover, finishFallRecover,
-  stanceFitsAt, groundAhead
+  finishGetup, stanceFitsAt, groundAhead
 } from './player.js';
 import { stepPlats, platUnder } from '../entities/plats.js';
 import { stepLifts, inLift, liftConstrain } from '../entities/lifts.js';
@@ -107,7 +107,7 @@ export function step(S, dt, inp){
   if (p.stanceT > 0) p.stanceT = Math.max(0, p.stanceT - dt);
   if (p.getupT > 0){
     p.getupT = Math.max(0, p.getupT - dt);
-    if (p.getupT <= 0) p.gettingUp = false;
+    if (p.getupT <= 0) finishGetup(S, p);
   }
 
   if (p.ride && p.onGround && p.state === 'normal'){
@@ -131,6 +131,7 @@ export function step(S, dt, inp){
           crumbCheck(S, p); pickups(S, p); return;
         }
       }
+      if (p.gettingUp){ crumbCheck(S, p); pickups(S, p); return; }
       p.state = 'normal'; p.apexY = p.y;
     }
     crumbCheck(S, p); pickups(S, p); return;
