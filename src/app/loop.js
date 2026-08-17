@@ -313,6 +313,7 @@ function frame(now){
     return;
   }
   view.edit = false;
+  setViewScale(1);
   if (S.done && !outro && S.p.warp && S.p.warp.exit && S.p.warp.moved){ finishLevel(); }
   if (S.dead && !gameOver) gameOver = { t: 0 };
   if (introT > 0 || paused || outro || gameOver){

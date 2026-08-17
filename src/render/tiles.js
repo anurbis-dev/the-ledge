@@ -338,12 +338,14 @@ export function tiles(){
   var r1 = Math.min(G.mapMaxR() - 1, Math.floor((cam.y+viewH())/T) + 1);
   var x0 = Math.floor(c0/CH), x1 = Math.floor(c1/CH);
   var y0 = Math.floor(r0/CH), y1 = Math.floor(r1/CH);
-  for (var cy = y0; cy <= y1; cy++)
-    for (var cx = x0; cx <= x1; cx++)
+  for (var cy = y0; cy <= y1; cy++){
+    for (var cx = x0; cx <= x1; cx++){
       var dx = cx*CH*T - cam.x - PAD, dy = cy*CH*T - cam.y - PAD;
       var z = viewScale;
       if (z !== 1){ dx = Math.round(dx * z) / z; dy = Math.round(dy * z) / z; }
       ctx.drawImage(chunkOf(cx, cy), dx, dy);
+    }
+  }
   prepWaveStrip(view.time, c0, c1);
   for (var r = r0; r <= r1; r++){
     for (var c = c0; c <= c1; c++){
