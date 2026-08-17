@@ -121,6 +121,11 @@ export function drawTile(c, r, x, y, dyn){
       rc(x, y, T, 1, '#8fd0ef');
     } else {                                             // спокойная вода: бегущая волна
       var top = !G.isWaterV(G.tileAt(c, r - 1));
+      if (top && G.solidTile(c, r - 1)){                 // камень над водой
+        var rr = r - 2;
+        while (rr >= 0 && G.solidTile(c, rr)) rr--;
+        if (rr >= 0 && G.isWaterV(G.tileAt(c, rr))) top = false; // камень внутри воды
+      }
       if (!top){                                         // глубина — без волн
         if ((c*7 + r*3) % 4 === 0){
           var bzD = ((time*22 + c*9) % 16) | 0;
