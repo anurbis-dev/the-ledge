@@ -9,7 +9,7 @@ import { findById } from '../entities/ids.js';
 import { isSlopeBrush, fitSlopeStroke } from './slopes.js';
 import { tileThumb, objThumb } from './thumbs.js';
 import { renderParams, resetAllParams } from './params.js';
-import { getActiveLayer, getLayers, layerTile, layerVar } from '../core/layers.js';
+import { getActiveLayer, getLayers, layerTile, layerVar, isTileLayer } from '../core/layers.js';
 import { showLayersPanel, bindLayersPanel } from './layers-panel.js';
 import { showInspect, bindInspect } from './inspect.js';
 import { pickSpecial, hitGizmo, beginGizmo, moveGizmo, endGizmo, gizmoActive, drawGizmos } from './gizmos.js';
@@ -118,6 +118,21 @@ function respawnObjectAt(entry, cell){
   else if (entry.type === 'torch') G.mkTorchAt(S, cx, floorY);
   else if (entry.type === 'chest') G.mkChestAt(S, cell.c*T, floorY, o.kind, o.locked);
   else if (entry.type === 'item') G.mkItemAt(S, cx, cy, o.kind);
+}
+function newestOf(entry){
+  var arr = entry.kindDef.get(world());
+  return { kindDef: entry.kindDef, type: entry.type, obj: arr[arr.length - 1] };
+}
+/* перерисовывает объект на новой клетке сразу при протяжке, не дожидаясь отпускания кнопки */
+function moveObjectTo(entry, cell){
+  removeObject(entry);
+  respawnObjectAt(entry, cell);
+  return newestOf(entry);
+}
+/* Ctrl+драг: не трогая оригинал, заводит его копию на текущей клетке — дальше она таскается как обычный drag */
+function copyObjectAt(entry, cell){
+  respawnObjectAt(entry, cell);
+  return newestOf(entry);
 }
 
 var edBar = document.getElementById('edbar');
@@ -414,6 +429,8 @@ export function edApply(cell, isClick){
   if (ED.last === key && !isClick) return;
   ED.last = key;
   if (ED.tool === 'tile'){
+    var act = getActiveLayer();
+    if (act && !isTileLayer(act)) return;
     var spec = ED_TILES[ED.pal];
     var nv = spec.id;
     if (isClick && ED.clickCell === key && ED.clickBrush === ED.pal && spec.varN &&
@@ -449,8 +466,9 @@ function edErase(cell){
   var key = cell.c + ':' + cell.r;
   if (ED.last === key) return;
   ED.last = key;
-  var oldE = G.tileAt(cell.c, cell.r);
-  G.setTile(cell.c, cell.r, 0);
+  var actE = getActiveLayer();
+  var oldE = (actE && isTileLayer(actE)) ? brushTile(cell.c, cell.r) : G.tileAt(cell.c, cell.r);
+  if (!actE || isTileLayer(actE)) G.setTile(cell.c, cell.r, 0);
   edEraseObjects(cell);
   G.buildGates(S);
   if (oldE === G.WATER || oldE === G.FALL) buildWater();
@@ -614,7 +632,15 @@ export function edExportText(){
   }).join(',') + '],');
   var ls = getLayers();
   out.push('layers: [' + ls.map(function(L){
-    return "{name:'" + L.name + "',px:" + L.px + ',py:' + L.py + ',collide:' + !!L.collide + '}';
+    var p = "{name:'" + L.name + "',kind:'" + (L.kind || 'tiles') +
+      "',px:" + L.px + ',py:' + L.py + ',collide:' + !!L.collide;
+    if (L.wrap) p += ',wrap:true,wrapW:' + (L.wrapW || 8) + ',wrapH:' + (L.wrapH || 8);
+    if (L.kind === 'ridge')
+      p += ',amp:' + L.amp + ',y0:' + L.y0 + ",color:'" + (L.color || '#2b2154') + "'";
+    if (L.kind === 'fore')
+      p += ',period:' + L.period + ',hmin:' + L.hmin + ',hmax:' + L.hmax +
+        ",col:'" + (L.col || '#1b1436') + "',colD:'" + (L.colD || '#241a44') + "',seed:" + L.seed;
+    return p + '}';
   }).join(',') + ']');
   return out.join('\n');
 }
@@ -630,6 +656,16 @@ export function edDrawOverlay(){
   for (var c = c0; c <= c1 + 1; c++) rc(c*T - camx, 0, 1, visH, '#8f88bb');
   for (var r = r0; r <= r1 + 1; r++) rc(0, r*T - camy, visW, 1, '#8f88bb');
   ctx.globalAlpha = 1;
+  var Lg = getActiveLayer();
+  if (Lg && Lg.wrap){
+    var ww = Lg.wrapW || 8, wh = Lg.wrapH || 8;
+    ctx.globalAlpha = 0.4;
+    var gc = Math.floor(c0 / ww) * ww;
+    var gr = Math.floor(r0 / wh) * wh;
+    for (; gc <= c1 + 1; gc += ww) rc(gc*T - camx, 0, 1, visH, '#ffd9a0');
+    for (; gr <= r1 + 1; gr += wh) rc(0, gr*T - camy, visW, 1, '#ffd9a0');
+    ctx.globalAlpha = 1;
+  }
   if (ED.hover){
     var hx = ED.hover.c*T - camx, hy = ED.hover.r*T - camy;
     rc(hx, hy, T, 2, '#ffd9a0'); rc(hx, hy + T - 2, T, 2, '#ffd9a0');
@@ -642,9 +678,11 @@ export function edDrawOverlay(){
   var spec = ED.tool === 'tile' ? ED_TILES[ED.pal] : ED_OBJS[ED.pal];
   var label = spec ? spec.name : ED.tool;
   var L = getActiveLayer();
-  if (L) label = L.name + ' · ' + label;
+  if (L) label = L.name + (L.wrap ? ' ▦' : '') + ' · ' + label;
+  if (L && !isTileLayer(L) && ED.tool === 'tile') label = L.name + ' · props only';
   if (L && L.locked) label = 'Locked';
   if (ED.erasing) label = 'Erase';
+  if (ED.dragObj) label = ED.dragObj.copied ? 'Copy · ' + ED.dragObj.entry.type : 'Move · ' + ED.dragObj.entry.type;
   if (ED.hover && G.isWaterV(brushTile(ED.hover.c, ED.hover.r)))
     label += ' · ' + shadePresetName(getPondShade(ED.hover.c, ED.hover.r));
   if (ED.hover && spec && spec.varN && tileMatchesBrush(spec, brushTile(ED.hover.c, ED.hover.r))){
@@ -761,14 +799,14 @@ cv.addEventListener('pointerdown', function(e){
     try { cv.setPointerCapture(e.pointerId); } catch(_){}
     return;
   }
-  if (ED.tool === 'obj'){
-    var hit = findObjectAt(cell.x, cell.y);
-    if (hit){
-      ED.dragObj = { entry: hit, from: { c: cell.c, r: cell.r } };
-      ED.painting = false;
-      try { cv.setPointerCapture(e.pointerId); } catch(_){}
-      return;
-    }
+  var hit = findObjectAt(wcell.x, wcell.y);
+  if (hit){
+    var copying = e.ctrlKey || e.metaKey;
+    var dragEntry = copying ? copyObjectAt(hit, { c: wcell.c, r: wcell.r }) : hit;
+    ED.dragObj = { entry: dragEntry, at: { c: wcell.c, r: wcell.r }, copied: copying };
+    ED.painting = false;
+    try { cv.setPointerCapture(e.pointerId); } catch(_){}
+    return;
   }
   ED.painting = true; ED.erasing = false; ED.last = null; ED.stroke = null; ED.strokeOrig = null;
   ED.holdX = e.clientX; ED.holdY = e.clientY;
@@ -789,7 +827,13 @@ cv.addEventListener('pointermove', function(e){
     if (ED.sel) showInspect(ED.sel);
     return;
   }
-  if (ED.dragObj) return;
+  if (ED.dragObj){
+    if (wcell.c !== ED.dragObj.at.c || wcell.r !== ED.dragObj.at.r){
+      ED.dragObj.entry = moveObjectTo(ED.dragObj.entry, wcell);
+      ED.dragObj.at = { c: wcell.c, r: wcell.r };
+    }
+    return;
+  }
   if (ED.panId === e.pointerId){
     var r = cv.getBoundingClientRect();
     var z = ED.zoom || 1;
@@ -807,14 +851,7 @@ cv.addEventListener('pointermove', function(e){
 });
 function edUp(e){
   if (e && e.pointerId === ED.panId) ED.panId = -1;
-  if (ED.dragObj){
-    var to = ED.hover || ED.dragObj.from;
-    if (to.c !== ED.dragObj.from.c || to.r !== ED.dragObj.from.r){
-      removeObject(ED.dragObj.entry);
-      respawnObjectAt(ED.dragObj.entry, to);
-    }
-    ED.dragObj = null;
-  }
+  ED.dragObj = null;
   ED.painting = false; ED.erasing = false;
   ED.last = null; ED.stroke = null; ED.strokeOrig = null;
   ED.giz = false;

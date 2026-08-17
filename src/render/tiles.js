@@ -1,6 +1,6 @@
 import GAME from '../core/game.js';
 import { hooks } from '../core/runtime.js';
-import { getLayers, layerShown, lastCollideIndex, layerTile, layerVar } from '../core/layers.js';
+import { getLayers, layerShown, lastCollideIndex, layerTile, layerVar, isTileLayer, wrapSize } from '../core/layers.js';
 import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH, viewScale } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
 import { waterDepthK } from './fx.js';
@@ -339,7 +339,7 @@ function syncPal(){
   if (cacheRev !== palRev){
     chunkCache = {};
     var ls = getLayers(), i;
-    for (i = 0; i < ls.length; i++) ls[i]._chunks = {};
+    for (i = 0; i < ls.length; i++){ ls[i]._chunks = {}; ls[i]._stampCan = null; }
     cacheRev = palRev;
   }
 }
@@ -353,13 +353,16 @@ function wipeChunk(cache, c, r){
 export function invalidateChunk(c, r){
   wipeChunk(chunkCache, c, r);
   var ls = getLayers(), i;
-  for (i = 0; i < ls.length; i++) wipeChunk(ls[i]._chunks, c, r);
+  for (i = 0; i < ls.length; i++){
+    wipeChunk(ls[i]._chunks, c, r);
+    if (ls[i].wrap) ls[i]._stampCan = null;
+  }
 }
 hooks.onSetTile = invalidateChunk;
 export function invalidateAll(){
   chunkCache = {};
   var ls = getLayers(), i;
-  for (i = 0; i < ls.length; i++) ls[i]._chunks = {};
+  for (i = 0; i < ls.length; i++){ ls[i]._chunks = {}; ls[i]._stampCan = null; }
 }
 
 export function chunkOf(cx, cy){
@@ -387,6 +390,48 @@ export function chunkOf(cx, cy){
   chunkCache[key] = cv2;
   return cv2;
 }
+function stampOf(L){
+  if (L._stampCan) return L._stampCan;
+  var s = wrapSize(L);
+  var can = document.createElement('canvas');
+  can.width = s.w * T + PAD * 2;
+  can.height = s.h * T + PAD * 2;
+  var g = can.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  var saved = getCtx();
+  setCtx(g);
+  try {
+    var r, c, v;
+    for (r = 0; r < s.h; r++){
+      for (c = 0; c < s.w; c++){
+        v = tAt(c, r);
+        if (!v) continue;
+        drawTile(c, r, c * T + PAD, r * T + PAD, true);
+      }
+    }
+  } finally {
+    setCtx(saved);
+  }
+  L._stampCan = can;
+  return can;
+}
+function blitWrapLayer(L, camx, camy){
+  var can = stampOf(L);
+  var s = wrapSize(L);
+  var pw = s.w * T, ph = s.h * T;
+  var ox = ((camx % pw) + pw) % pw;
+  var oy = ((camy % ph) + ph) % ph;
+  var vw = viewW(), vh = viewH(), z = viewScale;
+  var x, y, dx, dy;
+  for (y = -oy; y < vh + ph; y += ph){
+    for (x = -ox; x < vw + pw; x += pw){
+      dx = x - PAD; dy = y - PAD;
+      if (z !== 1){ dx = Math.round(dx * z) / z; dy = Math.round(dy * z) / z; }
+      ctx.drawImage(can, dx, dy);
+    }
+  }
+}
+
 function blitLayer(camx, camy){
   var c0 = Math.max(G.mapMinC(), Math.floor(camx/T) - 1);
   var c1 = Math.min(G.mapMaxC() - 1, Math.floor((camx+viewW())/T) + 1);
@@ -415,14 +460,18 @@ function blitLayer(camx, camy){
 
 export function tilesLayer(L){
   if (L && !layerShown(L, view.edit)) return;
+  if (L && !isTileLayer(L)) return;
   var prev = chunkCache;
   _L = L || null;
   var px = L && L.px != null ? L.px : 1;
   var py = L && L.py != null ? L.py : 1;
   try {
     syncPal();
-    if (L) chunkCache = L._chunks || (L._chunks = {});
-    blitLayer(cam.x * px, cam.y * py);
+    if (L && L.wrap) blitWrapLayer(L, cam.x * px, cam.y * py);
+    else {
+      if (L) chunkCache = L._chunks || (L._chunks = {});
+      blitLayer(cam.x * px, cam.y * py);
+    }
   } finally {
     chunkCache = prev;
     _L = null;

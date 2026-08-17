@@ -1,7 +1,8 @@
 import { runtime } from '../core/runtime.js';
 import {
   getLayers, setActiveLayer, addLayer, deleteLayer, moveLayer,
-  setLayerCollide, toggleSolo, getActiveLayer
+  setLayerCollide, setLayerWrap, setWrapSize, toggleSolo, getActiveLayer,
+  layerKind
 } from '../core/layers.js';
 import { invalidateAll } from '../render/tiles.js';
 import { initSliders } from './slider.js';
@@ -88,7 +89,7 @@ export function renderLayersPanel(){
 
       var name = document.createElement('span');
       name.className = 'layername';
-      name.textContent = L.name + (L.collide ? '  ▣' : '');
+      name.textContent = L.name + (L.collide ? '  ▣' : '') + (L.wrap ? '  ▦' : '');
       name.title = 'Double-click to rename';
       name.addEventListener('dblclick', function(e){
         e.stopPropagation();
@@ -140,6 +141,7 @@ function fillLayerProps(){
   propsEl.textContent = '';
   var L = getActiveLayer();
   if (!L) return;
+  var kind = layerKind(L);
   function row(label, min, max, step, val, set){
     var wrap = document.createElement('label');
     wrap.className = 'slider-wrap';
@@ -156,25 +158,72 @@ function fillLayerProps(){
     propsEl.appendChild(wrap);
     initSliders(wrap);
   }
-  row('Parallax X', 0, 2, 0.05, L.px == null ? 1 : L.px, function(v){
+  function check(label, on, set){
+    var el = document.createElement('label');
+    el.className = 'ed-check';
+    var cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = !!on;
+    cb.addEventListener('change', function(){ set(cb.checked); notify(); });
+    el.appendChild(cb);
+    el.appendChild(document.createTextNode(' ' + label));
+    propsEl.appendChild(el);
+  }
+  function color(label, val, set){
+    var el = document.createElement('label');
+    el.className = 'ed-field';
+    el.appendChild(document.createTextNode(label + ' '));
+    var inp = document.createElement('input');
+    inp.type = 'color'; inp.value = val || '#2b2154';
+    inp.addEventListener('input', function(){
+      set(inp.value);
+      invalidateAll();
+      if (onChange) onChange();
+    });
+    el.appendChild(inp);
+    propsEl.appendChild(el);
+  }
+  var hint = document.createElement('div');
+  hint.className = 'ed-layer-kind';
+  hint.textContent = kind === 'tiles' ? (L.wrap ? 'Tiles · repeat' : 'Tiles')
+    : kind === 'sky' ? 'Sky (gradient + stars)'
+    : kind === 'ridge' ? 'Hills silhouette'
+    : kind === 'fore' ? 'Foreground plants'
+    : kind === 'pollen' ? 'Pollen dust'
+    : kind;
+  propsEl.appendChild(hint);
+  row('Parallax X', 0, 3, 0.01, L.px == null ? 1 : L.px, function(v){
     if (L.collide) return;
     L.px = v;
   });
-  row('Parallax Y', 0, 2, 0.05, L.py == null ? 1 : L.py, function(v){
+  row('Parallax Y', 0, 3, 0.01, L.py == null ? 0 : L.py, function(v){
     if (L.collide) return;
     L.py = v;
   });
-  var col = document.createElement('label');
-  col.className = 'ed-check';
-  var cb = document.createElement('input');
-  cb.type = 'checkbox'; cb.checked = !!L.collide;
-  cb.addEventListener('change', function(){
-    setLayerCollide(L, cb.checked);
-    notify();
-  });
-  col.appendChild(cb);
-  col.appendChild(document.createTextNode(' Collision layer'));
-  propsEl.appendChild(col);
+  if (kind === 'ridge'){
+    row('Amplitude', 8, 80, 1, L.amp == null ? 30 : L.amp, function(v){ L.amp = v; });
+    row('Horizon', 40, 180, 1, L.y0 == null ? 140 : L.y0, function(v){ L.y0 = v; });
+    color('Color', L.color || '#2b2154', function(v){ L.color = v; });
+  }
+  if (kind === 'fore'){
+    row('Period', 40, 220, 1, L.period || 120, function(v){ L.period = v; });
+    row('Height min', 4, 36, 1, L.hmin == null ? 10 : L.hmin, function(v){ L.hmin = v; });
+    row('Height max', 8, 48, 1, L.hmax == null ? 20 : L.hmax, function(v){ L.hmax = v; });
+    color('Color', L.col || '#1b1436', function(v){ L.col = v; });
+    color('Color dark', L.colD || '#241a44', function(v){ L.colD = v; });
+    row('Seed', 0, 99, 1, L.seed == null ? 7 : L.seed, function(v){ L.seed = v; });
+  }
+  if (kind === 'tiles'){
+    check('Collision layer', !!L.collide, function(on){ setLayerCollide(L, on); });
+    check('Repeat (infinite tile)', !!L.wrap, function(on){ setLayerWrap(L, on); });
+    if (L.wrap){
+      row('Stamp W', 1, 32, 1, L.wrapW || 8, function(v){ setWrapSize(L, v, L.wrapH || 8); });
+      row('Stamp H', 1, 32, 1, L.wrapH || 8, function(v){ setWrapSize(L, L.wrapW || 8, v); });
+      var note = document.createElement('div');
+      note.className = 'ed-layer-kind';
+      note.textContent = 'Paint the stamp — it tiles forever. 1×1 = solid fill.';
+      propsEl.appendChild(note);
+    }
+  }
 }
 
 var addBtn = document.getElementById('edLayerAdd');

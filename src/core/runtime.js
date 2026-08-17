@@ -93,14 +93,17 @@ export function ensureMap(c, r){
   }
   if (layers && layers.length){
     for (var i = 0; i < layers.length; i++){
+      if (!layers[i].base) continue;
       layers[i].base = growBuf(layers[i].base);
-      layers[i].vary = growBuf(layers[i].vary);
+      layers[i].vary = growBuf(layers[i].vary || new Uint8Array(ow * oh));
       layers[i]._chunks = {};
     }
     var main = null;
-    for (i = 0; i < layers.length; i++) if (layers[i].collide){ main = layers[i]; break; }
-    if (!main) main = layers[0];
-    base = main.base; vary = main.vary;
+    for (i = 0; i < layers.length; i++) if (layers[i].collide && layers[i].base){ main = layers[i]; break; }
+    if (!main){
+      for (i = 0; i < layers.length; i++) if (layers[i].base){ main = layers[i]; break; }
+    }
+    if (main){ base = main.base; vary = main.vary; }
   } else {
     base = growBuf(base);
     vary = growBuf(vary);

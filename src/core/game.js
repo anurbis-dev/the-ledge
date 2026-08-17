@@ -5,7 +5,7 @@ import {
   SLL4A, SLL4B, SLL4C, SLL4D, SLRCA, SLRCB, SLLCB, SLLCA
 } from './constants.js';
 import { runtime, setWorld, hooks, ensureMap, mapIx, inMap, mapMinC, mapMaxC, mapMinR, mapMaxR } from './runtime.js';
-import { getActiveLayer, getLayers } from './layers.js';
+import { getActiveLayer, getLayers, isTileLayer, wrapIndex, ensureStamp } from './layers.js';
 import {
   isHalfV, isBarV, ladderTop, isSlopeV, isWaterV, isFlowV, isWetV, slopeSurfaceY,
   slopeTop, slopeSpec, slopeFamily, slopeRiseRight, SLOPE_SEQ,
@@ -53,6 +53,16 @@ export function mkWorld(li){
 function setTile(c, r, v){
   var L = getActiveLayer();
   if (L && L.locked) return false;
+  if (L && !isTileLayer(L)) return false;
+  if (L && L.wrap){
+    ensureStamp(L);
+    var wix = wrapIndex(L, c, r);
+    if (L.stamp[wix] !== v) L.stampVar[wix] = 0;
+    L.stamp[wix] = v;
+    L._stampCan = null;
+    if (hooks.onSetTile) hooks.onSetTile(c, r);
+    return true;
+  }
   if (!inMap(c, r) && !v) return false;
   ensureMap(c, r);
   if (!inMap(c, r)) return false;
@@ -67,6 +77,14 @@ function setTile(c, r, v){
 function setVar(c, r, v){
   var L = getActiveLayer();
   if (L && L.locked) return false;
+  if (L && !isTileLayer(L)) return false;
+  if (L && L.wrap){
+    ensureStamp(L);
+    L.stampVar[wrapIndex(L, c, r)] = v;
+    L._stampCan = null;
+    if (hooks.onSetTile) hooks.onSetTile(c, r);
+    return true;
+  }
   if (!inMap(c, r)) return false;
   var vr = L && L.vary ? L.vary : runtime.vary;
   vr[mapIx(c, r)] = v;

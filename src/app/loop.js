@@ -13,6 +13,7 @@ import { held, latch, ax, stick, bindInput } from '../input/input.js';
 import { ED, edOpen, edClose, edApply, edExportText, edDrawOverlay, bindEditor, snapEditCam } from '../editor/editor.js';
 import { hooks } from '../core/runtime.js';
 import { prog, buildMenu, showMenu, isMenu, setMenu, saveProgress } from '../ui/menu.js';
+import { showSplash } from '../ui/splash.js';
 import { findById } from '../entities/ids.js';
 
 var G = GAME;
@@ -312,6 +313,7 @@ function frame(now){
     drawWeeds(); tendrils();
     if (ED.showGeo) drawCollideOverlay();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    fore();
     vignette();
     edDrawOverlay();
     if (ED.sel && ED.sel.type === 'sound') stepSounds(S, ED.sel.obj.id);
@@ -445,6 +447,22 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 
+// ?level=<индекс|имя> — для агентов/тестов: сразу нужный уровень, минуя заставку и меню
+function resolveDevLevel(){
+  var qp;
+  try { qp = new URLSearchParams(location.search); } catch (_){ return null; }
+  if (!qp.has('level')) return null;
+  var v = (qp.get('level') || '').trim();
+  if (!v) return 0;
+  var n = +v;
+  if (!isNaN(n) && v === String(n|0)) return Math.max(0, Math.min(G.LEVELS.length - 1, n|0));
+  var low = v.toLowerCase();
+  for (var i = 0; i < G.LEVELS.length; i++){
+    if (G.LEVELS[i].name && G.LEVELS[i].name.toLowerCase() === low) return i;
+  }
+  return 0;
+}
+
 export function start(){
   setS(G.mkWorld());
   dbgEl = document.getElementById('dbg');
@@ -491,7 +509,15 @@ export function start(){
   addEventListener('orientationchange', function(){ setTimeout(resize, 160); });
 
   buildMenu(startLevel);
-  showMenu();
+  var devLevel = resolveDevLevel();
+  if (devLevel !== null){
+    var splashEl = document.getElementById('splash');
+    if (splashEl) splashEl.classList.add('hide');
+    startLevel(devLevel);
+    introT = 0;
+  } else {
+    showSplash(function(){ showMenu(); });
+  }
   if (typeof window !== 'undefined'){
     window.__state = function(){ return S; };
     window.__start = startLevel;
