@@ -78,6 +78,7 @@ function dumpItems(lv){
 function packLevel(lv){
   return {
     id: lv.id, name: lv.name, pal: lv.pal, blank: !!lv.blank,
+    intro: lv.intro || '',
     w: lv.w, h: lv.h,
     spawn: lv.spawn, exit: lv.exit,
     enemies: lv.enemies || [],
@@ -113,6 +114,7 @@ function applyRecord(lv, rec){
   if (rec.water) lv.water = rec.water;
   if (rec.spawn) lv.spawn = rec.spawn;
   if (rec.exit) lv.exit = rec.exit;
+  if (rec.intro != null) lv.intro = rec.intro;
   if (rec.stash) lv._stash = unpackStash(rec.stash);
 }
 
@@ -121,6 +123,7 @@ function makeBlank(rec){
   return {
     id: rec.id, name: rec.name || 'LEVEL', pal: rec.pal || 'stone',
     w: rec.w || 16, h: rec.h || 16, blank: true,
+    intro: rec.intro || '',
     spawn: rec.spawn || { x: 16, y: 6 * T - 22 },
     exit: rec.exit || { x: 12 * T, y: 8 * T },
     lights: rec.lights || [], sounds: rec.sounds || [], volumes: rec.volumes || [],

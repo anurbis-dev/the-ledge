@@ -11,6 +11,7 @@ import { tileThumb, objThumb } from './thumbs.js';
 import { renderParams, resetAllParams } from './params.js';
 import { getActiveLayer, getLayers, layerTile, layerVar, isTileLayer } from '../core/layers.js';
 import { showLayersPanel, bindLayersPanel } from './layers-panel.js';
+import { bindIntroPanel, renderIntroPanel } from './intro-panel.js';
 import { showInspect, bindInspect } from './inspect.js';
 import { pickSpecial, pickAllSpecial, hitGizmo, beginGizmo, moveGizmo, endGizmo, gizmoActive, drawGizmos } from './gizmos.js';
 import { markLevelDirty as persistDirty, flushLevel, bindPersist } from '../core/persist.js';
@@ -184,6 +185,7 @@ try {
 } catch (_){}
 
 bindLayersPanel({ onChange: function(){ markLevelDirty(); } });
+bindIntroPanel();
 bindInspect({ onChange: function(){ markLevelDirty(); }, onClose: function(){ ED.sel = null; } });
 bindPersist({ water: waterExport });
 bindHistory({
@@ -247,9 +249,12 @@ function syncTabs(){
   for (var i = 0; i < tabs.length; i++){
     tabs[i].classList.toggle('on', tabs[i].getAttribute('data-tab') === ED.tab);
   }
-  if (edPal) edPal.hidden = ED.tab === 'params';
-  if (edExtra) edExtra.hidden = ED.tab === 'params';
+  var hidePal = ED.tab === 'params' || ED.tab === 'intro';
+  if (edPal) edPal.hidden = hidePal;
+  if (edExtra) edExtra.hidden = hidePal;
   if (edParams) edParams.hidden = ED.tab !== 'params';
+  var edIntro = document.getElementById('edIntro');
+  if (edIntro) edIntro.hidden = ED.tab !== 'intro';
 }
 
 function swatch(parent, canvas, label, active, onPick, kind, pal){
@@ -378,6 +383,8 @@ function edRefresh(){
   syncDelBtn();
   if (ED.tab === 'params'){
     showParams();
+  } else if (ED.tab === 'intro'){
+    renderIntroPanel();
   } else {
     fillPal();
     fillExtra();

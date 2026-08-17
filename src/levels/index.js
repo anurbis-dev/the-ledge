@@ -37,7 +37,7 @@ function nextLevelId(){
 export function addBlankLevel(){
   var n = nextLevelId();
   var lv = {
-    id: n, name: 'LEVEL ' + n, pal: 'stone', w: 16, h: 16, blank: true,
+    id: n, name: 'LEVEL ' + n, pal: 'stone', w: 16, h: 16, blank: true, intro: '',
     spawn: { x: 16, y: 6 * 16 - 22 },
     exit: { x: 12 * 16, y: 8 * 16 },
     lights: [], sounds: [], volumes: [],

@@ -1,6 +1,7 @@
 import GAME from '../core/game.js';
 import { ctx, view, VW, VH, rc, world } from './ctx.js';
 import { P } from './palette.js';
+import { pickIntroLine } from '../core/intro.js';
 
 var G = GAME, C = G.C;
 
@@ -15,35 +16,10 @@ var ABC = {
   Q:'010101101111011', R:'110101110101101', S:'011100010001110', T:'111010010010010',
   U:'101101101101011', V:'101101101101010', W:'101101111111101', X:'101101010101101',
   Y:'101101010010010', Z:'111001010100111',
-  '.':'000000000000010', ',':'000000000010100', "'":'010010000000000'
+  '.':'000000000000010', ',':'000000000010100', "'":'010010000000000',
+  '!':'010010010000010', '?':'110001010000010', '-':'000000111000000', ':':'000010000010000'
 };
-var INTRO_LINES = [
-  'GO ON. SLIP.',
-  'FATE FIRST',
-  'THE PIT SAYS HI',
-  'GRIP OR GO',
-  "DON'T LOOK DOWN",
-  'GRAVITY IS HUNGRY',
-  'ONE MORE LEDGE',
-  'NO ROPE, NO MERCY',
-  'THE VOID IS PATIENT',
-  'LUCK IS A FINGERHOLD',
-  'TRUST THE STONE',
-  'FALL OR FLY',
-  'THE CAVE IS LISTENING',
-  'LEAVE THE LIGHT',
-  'A LONG WAY DOWN',
-  'THE FALL CAN WAIT',
-  'STEP INTO IT'
-];
-var introLine = '', lastIntro = -1;
-
-function pickIntroLine(){
-  var n = INTRO_LINES.length, i = Math.floor(Math.random() * n);
-  if (n > 1 && i === lastIntro) i = (i + 1) % n;
-  lastIntro = i;
-  introLine = INTRO_LINES[i];
-}
+var introLine = '';
 export function digit(n, x, y, col){
   var s = DIG[n];
   for (var r = 0; r < 5; r++) for (var c = 0; c < 3; c++) if (s[r*3+c] === '1') rc(x+c, y+r, 1, 1, col);
@@ -158,7 +134,7 @@ export function drawIntro(){
   var sc = name.length <= 6 ? 3 : 2;
   textPixC(name, VW/2, VH/2 - 10, '#ffd9a0', sc);
   if (view.warpJump || !introLine){
-    pickIntroLine();
+    introLine = pickIntroLine(lv);
     view.warpJump = false;
   }
   if (Math.sin(time * 4) > 0) textPixC(introLine, VW/2, VH/2 + 12, '#8f88bb', 1);
