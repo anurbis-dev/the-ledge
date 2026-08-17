@@ -5,7 +5,7 @@ import {
   moveX, moveY, damage, updateBars, ease, updateClimb, updateHang, updateLadder,
   setStance, setH, slopeUnder, slopeGradeUnder, grounded, autoLadder, tryBars,
   tryLadder, tryGrab, tryClimbOut, tryCrawlEdge, ladderTopUnder, attach, tryDescend, tryMantle,
-  markGap, canDescend, awayFromEdge, startFallRecover, finishFallRecover
+  tryEnterGap, markGap, canDescend, awayFromEdge, startFallRecover, finishFallRecover
 } from './player.js';
 import { stepPlats, platUnder } from '../entities/plats.js';
 import { stepLifts, inLift, liftConstrain } from '../entities/lifts.js';
@@ -209,6 +209,10 @@ export function step(S, dt, inp){
         if (p.onGround && stanceBefore === 0 && p.stance === 0 && tryMantle(S, p, p.facing, wasVx)){
           crumbCheck(S, p); pickups(S, p);
           return;
+        }
+        // щель перед собой: bestLand был только с зацепа; мантл сюда не лезет (высота)
+        if (p.onGround && stanceBefore === 0 && p.stance === 0 && tryEnterGap(S, p, p.facing)){
+          if (p.state === 'climb'){ crumbCheck(S, p); pickups(S, p); return; }
         }
       }
 
@@ -465,5 +469,5 @@ export function step(S, dt, inp){
     var rr = Math.floor((p.y + p.h + 2) / T), cc = Math.floor((p.x + p.w/2) / T);
     if (tileAt(cc, rr) === ROCK) { S.respawn.x = Math.round(p.x); S.respawn.y = Math.round(p.y); }
   }
-  if (p.y > runtime.MAP_H * T + 40) damage(S, 1, 0.3);
+  if (p.y > runtime.originR * T + runtime.MAP_H * T + 40) damage(S, 1, 0.3);
 }

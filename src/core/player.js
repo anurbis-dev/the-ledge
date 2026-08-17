@@ -465,10 +465,16 @@ export function tryDescend(S, p, want){
   startClimb(p, -1, d.cx, d.gy, d.facing, 'ledge');
   return true;
 }
+/* пролезает ли стойка st на 2px вперёд по текущему полу (щель, не уступ) */
+function stanceFitsAhead(p, dir, st){
+  var h = stanceH(st), w = stanceW(st);
+  return rectFree(p.x + p.w / 2 - w / 2 + dir * 2, p.y + p.h - h, w, h);
+}
 /* --- автоподъём на уступ в один тайл при ходьбе: рывок через колено, без хвата и без потери скорости --- */
 export function tryMantle(S, p, dir, vx){
   if (p.inWater) return false;
   if (p.state !== 'normal' || !p.onGround || p.rollT > 0 || p.stance !== 0) return false;
+  if (stanceFitsAhead(p, dir, 2)) return false;        // лёжа пролезает — это щель, не уступ
   var groundY = Math.round(p.y + p.h);
   var wallX = dir > 0 ? p.x + p.w + 2 : p.x - 2;
   var col = Math.floor(wallX / T), rG = Math.floor(groundY / T);
@@ -480,6 +486,34 @@ export function tryMantle(S, p, dir, vx){
   if (!rectFree(sb.x, sb.y, p.w, p.h)) return false;
   startVault(p, cx, cy, dir, vx || 0);
   return true;
+}
+/* из стойки в щель перед собой: тот же bestLand, что с зацепа; на полу — присед/лаз */
+export function tryEnterGap(S, p, dir){
+  if (p.inWater) return false;
+  if (p.state !== 'normal' || !p.onGround || p.rollT > 0 || p.stance !== 0) return false;
+  var groundY = Math.round(p.y + p.h);
+  var wallX = dir > 0 ? p.x + p.w + 2 : p.x - 2;
+  var col = Math.floor(wallX / T), rG = Math.floor(groundY / T);
+  if (solidTile(col, rG) && solidTile(col, rG - 1) && !solidTile(col, rG - 2)
+      && !stanceFitsAhead(p, dir, 2)){
+    var cx = dir > 0 ? col * T : (col + 1) * T, cy = (rG - 1) * T;
+    var land = bestLand(cx, cy, dir);
+    if (land && land.stance > 0){
+      startClimb(p, 1, cx, cy, dir, 'ledge', land);
+      return true;
+    }
+  }
+  for (var st = 1; st <= 2; st++){
+    if (!stanceFitsAhead(p, dir, st)) continue;
+    if (!setStance(S, p, st)) continue;
+    var slide = dir * 4;
+    if (rectFree(p.x + slide, p.y, p.w, p.h)) p.x += slide;
+    p.stanceFrom = 0;
+    p.stanceT = C.STANCE_T;
+    p.vx = dir * (st === 2 ? C.PRONE_V : C.CROUCH_V);
+    return true;
+  }
+  return false;
 }
 export function startVault(p, cx, cy, facing, vx){
   var from = { x: p.x, y: p.y }, to = standBox(cx, cy, facing);
