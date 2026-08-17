@@ -1,5 +1,5 @@
 import { T, C } from '../core/constants.js';
-import { runtime } from '../core/runtime.js';
+import { runtime, mapIx, inMap } from '../core/runtime.js';
 import { tileAt, isSolidV } from '../core/map.js';
 
 export function mkLifts(){
@@ -10,7 +10,6 @@ export function mkLifts(){
   });
 }
 export function buildGates(S){
-  var MAP_W = runtime.MAP_W;
   var map = {};
   for (var i = 0; i < S.lifts.length; i++){
     var L = S.lifts[i];
@@ -22,16 +21,16 @@ export function buildGates(S){
       for (var si = 0; si < 2; si++){
         var c = sides[si];
         for (var r = R - 2; r <= R - 1; r++)
-          if (!isSolidV(tileAt(c, r))) map[r * MAP_W + c] = { lift: L, y: L.floors[f] };
+          if (inMap(c, r) && !isSolidV(tileAt(c, r))) map[mapIx(c, r)] = { lift: L, y: L.floors[f] };
       }
     }
   }
   S.gates = map;
 }
 export function gateClosed(c, r){
-  var W = runtime.W, MAP_W = runtime.MAP_W;
-  if (!W || !W.gates) return false;
-  var g = W.gates[r * MAP_W + c];
+  var W = runtime.W;
+  if (!W || !W.gates || !inMap(c, r)) return false;
+  var g = W.gates[mapIx(c, r)];
   if (!g) return false;
   return Math.abs(g.lift.y - g.y) > 3;      // кабины нет на этаже -> проём закрыт
 }

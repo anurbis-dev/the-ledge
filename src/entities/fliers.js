@@ -70,7 +70,7 @@ export function stepFliers(S, dt){
     // не снижаться к самой земле: держим просвет
     var minGap = 34;
     var gy = null;
-    for (var gr = Math.floor((f.y + f.h)/T); gr < MAP_H; gr++)
+    for (var gr = Math.floor((f.y + f.h)/T); gr < runtime.originR + runtime.MAP_H; gr++)
       if (solidTile(Math.floor((f.x + f.w/2)/T), gr)){ gy = gr*T; break; }
     if (gy !== null && f.tgt > gy - minGap) f.tgt = gy - minGap;
     if (f.tgt < 2*T) f.tgt = 2*T;
@@ -130,7 +130,7 @@ export function stepDrops(S, dt){
     d.vy += 520*dt; if (d.vy > 300) d.vy = 300;
     d.y += d.vy * dt;
     if (!rectFree(d.x - 1, d.y - 2, 3, 3)){ S.drops.splice(i, 1); p.events.push('splat'); continue; }
-    if (d.y > MAP_H*T){ S.drops.splice(i, 1); continue; }
+    if (d.y > (runtime.originR + runtime.MAP_H)*T){ S.drops.splice(i, 1); continue; }
     if (p.hurtCd <= 0 && p.state !== 'stun' &&
         d.x > p.x && d.x < p.x + p.w && d.y > p.y && d.y < p.y + p.h){
       S.drops.splice(i, 1);

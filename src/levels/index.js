@@ -19,19 +19,17 @@ export function loadLevel(i){
 export function addBlankLevel(){
   var n = LEVELS.length + 1;
   var lv = {
-    id: n, name: 'LEVEL ' + n, pal: 'stone', w: 80, h: 48, blank: true,
-    spawn: { x: 48, y: 20 * 16 - 22 },
-    exit: { x: 70 * 16, y: 22 * 16 },
+    id: n, name: 'LEVEL ' + n, pal: 'stone', w: 16, h: 16, blank: true,
+    spawn: { x: 16, y: 6 * 16 - 22 },
+    exit: { x: 12 * 16, y: 8 * 16 },
     lights: [],
     items: function(){ return []; },
     enemies: [], fliers: [], spiders: [], tendrils: [],
     torches: [], chests: [], doors: [], lifts: [], plats: [], dark: [],
-    stick: { x: 80, y: 22 * 16 - 4 },
-    key: { x: 96, y: 22 * 16 - 4 },
+    stick: { x: 40, y: 8 * 16 - 6 },
+    key: { x: 56, y: 8 * 16 - 6 },
     build: function(){
-      fillR(0, 0, 2, runtime.MAP_H);
-      fillR(runtime.MAP_W - 2, 0, 2, runtime.MAP_H);
-      fillR(0, 22, runtime.MAP_W, 2);
+      fillR(0, 8, 16, 1);
     }
   };
   LEVELS.push(lv);

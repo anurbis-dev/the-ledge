@@ -3,7 +3,7 @@ import {
   SLR2, SLR3, SLL2, SLL3, SLR4A, SLR4B, SLR4C, SLR4D, SLL4A, SLL4B, SLL4C, SLL4D,
   SLRCA, SLRCB, SLLCB, SLLCA
 } from './constants.js';
-import { runtime, hooks } from './runtime.js';
+import { runtime, hooks, inMap, mapIx } from './runtime.js';
 
 function spec(y0, y1, ease){ return { y0: y0, y1: y1, ease: ease || 0 }; }
 
@@ -58,12 +58,12 @@ export function fillR(c, r, w, h, v){
   v = v === undefined ? ROCK : v;
   for (var y = r; y < r + h; y++)
     for (var x = c; x < c + w; x++)
-      if (x >= 0 && y >= 0 && x < runtime.MAP_W && y < runtime.MAP_H) runtime.base[y * runtime.MAP_W + x] = v;
+      if (inMap(x, y)) runtime.base[mapIx(x, y)] = v;
 }
 export function slopeRun(c, r, n, dir, downTo){        // косой уступ с телом под ним
   for (var i = 0; i < n; i++){
     var cc = c + dir*i, rr = r - i;
-    if (cc < 0 || cc >= runtime.MAP_W || rr < 0) continue;
+    if (!inMap(cc, rr)) continue;
     fillR(cc, rr, 1, 1, dir > 0 ? LADR : LADL);
     for (var k = rr + 1; k <= downTo; k++) fillR(cc, k, 1, 1, ROCK);
   }
@@ -71,9 +71,8 @@ export function slopeRun(c, r, n, dir, downTo){        // косой уступ 
 export function line(c, r, n, dc, dr, v){ for (var i = 0; i < n; i++) fillR(c + dc*i, r + dr*i, 1, 1, v); }
 
 export function tileAt(c, r){
-  if (c < 0 || c >= runtime.MAP_W) return ROCK;
-  if (r < 0 || r >= runtime.MAP_H) return E;
-  return runtime.base[r * runtime.MAP_W + c];
+  if (!inMap(c, r)) return E;
+  return runtime.base[mapIx(c, r)];
 }
 export function isSolidV(v){ return v === ROCK || v === CRUMB || v === HTOP || v === RNDA || v === RNDB; }
 export function isSlopeV(v){ return !!SLOPE_SPEC[v]; }
@@ -111,7 +110,7 @@ export function isLadV(v){ return v === LADW || v === LADF; }   // диагон�
 export function solidTile(c, r){
   var v = tileAt(c, r);
   if (!isSolidV(v)) return hooks.gateClosed(c, r);
-  if (v === CRUMB && runtime.W && runtime.W.gone[r * runtime.MAP_W + c] > 0) return false;
+  if (v === CRUMB && runtime.W && runtime.W.gone[mapIx(c, r)] > 0) return false;
   return true;
 }
 export function ladderTile(c, r){ return isLadV(tileAt(c, r)); }

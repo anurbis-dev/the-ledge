@@ -91,7 +91,7 @@ function stepFlee(S, sp, dt){
     sp.x = nx;
   }
   sp.t -= dt;
-  if (sp.t <= 0 || sp.x < 8 || sp.x > runtime.MAP_W * T - 8){
+  if (sp.t <= 0 || sp.x < runtime.originC * T + 8 || sp.x > (runtime.originC + runtime.MAP_W) * T - 8){
     sp.dead = true;
     sp.hitT = 0.2;
   }
@@ -126,7 +126,7 @@ export function stepSpiders(S, dt){
       var dx2 = (p.x + p.w/2) - sp.hx;
       sp.len += 92 * dt;
       var maxLen = 0;
-      for (var r = Math.floor(sp.hy/T); r < MAP_H; r++){
+      for (var r = Math.floor(sp.hy/T); r < runtime.originR + runtime.MAP_H; r++){
         if (solidTile(Math.floor(sp.hx/T), r)) break;
         maxLen = (r + 1)*T - sp.hy;
       }

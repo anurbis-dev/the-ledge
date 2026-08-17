@@ -1,6 +1,6 @@
 import GAME from '../core/game.js';
 import {
-  cv, ctx, VW, VH, cam, rc, buildWater, clampCam, setViewScale,
+  cv, ctx, VW, VH, cam, view, rc, buildWater, clampCam, setViewScale,
   setPondShade, getPondShade, waterExport, shadePresetName, WATER_SHADE_PRESETS
 } from '../render/index.js';
 import { isMenu } from '../ui/menu.js';
@@ -12,7 +12,7 @@ import { renderParams, resetAllParams } from './params.js';
 
 var G = GAME;
 var HOLD_MS = 450;
-var ZOOM_MIN = 0.25, ZOOM_MAX = 4;
+var ZOOM_STEPS = [0.25, 0.5, 1, 2, 4];
 var ICON_MIN = 16, ICON_MAX = 56;
 var HKEY = 'ledge.ed.h';
 var IKEY = 'ledge.ed.icon';
@@ -190,6 +190,7 @@ export function edOpen(){
   if (onOpen) onOpen();
   ED.camX = cam.x; ED.camY = cam.y;
   setViewScale(ED.zoom);
+  view.edit = true;
   document.body.classList.add('edit-mode');
   edBar.classList.add('on');
   restoreHeight();
@@ -198,6 +199,7 @@ export function edOpen(){
 }
 export function edClose(){
   ED.on = false;
+  view.edit = false;
   setViewScale(1);
   document.body.classList.remove('edit-mode');
   edBar.classList.remove('on');
@@ -229,7 +231,7 @@ function pickVariant(spec, cur){
 
 export function edApply(cell, isClick){
   var S = world();
-  if (cell.c < 0 || cell.r < 0 || cell.c >= G.MAP_W || cell.r >= G.MAP_H) return;
+  if (cell.c !== cell.c || cell.r !== cell.r) return;
   var key = cell.c + ':' + cell.r;
   if (ED.last === key && !isClick) return;
   ED.last = key;
@@ -256,7 +258,7 @@ export function edApply(cell, isClick){
 }
 function edErase(cell){
   var S = world();
-  if (cell.c < 0 || cell.r < 0 || cell.c >= G.MAP_W || cell.r >= G.MAP_H) return;
+  if (cell.c !== cell.c || cell.r !== cell.r) return;
   var key = cell.c + ':' + cell.r;
   if (ED.last === key) return;
   ED.last = key;
@@ -325,13 +327,14 @@ export function edExportText(){
   var lv = G.levelSpec(), out = [];
   out.push('// ' + lv.name + ': geometry (paste into build())');
   var runs = [];
-  for (var r = 0; r < G.MAP_H; r++){
-    var c = 0;
-    while (c < G.MAP_W){
+  var r0 = G.mapMinR(), r1 = G.mapMaxR(), c0e = G.mapMinC(), c1e = G.mapMaxC();
+  for (var r = r0; r < r1; r++){
+    var c = c0e;
+    while (c < c1e){
       var v = G.tileAt(c, r);
       if (v === 0){ c++; continue; }
       var n = 1;
-      while (c + n < G.MAP_W && G.tileAt(c + n, r) === v) n++;
+      while (c + n < c1e && G.tileAt(c + n, r) === v) n++;
       runs.push('fillR(' + c + ', ' + r + ', ' + n + ', 1, ' + v + ');');
       c += n;
     }
@@ -380,8 +383,8 @@ export function edDrawOverlay(){
   var T = G.T, z = ED.zoom || 1;
   var visW = VW / z, visH = VH / z;
   ctx.setTransform(z, 0, 0, z, 0, 0);
-  var c0 = Math.max(0, (cam.x/T|0)), c1 = Math.min(G.MAP_W-1, ((cam.x+visW)/T|0));
-  var r0 = Math.max(0, (cam.y/T|0)), r1 = Math.min(G.MAP_H-1, ((cam.y+visH)/T|0));
+  var c0 = Math.floor(cam.x/T) - 1, c1 = Math.floor((cam.x+visW)/T) + 1;
+  var r0 = Math.floor(cam.y/T) - 1, r1 = Math.floor((cam.y+visH)/T) + 1;
   ctx.globalAlpha = 0.22;
   for (var c = c0; c <= c1 + 1; c++) rc(c*T - cam.x, 0, 1, visH, '#8f88bb');
   for (var r = r0; r <= r1 + 1; r++) rc(0, r*T - cam.y, visW, 1, '#8f88bb');
@@ -419,15 +422,40 @@ function startHold(cell){
   }, HOLD_MS);
 }
 
-function applyZoom(factor, sx, sy){
-  var old = ED.zoom;
-  var next = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, old * factor));
-  if (next === old) return;
+export function snapEditCam(){
+  var z = ED.zoom || 1;
+  cam.x = Math.round(cam.x * z) / z;
+  cam.y = Math.round(cam.y * z) / z;
+}
+function nearestZoomIx(z){
+  var best = 0, bd = 1e9, i;
+  for (i = 0; i < ZOOM_STEPS.length; i++){
+    var d = Math.abs(ZOOM_STEPS[i] - z);
+    if (d < bd){ bd = d; best = i; }
+  }
+  return best;
+}
+function setZoom(next, sx, sy){
+  var old = ED.zoom || 1;
+  if (sx == null) sx = VW / 2;
+  if (sy == null) sy = VH / 2;
   var wx = cam.x + sx / old, wy = cam.y + sy / old;
   ED.zoom = next;
-  setViewScale(ED.zoom);
+  setViewScale(next);
   var cl = clampCam(wx - sx / next, wy - sy / next);
   cam.x = cl.x; cam.y = cl.y;
+  snapEditCam();
+}
+function applyZoom(dir, sx, sy){
+  var i = nearestZoomIx(ED.zoom);
+  var j = Math.max(0, Math.min(ZOOM_STEPS.length - 1, i + dir));
+  if (ZOOM_STEPS[j] === ED.zoom){ snapEditCam(); return; }
+  setZoom(ZOOM_STEPS[j], sx, sy);
+}
+function resetZoom(){
+  var sx = VW / 2, sy = VH / 2;
+  if (ED.hover && ED.hover.sx != null){ sx = ED.hover.sx; sy = ED.hover.sy; }
+  setZoom(1, sx, sy);
 }
 
 function bumpIcon(dir){
@@ -475,6 +503,7 @@ cv.addEventListener('pointermove', function(e){
     var cl = clampCam(ED.camX - (e.clientX - ED.panX) / r.width * VW / z,
                       ED.camY - (e.clientY - ED.panY) / r.height * VH / z);
     cam.x = cl.x; cam.y = cl.y;
+    snapEditCam();
     return;
   }
   if (ED.holdT && (Math.abs(e.clientX - ED.holdX) > 5 || Math.abs(e.clientY - ED.holdY) > 5))
@@ -501,7 +530,7 @@ cv.addEventListener('wheel', function(e){
     return;
   }
   var cell = edCell(e.clientX, e.clientY);
-  applyZoom(e.deltaY < 0 ? 1.12 : 1 / 1.12, cell.sx, cell.sy);
+  applyZoom(e.deltaY < 0 ? 1 : -1, cell.sx, cell.sy);
 }, { passive: false });
 
 if (edBar){
@@ -580,6 +609,12 @@ addEventListener('keydown', function(e){
   if (e.key === 'Escape' && ED.on){
     e.preventDefault();
     edClose();
+    return;
+  }
+  if (ED.on && (e.key === '0' || e.code === 'Numpad0')){
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    e.preventDefault();
+    resetZoom();
   }
 }, true);
 

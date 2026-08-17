@@ -1,12 +1,12 @@
 import { T, C, CRUMB } from '../core/constants.js';
-import { runtime } from '../core/runtime.js';
+import { runtime, mapIx, inMap } from '../core/runtime.js';
 import { tileAt, solidTile } from '../core/map.js';
 import { releaseHang } from '../core/player.js';
 
 /* --- осыпающиеся карнизы --- */
 export function touchCrumb(S, c, r){
-  var MAP_W = runtime.MAP_W;
-  var k = r * MAP_W + c;
+  if (!inMap(c, r)) return;
+  var k = mapIx(c, r);
   if (tileAt(c, r) !== CRUMB) return;
   if (S.gone[k] > 0) return;
   if (S.crumbT === undefined) S.crumbT = {};

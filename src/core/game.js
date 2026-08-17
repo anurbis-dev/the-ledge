@@ -4,7 +4,7 @@ import {
   SLR2, SLR3, SLL2, SLL3, SLR4A, SLR4B, SLR4C, SLR4D,
   SLL4A, SLL4B, SLL4C, SLL4D, SLRCA, SLRCB, SLLCB, SLLCA
 } from './constants.js';
-import { runtime, setWorld, hooks } from './runtime.js';
+import { runtime, setWorld, hooks, ensureMap, mapIx, inMap, mapMinC, mapMaxC, mapMinR, mapMaxR } from './runtime.js';
 import {
   isHalfV, isBarV, ladderTop, isSlopeV, isWaterV, isFlowV, isWetV, slopeSurfaceY,
   slopeTop, slopeSpec, slopeFamily, slopeRiseRight, SLOPE_SEQ,
@@ -46,8 +46,10 @@ export function mkWorld(li){
 }
 
 function setTile(c, r, v){
-  if (c < 0 || r < 0 || c >= runtime.MAP_W || r >= runtime.MAP_H) return false;
-  runtime.base[r * runtime.MAP_W + c] = v;
+  if (!inMap(c, r) && !v) return false;
+  ensureMap(c, r);
+  if (!inMap(c, r)) return false;
+  runtime.base[mapIx(c, r)] = v;
   if (hooks.onSetTile) hooks.onSetTile(c, r);
   return true;
 }
@@ -80,6 +82,7 @@ function mkChestAt(S, x, y, kind, locked){
 export const GAME = {
   T, C,
   get MAP_W(){ return runtime.MAP_W; }, get MAP_H(){ return runtime.MAP_H; }, get base(){ return runtime.base; },
+  mapMinC, mapMaxC, mapMinR, mapMaxR, mapIx, inMap,
   E, ROCK, CRUMB, LADW, LADF, LADR, LADL, HTOP, BAR,
   isHalfV, isBarV, ladderTop, stanceH,
   SLR, SLL, RNDA, RNDB, WATER, FALL,

@@ -10,11 +10,13 @@ import {
 } from '../render/index.js';
 import { blip, liftSound, hushLift } from '../audio/sfx.js';
 import { held, latch, ax, stick, bindInput } from '../input/input.js';
-import { ED, edOpen, edClose, edApply, edExportText, edDrawOverlay, bindEditor } from '../editor/editor.js';
+import { ED, edOpen, edClose, edApply, edExportText, edDrawOverlay, bindEditor, snapEditCam } from '../editor/editor.js';
+import { hooks } from '../core/runtime.js';
 import { prog, buildMenu, showMenu, isMenu, setMenu, saveProgress } from '../ui/menu.js';
 import { findById } from '../entities/ids.js';
 
 var G = GAME;
+hooks.onGrowMap = function(){ invalidateAll(); buildWater(); };
 var S = null;
 var paused = false, introT = 0, outro = null, gameOver = null;
 var parts = view.parts, hearts = view.hearts;
@@ -283,7 +285,8 @@ export function getOutro(){ return outro; }
 
 function frame(now){
   var dt = Math.min(0.2, (now - last)/1000); last = now;
-  acc += dt; view.time += dt; view.animT += dt;
+  acc += dt;
+  if (!ED.on && !isMenu()){ view.time += dt; view.animT += dt; }
   if (view.flash > 0) view.flash = Math.max(0, view.flash - dt*2.2);
 
   if (isMenu()){ acc = 0; hushLift(); requestAnimationFrame(frame); return; }
@@ -291,9 +294,10 @@ function frame(now){
     acc = 0;
     hushLift();
     view.edit = true;
-    stepWater(dt);
+    snapEditCam();
     var z = ED.zoom || 1;
     setViewScale(z);
+    ctx.imageSmoothingEnabled = false;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, VW, VH);
     sky();

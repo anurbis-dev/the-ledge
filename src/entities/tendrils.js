@@ -19,7 +19,7 @@ function dirs(side){
 
 function snapFloor(col, row){
   var r = row;
-  while (r < runtime.MAP_H && isWetV(tileAt(col, r))) r++;
+  while (isWetV(tileAt(col, r))) r++;
   return r;
 }
 

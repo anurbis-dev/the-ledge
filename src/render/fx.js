@@ -205,8 +205,8 @@ function depthK(depthTiles, shade){
   return k > 0.94 ? 0.94 : k;
 }
 function pondAt(c, r){
-  if (!pondIx || c < 0 || r < 0 || c >= G.MAP_W || r >= G.MAP_H) return null;
-  var n = pondIx[r * G.MAP_W + c];
+  if (!pondIx || !G.inMap(c, r)) return null;
+  var n = pondIx[G.mapIx(c, r)];
   return n ? PONDS[n - 1] : null;
 }
 function matchShade(pond){
@@ -227,7 +227,7 @@ export function waterTintAt(px, py){
   var rec = pond && pond.cols[c];
   var topR = rec ? rec.top : r;
   if (!rec){
-    while (topR > 0 && G.isWaterV(G.tileAt(c, topR - 1))) topR--;
+    while (G.isWaterV(G.tileAt(c, topR - 1))) topR--;
   }
   return depthK((py - topR * T) / T, shade);
 }
@@ -239,7 +239,7 @@ export function waterDepthK(c, r){
   var rec = pond && pond.cols[c];
   var topR = rec ? rec.top : r;
   if (!rec){
-    while (topR > 0 && G.isWaterV(G.tileAt(c, topR - 1))) topR--;
+    while (G.isWaterV(G.tileAt(c, topR - 1))) topR--;
   }
   return depthK(r - topR, shade);
 }
@@ -278,12 +278,14 @@ export function shadePresetName(shade){
 export function buildWater(){
   WEEDS = []; FISH = []; SHORES = []; PONDS = [];
   var MW = G.MAP_W, MH = G.MAP_H, WATER = G.WATER;
+  var cBase = G.mapMinC(), rBase = G.mapMinR();
   var seen = new Uint8Array(MW * MH);
   pondIx = new Uint16Array(MW * MH);
-  function ix(c, r){ return r * MW + c; }
+  function ix(c, r){ return G.mapIx(c, r); }
   var ponds = [];
-  for (var r = 0; r < MH; r++){
-    for (var c = 0; c < MW; c++){
+  for (var lr = 0; lr < MH; lr++){
+    for (var lc = 0; lc < MW; lc++){
+      var r = rBase + lr, c = cBase + lc;
       if (G.tileAt(c, r) !== WATER || seen[ix(c, r)]) continue;
       var stack = [[c, r]], cols = {}, c0 = c, c1 = c, top = r, bot = r;
       var cells = [[c, r]];
@@ -300,7 +302,7 @@ export function buildWater(){
         var nbs = [[cc + 1, rr], [cc - 1, rr], [cc, rr + 1], [cc, rr - 1]];
         for (var n = 0; n < 4; n++){
           var nc = nbs[n][0], nr = nbs[n][1];
-          if (nc < 0 || nr < 0 || nc >= MW || nr >= MH) continue;
+          if (!G.inMap(nc, nr)) continue;
           if (seen[ix(nc, nr)] || G.tileAt(nc, nr) !== WATER) continue;
           seen[ix(nc, nr)] = 1;
           cells.push([nc, nr]);

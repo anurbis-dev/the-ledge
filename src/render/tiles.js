@@ -1,6 +1,6 @@
 import GAME from '../core/game.js';
 import { hooks } from '../core/runtime.js';
-import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH } from './ctx.js';
+import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH, viewScale } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
 import { waterDepthK } from './fx.js';
 
@@ -207,7 +207,7 @@ export function drawTile(c, r, x, y, dyn){
     return;
   }
   if (!G.isSolidV(v)) return;
-  var k = r*G.MAP_W + c, crumb = (v === G.CRUMB), hh = hashT(c, r);
+  var k = G.mapIx(c, r), crumb = (v === G.CRUMB), hh = hashT(c, r);
   if (crumb && !G.solidTile(c, r)){
     rc(x+2, y+5, 3, 2, P.crumD); rc(x+9, y+8, 2, 2, P.crumD); return;
   }
@@ -297,8 +297,7 @@ export function invalidateChunk(c, r){
   for (var dr = -1; dr <= 1; dr++)
     for (var dc = -1; dc <= 1; dc++){
       var cc = c + dc, rr = r + dr;
-      if (cc < 0 || rr < 0 || cc >= G.MAP_W || rr >= G.MAP_H) continue;
-      delete chunkCache[(cc / CH | 0) + ',' + (rr / CH | 0)];
+      delete chunkCache[Math.floor(cc / CH) + ',' + Math.floor(rr / CH)];
     }
 }
 hooks.onSetTile = invalidateChunk;
@@ -319,7 +318,7 @@ export function chunkOf(cx, cy){
   try {
     for (var r = cy*CH; r < (cy+1)*CH; r++){
       for (var c = cx*CH; c < (cx+1)*CH; c++){
-        if (c < 0 || r < 0 || c >= G.MAP_W || r >= G.MAP_H) continue;
+        if (!G.inMap(c, r)) continue;
         var vv0 = G.tileAt(c, r);
         if (vv0 === G.CRUMB || vv0 === G.WATER || vv0 === G.FALL) continue;   // динамика — мимо кэша
         drawTile(c, r, (c - cx*CH)*T + PAD, (r - cy*CH)*T + PAD, false);
@@ -333,13 +332,18 @@ export function chunkOf(cx, cy){
 }
 export function tiles(){
   syncPal();
-  var c0 = Math.max(0, ((cam.x/T)|0) - 1), c1 = Math.min(G.MAP_W-1, ((cam.x+viewW())/T|0) + 1);
-  var r0 = Math.max(0, ((cam.y/T)|0) - 1), r1 = Math.min(G.MAP_H-1, ((cam.y+viewH())/T|0) + 1);
+  var c0 = Math.max(G.mapMinC(), Math.floor(cam.x/T) - 1);
+  var c1 = Math.min(G.mapMaxC() - 1, Math.floor((cam.x+viewW())/T) + 1);
+  var r0 = Math.max(G.mapMinR(), Math.floor(cam.y/T) - 1);
+  var r1 = Math.min(G.mapMaxR() - 1, Math.floor((cam.y+viewH())/T) + 1);
   var x0 = Math.floor(c0/CH), x1 = Math.floor(c1/CH);
   var y0 = Math.floor(r0/CH), y1 = Math.floor(r1/CH);
   for (var cy = y0; cy <= y1; cy++)
     for (var cx = x0; cx <= x1; cx++)
-      ctx.drawImage(chunkOf(cx, cy), Math.round(cx*CH*T - cam.x) - PAD, Math.round(cy*CH*T - cam.y) - PAD);
+      var dx = cx*CH*T - cam.x - PAD, dy = cy*CH*T - cam.y - PAD;
+      var z = viewScale;
+      if (z !== 1){ dx = Math.round(dx * z) / z; dy = Math.round(dy * z) / z; }
+      ctx.drawImage(chunkOf(cx, cy), dx, dy);
   prepWaveStrip(view.time, c0, c1);
   for (var r = r0; r <= r1; r++){
     for (var c = c0; c <= c1; c++){
