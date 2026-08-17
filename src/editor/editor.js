@@ -15,7 +15,6 @@ import { bindIntroPanel, renderIntroPanel } from './intro-panel.js';
 import { bindMixPanel, renderMixPanel } from './mix-panel.js';
 import { showInspect, bindInspect } from './inspect.js';
 import { bindNpcTalk, openNpcTalk, closeNpcTalk } from './npc-talk.js';
-import { bindAllFloats, placeFloat, hasFloatPos } from './float.js';
 import { pickSpecial, pickAllSpecial, hitGizmo, beginGizmo, moveGizmo, endGizmo, gizmoActive, drawGizmos } from './gizmos.js';
 import { markLevelDirty as persistDirty, flushLevel, bindPersist } from '../core/persist.js';
 import { beginOp, endOp, noteOp, undoOp, redoOp, canUndo, canRedo, bindHistory, clearHistory } from './history.js';
@@ -234,6 +233,7 @@ try {
 
 bindLayersPanel({ onChange: function(){ markLevelDirty(); } });
 bindIntroPanel();
+bindMixPanel();
 bindInspect({ onChange: function(){ markLevelDirty(); }, onClose: function(){ ED.sel = null; } });
 bindNpcTalk({ onChange: function(){ markLevelDirty(); } });
 bindPersist({ water: waterExport });
@@ -298,12 +298,14 @@ function syncTabs(){
   for (var i = 0; i < tabs.length; i++){
     tabs[i].classList.toggle('on', tabs[i].getAttribute('data-tab') === ED.tab);
   }
-  var hidePal = ED.tab === 'params' || ED.tab === 'intro';
+  var hidePal = ED.tab === 'params' || ED.tab === 'intro' || ED.tab === 'mix';
   if (edPal) edPal.hidden = hidePal;
   if (edExtra) edExtra.hidden = hidePal;
   if (edParams) edParams.hidden = ED.tab !== 'params';
   var edIntro = document.getElementById('edIntro');
   if (edIntro) edIntro.hidden = ED.tab !== 'intro';
+  var edMix = document.getElementById('edMix');
+  if (edMix) edMix.hidden = ED.tab !== 'mix';
 }
 
 function swatch(parent, canvas, label, active, onPick, kind, pal){
@@ -452,6 +454,8 @@ function edRefresh(){
     showParams();
   } else if (ED.tab === 'intro'){
     renderIntroPanel();
+  } else if (ED.tab === 'mix'){
+    renderMixPanel();
   } else {
     fillPal();
     fillExtra();

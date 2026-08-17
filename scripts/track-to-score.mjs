@@ -143,6 +143,37 @@ function hann(n){
   return w;
 }
 
+function pitchAC(buf, o, n, sr, fmin, fmax){
+  const tauMin = Math.max(2, Math.floor(sr / fmax));
+  const tauMax = Math.min(n >> 1, Math.floor(sr / fmin));
+  if (tauMax <= tauMin + 2) return null;
+  let e0 = 0;
+  for (let i = 0; i < n; i++) e0 += buf[o + i] * buf[o + i];
+  if (e0 < 1e-8) return null;
+  let bestTau = tauMin, best = -1;
+  for (let tau = tauMin; tau <= tauMax; tau++){
+    let acc = 0;
+    const lim = n - tau;
+    for (let i = 0; i < lim; i++) acc += buf[o + i] * buf[o + i + tau];
+    const v = acc / e0;
+    if (v > best){ best = v; bestTau = tau; }
+  }
+  if (best < 0.32) return null;
+  const ym = best;
+  const y0 = bestTau > tauMin ? acAt(buf, o, n, e0, bestTau - 1) : ym;
+  const y2 = bestTau < tauMax ? acAt(buf, o, n, e0, bestTau + 1) : ym;
+  const den = y0 - 2 * ym + y2;
+  const shift = den !== 0 ? 0.5 * (y0 - y2) / den : 0;
+  const tau = bestTau + Math.max(-0.45, Math.min(0.45, shift));
+  return { f: sr / tau, conf: best * 8 };
+}
+function acAt(buf, o, n, e0, tau){
+  let acc = 0;
+  const lim = n - tau;
+  for (let i = 0; i < lim; i++) acc += buf[o + i] * buf[o + i + tau];
+  return acc / e0;
+}
+
 function hpsPitch(mag, sr, n, fmin, fmax){
   const bin = sr / n;
   const harm = 3;
@@ -350,37 +381,99 @@ function beatEnergy(ch, i){
   return e;
 }
 
-function pickLoop(tracks, bpm, totalTicks){
+function windowScore(ch, s, len){
+  const half = len >> 1;
+  let sim = 0;
+  for (let i = 0; i < half; i++) sim += cosSim(ch[s + i], ch[s + i + half]);
+  sim /= half || 1;
+  let e = 0, e2 = 0;
+  const parts = 4;
+  const partE = new Float64Array(parts);
+  for (let i = 0; i < len; i++){
+    const ev = beatEnergy(ch, s + i);
+    e += ev;
+    partE[(i * parts / len) | 0] += ev;
+  }
+  e /= len || 1;
+  for (let p = 0; p < parts; p++) e2 += partE[p] * partE[p];
+  const even = (e * e * parts) / (e2 / parts + 1e-9);
+  return sim * 0.9 + Math.min(1.4, e / 16) + Math.min(0.4, even / 8);
+}
+
+function bestWindow(ch, from, to, len, avoid0, avoid1){
+  let best = { s: -1, start: from };
+  if (from + len > to) return best;
+  for (let s = from; s + len <= to; s += 4){
+    if (avoid1 != null && s < avoid1 && s + len > avoid0) continue;
+    const sc = windowScore(ch, s, len);
+    if (sc > best.s) best = { s: sc, start: s };
+  }
+  return best;
+}
+
+function pickAndStitch(tracks, bpm, totalTicks){
   const nBeats = Math.floor(totalTicks / DIV);
   const ch = chromaAtBeats(tracks.lead, tracks.arp, tracks.bass, bpm, nBeats);
-  const skipBeats = Math.max(16, Math.round(16 * bpm / 60));
-  const endCap = Math.min(nBeats - 4, Math.round(180 * bpm / 60));
-  let best = { s: -1, start: skipBeats, beats: 64 };
-  for (const bars of [16, 32]){
-    const len = bars * 4;
-    if (skipBeats + len >= endCap) continue;
-    for (let s = skipBeats; s + len < endCap; s += 4){
-      const half = len >> 1;
-      let sim = 0;
-      for (let i = 0; i < half; i++) sim += cosSim(ch[s + i], ch[s + i + half]);
-      sim /= half;
-      let e = 0, e2 = 0;
-      const parts = 4;
-      const partE = new Float64Array(parts);
-      for (let i = 0; i < len; i++){
-        const ev = beatEnergy(ch, s + i);
-        e += ev;
-        partE[(i * parts / len) | 0] += ev;
-      }
-      e /= len;
-      for (let p = 0; p < parts; p++) e2 += partE[p] * partE[p];
-      const even = (e * e * parts) / (e2 / parts + 1e-9);
-      const longBonus = bars === 32 ? 0.25 : 0.15;
-      const score = sim * 1.4 + Math.min(1.2, e / 18) + Math.min(0.5, even / 8) + longBonus;
-      if (score > best.s) best = { s: score, start: s, beats: len, bars };
-    }
+  const skip = Math.max(8, Math.round(12 * bpm / 60));
+  const mid = Math.round(130 * bpm / 60);
+  const end = Math.min(nBeats - 4, Math.round(250 * bpm / 60));
+  const len32 = 32 * 4;
+  const a = bestWindow(ch, skip, Math.min(end, mid + len32), len32);
+  let bFrom = Math.max(a.start + len32, mid - 16);
+  const b = bestWindow(ch, bFrom, end, len32, a.start, a.start + len32);
+  const parts = [{ start: a.start, beats: len32, s: a.s }];
+  if (b.s > 0.6 && b.start !== a.start){
+    parts.push({ start: b.start, beats: len32, s: b.s });
+  } else {
+    const long = Math.min(64 * 4, end - a.start);
+    parts[0].beats = Math.max(len32, long - (long % 16));
   }
-  return { startTick: best.start * DIV, endTick: (best.start + best.beats) * DIV, bars: best.beats / 4, score: best.s };
+  return {
+    parts: parts.map((p) => ({ startTick: p.start * DIV, endTick: (p.start + p.beats) * DIV, score: p.s })),
+    bars: parts.reduce((n, p) => n + p.beats / 4, 0),
+  };
+}
+
+function concatTracks(a, b, offset){
+  const out = {};
+  const names = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const n of names){
+    const left = (a[n] || []).map((e) => e.slice());
+    const right = (b[n] || []).map((e) => [e[0] + offset, e[1], e[2], e[3]]);
+    out[n] = left.concat(right);
+  }
+  return out;
+}
+
+function scaleThird(midi, scale){
+  for (const d of [3, 4, 2, 5]){
+    if (scale.has(((midi + d) % 12 + 12) % 12)) return midi + d;
+  }
+  return midi + 3;
+}
+
+function arrangeLayers(cropped, scale, loopLen){
+  cropped.harm = [];
+  for (const e of cropped.lead){
+    if (e[2] < 4) continue;
+    const m = scaleThird(e[1], scale);
+    if (m === e[1]) continue;
+    cropped.harm.push([e[0], m, e[2], Math.max(5, e[3] - 4)]);
+  }
+  cropped.pad = [];
+  for (const e of cropped.bass){
+    let root = e[1] + 12;
+    while (root < 48) root += 12;
+    while (root > 67) root -= 12;
+    cropped.pad.push([e[0], root, e[2], Math.max(6, e[3] - 2)]);
+    cropped.pad.push([e[0], root + 7, e[2], Math.max(5, e[3] - 4)]);
+  }
+  cropped.echo = [];
+  for (const e of cropped.lead){
+    const t = e[0] + 3;
+    if (t >= loopLen) continue;
+    cropped.echo.push([t, e[1], Math.max(1, e[2] - 1), Math.max(4, e[3] - 6)]);
+  }
 }
 
 function mergeSame(evs){
@@ -410,11 +503,55 @@ function sparsify(evs, grid){
   for (const ev of evs){
     const slot = Math.floor(ev[0] / grid) * grid;
     const cur = m.get(slot);
-    if (!cur || ev[1] > cur[1] || (ev[1] === cur[1] && ev[3] > cur[3])){
+    if (!cur || ev[3] > cur[3] || (ev[3] === cur[3] && ev[2] > cur[2])){
       m.set(slot, [slot, ev[1], grid, ev[3]]);
     }
   }
   return mergeSame([...m.values()].sort((a, b) => a[0] - b[0]));
+}
+
+function holdBass(evs, loopEnd){
+  const out = [];
+  const step = 8;
+  for (let t = 0; t < loopEnd; t += step){
+    const hits = [];
+    for (const e of evs){
+      if (e[0] < t + step && e[0] + e[2] > t) hits.push(e);
+    }
+    if (!hits.length) continue;
+    const w = new Map();
+    for (const e of hits){
+      const ov = Math.min(e[0] + e[2], t + step) - Math.max(e[0], t);
+      w.set(e[1], (w.get(e[1]) || 0) + ov * e[3]);
+    }
+    let bestM = 36, bestW = -1;
+    for (const [m, ww] of w){
+      if (ww > bestW){ bestW = ww; bestM = m; }
+    }
+    while (bestM > 43) bestM -= 12;
+    while (bestM < 24) bestM += 12;
+    let vel = 8;
+    for (const e of hits) if (e[3] > vel) vel = e[3];
+    out.push([t, bestM, step, vel]);
+  }
+  return mergeSame(out);
+}
+
+function splitMelody(midEvs, loopEnd){
+  const lead = sparsify(midEvs, 4);
+  const busy = new Map();
+  for (const e of lead){
+    for (let t = e[0]; t < e[0] + e[2] && t < loopEnd; t++) busy.set(t, e[1]);
+  }
+  const arp = [];
+  for (const e of midEvs){
+    if (e[2] >= 4) continue;
+    const root = busy.get(e[0]);
+    if (root != null && Math.abs(e[1] - root) < 1) continue;
+    if (e[1] > 76) continue;
+    arp.push(e.slice());
+  }
+  return { lead: mergeSame(lead), arp: mergeSame(onePerTick(arp, false)) };
 }
 
 function pulseDrums(loopEnd, bass, detected){
@@ -511,10 +648,13 @@ function renderChip(score){
       }
     }
   }
-  for (const ev of score.tracks.bass) addOsc(ev[0], ev[1], ev[2], ev[3], 'triangle', voices.bass.vol);
-  for (const ev of score.tracks.arp) addOsc(ev[0], ev[1], ev[2], ev[3], 'square', voices.arp.vol);
-  for (const ev of score.tracks.lead) addOsc(ev[0], ev[1], ev[2], ev[3], 'square', voices.lead.vol);
-  for (const ev of score.tracks.drum) addNoise(ev[0], ev[1], ev[2], ev[3]);
+  const oscNames = ['bass', 'pad', 'arp', 'lead', 'harm', 'echo'];
+  for (const name of oscNames){
+    const spec = voices[name];
+    if (!spec) continue;
+    for (const ev of score.tracks[name] || []) addOsc(ev[0], ev[1], ev[2], ev[3], spec.wave || 'square', spec.vol);
+  }
+  for (const ev of score.tracks.drum || []) addNoise(ev[0], ev[1], ev[2], ev[3]);
   let peak = 1e-9;
   for (let i = 0; i < n; i++) peak = Math.max(peak, Math.abs(out[i]));
   const g = 0.85 / peak;
@@ -576,29 +716,33 @@ async function main(){
     if (!prevMag) prevMag = new Float64Array(NFFT / 2);
     prevMag.set(mag.subarray(0, NFFT / 2));
 
-    const pb = bassE[fi] > 0.004 ? hpsPitch(mag, SR, NFFT, 55, 200) : null;
-    const pm = midE[fi] > 0.003 ? hpsPitch(mag, SR, NFFT, 180, 720) : null;
-    const ph = highE[fi] > 0.0025 ? hpsPitch(mag, SR, NFFT, 620, 2100) : null;
+    const pb = bassE[fi] > 0.003 ? pitchAC(bassB, o, NFFT, SR, 46, 180) : null;
+    for (let i = 0; i < NFFT; i++){
+      re[i] = midB[o + i] * win[i];
+      im[i] = 0;
+    }
+    fft(re, im);
+    for (let i = 0; i < NFFT / 2; i++) mag[i] = Math.hypot(re[i], im[i]);
+    const pm = midE[fi] > 0.0025 ? hpsPitch(mag, SR, NFFT, 196, 800) : null;
     if (pb){ bassM[fi] = hzToMidi(pb.f); bassC[fi] = pb.conf; } else bassM[fi] = -1;
     if (pm){ midM[fi] = hzToMidi(pm.f); midC[fi] = pm.conf; } else midM[fi] = -1;
-    if (ph){ highM[fi] = hzToMidi(ph.f); highC[fi] = ph.conf; } else highM[fi] = -1;
+    highM[fi] = -1;
   }
 
   const bpm = detectBpm(flux, HOP, SR);
   console.log('bpm', bpm);
 
-  const bassNotes = trackNotes(median3(Array.from(bassM)), bassC, bassE, 3);
-  const arpNotes = trackNotes(median3(Array.from(midM)), midC, midE, 2);
-  const leadNotes = trackNotes(median3(Array.from(highM)), highC, highE, 3);
-  const key = findKey(leadNotes.concat(arpNotes, bassNotes));
+  const bassNotes = trackNotes(median3(Array.from(bassM)), bassC, bassE, 4);
+  const midNotes = trackNotes(median3(Array.from(midM)), midC, midE, 3);
+  const key = findKey(midNotes.concat(bassNotes));
   const scale = scaleOf(key);
   const keyName = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][key.k] + ' ' + key.mode;
-  console.log('key', keyName, 'notes', { bass: bassNotes.length, arp: arpNotes.length, lead: leadNotes.length });
+  console.log('key', keyName, 'notes', { bass: bassNotes.length, mid: midNotes.length });
 
   const tracks = {
-    bass: toTicks(bassNotes, HOP, SR, bpm, scale, 28, 50),
-    arp: toTicks(arpNotes, HOP, SR, bpm, scale, 48, 76),
-    lead: toTicks(leadNotes, HOP, SR, bpm, scale, 60, 88),
+    bass: toTicks(bassNotes, HOP, SR, bpm, scale, 24, 43),
+    arp: toTicks(midNotes, HOP, SR, bpm, scale, 50, 74),
+    lead: toTicks(midNotes, HOP, SR, bpm, scale, 55, 76),
     drum: [],
   };
 
@@ -619,13 +763,22 @@ async function main(){
   }
 
   const totalTicks = Math.ceil((samples.length / SR) / tickSec);
-  const loop = pickLoop(tracks, bpm, totalTicks);
+  const loop = pickAndStitch(tracks, bpm, totalTicks);
   console.log('loop', loop);
-  const cropped = cropLoop(tracks, loop.startTick, loop.endTick);
-  cropped.bass = mergeSame(onePerTick(cropped.bass, false));
-  cropped.arp = mergeSame(onePerTick(cropped.arp, false));
-  cropped.lead = sparsify(onePerTick(cropped.lead, true), 2);
-  cropped.drum = pulseDrums(loop.endTick - loop.startTick, cropped.bass, cropped.drum);
+  let cropped = { bass: [], arp: [], lead: [], drum: [] };
+  let loopLen = 0;
+  for (const p of loop.parts){
+    const piece = cropLoop(tracks, p.startTick, p.endTick);
+    const plen = p.endTick - p.startTick;
+    cropped = concatTracks(cropped, piece, loopLen);
+    loopLen += plen;
+  }
+  cropped.bass = holdBass(mergeSame(onePerTick(cropped.bass, false)), loopLen);
+  const split = splitMelody(mergeSame(onePerTick(cropped.arp, false)), loopLen);
+  cropped.lead = split.lead;
+  cropped.arp = split.arp;
+  cropped.drum = pulseDrums(loopLen, cropped.bass, cropped.drum);
+  arrangeLayers(cropped, scale, loopLen);
 
   const score = {
     name: 'lantern-key',
@@ -634,13 +787,17 @@ async function main(){
     div: DIV,
     key: keyName,
     loopStart: 0,
-    loopEnd: loop.endTick - loop.startTick,
+    loopEnd: loopLen,
     master: 0.1,
+    fadeIn: 2.6,
     voices: {
-      bass: { wave: 'triangle', vol: 0.2, atk: 0.012, rel: 0.07 },
-      arp: { wave: 'square', vol: 0.07, atk: 0.004, rel: 0.04 },
-      lead: { wave: 'square', vol: 0.12, atk: 0.008, rel: 0.09 },
-      drum: { wave: 'noise', vol: 0.09 },
+      bass: { wave: 'sawtooth', vol: 0.32, sub: 0.22, atk: 0.02, rel: 0.09 },
+      pad: { wave: 'triangle', vol: 0.07, atk: 0.08, rel: 0.12 },
+      arp: { wave: 'square', vol: 0.05, atk: 0.004, rel: 0.04 },
+      lead: { wave: 'square', vol: 0.058, atk: 0.012, rel: 0.11 },
+      harm: { wave: 'triangle', vol: 0.048, atk: 0.02, rel: 0.1 },
+      echo: { wave: 'square', vol: 0.026, atk: 0.01, rel: 0.14 },
+      drum: { wave: 'noise', vol: 0.06 },
     },
     tracks: cropped,
   };
@@ -655,8 +812,11 @@ async function main(){
   console.log('preview wav', WAV);
   console.log('counts', {
     bass: cropped.bass.length,
+    pad: cropped.pad.length,
     arp: cropped.arp.length,
     lead: cropped.lead.length,
+    harm: cropped.harm.length,
+    echo: cropped.echo.length,
     drum: cropped.drum.length,
   });
 }

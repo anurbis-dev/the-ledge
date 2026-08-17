@@ -1,10 +1,34 @@
 import { getActx } from './context.js';
 import score from './scores/lantern-key.json';
 
-var MASTER = score.master != null ? score.master : 0.1;
+var MIX_KEY = 'ledge.dev.mix';
+var BASE_MASTER = score.master != null ? score.master : 0.1;
+var BASE_FADE = score.fadeIn != null ? score.fadeIn : 2.6;
+var CHAN = ['bass', 'pad', 'arp', 'lead', 'harm', 'echo', 'drum'];
+var WAVES = ['sine', 'triangle', 'square', 'sawtooth'];
+
 var playing = false, hushed = true, origin = 0, pausedAt = 0, timer = null;
 var master = null, noiseBuf = null;
 var schedUntil = 0;
+var mix = { master: 1, fadeIn: BASE_FADE, voices: {}, solo: '' };
+
+loadMix();
+
+function loadMix(){
+  try{
+    var raw = JSON.parse(localStorage.getItem(MIX_KEY) || '{}');
+    if (raw && typeof raw === 'object'){
+      if (raw.master != null) mix.master = +raw.master;
+      if (raw.fadeIn != null) mix.fadeIn = +raw.fadeIn;
+      if (raw.solo) mix.solo = String(raw.solo);
+      if (raw.voices && typeof raw.voices === 'object') mix.voices = raw.voices;
+    }
+  }catch(e){}
+}
+
+function saveMix(){
+  try{ localStorage.setItem(MIX_KEY, JSON.stringify(mix)); }catch(e){}
+}
 
 function tickSec(){
   return (60 / (score.bpm || 110)) / (score.div || 4);
@@ -14,6 +38,34 @@ function loopDur(){
   return (score.loopEnd - score.loopStart) * tickSec();
 }
 
+function masterLevel(){
+  return BASE_MASTER * (mix.master != null ? mix.master : 1);
+}
+
+function fadeInSec(){
+  var f = mix.fadeIn != null ? mix.fadeIn : BASE_FADE;
+  return Math.max(0.2, f);
+}
+
+export function voiceSpec(name){
+  var base = score.voices && score.voices[name] ? score.voices[name] : {};
+  var ov = mix.voices[name] || {};
+  var spec = {
+    wave: ov.wave || base.wave || 'square',
+    vol: (base.vol || 0.1) * (ov.vol != null ? ov.vol : 1),
+    sub: base.sub || 0,
+    atk: base.atk || 0.008,
+    rel: base.rel || 0.06
+  };
+  if (ov.mute || (mix.solo && mix.solo !== name)){
+    spec.vol = 0;
+    spec.sub = 0;
+  } else if (spec.sub){
+    spec.sub *= (ov.vol != null ? ov.vol : 1);
+  }
+  return spec;
+}
+
 function ensureGraph(){
   var ctx = getActx();
   if (master && master.context === ctx) return;
@@ -21,8 +73,8 @@ function ensureGraph(){
   master.gain.value = 0;
   var lp = ctx.createBiquadFilter();
   lp.type = 'lowpass';
-  lp.frequency.value = 3200;
-  lp.Q.value = 0.4;
+  lp.frequency.value = 3400;
+  lp.Q.value = 0.35;
   master.connect(lp);
   lp.connect(ctx.destination);
   if (!noiseBuf || noiseBuf.sampleRate !== ctx.sampleRate){
@@ -36,12 +88,13 @@ function ensureGraph(){
 function midiHz(m){ return 440 * Math.pow(2, (m - 69) / 12); }
 
 function playOsc(t, midi, dur, vel, spec){
+  if (!spec.vol) return;
   var ctx = getActx();
   var o = ctx.createOscillator();
   var g = ctx.createGain();
   o.type = spec.wave || 'square';
   o.frequency.setValueAtTime(midiHz(midi), t);
-  var amp = (spec.vol || 0.1) * (vel / 15);
+  var amp = spec.vol * (vel / 15);
   var atk = spec.atk || 0.008;
   var rel = spec.rel || 0.06;
   g.gain.setValueAtTime(0.0001, t);
@@ -52,16 +105,31 @@ function playOsc(t, midi, dur, vel, spec){
   o.connect(g); g.connect(master);
   o.start(t);
   o.stop(t + dur + 0.02);
+  if (spec.sub){
+    var so = ctx.createOscillator(), sg = ctx.createGain();
+    so.type = 'sine';
+    so.frequency.setValueAtTime(midiHz(Math.max(12, midi - 12)), t);
+    var samp = spec.sub * (vel / 15);
+    sg.gain.setValueAtTime(0.0001, t);
+    sg.gain.exponentialRampToValueAtTime(Math.max(0.0002, samp), t + Math.max(atk, 0.02));
+    sg.gain.setValueAtTime(Math.max(0.0002, samp), t + hold);
+    sg.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    so.connect(sg); sg.connect(master);
+    so.start(t);
+    so.stop(t + dur + 0.02);
+  }
 }
 
 function playDrum(t, kind, dur, vel){
+  var spec = voiceSpec('drum');
+  if (!spec.vol) return;
   var ctx = getActx();
   var src = ctx.createBufferSource();
   src.buffer = noiseBuf;
   src.loop = true;
   var f = ctx.createBiquadFilter();
   var g = ctx.createGain();
-  var amp = (score.voices.drum.vol || 0.09) * (vel / 15);
+  var amp = spec.vol * (vel / 15);
   if (kind === 1){
     f.type = 'highpass'; f.frequency.value = 4500; f.Q.value = 0.7;
     amp *= 0.55; dur = Math.min(dur, 0.05);
@@ -95,12 +163,10 @@ function scheduleRange(from, to){
   var ld = loopDur();
   var ts = tickSec();
   if (ld <= 0 || to <= from) return;
-  var voices = score.voices || {};
-  var names = ['bass', 'arp', 'lead', 'drum'];
-  for (var v = 0; v < names.length; v++){
-    var name = names[v];
+  for (var v = 0; v < CHAN.length; v++){
+    var name = CHAN[v];
     var evs = (score.tracks && score.tracks[name]) || [];
-    var spec = voices[name] || {};
+    var spec = voiceSpec(name);
     for (var i = 0; i < evs.length; i++){
       var ev = evs[i];
       var local = ev[0] * ts;
@@ -147,8 +213,8 @@ export function startMusic(){
     origin = ctx.currentTime + 0.06;
     pausedAt = 0;
     master.gain.cancelScheduledValues(ctx.currentTime);
-    master.gain.setValueAtTime(0.0001, ctx.currentTime);
-    master.gain.exponentialRampToValueAtTime(MASTER, ctx.currentTime + 0.12);
+    master.gain.setValueAtTime(0, ctx.currentTime);
+    master.gain.linearRampToValueAtTime(masterLevel(), ctx.currentTime + fadeInSec());
     if (timer) clearInterval(timer);
     timer = setInterval(pump, 40);
     pump();
@@ -178,7 +244,7 @@ export function resumeMusic(){
     origin = ctx.currentTime - pausedAt;
     schedUntil = ctx.currentTime;
     master.gain.cancelScheduledValues(ctx.currentTime);
-    master.gain.setTargetAtTime(MASTER, ctx.currentTime, 0.05);
+    master.gain.setTargetAtTime(masterLevel(), ctx.currentTime, 0.05);
     pump();
   }catch(e){}
 }
@@ -197,3 +263,63 @@ export function stopMusic(){
 }
 
 export function musicPlaying(){ return playing && !hushed; }
+
+export function getMix(){
+  return {
+    master: mix.master,
+    fadeIn: mix.fadeIn,
+    solo: mix.solo,
+    voices: mix.voices,
+    channels: CHAN,
+    waves: WAVES,
+    defaults: score.voices || {},
+    loopSec: loopDur(),
+    bpm: score.bpm,
+    key: score.key
+  };
+}
+
+export function setMixMaster(v){
+  mix.master = Math.max(0, Math.min(2, +v || 0));
+  saveMix();
+  try{
+    if (master && playing && !hushed){
+      var ctx = getActx();
+      master.gain.cancelScheduledValues(ctx.currentTime);
+      master.gain.setTargetAtTime(masterLevel(), ctx.currentTime, 0.04);
+    }
+  }catch(e){}
+}
+
+export function setMixFade(v){
+  mix.fadeIn = Math.max(0.2, Math.min(8, +v || BASE_FADE));
+  saveMix();
+}
+
+export function setMixVoice(name, patch){
+  if (CHAN.indexOf(name) < 0) return;
+  var cur = mix.voices[name] || {};
+  var next = { vol: cur.vol, wave: cur.wave, mute: cur.mute };
+  if (patch.vol != null) next.vol = Math.max(0, Math.min(2.5, +patch.vol));
+  if (patch.wave != null) next.wave = WAVES.indexOf(patch.wave) >= 0 ? patch.wave : next.wave;
+  if (patch.mute != null) next.mute = !!patch.mute;
+  mix.voices[name] = next;
+  saveMix();
+}
+
+export function setMixSolo(name){
+  mix.solo = name && CHAN.indexOf(name) >= 0 ? name : '';
+  saveMix();
+}
+
+export function resetMix(){
+  mix = { master: 1, fadeIn: BASE_FADE, voices: {}, solo: '' };
+  saveMix();
+  try{
+    if (master && playing && !hushed){
+      var ctx = getActx();
+      master.gain.cancelScheduledValues(ctx.currentTime);
+      master.gain.setTargetAtTime(masterLevel(), ctx.currentTime, 0.04);
+    }
+  }catch(e){}
+}

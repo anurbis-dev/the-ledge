@@ -9,7 +9,7 @@ import {
   setViewScale, applyVolumes, drawCollideOverlay
 } from '../render/index.js';
 import { blip, liftSound, hushLift, hushSounds, stepSounds } from '../audio/sfx.js';
-import { startMusic, hushMusic, resumeMusic, musicPlaying } from '../audio/music.js';
+import { startMusic, hushMusic, resumeMusic, musicPlaying, getMix } from '../audio/music.js';
 import { held, latch, ax, stick, bindInput } from '../input/input.js';
 import { ED, edOpen, edClose, edApply, edExportText, edDrawOverlay, bindEditor, snapEditCam, syncDelBtn } from '../editor/editor.js';
 import { hooks } from '../core/runtime.js';
@@ -19,6 +19,7 @@ import { findById } from '../entities/ids.js';
 import { entitiesShown } from '../core/layers.js';
 import { hydrateAll } from '../core/persist.js';
 import { speechBlocks } from '../speech/runtime.js';
+
 import { clearHistory, undoOp, redoOp, canUndo, canRedo } from '../editor/history.js';
 
 var G = GAME;
@@ -351,7 +352,8 @@ function frame(now){
   if (ED.on){
     acc = 0;
     hushLift();
-    hushMusic();
+    if (ED.tab === 'mix') resumeMusic();
+    else hushMusic();
     view.edit = true;
     snapEditCam();
     var z = ED.zoom || 1;
@@ -611,7 +613,7 @@ export function start(){
     window.__skip = function(){ introT = 0; paused = false; gameOver = null; setOutro(null); };
     window.__screens = function(){ return { intro: introT, paused: paused, outro: !!outro, dead: !!gameOver, resume: canResume }; };
     window.__game = G;
-    window.__music = { start: startMusic, hush: hushMusic, resume: resumeMusic, playing: musicPlaying };
+    window.__music = { start: startMusic, hush: hushMusic, resume: resumeMusic, playing: musicPlaying, mix: getMix };
     window.__fish = getFish;
     window.__editor = { open: edOpen, close: edClose, state: ED,
                         apply: function(c, r){ edApply({ c:c, r:r }); },
