@@ -105,6 +105,10 @@ export function step(S, dt, inp){
   if (p.landT > 0) p.landT = Math.max(0, p.landT - dt);
   if (p.lock > 0 && p.lock < 9) p.lock = Math.max(0, p.lock - dt);
   if (p.stanceT > 0) p.stanceT = Math.max(0, p.stanceT - dt);
+  if (p.getupT > 0){
+    p.getupT = Math.max(0, p.getupT - dt);
+    if (p.getupT <= 0) p.gettingUp = false;
+  }
 
   if (p.ride && p.onGround && p.state === 'normal'){
     if (p.ride.dx) moveX(S, p, p.ride.dx);
@@ -122,7 +126,10 @@ export function step(S, dt, inp){
     p.vx = 0; p.vy += C.GRAV * dt; moveY(S, p, p.vy * dt);
     if (p.stunT <= 0){
       if (p.recoverSt && !S.dead){
-        if (finishFallRecover(S, p)){ p.stunT = C.STANCE_T; crumbCheck(S, p); pickups(S, p); return; }
+        if (finishFallRecover(S, p)){
+          p.stunT = p.gettingUp ? C.GETUP_T : C.STANCE_T;
+          crumbCheck(S, p); pickups(S, p); return;
+        }
       }
       p.state = 'normal'; p.apexY = p.y;
     }
