@@ -8,11 +8,11 @@ var WEEDS = [], FISH = [];
 var PONDS = [], SHORES = [], pondIx = null;
 var SKYG = null, skyRev = -1;
 export var WATER_SHADE_PRESETS = [
-  ['чистая', 0],
-  ['лёгкая', 0.35],
-  ['средняя', 0.75],
-  ['тёмная', 1.15],
-  ['бездна', 1.7]
+  ['clear', 0],
+  ['light', 0.35],
+  ['mid', 0.75],
+  ['dark', 1.15],
+  ['abyss', 1.7]
 ];
 var DEFAULT_SHADE = 0.75;
 export var VIGG = null;

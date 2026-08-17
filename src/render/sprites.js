@@ -1,5 +1,5 @@
 import GAME from '../core/game.js';
-import { ctx, cam, view, VW, rc, lb, world, setFill } from './ctx.js';
+import { ctx, cam, view, viewW, rc, lb, world, setFill } from './ctx.js';
 import { P } from './palette.js';
 
 var G = GAME, T = G.T;
@@ -8,7 +8,7 @@ export function drawTorches(){
   var S = world(), time = view.time;
   for (var i = 0; i < S.torches.length; i++){
     var t = S.torches[i], x = Math.round(t.x - cam.x), y = Math.round(t.y - cam.y);
-    if (x < -14 || x > VW+14) continue;
+    if (x < -14 || x > viewW()+14) continue;
     var a = t.held ? -Math.PI/2 : t.ang;
     var hx3 = x, hy3 = y;                                  // рукоять
     var tx3 = x + Math.cos(a)*11, ty3 = y + Math.sin(a)*11; // навершие
@@ -30,7 +30,7 @@ export function drawHarpoons(){
   var S = world();
   for (var i = 0; i < S.harpoons.length; i++){
     var b = S.harpoons[i], x = Math.round(b.x - cam.x), y = Math.round(b.y - cam.y);
-    if (x < -14 || x > VW+14) continue;
+    if (x < -14 || x > viewW()+14) continue;
     var d = b.vx >= 0 ? 1 : -1;
     lb([x - d*7, y], [x + d*7, y], 2, P.stickD);
     rc(x + d*5, y - 1, d*3, 3, '#c9d4dc');           // наконечник
@@ -49,7 +49,7 @@ export function liftButtons(){
         var side = si === 0 ? -1 : 1;
         var bx = c*T + (side > 0 ? T + 1 : -4) - cam.x;
         var by = (R - 1)*T + 2 - cam.y;
-        if (bx < -8 || bx > VW + 8) continue;
+        if (bx < -8 || bx > viewW() + 8) continue;
         var here = Math.abs(L.y - L.floors[f]) <= 3;
         var blink = here ? true : (Math.sin(time*5) > -0.2);
         rc(bx - 1, by - 1, 5, 9, '#241d3d');
@@ -88,7 +88,7 @@ export function lifts(){
   for (var i = 0; i < S.lifts.length; i++){
     var L = S.lifts[i];
     var x = Math.round(L.x - cam.x), y = Math.round(L.y - cam.y), hh2 = L.hh;
-    if (x < -70 || x > VW + 70) continue;
+    if (x < -70 || x > viewW() + 70) continue;
     // трос до верха шахты
     rc(x + L.w/2 - 1, y - hh2 - 240, 2, 240, '#2a2444');
     // кабина: пол, стены, крыша
@@ -136,7 +136,7 @@ export function caveExit(){
   var S = world(), time = view.time;
   var e = G.levelSpec().exit; if (!e) return;
   var x = Math.round(e.x - cam.x), y = Math.round(e.y - cam.y);
-  if (x < -60 || x > VW + 60) return;
+  if (x < -60 || x > viewW() + 60) return;
   // скальная арка
   setFill('#1b1430');
   ctx.beginPath();
@@ -169,7 +169,7 @@ export function doors(){
   var S = world(), time = view.time;
   for (var i = 0; i < S.doors.length; i++){
     var d = S.doors[i], x = Math.round(d.x - cam.x), y = Math.round(d.y - cam.y);
-    if (x < -30 || x > VW+30) continue;
+    if (x < -30 || x > viewW()+30) continue;
     rc(x-1, y-27, 18, 27, '#241a30');
     rc(x, y-25, 16, 25, P.doorD);
     rc(x+1, y-24, 14, 23, P.door);
@@ -201,7 +201,7 @@ export function enemies(){
   for (var i = 0; i < S.enemies.length; i++){
     var e = S.enemies[i];
     var x = Math.round(e.x - cam.x), y = Math.round(e.y - cam.y);
-    if (x < -20 || x > VW+20) continue;
+    if (x < -20 || x > viewW()+20) continue;
     if (e.dead){
       if (e.hitT <= 0) continue;
       var f = Math.max(0, e.hitT/0.6);
@@ -230,7 +230,7 @@ export function fliers(){
   for (var i = 0; i < S.fliers.length; i++){
     var f = S.fliers[i];
     var x = Math.round(f.x - cam.x), y = Math.round(f.y - cam.y);
-    if (x < -22 || x > VW + 22) continue;
+    if (x < -22 || x > viewW() + 22) continue;
     if (f.dead){
       if (f.hitT <= 0) continue;
       rc(x + 2, y, f.w - 4, 4, P.foeB); continue;
@@ -258,7 +258,7 @@ export function chests(){
   for (var i = 0; i < S.chests.length; i++){
     var ch = S.chests[i];
     var x = Math.round(ch.x - cam.x), y = Math.round(ch.y - cam.y);
-    if (x < -30 || x > VW + 30) continue;
+    if (x < -30 || x > viewW() + 30) continue;
     if (ch.t > 0) ch.t -= 1/60;
     rc(x + 1, y - 11, 18, 11, P.chestD);            // корпус
     rc(x + 2, y - 10, 16, 9, P.chest);
@@ -299,7 +299,7 @@ export function lootDrops(){
   for (var i = 0; i < S.loot.length; i++){
     var l = S.loot[i];
     var x = Math.round(l.x - cam.x), y = Math.round(l.y - cam.y);
-    if (x < -10 || x > VW + 10) continue;
+    if (x < -10 || x > viewW() + 10) continue;
     var bl = l.t < 3 && Math.sin(time*12) < 0;               // мигает перед исчезновением
     if (bl) continue;
     if (l.kind === 'coin'){ rc(x-2, y-3, 4, 6, P.coin); rc(x-3, y-2, 6, 4, P.coin); }
@@ -315,7 +315,7 @@ export function spiders(){
     if (sp.dead && sp.hitT <= 0) continue;
     var x = Math.round(sp.x - cam.x), y = Math.round(sp.y - cam.y);
     var hy = Math.round(sp.hy - cam.y);
-    if (x < -16 || x > VW + 16) continue;
+    if (x < -16 || x > viewW() + 16) continue;
     var body = sp.kind === 0 ? '#3b2f4a' : (sp.kind === 1 ? '#6b2f3a' : '#2f4a3b');
     var mark = sp.kind === 0 ? '#c9a0ff' : (sp.kind === 1 ? '#ff9a7a' : '#9fe0a0');
     if (sp.dead){ rc(x - 3, y, 6, 2, body); continue; }
@@ -347,7 +347,7 @@ export function tendrils(){
     var bx = Math.round(w.bx - cam.x), by = Math.round(w.by - cam.y);
     var tx = Math.round(w.tx - cam.x), ty = Math.round(w.ty - cam.y);
     if (bx < -30 && tx < -30) continue;
-    if (bx > VW + 30 && tx > VW + 30) continue;
+    if (bx > viewW() + 30 && tx > viewW() + 30) continue;
     var sting = w.kind === 0;
     var col = w.dead ? '#4a4038' : (sting ? '#2f8a4a' : '#245a62');
     var colD = w.dead ? '#322820' : (sting ? '#1c5a32' : '#163840');
@@ -416,7 +416,7 @@ export function items(){
     var it = S.items[i]; if (it.got) continue;
     var bob = Math.sin(time*2.4 + it.ph)*2;
     var x = Math.round(it.x - cam.x), y = Math.round(it.y - cam.y + bob);
-    if (x < -12 || x > VW+12) continue;
+    if (x < -12 || x > viewW()+12) continue;
     if (it.kind === 'gem'){
       rc(x-1,y-4,2,1,P.gem); rc(x-3,y-3,6,2,P.gem); rc(x-2,y-1,4,3,P.gemD);
       rc(x-1,y+2,2,2,P.gemD); rc(x-2,y-3,1,2,'#ffffff');

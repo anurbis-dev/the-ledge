@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
@@ -11,25 +11,42 @@
 <div id="stage"><canvas id="c" width="320" height="180"></canvas></div>
 <div id="menu">
   <div class="mtitle">L E D G E</div>
-  <div class="msub">пещеры и кромки</div>
+  <div class="msub">caves and ledges</div>
   <div class="mlist" id="mlist"></div>
-  <div class="mhint">↑ вход в пещеру · ✋ действие · ↓ присед</div>
+  <div class="mhint">↑ cave · ✋ action · ↓ crouch · Tab editor</div>
 </div>
 <div id="dbg"></div>
 <div id="ring"></div><div id="knob"></div>
 <div id="stick"></div>
 <div id="acts"><div class="btn act" id="bA">✋</div><div class="btn" id="bJ">⤒</div></div>
 <div id="edbar">
-  <div class="edrow" id="edTools"></div>
-  <div class="edrow" id="edPal"></div>
-  <div class="edrow" id="edExtra"></div>
-  <div class="edrow">
-    <button class="edb wide" id="edExport">экспорт</button>
-    <button class="edb wide" id="edClose">выйти</button>
+  <div class="ed-resize" id="edResize" title="Drag to resize"></div>
+  <div class="ed-head">
+    <div class="ed-tabs">
+      <button type="button" class="ed-tab on" data-tab="tile">Tiles</button>
+      <button type="button" class="ed-tab" data-tab="obj">Objects</button>
+      <button type="button" class="ed-tab" data-tab="params">Params</button>
+    </div>
+    <div class="ed-head-acts">
+      <button type="button" class="edb" id="edNew">New Level</button>
+      <button type="button" class="edb" id="edExport">Export</button>
+      <button type="button" class="edb" id="edClose">Close</button>
+    </div>
+  </div>
+  <div class="ed-body">
+    <div class="ed-pal" id="edPal"></div>
+    <div class="ed-extra" id="edExtra"></div>
+    <div class="ed-params" id="edParams" hidden>
+      <div class="ed-param-bar">
+        <input id="edParamQ" type="search" placeholder="Filter parameters…" autocomplete="off">
+        <button type="button" class="edb" id="edParamReset">Reset</button>
+      </div>
+      <div id="edParamList"></div>
+    </div>
   </div>
 </div>
-<div id="edout"><textarea id="edtext" readonly></textarea><button class="mini" id="edOk">закрыть</button></div>
-<div id="sys"><button class="mini" id="bEdit">ред.</button><button class="mini" id="bPause">пауза</button><button class="mini" id="bMenu">меню</button><button class="mini" id="bFS">⛶ экран</button><button class="mini" id="bReset">заново</button><button class="mini" id="bDbg">отладка</button></div>
+<div id="edout"><textarea id="edtext" readonly></textarea><button class="mini" id="edOk">Close</button></div>
+<div id="sys"><button class="mini" id="bEdit">Edit</button><button class="mini" id="bPause">Pause</button><button class="mini" id="bMenu">Menu</button><button class="mini" id="bFS">⛶ Full</button><button class="mini" id="bReset">Restart</button><button class="mini" id="bDbg">Debug</button></div>
 <script type="module" src="/src/main.js"></script>
 </body>
 </html>

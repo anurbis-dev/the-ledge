@@ -1,4 +1,4 @@
-export { cv, ctx, VW, VH, cam, view, rc } from './ctx.js';
+export { cv, ctx, VW, VH, cam, view, rc, viewScale, setViewScale, viewW, viewH } from './ctx.js';
 export { applyPal } from './palette.js';
 export { tiles } from './tiles.js';
 export { invalidateChunk, invalidateAll } from './tiles.js';

@@ -3,7 +3,7 @@ import { runtime } from '../core/runtime.js';
 import { E, ROCK, CRUMB, LADW, LADF, LADR, LADL, HTOP, BAR, SLR, SLL, WATER, FALL } from '../core/constants.js';
 
 export const level = {
-  id: 1, name: 'ПЕЩЕРЫ', pal: 'stone', w: 186, h: 72,
+  id: 1, name: 'CAVES', pal: 'stone', w: 186, h: 72,
   spawn: { x: 60, y: 22*16 - 22 },
   exit: { x: 178*16, y: 22*16 },          // вход в пещеру -> следующий уровень
   lights: [[15,21],[28,18],[37,15],[45,11],[53,4],[57,12],[64,18],[92,21]],

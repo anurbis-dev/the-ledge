@@ -5,6 +5,11 @@ export let ctx = cv.getContext('2d');
 export const VW = cv.width, VH = cv.height;
 ctx.imageSmoothingEnabled = false;
 
+export var viewScale = 1;
+export function setViewScale(z){ viewScale = z > 0 ? z : 1; }
+export function viewW(){ return VW / viewScale; }
+export function viewH(){ return VH / viewScale; }
+
 export const lc = document.createElement('canvas');
 lc.width = VW; lc.height = VH;
 export const lx = lc.getContext('2d');

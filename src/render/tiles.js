@@ -1,6 +1,6 @@
 import GAME from '../core/game.js';
 import { hooks } from '../core/runtime.js';
-import { ctx, cam, view, VW, VH, rc, lb, setCtx, getCtx, setFill, world } from './ctx.js';
+import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
 import { waterDepthK } from './fx.js';
 
@@ -333,8 +333,8 @@ export function chunkOf(cx, cy){
 }
 export function tiles(){
   syncPal();
-  var c0 = Math.max(0, ((cam.x/T)|0) - 1), c1 = Math.min(G.MAP_W-1, ((cam.x+VW)/T|0) + 1);
-  var r0 = Math.max(0, ((cam.y/T)|0) - 1), r1 = Math.min(G.MAP_H-1, ((cam.y+VH)/T|0) + 1);
+  var c0 = Math.max(0, ((cam.x/T)|0) - 1), c1 = Math.min(G.MAP_W-1, ((cam.x+viewW())/T|0) + 1);
+  var r0 = Math.max(0, ((cam.y/T)|0) - 1), r1 = Math.min(G.MAP_H-1, ((cam.y+viewH())/T|0) + 1);
   var x0 = Math.floor(c0/CH), x1 = Math.floor(c1/CH);
   var y0 = Math.floor(r0/CH), y1 = Math.floor(r1/CH);
   for (var cy = y0; cy <= y1; cy++)

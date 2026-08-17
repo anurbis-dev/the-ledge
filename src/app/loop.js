@@ -5,7 +5,8 @@ import {
   lootDrops, items, pickables, drawTorches, drawHarpoons, enemies, spiders, fliers, tendrils,
   hero, lightPass, drawWeeds, drawFish, drawParts, drawHearts,
   vignette, hud, drawIntro, drawPaused, drawOutro, drawDead,
-  applyPal, buildWater, stepWater, invalidateAll, fore, rc, getFish, spark, landDust, bonkDust, clampCam
+  applyPal, buildWater, stepWater, invalidateAll, fore, rc, getFish, spark, landDust, bonkDust, clampCam,
+  setViewScale
 } from '../render/index.js';
 import { blip, liftSound, hushLift } from '../audio/sfx.js';
 import { held, latch, ax, stick, bindInput } from '../input/input.js';
@@ -222,6 +223,10 @@ function startLevel(idx){
   cam.ax = S.p.x + S.p.w/2; cam.ay = S.p.y + S.p.h/2;
   applyPal(); buildWater(); invalidateAll();
   setMenu(false);
+  if (G.levelSpec() && G.levelSpec().blank){
+    introT = 0;
+    if (!ED.on) edOpen();
+  }
 }
 
 function levelTotals(){
@@ -267,7 +272,7 @@ function toggleFS(){
 }
 function resize(){
   var land = innerWidth > innerHeight;
-  var padB = land ? 4 : 150;
+  var padB = ED.on ? 8 : (land ? 4 : 150);
   var s = Math.min((innerWidth - (land ? 4 : 16))/VW, (innerHeight - padB)/VH);
   s = Math.max(0.55, s);
   cv.style.width = Math.floor(VW*s) + 'px';
@@ -287,11 +292,17 @@ function frame(now){
     hushLift();
     view.edit = true;
     stepWater(dt);
+    var z = ED.zoom || 1;
+    setViewScale(z);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, VW, VH);
-    sky(); tiles(); plats(); lifts(); caveExit(); doors(); chests();
+    sky();
+    ctx.setTransform(z, 0, 0, z, 0, 0);
+    tiles(); plats(); lifts(); caveExit(); doors(); chests();
     lootDrops(); items(); pickables(); drawTorches(); drawHarpoons(); enemies(); spiders(); fliers();
     hero(); drawFish(); drawWeeds(); tendrils();
     drawParts(dt); drawHearts(dt);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     vignette();
     edDrawOverlay();
     requestAnimationFrame(frame);
@@ -420,7 +431,17 @@ export function start(){
   setS(G.mkWorld());
   dbgEl = document.getElementById('dbg');
   bindInput({ onReset: hardReset, onDbg: toggleDbg });
-  bindEditor({ onOpen: function(){ paused = false; introT = 0; } });
+  bindEditor({
+    onOpen: function(){ paused = false; introT = 0; },
+    onNewLevel: function(){
+      var idx = G.newBlankLevel();
+      prog.max = Math.max(prog.max, idx);
+      saveProgress();
+      startLevel(idx);
+      introT = 0;
+      if (!ED.on) edOpen();
+    }
+  });
 
   addEventListener('keydown', function(e){
     var tag = (e.target && e.target.tagName) || '';
@@ -430,7 +451,11 @@ export function start(){
     if (e.key === 'h' || e.key === 'H'){ toggleDbg(); return; }
   });
   document.getElementById('bFS').addEventListener('click', toggleFS);
-  document.getElementById('bMenu').addEventListener('click', function(){ gameOver = null; showMenu(); });
+  document.getElementById('bMenu').addEventListener('click', function(){
+    gameOver = null;
+    if (ED.on) edClose();
+    showMenu();
+  });
   document.getElementById('bPause').addEventListener('click', function(){
     if (!isMenu() && introT <= 0 && !outro && !gameOver) paused = !paused;
   });

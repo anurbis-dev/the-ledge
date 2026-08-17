@@ -1,7 +1,7 @@
 {
   "name": "the-ledge",
-  "version": "0.1.0-dev.19",
-  "description": "the LEDGE — пещеры и кромки",
+  "version": "0.1.0-dev.20",
+  "description": "the LEDGE — caves and ledges",
   "type": "module",
   "scripts": {
     "dev": "vite",

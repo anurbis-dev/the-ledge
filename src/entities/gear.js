@@ -1,17 +1,17 @@
 /* ---------------- снаряжение ---------------- */
 export var GEAR = {
-  stick:  { slot:'weapon', uses:12, reach:1.0, name:'палка'  },
-  sword:  { slot:'weapon', uses:20, reach:1.25, name:'меч'   },
-  blade:  { slot:'weapon', uses:30, reach:1.45, name:'клинок'},
-  wshield:{ slot:'shield', uses:5,  name:'щит'  },
-  ishield:{ slot:'shield', uses:9,  name:'щит'  },
-  gshield:{ slot:'shield', uses:14, name:'щит'  },
-  lhelm:  { slot:'helmet', uses:3,  name:'шлем' },
-  ihelm:  { slot:'helmet', uses:6,  name:'шлем' },
-  ghelm:  { slot:'helmet', uses:10, name:'шлем' },
-  scuba:    { slot:'scuba',    uses:1, name:'акваланг' },
-  flippers: { slot:'flippers', uses:1, name:'ласты'    },
-  harpoon:  { slot:'harpoon',  uses:4, name:'гарпун'    }
+  stick:  { slot:'weapon', uses:12, reach:1.0, name:'stick'  },
+  sword:  { slot:'weapon', uses:20, reach:1.25, name:'sword'  },
+  blade:  { slot:'weapon', uses:30, reach:1.45, name:'blade'  },
+  wshield:{ slot:'shield', uses:5,  name:'shield' },
+  ishield:{ slot:'shield', uses:9,  name:'shield' },
+  gshield:{ slot:'shield', uses:14, name:'shield' },
+  lhelm:  { slot:'helmet', uses:3,  name:'helm' },
+  ihelm:  { slot:'helmet', uses:6,  name:'helm' },
+  ghelm:  { slot:'helmet', uses:10, name:'helm' },
+  scuba:    { slot:'scuba',    uses:1, name:'scuba' },
+  flippers: { slot:'flippers', uses:1, name:'flippers' },
+  harpoon:  { slot:'harpoon',  uses:4, name:'harpoon' }
 };
 export function mkItem(type){
   var d = GEAR[type];

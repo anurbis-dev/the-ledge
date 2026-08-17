@@ -3,7 +3,7 @@ import { runtime } from '../core/runtime.js';
 import { E, ROCK, CRUMB, LADW, LADF, LADR, LADL, HTOP, BAR, SLR, SLL, WATER, FALL } from '../core/constants.js';
 
 export const level = {
-  id: 2, name: 'ОБРЫВ', pal: 'clay', w: 104, h: 86,
+  id: 2, name: 'CLIFF', pal: 'clay', w: 104, h: 86,
   spawn: { x: 6*16, y: 8*16 - 22 },
   exit: { x: 96*16, y: 50*16 },
   water: [[2, 54, 1.0], [60, 49, 0]],
