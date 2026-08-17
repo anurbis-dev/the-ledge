@@ -31,6 +31,7 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;
   background:#0d0a18ee;border-top:2px solid #3a3460}
 #edbar.on{display:flex}
 .edrow{display:flex;gap:4px;flex-wrap:wrap;justify-content:center}
+.edrow:empty{display:none}
 .edb{min-width:38px;height:30px;padding:0 6px;border-radius:7px;border:2px solid #4a4370;
   background:#1a152ecc;color:#e9e4ff;font-size:10px;letter-spacing:.04em}
 .edb.on{background:#4d3f86dd;border-color:#8f88bb}

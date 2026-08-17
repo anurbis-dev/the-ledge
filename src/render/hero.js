@@ -1,11 +1,12 @@
 import GAME from '../core/game.js';
-import { cam, view, world } from './ctx.js';
+import { cam, view, world, ctx, rc } from './ctx.js';
+import { waterTintAt } from './fx.js';
 import {
   K, IDLE_A, IDLE_B, RUN, JUMPP, FALLP, LANDP, SLIDEP, STUNP, SNAREP, ROLLP,
   LADP0, LADP1, LADF0, LADF1, ATK0, ATK1, ATK2, CROUCH, CROUCH_W,
   PRONE0, PRONE1, BARS0, BARS1, LADD0, LADD1, SWIM0, SWIM1,
   HANGL, HANG_A, HANG_B, lerpPose, climbPose, vaultPose, pickPose, throwPose,
-  WALLPUSH, LOOKUP_A
+  WALLPUSH
 } from './poses.js';
 import { figure } from './figure.js';
 import { torchPts } from './light.js';
@@ -51,7 +52,6 @@ export function boxPose(p){
   var pushing = Math.abs(p.vx) < 7 && !G.rectFree(p.x + p.facing*3, p.y, p.w, p.h);
   if (pushing) return WALLPUSH;                     // упёрлась в стену — руки перед собой
   if (Math.abs(p.vx) > 8) return RUN[(runPh|0) % 4];
-  if (p.lookUp > 0.02) return lerpPose(IDLE_A, LOOKUP_A, p.lookUp);
   return (Math.sin(animT*2.6) > 0) ? IDLE_A : IDLE_B;
 }
 export function lightDirAt(wx, wy){
@@ -88,6 +88,7 @@ export function hero(){
     for (i = 0; i < K.length; i++){ k = K[i];
       pt[k] = [cx + facing*pose[k][0] - cam.x + ox, cy + pose[k][1] - cam.y + oy]; }
     figure(pt, facing, wag, false, rim, null, p.stick, { helmet: p.helmet, shield: p.shield });
+    tintHero(p, pt, cxw, cyw);
     return;
   }
   var pose2 = boxPose(p), rot = 0, cxs = 0, cys = 0;
@@ -119,11 +120,35 @@ export function hero(){
            type: p.gear.weapon && p.gear.weapon.type };
     } else onBack = true;                       // иначе палка убрана за спину
   }
+  var headTilt = p.lookUp > 0.02 ? p.lookUp * 0.6 : 0;   // голова поворачивается, взгляд вверх
   figure(pt, p.facing, wag, frontal, rim, hs, onBack, {
     helmet: p.helmet, shield: p.shield,
     helmType: p.gear.helmet && p.gear.helmet.type,
     shieldType: p.gear.shield && p.gear.shield.type,
     weaponType: p.gear.weapon && p.gear.weapon.type,
     bash: p.bashT
-  });
+  }, headTilt);
+  tintHero(p, pt, cxw, cyw);
+}
+function tintHero(p, pt, cxw, cyw){
+  if (!p.inWater && !p.wading) return;
+  var k = waterTintAt(cxw, p.inWater ? cyw : (p.y + p.h - 2));
+  if (p.wading && !p.inWater) k *= 0.45;
+  if (k < 0.04) return;
+  ctx.save();
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.globalAlpha = 0.16 + k * 0.8;
+  var col = '#1a3a58';
+  if (pt.head) rc(pt.head[0] - 4, pt.head[1] - 5, 8, 8, col);
+  if (pt.neck && pt.hip){
+    var nx = Math.min(pt.neck[0], pt.hip[0]) - 5;
+    var ny = Math.min(pt.neck[1], pt.hip[1]);
+    rc(nx, ny, 12, Math.abs(pt.hip[1] - pt.neck[1]) + 6, col);
+  }
+  if (pt.hip) rc(pt.hip[0] - 6, pt.hip[1] - 2, 12, 8, col);
+  if (pt.kF) rc(pt.kF[0] - 3, pt.kF[1] - 2, 6, 8, col);
+  if (pt.kB) rc(pt.kB[0] - 3, pt.kB[1] - 2, 6, 8, col);
+  if (pt.fF) rc(pt.fF[0] - 3, pt.fF[1] - 2, 6, 5, col);
+  if (pt.fB) rc(pt.fB[0] - 3, pt.fB[1] - 2, 6, 5, col);
+  ctx.restore();
 }

@@ -5,7 +5,16 @@ import { P, TINT, palRev } from './palette.js';
 
 var G = GAME, T = G.T;
 var WEEDS = [], FISH = [];
+var PONDS = [], SHORES = [], pondIx = null;
 var SKYG = null, skyRev = -1;
+export var WATER_SHADE_PRESETS = [
+  ['чистая', 0],
+  ['лёгкая', 0.35],
+  ['средняя', 0.75],
+  ['тёмная', 1.15],
+  ['бездна', 1.7]
+];
+var DEFAULT_SHADE = 0.75;
 export var VIGG = null;
 
 export function spark(x, y, n, col, spd, up){
@@ -190,16 +199,94 @@ export function fore(){
   }
 }
 
+function depthK(depthTiles, shade){
+  if (shade <= 0 || depthTiles < 0) return 0;
+  var k = 1 - Math.exp(-depthTiles * shade * 0.5);
+  return k > 0.94 ? 0.94 : k;
+}
+function pondAt(c, r){
+  if (!pondIx || c < 0 || r < 0 || c >= G.MAP_W || r >= G.MAP_H) return null;
+  var n = pondIx[r * G.MAP_W + c];
+  return n ? PONDS[n - 1] : null;
+}
+function matchShade(pond){
+  var list = (G.levelSpec() && G.levelSpec().water) || [];
+  for (var i = 0; i < list.length; i++){
+    var e = list[i], c = e[0], r = e[1];
+    var rec = pond.cols[c];
+    if (rec && r >= rec.top && r <= rec.bot) return e[2];
+  }
+  return DEFAULT_SHADE;
+}
+export function waterTintAt(px, py){
+  var c = Math.floor(px / T), r = Math.floor(py / T);
+  if (!G.isWaterV(G.tileAt(c, r))) return 0;
+  var pond = pondAt(c, r);
+  var shade = pond ? pond.shade : DEFAULT_SHADE;
+  if (shade <= 0) return 0;
+  var rec = pond && pond.cols[c];
+  var topR = rec ? rec.top : r;
+  if (!rec){
+    while (topR > 0 && G.isWaterV(G.tileAt(c, topR - 1))) topR--;
+  }
+  return depthK((py - topR * T) / T, shade);
+}
+export function waterDepthK(c, r){
+  if (!G.isWaterV(G.tileAt(c, r))) return 0;
+  var pond = pondAt(c, r);
+  var shade = pond ? pond.shade : DEFAULT_SHADE;
+  if (shade <= 0) return 0;
+  var rec = pond && pond.cols[c];
+  var topR = rec ? rec.top : r;
+  if (!rec){
+    while (topR > 0 && G.isWaterV(G.tileAt(c, topR - 1))) topR--;
+  }
+  return depthK(r - topR, shade);
+}
+export function getPondShade(c, r){
+  var pond = pondAt(c, r);
+  return pond ? pond.shade : DEFAULT_SHADE;
+}
+export function setPondShade(c, r, shade){
+  var pond = pondAt(c, r);
+  if (!pond) return false;
+  pond.shade = shade;
+  var lv = G.levelSpec();
+  if (!lv.water) lv.water = [];
+  var next = [];
+  for (var i = 0; i < lv.water.length; i++){
+    var e = lv.water[i], rec = pond.cols[e[0]];
+    if (rec && e[1] >= rec.top && e[1] <= rec.bot) continue;
+    next.push(e);
+  }
+  next.push([pond.c0, pond.top, shade]);
+  lv.water = next;
+  return true;
+}
+export function waterExport(){
+  return PONDS.map(function(p){ return [p.c0, p.top, +p.shade.toFixed(2)]; });
+}
+export function shadePresetName(shade){
+  var best = WATER_SHADE_PRESETS[0][0], bd = 99, i;
+  for (i = 0; i < WATER_SHADE_PRESETS.length; i++){
+    var d = Math.abs(WATER_SHADE_PRESETS[i][1] - shade);
+    if (d < bd){ bd = d; best = WATER_SHADE_PRESETS[i][0]; }
+  }
+  return best;
+}
+
 export function buildWater(){
-  WEEDS = []; FISH = [];
+  WEEDS = []; FISH = []; SHORES = []; PONDS = [];
   var MW = G.MAP_W, MH = G.MAP_H, WATER = G.WATER;
   var seen = new Uint8Array(MW * MH);
+  pondIx = new Uint16Array(MW * MH);
   function ix(c, r){ return r * MW + c; }
   var ponds = [];
   for (var r = 0; r < MH; r++){
     for (var c = 0; c < MW; c++){
       if (G.tileAt(c, r) !== WATER || seen[ix(c, r)]) continue;
       var stack = [[c, r]], cols = {}, c0 = c, c1 = c, top = r, bot = r;
+      var cells = [[c, r]];
       seen[ix(c, r)] = 1;
       while (stack.length){
         var cr = stack.pop(), cc = cr[0], rr = cr[1];
@@ -216,15 +303,30 @@ export function buildWater(){
           if (nc < 0 || nr < 0 || nc >= MW || nr >= MH) continue;
           if (seen[ix(nc, nr)] || G.tileAt(nc, nr) !== WATER) continue;
           seen[ix(nc, nr)] = 1;
+          cells.push([nc, nr]);
           stack.push([nc, nr]);
         }
       }
-      ponds.push({ c0: c0, c1: c1, top: top, bot: bot, cols: cols });
+      ponds.push({ c0: c0, c1: c1, top: top, bot: bot, cols: cols, cells: cells });
     }
   }
   var fi = 0;
   for (var p = 0; p < ponds.length; p++){
     var pond = ponds[p];
+    pond.shade = matchShade(pond);
+    for (var ci = 0; ci < pond.cells.length; ci++)
+      pondIx[ix(pond.cells[ci][0], pond.cells[ci][1])] = p + 1;
+    delete pond.cells;
+    for (var ck0 in pond.cols){
+      var col0 = +ck0, rec0 = pond.cols[ck0];
+      var topR = rec0.top;
+      if (G.isWaterV(G.tileAt(col0, topR - 1))) continue;
+      if (!G.isWaterV(G.tileAt(col0 - 1, topR)))
+        SHORES.push({ x: col0 * T + 2, y: topR * T, side: -1, fired: false });
+      if (!G.isWaterV(G.tileAt(col0 + 1, topR)))
+        SHORES.push({ x: (col0 + 1) * T - 2, y: topR * T, side: 1, fired: false });
+    }
+    PONDS.push(pond);
     for (var ck in pond.cols){
       var col = +ck, rec = pond.cols[ck];
       var depth = rec.bot - rec.top + 1;
@@ -266,8 +368,43 @@ export function buildWater(){
 }
 export function getFish(){ return FISH; }
 
+function spawnShoreSpray(e){
+  var parts = view.parts;
+  var n = 2 + (Math.random() * 4) | 0;
+  for (var s = 0; s < n; s++){
+    parts.push({
+      x: e.x + (Math.random() - 0.5) * 5,
+      y: e.y + 1,
+      vx: e.side * (4 + Math.random() * 18) + (Math.random() - 0.5) * 8,
+      vy: -16 - Math.random() * 38,
+      t: 0.2 + Math.random() * 0.28,
+      c: Math.random() < 0.4 ? '#e8f6ff' : '#bfe6ff',
+      g: 200 + Math.random() * 90,
+      sz: Math.random() < 0.6 ? 1 : 2,
+      kind: 'spray'
+    });
+  }
+}
+function stepShores(){
+  var time = view.time, parts = view.parts;
+  if (parts.length > 220) return;
+  for (var i = 0; i < SHORES.length; i++){
+    var e = SHORES[i];
+    if (e.x < cam.x - 10 || e.x > cam.x + VW + 10) continue;
+    if (e.y < cam.y - 18 || e.y > cam.y + VH + 10) continue;
+    var ph = e.x * 0.09 - time * 2.2;
+    var wv = Math.sin(ph) * 1.6 + Math.sin(ph * 2.3) * 0.7;
+    if (wv > 1.55 && !e.fired){
+      e.fired = true;
+      if (Math.random() < 0.52) spawnShoreSpray(e);
+    }
+    if (wv < 0.15) e.fired = false;
+  }
+}
 export function stepWater(dt){
   var S = world(), time = view.time, C = G.C;
+  stepShores();
+  if (view.edit) return;
   var p = S.p, pcx = p.x + p.w/2, pcy = p.y + p.h/2;
   for (var i = 0; i < FISH.length; i++){
     var f = FISH[i];
@@ -306,6 +443,8 @@ export function drawWeeds(){
     var w = WEEDS[i];
     var x = Math.round(w.x - cam.x), y = Math.round(w.y - cam.y);
     if (x < -8 || x > VW + 8 || y < -4 || y - w.len > VH + 8) continue;
+    var dim = waterTintAt(w.x, w.y - 6);
+    if (dim > 0.04) ctx.globalAlpha = 1 - dim * 0.72;
     var col = w.hue === 0 ? '#2f7a52' : (w.hue === 1 ? '#3f8f5f' : '#6aa83f');
     var px = x, py = y;
     for (var k = 0; k < 4; k++){
@@ -316,6 +455,7 @@ export function drawWeeds(){
       px = nx3; py = ny3;
     }
     rc(px - 1, py - 2, 2, 2, '#8fd08f');
+    if (dim > 0.04) ctx.globalAlpha = 1;
   }
 }
 export function drawFish(){
@@ -324,6 +464,8 @@ export function drawFish(){
     var f = FISH[i];
     var x = Math.round(f.x - cam.x), y = Math.round(f.y - cam.y);
     if (x < -20 || x > VW + 20 || y < -16 || y > VH + 16) continue;
+    var dim = waterTintAt(f.x, f.y);
+    if (dim > 0.04) ctx.globalAlpha = 1 - dim * 0.7;
     var body = f.kind === 0 ? '#e0a04a' : (f.kind === 1 ? '#5fb0d0' : '#b05f7a');
     var fin  = f.kind === 0 ? '#ffd08a' : (f.kind === 1 ? '#9fd8ef' : '#e09fb0');
     var d = f.dir;
@@ -335,6 +477,7 @@ export function drawFish(){
     rc(tx, y - f.h/2 - tw + 2, 3, 2, fin);
     rc(x + (d > 0 ? f.w/2 - 3 : -f.w/2 + 1), y - 1, 2, 2, '#101018');
     if (f.big) rc(x + (d > 0 ? f.w/2 - 1 : -f.w/2 - 1), y, 2, 1, '#fff');
+    if (dim > 0.04) ctx.globalAlpha = 1;
   }
 }
 
@@ -366,17 +509,24 @@ export function drawParts(dt){
     var q = parts[i];
     q.t -= dt; if (q.t <= 0){ parts.splice(i,1); continue; }
     if (q.drag) q.vx *= Math.max(0, 1 - q.drag * dt);
+    if (q.wob) q.vx += Math.sin(view.time * 7 + q.y * 0.2) * q.wob * dt;
     q.x += q.vx*dt; q.y += q.vy*dt; q.vy += q.g*dt;
     if (q.top !== undefined && q.top !== null && q.y < q.top){   // пузырь лопнул у поверхности
       parts.splice(i, 1); continue;
     }
+    var sz = q.sz || 1;
     if (q.kind === 'dust'){
       var a = q.life ? q.t / q.life : Math.min(1, q.t * 2.4);
       ctx.globalAlpha = a * 0.88;
-      rc(q.x - cam.x, q.y - cam.y, q.sz || 1, q.sz || 1, q.c);
+      rc(q.x - cam.x, q.y - cam.y, sz, sz, q.c);
+      ctx.globalAlpha = 1;
+    } else if (q.kind === 'bubble'){
+      ctx.globalAlpha = Math.min(1, q.t * 1.8);
+      rc(q.x - cam.x, q.y - cam.y, sz, sz, q.c);
+      if (sz > 1) rc(q.x - cam.x, q.y - cam.y, 1, 1, '#ffffff');
       ctx.globalAlpha = 1;
     } else {
-      rc(q.x - cam.x, q.y - cam.y, 1, 1, q.t > 0.18 ? q.c : '#7a72a8');
+      rc(q.x - cam.x, q.y - cam.y, sz, sz, q.t > 0.18 ? q.c : '#7a72a8');
     }
   }
 }

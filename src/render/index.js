@@ -3,7 +3,7 @@ export { applyPal } from './palette.js';
 export { tiles } from './tiles.js';
 export { invalidateChunk, invalidateAll } from './tiles.js';
 export { clampCam } from './camera.js';
-export { sky, fore, stepWater, buildWater, drawWeeds, drawFish, drawParts, drawHearts, vignette, getFish, spark, landDust, bonkDust } from './fx.js';
+export { sky, fore, stepWater, buildWater, drawWeeds, drawFish, drawParts, drawHearts, vignette, getFish, spark, landDust, bonkDust, waterTintAt, waterDepthK, getPondShade, setPondShade, waterExport, shadePresetName, WATER_SHADE_PRESETS } from './fx.js';
 export { plats, lifts, caveExit, doors, chests, lootDrops, items, pickables, drawTorches, drawHarpoons, enemies, spiders, fliers, tendrils } from './sprites.js';
 export { hero } from './hero.js';
 export { lightPass } from './light.js';

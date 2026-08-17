@@ -2,6 +2,7 @@ import GAME from '../core/game.js';
 import { hooks } from '../core/runtime.js';
 import { ctx, cam, view, VW, VH, rc, lb, setCtx, getCtx, setFill, world } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
+import { waterDepthK } from './fx.js';
 
 var G = GAME, T = G.T;
 
@@ -41,6 +42,34 @@ export function grabby(c, r){
   return G.solidTile(c,r) && !G.solidTile(c,r-1) && (!G.solidTile(c-1,r) || !G.solidTile(c+1,r));
 }
 export function hashT(c, r){ var h = (c*73856093) ^ (r*19349663); h = (h ^ (h >> 13)) >>> 0; return h; }
+
+function mixHex(a, b, t){
+  if (t <= 0) return a;
+  if (t >= 1) return b;
+  var ar = parseInt(a.slice(1,3),16), ag = parseInt(a.slice(3,5),16), ab = parseInt(a.slice(5,7),16);
+  var br = parseInt(b.slice(1,3),16), bg = parseInt(b.slice(3,5),16), bb = parseInt(b.slice(5,7),16);
+  var rr = (ar + (br - ar) * t + 0.5) | 0;
+  var gg = (ag + (bg - ag) * t + 0.5) | 0;
+  var bl = (ab + (bb - ab) * t + 0.5) | 0;
+  return '#' + (0x1000000 + (rr << 16) + (gg << 8) + bl).toString(16).slice(1);
+}
+function drawWaterBubbles(c, r, x, y, time, k){
+  var h = hashT(c, r);
+  if ((h % 5) !== 0 && (c * 7 + r * 3) % 4 !== 0) {
+    rc(x + ((c * 7) % 9), y + 12, 2, 1, mixHex('#6fb8dd', '#143044', k));
+    return;
+  }
+  var spd = 8 + (h % 26);
+  var span = T + 5 + (h % 10);
+  var bz = ((time * spd * 0.32 + (h % 17)) % span) | 0;
+  var sz = 1 + ((h >> 3) % 3);
+  if (sz === 3 && (h % 5) > 2) sz = 1;
+  var bx = x + 1 + (h % Math.max(1, T - sz - 1));
+  var by = y + T - sz - bz;
+  rc(bx, by, sz, sz, k > 0.45 ? '#9fd0ef' : '#bfe6ff');
+  if (sz > 1) rc(bx, by, 1, 1, '#ffffff');
+  rc(x + ((c * 7) % 9), y + 12, 2, 1, mixHex('#6fb8dd', '#143044', k));
+}
 
 var WAVE_PAD = 4, WAVE_H = 20;
 var wStrip = { t: NaN, c0: 0, c1: -1, lo: null, hi: null };
@@ -110,7 +139,9 @@ export function drawTile(c, r, x, y, dyn){
   if (G.isLadV(v)){ drawLadder(c, r, v, x, y); return; }
   if (v === G.WATER || v === G.FALL){
     var deepW = r > 30;
-    var w0 = deepW ? '#1d5a86' : '#2a78a8', w1 = deepW ? '#2f7fae' : '#49a0cf';
+    var kW = v === G.WATER ? waterDepthK(c, r) : 0;
+    var w0 = v === G.WATER ? mixHex('#2a78a8', '#040910', kW) : (deepW ? '#1d5a86' : '#2a78a8');
+    var w1 = v === G.WATER ? mixHex('#49a0cf', '#16344c', kW) : (deepW ? '#2f7fae' : '#49a0cf');
     rc(x, y, T, T, w0);
     if (v === G.FALL){                                   // поток: вертикальные струи
       for (var s2 = 0; s2 < 4; s2++){
@@ -127,19 +158,18 @@ export function drawTile(c, r, x, y, dyn){
         if (rr >= 0 && G.isWaterV(G.tileAt(c, rr))) top = false; // камень внутри воды
       }
       if (!top){                                         // глубина — без волн
-        if ((c*7 + r*3) % 4 === 0){
-          var bzD = ((time*22 + c*9) % 16) | 0;
-          rc(x + 4 + ((c*3)%8), y + 15 - bzD, 1, 1, '#bfe6ff');
-        }
-        rc(x + ((c*7)%9), y + 12, 2, 1, '#6fb8dd');
+        drawWaterBubbles(c, r, x, y, time, kW);
         return;
       }
-      if (!blitWaves(c, x, y, deepW)) paintWaves(x, y, c, time, w1);
-      if ((c*7 + r*3) % 4 === 0){                          // пузырьки со дна
-        var bz = ((time*22 + c*9) % 16) | 0;
-        rc(x + 4 + ((c*3)%8), y + 15 - bz, 1, 1, '#bfe6ff');
+      if (!blitWaves(c, x, y, false)) paintWaves(x, y, c, time, w1);
+      drawWaterBubbles(c, r, x, y, time, kW);
+      var shoreL = !G.isWaterV(G.tileAt(c - 1, r));
+      var shoreR = !G.isWaterV(G.tileAt(c + 1, r));
+      if (shoreL || shoreR){
+        var lick = Math.round(Math.sin(time * 2.2 + c * 0.7) * 1.5);
+        if (shoreL) rc(x, y + lick, 2, 2, '#e8f6ff');
+        if (shoreR) rc(x + T - 2, y + lick, 2, 2, '#e8f6ff');
       }
-      rc(x + ((c*7)%9), y + 12, 2, 1, '#6fb8dd');
     }
     return;
   }

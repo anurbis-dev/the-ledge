@@ -6,6 +6,7 @@ export const level = {
   id: 4, name: 'ЧЕРТОГИ', pal: 'moss', w: 122, h: 70,
   spawn: { x: 5*16, y: 22*16 - 22 },
   exit: { x: 114*16, y: 22*16 },
+  water: [[46, 32, 0.55]],
   build(){
     fillR(0, 0, 2, runtime.MAP_H); fillR(runtime.MAP_W - 2, 0, 2, runtime.MAP_H);
     fillR(0, 42, runtime.MAP_W, 4);

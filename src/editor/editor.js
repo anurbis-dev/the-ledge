@@ -1,6 +1,7 @@
 import GAME from '../core/game.js';
 import {
-  cv, ctx, VW, VH, cam, rc, buildWater, clampCam
+  cv, ctx, VW, VH, cam, rc, buildWater, clampCam,
+  setPondShade, getPondShade, waterExport, shadePresetName, WATER_SHADE_PRESETS
 } from '../render/index.js';
 import { isMenu } from '../ui/menu.js';
 import { hushLift } from '../audio/sfx.js';
@@ -12,7 +13,7 @@ var G = GAME;
 export var ED = {
   on: false, tool: 'tile', pal: 0, painting: false, panId: -1,
   panX: 0, panY: 0, camX: 0, camY: 0, last: null,
-  stroke: null, strokeOrig: null
+  stroke: null, strokeOrig: null, waterShade: 0.75
 };
 export var ED_TILES = [
   ['пусто',   0,        '#241a30'],
@@ -45,6 +46,7 @@ export var ED_OBJS = [
 
 var edBar = document.getElementById('edbar');
 var edTools = document.getElementById('edTools'), edPal = document.getElementById('edPal');
+var edExtra = document.getElementById('edExtra');
 var edOut = document.getElementById('edout'), edText = document.getElementById('edtext');
 var onOpen = null;
 
@@ -71,9 +73,18 @@ function edRefresh(){
     })(tools[i]);
   }
   edPal.textContent = '';
+  if (edExtra) edExtra.textContent = '';
   if (ED.tool === 'tile'){
     for (var j = 0; j < ED_TILES.length; j++){
       (function(k){ edButton(edPal, ED_TILES[k][0], ED.pal === k, function(){ ED.pal = k; }); })(j);
+    }
+    if (edExtra && ED_TILES[ED.pal] && ED_TILES[ED.pal][1] === G.WATER){
+      for (var s = 0; s < WATER_SHADE_PRESETS.length; s++){
+        (function(k){
+          var pr = WATER_SHADE_PRESETS[k];
+          edButton(edExtra, pr[0], Math.abs(ED.waterShade - pr[1]) < 0.02, function(){ ED.waterShade = pr[1]; });
+        })(s);
+      }
     }
   } else if (ED.tool === 'obj'){
     for (var m = 0; m < ED_OBJS.length; m++){
@@ -109,9 +120,16 @@ export function edApply(cell){
     var nv = ED_TILES[ED.pal][1];
     if (isSlopeBrush(nv)){ edPaintSlope(cell, nv); return; }
     var old = G.tileAt(cell.c, cell.r);
+    if (nv === G.WATER && old === G.WATER){
+      setPondShade(cell.c, cell.r, ED.waterShade);
+      return;
+    }
     G.setTile(cell.c, cell.r, nv);
     G.buildGates(S);
-    if (old === G.WATER || old === G.FALL || nv === G.WATER || nv === G.FALL) buildWater();
+    if (old === G.WATER || old === G.FALL || nv === G.WATER || nv === G.FALL){
+      buildWater();
+      if (nv === G.WATER) setPondShade(cell.c, cell.r, ED.waterShade);
+    }
   } else if (ED.tool === 'erase'){
     var oldE = G.tileAt(cell.c, cell.r);
     G.setTile(cell.c, cell.r, 0);
@@ -226,6 +244,9 @@ export function edExportText(){
   }).join(',') + '],');
   out.push('items: [' + S.items.map(function(i2){
     return '[' + Math.floor(i2.x / T) + ',' + Math.floor(i2.y / T) + ",'" + i2.kind + "']";
+  }).join(',') + '],');
+  out.push('water: [' + waterExport().map(function(e){
+    return '[' + e[0] + ',' + e[1] + ',' + e[2] + ']';
   }).join(',') + ']');
   return out.join('\n');
 }
@@ -245,6 +266,8 @@ export function edDrawOverlay(){
   rc(0, 0, VW, 9, '#0d0a18cc');
   var label = ED.tool === 'tile' ? ED_TILES[ED.pal][0] :
               (ED.tool === 'obj' ? ED_OBJS[ED.pal][0] : ED.tool);
+  if (ED.hover && G.isWaterV(G.tileAt(ED.hover.c, ED.hover.r)))
+    label += ' · ' + shadePresetName(getPondShade(ED.hover.c, ED.hover.r));
   for (var i = 0; i < label.length && i < 14; i++)
     rc(3 + i*5, 3, 4, 4, ED.tool === 'erase' ? '#ff7a6a' : '#ffd9a0');
 }

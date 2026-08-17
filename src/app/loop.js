@@ -110,10 +110,23 @@ function onEvent(ev){
                    t: 0.35 + Math.random()*0.3, c: '#bfe6ff', g: 260 });
   }
   else if (k === 'bubble'){
-    parts.push({ x: p.x + 5 + (Math.random()-0.5)*8, y: p.y + 6,
-                 vx: (Math.random()-0.5)*10, vy: -26 - Math.random()*14,
-                 t: 0.7 + Math.random()*0.5, c: '#cfeaff', g: -18,
-                 top: (p.bubTop !== undefined && p.bubTop !== null) ? p.bubTop : null });
+    var bn = Math.random() < 0.28 ? 2 : 1;
+    for (var bi = 0; bi < bn; bi++){
+      var bsz = Math.random() < 0.12 ? 3 : (Math.random() < 0.48 ? 2 : 1);
+      var spd = 8 + Math.random() * 52;
+      parts.push({
+        x: p.x + 5 + (Math.random() - 0.5) * 10,
+        y: p.y + 3 + Math.random() * 10,
+        vx: (Math.random() - 0.5) * (6 + Math.random() * 18),
+        vy: -spd,
+        t: 0.45 + Math.random() * 0.95 + bsz * 0.12,
+        c: bsz > 2 ? '#e8f6ff' : '#cfeaff',
+        g: -6 - Math.random() * 24,
+        sz: bsz, kind: 'bubble',
+        wob: 10 + Math.random() * 22,
+        top: (p.bubTop !== undefined && p.bubTop !== null) ? p.bubTop : null
+      });
+    }
   }
   else if (k === 'stroke'){
     blip(240, 0.07, 'sine', 0.04);
@@ -272,14 +285,19 @@ function frame(now){
   if (ED.on){
     acc = 0;
     hushLift();
+    view.edit = true;
+    stepWater(dt);
     ctx.clearRect(0, 0, VW, VH);
     sky(); tiles(); plats(); lifts(); caveExit(); doors(); chests();
     lootDrops(); items(); pickables(); drawTorches(); drawHarpoons(); enemies(); spiders(); fliers();
-    hero(); drawFish(); drawWeeds(); tendrils(); vignette();
+    hero(); drawFish(); drawWeeds(); tendrils();
+    drawParts(dt); drawHearts(dt);
+    vignette();
     edDrawOverlay();
     requestAnimationFrame(frame);
     return;
   }
+  view.edit = false;
   if (S.done && !outro && S.p.warp && S.p.warp.exit && S.p.warp.moved){ finishLevel(); }
   if (S.dead && !gameOver) gameOver = { t: 0 };
   if (introT > 0 || paused || outro || gameOver){
