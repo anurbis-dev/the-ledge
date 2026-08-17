@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.vscode/
+*.log
+
+tmp/**
+!tmp/revision-plan.md
+!tmp/ledge-v19.html
+!tmp/bugs.md
+!tmp/perf.md

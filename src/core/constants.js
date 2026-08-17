@@ -1,0 +1,21 @@
+export const T = 16;
+export const E = 0, ROCK = 1, CRUMB = 2, LADW = 3, LADF = 4, LADR = 5, LADL = 6, HTOP = 7, BAR = 8;
+/* скосы: пол поднимается вправо (SLR) или влево (SLL); RND* — скруглённые углы (только вид) */
+export const SLR = 9, SLL = 10, RNDA = 11, RNDB = 12, WATER = 13, FALL = 14;
+
+export const C = {
+  W: 10, H: 22, RH: 12, CRH: 14, PRH: 8, PRW: 17,
+  GRAV: 700, MAXFALL: 340, RUN: 92, ACC: 950, FRIC: 1200,
+  JUMP: -236, CUT: 0.45, COYOTE: 0.09, BUF: 0.12,
+  HAND: 3, TOL_UP: 3, TOL_DN: 6, GRAB_VY: -130, GRAB_CD: 0.2,
+  CLIMB_UP: 0.5, CLIMB_DN: 0.46, TO_LAD: 0.3,
+  STAND_OFF: 8,
+  SLIDE_V: 62, WJ_X: 118, WJ_Y: -178, WJ_LOCK: 0.19, WJ_SAME_Y: -126, WJ_SAME_X: 74,
+  WALK_V: 42, THROW_X: 155, THROW_Y: -135, ACT_R: 26,
+  ATK_T: 0.3, ATK_R: 26, ATK_CD: 0.16, HURT_CD: 1.0,
+  LAD_SNAP: 0.14, AIR_MAX: 11, STAM_MAX: 2.2, DASH_V: 128, SWIM_V: 62, SWIM_UP: -46, SWIM_DN: 78, SWIM_JUMP: -196, CROUCH_V: 40, PRONE_V: 26, BAR_V: 52, LIFT_V: 42, LIFT_DWELL: 1.6, WARP_T: 0.62,
+  ROLL_V: 152, ROLL_T: 0.42, ROLL_CD: 0.14,
+  LAD_V: 58, LAD_TOL: 6, LAD_XTOL: 11,
+  SAFE: 46, HURT: 104, HITSTOP: 0.055,
+  CRUMB_T: 1.05, CRUMB_BACK: 3.4
+};

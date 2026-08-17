@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#07060f">
+<title>the LEDGE</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Crect width='8' height='8' fill='%2307060f'/%3E%3Crect x='1' y='5' width='6' height='2' fill='%23ffd9a0'/%3E%3Crect x='5' y='3' width='2' height='2' fill='%23e0563c'/%3E%3C/svg%3E">
+</head>
+<body>
+<div id="stage"><canvas id="c" width="320" height="180"></canvas></div>
+<div id="menu">
+  <div class="mtitle">L E D G E</div>
+  <div class="msub">пещеры и кромки</div>
+  <div class="mlist" id="mlist"></div>
+  <div class="mhint">↑ вход в пещеру · ✋ действие · ↓ присед</div>
+</div>
+<div id="dbg"></div>
+<div id="ring"></div><div id="knob"></div>
+<div id="stick"></div>
+<div id="acts"><div class="btn act" id="bA">✋</div><div class="btn" id="bJ">⤒</div></div>
+<div id="edbar">
+  <div class="edrow" id="edTools"></div>
+  <div class="edrow" id="edPal"></div>
+  <div class="edrow">
+    <button class="edb wide" id="edExport">экспорт</button>
+    <button class="edb wide" id="edClose">выйти</button>
+  </div>
+</div>
+<div id="edout"><textarea id="edtext" readonly></textarea><button class="mini" id="edOk">закрыть</button></div>
+<div id="sys"><button class="mini" id="bEdit">ред.</button><button class="mini" id="bPause">пауза</button><button class="mini" id="bMenu">меню</button><button class="mini" id="bFS">⛶ экран</button><button class="mini" id="bReset">заново</button><button class="mini" id="bDbg">отладка</button></div>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

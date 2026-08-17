@@ -1,0 +1,114 @@
+import GAME from '../core/game.js';
+import { cam, view, world } from './ctx.js';
+import {
+  K, IDLE_A, IDLE_B, RUN, JUMPP, FALLP, LANDP, SLIDEP, STUNP, ROLLP,
+  LADP0, LADP1, LADF0, LADF1, ATK0, ATK1, ATK2, CROUCH, CROUCH_W,
+  PRONE0, PRONE1, BARS0, BARS1, LADD0, LADD1, SWIM0, SWIM1,
+  HANGL, HANG_A, HANG_B, lerpPose, climbPose
+} from './poses.js';
+import { figure } from './figure.js';
+import { torchPts } from './light.js';
+
+var G = GAME, C = G.C;
+
+export function boxPose(p){
+  var animT = view.animT, runPh = view.runPh;
+  if (p.inWater) return (Math.sin(animT*7) > 0) ? SWIM0 : SWIM1;   // одна поза, наклон задаётся поворотом
+  if (p.state === 'bars') return (Math.sin(p.bars.ph*2.4) > 0) ? BARS0 : BARS1;
+  if (p.stance === 2) return (Math.abs(p.vx) > 4 && Math.sin(animT*7) > 0) ? PRONE1 : PRONE0;
+  if (p.stance === 1) return (Math.abs(p.vx) > 4 && Math.sin(animT*6) > 0) ? CROUCH_W : CROUCH;
+  if (p.atkT > 0){
+    var t = 1 - p.atkT / C.ATK_T;
+    return t < 0.32 ? lerpPose(ATK0, ATK1, t/0.32) : lerpPose(ATK1, ATK2, (t-0.32)/0.68);
+  }
+  if (p.state === 'stun') return STUNP;
+  if (p.rollT > 0) return ROLLP;
+  if (p.state === 'ladder'){
+    var moving = Math.abs(p.lad.ph - (p.lad.lastPh || 0)) > 0.0001;
+    p.lad.lastPh = p.lad.ph;
+    var f = moving ? (Math.sin(p.lad.ph*3.1) > 0) : true;
+    if (p.lad.v === G.LADF) return f ? LADF0 : LADF1;
+    if (p.lad.v === G.LADR || p.lad.v === G.LADL) return f ? LADD0 : LADD1;  // диагональ: наклон корпуса
+    return f ? LADP0 : LADP1;
+  }
+  if (p.state === 'hang' && p.hang.kind === 'lad') return HANGL;
+  if (p.state === 'climb' && p.climb.kind === 'lad')
+    return lerpPose(HANGL, (p.lad && p.lad.v === G.LADF) ? LADF0 : LADP0, p.climb.p);
+  if (!p.onGround){
+    if (p.sliding) return SLIDEP;
+    return p.vy < -40 ? JUMPP : (p.vy > 60 ? FALLP : lerpPose(JUMPP, FALLP, 0.5));
+  }
+  if (p.landT > 0) return LANDP;
+  var pushing = Math.abs(p.vx) < 7 && !G.rectFree(p.x + p.facing*3, p.y, p.w, p.h);
+  if (pushing) return IDLE_A;                       // упёрлась в стену — стоим
+  if (Math.abs(p.vx) > 8) return RUN[(runPh|0) % 4];
+  return (Math.sin(animT*2.6) > 0) ? IDLE_A : IDLE_B;
+}
+export function lightDirAt(wx, wy){
+  var bx = 0, by = -1, bd = 1e9, i, L = torchPts();
+  for (i = 0; i < L.length; i++){
+    var dx = L[i][0] - wx, dy = L[i][1] - wy, d = dx*dx+dy*dy;
+    if (d < bd){ bd = d; bx = dx; by = dy; }
+  }
+  if (bd > 130*130) return [0,-1];
+  var m = Math.sqrt(bd) || 1;
+  return [bx/m, by/m];
+}
+export function hero(){
+  var S = world(), time = view.time, tail = view.tail;
+  var p = S.p, i, k, pt = {}, frontal = (p.state === 'ladder' && p.lad.v === G.LADF) ||
+      (p.state === 'hang' && p.hang.kind === 'lad' && G.tileAt(p.hang.tc, p.hang.tr) === G.LADF);
+  var cxw = p.x + p.w/2, cyw = p.y + p.h/2;
+  var ld = lightDirAt(cxw, cyw), rim = [Math.round(ld[0]), Math.round(ld[1])];
+  if (rim[0] === 0 && rim[1] === 0) rim[1] = -1;
+  var wag = tail.a;
+
+  if ((p.state === 'hang' && p.hang.kind === 'ledge') || (p.state === 'climb' && p.climb.kind === 'ledge')){
+    var cx, cy, facing, pose, ox = 0, oy = 0;
+    if (p.state === 'hang'){
+      cx = p.hang.cx; cy = p.hang.cy; facing = p.facing;
+      pose = (Math.sin(time*2.2) > 0) ? HANG_A : HANG_B;
+    } else {
+      var cl = p.climb; cx = cl.cx; cy = cl.cy; facing = cl.facing;
+      pose = climbPose(cl.dir > 0 ? cl.p : 1 - cl.p);
+      var kk = Math.max(0, 1 - cl.p/0.25);
+      if (cl.dir < 0){ ox = cl.off.x*kk; oy = cl.off.y*kk; }
+    }
+    for (i = 0; i < K.length; i++){ k = K[i];
+      pt[k] = [cx + facing*pose[k][0] - cam.x + ox, cy + pose[k][1] - cam.y + oy]; }
+    figure(pt, facing, wag, false, rim, null, p.stick, { helmet: p.helmet, shield: p.shield });
+    return;
+  }
+  var pose2 = boxPose(p), rot = 0, cxs = 0, cys = 0;
+  if (p.rollT > 0){ rot = p.rollAng; cxs = 5; cys = 11; }
+  else if (p.inWater && Math.abs(p.swimAng) > 0.02){
+    rot = p.swimAng * (p.facing > 0 ? 1 : -1);            // наклон корпуса по ходу плавания
+    cxs = 5; cys = 6;
+  }
+  for (i = 0; i < K.length; i++){
+    k = K[i];
+    var lxp = (frontal || p.facing > 0) ? pose2[k][0] : (p.w - pose2[k][0]);
+    var ly = pose2[k][1];
+    if (rot){
+      var dx = lxp - cxs, dy = ly - cys, cs = Math.cos(rot), sn = Math.sin(rot);
+      lxp = cxs + dx*cs - dy*sn; ly = cys + dx*sn + dy*cs;
+    }
+    pt[k] = [Math.round(p.x) + lxp - cam.x, Math.round(p.y) + ly - cam.y];
+  }
+  var hs = null, onBack = false;
+  if (p.stick){
+    if (p.atkT > 0){
+      var tt = 1 - p.atkT / C.ATK_T;
+      var a0 = -2.1 + tt*3.5;                   // замах -> удар сверху вниз
+      hs = { ang: p.facing > 0 ? a0 : Math.PI - a0,
+           type: p.gear.weapon && p.gear.weapon.type };
+    } else onBack = true;                       // иначе палка убрана за спину
+  }
+  figure(pt, p.facing, wag, frontal, rim, hs, onBack, {
+    helmet: p.helmet, shield: p.shield,
+    helmType: p.gear.helmet && p.gear.helmet.type,
+    shieldType: p.gear.shield && p.gear.shield.type,
+    weaponType: p.gear.weapon && p.gear.weapon.type,
+    bash: p.bashT
+  });
+}
