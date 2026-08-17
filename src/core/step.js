@@ -39,6 +39,7 @@ export function step(S, dt, inp){
   if (S.p.bashT > 0) S.p.bashT -= dt;
   if (S.p.atkT > 0) S.p.atkT -= dt;
   if (S.p.atkCd > 0) S.p.atkCd -= dt;
+  if (S.p.pickT > 0) S.p.pickT -= dt;
   var pk = S.pick;
   if (!pk.key.taken && Math.abs(pk.key.x - (S.p.x + S.p.w/2)) < 12 &&
       Math.abs(pk.key.y - (S.p.y + S.p.h/2)) < 14){
@@ -257,6 +258,7 @@ export function step(S, dt, inp){
       p.events.push(atSurf ? 'jump' : 'stroke');
     } else if (surf !== null && dip > 12){
       p.vy += (C.SWIM_UP - p.vy) * Math.min(1, dt * 3.6);  // всплываем после нырка
+      if (p.vy < -28) p.vy = -28;                          // не врезаться головой в поверхность
     } else if (surf !== null && dip > 0){
       if (p.vy > 8) p.vy += (-6 - p.vy) * Math.min(1, dt * 1.0);      // ещё ныряем — почти не держит
       else if (dip < 8){                                           // близко к поверхности — дотягиваем
@@ -274,6 +276,8 @@ export function step(S, dt, inp){
         p.vy = 0; p.y = restY;
       }
     }
+    if (surf !== null && p.swimLaunch <= 0 && p.vy < -22 && dip < 16)
+      p.vy = -22;                                        // гребок у поверхности не бьёт головой
     if (atSurf) {
       if (p.air < C.AIR_MAX){ p.air = C.AIR_MAX; p.events.push('gasp'); }
     } else {
@@ -293,12 +297,15 @@ export function step(S, dt, inp){
     var tgtAng = Math.atan2(p.vy, Math.max(24, Math.abs(p.vx)));
     if (tgtAng > 1.3) tgtAng = 1.3; if (tgtAng < -1.15) tgtAng = -1.15;
     if (Math.abs(p.vx) < 6 && Math.abs(p.vy) < 6) tgtAng = 0;
+    if (dip < 10) tgtAng = 0;                              // у поверхности не тычемся головой
     p.swimAng += (tgtAng - p.swimAng) * Math.min(1, dt * 7);
-    p.apexY = Math.min(p.apexY, p.y);
+    p.apexY = p.y;                                         // в воде падение с суши не копим
     p.buf = 0;
   } else {
     if (p.swimLaunch > 0) p.swimLaunch = Math.max(0, p.swimLaunch - dt);
-    if (p.wasWet && !p.wading){ p.wasWet = false; p.events.push('splash'); }
+    if (p.wasWet && !p.wading){
+      p.wasWet = false; p.apexY = p.y; p.events.push('splash');
+    }
     p.atSurface = false;
     p.swimAng += (0 - p.swimAng) * Math.min(1, dt * 6);
     p.vy += C.GRAV * dt;
@@ -333,9 +340,9 @@ export function step(S, dt, inp){
   if (!p.onGround){
     if (p.y < p.apexY) p.apexY = p.y;
     autoLadder(S, p, prevBottom);
-    if (!rolling && p.state === 'normal') tryBars(S, p);
-    if (!rolling && p.state === 'normal') tryLadder(S, p, inp);
-    if (p.state === 'normal') tryGrab(S, p);
+    if (!inWater && !rolling && p.state === 'normal') tryBars(S, p);
+    if (!inWater && !rolling && p.state === 'normal') tryLadder(S, p, inp);
+    if (!inWater && p.state === 'normal') tryGrab(S, p);
   } else {
     var slY = slopeUnder(p);
     if (slY !== null && !p.ride){
@@ -349,7 +356,8 @@ export function step(S, dt, inp){
     }
     p.vy = 0; p.coyote = C.COYOTE; p.jumping = false; p.lastWall = 0; p.lock = 0;
     if (wasAir){
-      var fall = (p.inWater || p.wading || wetCenter) ? 0 : (p.y - p.apexY);
+      var wetFeet = isWaterV(tileAt(Math.floor(cxw/T), Math.floor((p.y + p.h - 1)/T)));
+      var fall = (p.inWater || p.wading || wetCenter || wetFeet) ? 0 : (p.y - p.apexY);
       p.fell = fall;
       if (fall > C.SAFE){
         if (inp.x !== 0 && !rolling && p.rollCd <= 0){
