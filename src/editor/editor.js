@@ -15,6 +15,7 @@ import { bindIntroPanel, renderIntroPanel } from './intro-panel.js';
 import { bindMixPanel, renderMixPanel } from './mix-panel.js';
 import { showInspect, bindInspect } from './inspect.js';
 import { bindNpcTalk, openNpcTalk, closeNpcTalk } from './npc-talk.js';
+import { bindAllFloats, placeFloat, hasFloatPos } from './float.js';
 import { pickSpecial, pickAllSpecial, hitGizmo, beginGizmo, moveGizmo, endGizmo, gizmoActive, drawGizmos } from './gizmos.js';
 import { markLevelDirty as persistDirty, flushLevel, bindPersist } from '../core/persist.js';
 import { beginOp, endOp, noteOp, undoOp, redoOp, canUndo, canRedo, bindHistory, clearHistory } from './history.js';
@@ -236,6 +237,7 @@ bindIntroPanel();
 bindMixPanel();
 bindInspect({ onChange: function(){ markLevelDirty(); }, onClose: function(){ ED.sel = null; } });
 bindNpcTalk({ onChange: function(){ markLevelDirty(); } });
+bindAllFloats();
 bindPersist({ water: waterExport });
 bindHistory({
   onChange: function(why){
@@ -727,7 +729,8 @@ function openChestList(target, type, clientX, clientY){
   }
   renderChestList();
   edChestList.hidden = false;
-  clampPopup(edChestList, clientX, clientY);
+  if (!hasFloatPos(edChestList)) clampPopup(edChestList, clientX, clientY);
+  else placeFloat(edChestList, parseFloat(edChestList.style.left), parseFloat(edChestList.style.top));
   setTimeout(function(){ document.addEventListener('pointerdown', onChestListOutside, true); }, 0);
 }
 var edChestListXBtn = document.getElementById('edChestListX');

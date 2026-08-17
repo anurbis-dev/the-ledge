@@ -65,15 +65,17 @@
       <button type="button" class="edb" id="edLayerDel" title="Delete layer">−</button>
     </div>
   </div>
-  <div id="edLayerList" class="layerlist"></div>
-  <div id="edLayerProps"></div>
+  <div class="ed-float-body">
+    <div id="edLayerList" class="layerlist"></div>
+    <div id="edLayerProps"></div>
+  </div>
 </div>
 <div id="edInspect" class="ed-float ed-inspect" hidden>
   <div class="ed-float-head">
     <span id="edInspectTitle">Object</span>
     <button type="button" class="edb" id="edInspectX">×</button>
   </div>
-  <div id="edInspectBody"></div>
+  <div id="edInspectBody" class="ed-float-body"></div>
 </div>
 <div id="edGhost" hidden></div>
 <div id="edout"><textarea id="edtext" readonly></textarea><button class="mini" id="edOk">Close</button></div>
@@ -84,14 +86,14 @@
     <span id="edChestListTitle">Chest</span>
     <button type="button" class="edb" id="edChestListX">×</button>
   </div>
-  <div id="edChestListBody"></div>
+  <div id="edChestListBody" class="ed-float-body"></div>
 </div>
 <div id="edNpcTalk" class="ed-float ed-npctalk" hidden>
   <div class="ed-float-head">
     <span id="edNpcTalkTitle">Dialogue</span>
     <button type="button" class="edb" id="edNpcTalkX">×</button>
   </div>
-  <div id="edNpcTalkBody"></div>
+  <div id="edNpcTalkBody" class="ed-float-body"></div>
 </div>
 <div id="sys"><button class="mini" id="bEdit">Edit</button><button class="mini" id="bPause">Pause</button><button class="mini" id="bMenu">Menu</button><button class="mini" id="bFS">⛶ Full</button><button class="mini" id="bReset">Restart</button><button class="mini" id="bDbg">Debug</button></div>
 <script type="module" src="/src/main.js"></script>

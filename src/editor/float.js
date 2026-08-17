@@ -53,8 +53,20 @@ function restore(el){
   placeFloat(el, pos.x, pos.y);
 }
 
-function scrollEl(root){
-  return root.querySelector('.ed-float-body');
+function ensureBody(root){
+  var b = root.querySelector(':scope > .ed-float-body');
+  if (b) return b;
+  var head = root.querySelector(':scope > .ed-float-head');
+  b = document.createElement('div');
+  b.className = 'ed-float-body';
+  var move = [], i, ch;
+  for (i = 0; i < root.children.length; i++){
+    ch = root.children[i];
+    if (ch !== head) move.push(ch);
+  }
+  for (i = 0; i < move.length; i++) b.appendChild(move[i]);
+  root.appendChild(b);
+  return b;
 }
 
 function isChrome(t){
@@ -65,11 +77,21 @@ export function bindFloat(root){
   if (!root || root._edFloat) return;
   root._edFloat = true;
   bound.push(root);
-  var head = root.querySelector('.ed-float-head');
+  var head = root.querySelector(':scope > .ed-float-head');
+  var scroller = ensureBody(root);
   var mode = null, pid = -1, ox = 0, oy = 0, sTop = 0, sLeft = 0;
   restore(root);
 
-  function body(){ return scrollEl(root); }
+  function hookWin(){
+    addEventListener('pointermove', onMove, true);
+    addEventListener('pointerup', onUp, true);
+    addEventListener('pointercancel', onUp, true);
+  }
+  function unhookWin(){
+    removeEventListener('pointermove', onMove, true);
+    removeEventListener('pointerup', onUp, true);
+    removeEventListener('pointercancel', onUp, true);
+  }
 
   function startMove(e){
     var r = root.getBoundingClientRect();
@@ -80,19 +102,40 @@ export function bindFloat(root){
     root.classList.add('is-drag');
     raiseFloat(root);
     try { root.setPointerCapture(e.pointerId); } catch (_){}
+    hookWin();
   }
 
   function startScroll(e){
-    var b = body();
     mode = 'scroll';
     pid = e.pointerId;
     ox = e.clientX;
     oy = e.clientY;
-    sTop = b ? b.scrollTop : 0;
-    sLeft = b ? b.scrollLeft : 0;
+    sTop = scroller.scrollTop;
+    sLeft = scroller.scrollLeft;
     root.classList.add('is-pan');
     raiseFloat(root);
     try { root.setPointerCapture(e.pointerId); } catch (_){}
+    hookWin();
+  }
+
+  function onMove(e){
+    if (!mode || e.pointerId !== pid) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (mode === 'move') placeFloat(root, e.clientX - ox, e.clientY - oy);
+    else {
+      scroller.scrollTop = sTop - (e.clientY - oy);
+      scroller.scrollLeft = sLeft - (e.clientX - ox);
+    }
+  }
+
+  function onUp(e){
+    if (e && e.pointerId !== pid) return;
+    if (mode === 'move') persist(root);
+    mode = null;
+    pid = -1;
+    root.classList.remove('is-drag', 'is-pan');
+    unhookWin();
   }
 
   root.addEventListener('pointerdown', function(e){
@@ -100,49 +143,30 @@ export function bindFloat(root){
     raiseFloat(root);
     if (e.button === 2){
       e.preventDefault();
+      e.stopPropagation();
       startMove(e);
       return;
     }
     if (e.button === 1){
       e.preventDefault();
+      e.stopPropagation();
       startScroll(e);
       return;
     }
-    if (e.button === 0 && head && head.contains(e.target) && !isChrome(e.target))
+    if (e.button === 0 && head && head.contains(e.target) && !isChrome(e.target)){
+      e.preventDefault();
+      e.stopPropagation();
       startMove(e);
-  });
-
-  root.addEventListener('pointermove', function(e){
-    if (!mode || e.pointerId !== pid) return;
-    e.preventDefault();
-    if (mode === 'move') placeFloat(root, e.clientX - ox, e.clientY - oy);
-    else if (mode === 'scroll'){
-      var b = body();
-      if (!b) return;
-      b.scrollTop = sTop - (e.clientY - oy);
-      b.scrollLeft = sLeft - (e.clientX - ox);
     }
   });
-
-  function end(e){
-    if (e && e.pointerId !== pid) return;
-    if (mode === 'move') persist(root);
-    mode = null;
-    pid = -1;
-    root.classList.remove('is-drag', 'is-pan');
-  }
-  root.addEventListener('pointerup', end);
-  root.addEventListener('pointercancel', end);
 
   root.addEventListener('contextmenu', function(e){ e.preventDefault(); });
   root.addEventListener('auxclick', function(e){ if (e.button === 1) e.preventDefault(); });
   root.addEventListener('mousedown', function(e){ if (e.button === 1) e.preventDefault(); });
 
   root.addEventListener('wheel', function(e){
-    var b = body();
-    if (!b) return;
-    b.scrollTop += e.deltaY;
-    b.scrollLeft += e.deltaX;
+    scroller.scrollTop += e.deltaY;
+    scroller.scrollLeft += e.deltaX;
     e.preventDefault();
     e.stopPropagation();
   }, { passive: false });
@@ -163,3 +187,5 @@ addEventListener('resize', function(){
     placeFloat(el, parseFloat(el.style.left) || 0, parseFloat(el.style.top) || 0);
   }
 });
+
+bindAllFloats();
