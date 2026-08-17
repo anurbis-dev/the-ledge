@@ -499,15 +499,28 @@ export function tryDescend(S, p, want){
 function fullStepTile(col, row){
   return tileBlocks(col, row, row * T + 8, 8);
 }
-/* уступ в 1 тайл перед собой: стенка в тайл на высоте колена, над ней не стена.
-   земля под ступенью не нужна — парящая полка тоже паркур */
+/* сколько пустых тайлов пола между носом и col — пропасть шире 1 тайла не паркурим */
+function pitTilesTo(p, dir, col){
+  var rG = Math.floor(Math.round(p.y + p.h) / T);
+  var c = dir > 0 ? Math.floor((p.x + p.w + 1) / T) : Math.floor((p.x - 1) / T);
+  var n = 0;
+  while (c !== col){
+    if (!solidTile(c, rG)) n++;
+    c += dir;
+    if (n > 1 || Math.abs(c - col) > 8) break;
+  }
+  return n;
+}
+/* уступ в 1 тайл: ступенька на высоте колена. земля под ней не нужна.
+   через пропасть >1 тайла — нет (это уже лаз, не паркур) */
 function findChestStep(p, dir){
   var rG = Math.floor(Math.round(p.y + p.h) / T);
   for (var d = 1; d <= T + 6; d++){
     var wallX = dir > 0 ? p.x + p.w + d : p.x - d;
     var col = Math.floor(wallX / T);
-    if (!fullStepTile(col, rG - 1)) continue;           // HTOP/пусто — щель у пола, не паркур
+    if (!fullStepTile(col, rG - 1)) continue;           // HTOP/пусто — щель у пола, не ступень
     if (fullStepTile(col, rG - 2)) continue;            // стена в 2+ тайла
+    if (pitTilesTo(p, dir, col) > 1) continue;
     return {
       col: col,
       cx: dir > 0 ? col * T : (col + 1) * T,
@@ -516,10 +529,11 @@ function findChestStep(p, dir){
   }
   return null;
 }
-/* --- автоподъём на уступ в один тайл: рывок через колено, без хвата и без потери скорости --- */
+/* --- заскок на ступеньку +1 тайл: рывок через колено, без хвата --- */
 export function tryMantle(S, p, dir, vx){
   if (p.inWater) return false;
   if (p.state !== 'normal' || p.rollT > 0 || p.stance !== 0) return false;
+  if (!p.onGround && p.coyote <= 0) return false;       // в полёте не паркурим — только лаз/хват
   var step1 = findChestStep(p, dir);
   if (!step1) return false;
   var sb = standBox(step1.cx, step1.cy, dir);
@@ -548,6 +562,7 @@ function findFloorGap(p, dir){
 export function tryEnterGap(S, p, dir, vx){
   if (p.inWater) return false;
   if (p.state !== 'normal' || p.rollT > 0 || p.stance !== 0) return false;
+  if (!p.onGround && p.coyote <= 0) return false;
   var spd = vx != null ? vx : (p.vx || 0);
   var step1 = findChestStep(p, dir);
   if (step1){

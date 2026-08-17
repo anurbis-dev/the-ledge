@@ -204,7 +204,7 @@ export function step(S, dt, inp){
       var blocked = !rectFree(p.x + p.facing*2, p.y, p.w, p.h) && slopeUnder(p) === null;
       var wasVx = p.vx;
       if (blocked) p.vx = 0;                      // упор в стену — не толкаемся (на склоне не мешаем)
-      // паркур в 1 тайл: в стену, в воздухе у парящей полки, или к яме с уступом впереди
+      // паркур только на ступень +1 тайл (не лаз через пропасть)
       var wantParkour = stanceBefore === 0 && p.stance === 0 &&
         (blocked || (p.onGround && !groundAhead(S, p, p.facing)));
       if (wantParkour && tryMantle(S, p, p.facing, wasVx)){
@@ -274,40 +274,39 @@ export function step(S, dt, inp){
     var dip = surf !== null ? p.y - restY : 0;         // >0 ниже линии покоя
     if (p.swimLaunch > 0){                             // дуга обратно — короткий нырок, не стоп
       p.swimLaunch = 0;
-      if (p.vy > 48) p.vy = 48;
-      else if (p.vy < 22) p.vy = 22;
+      if (p.vy > 86) p.vy = 86;
+      else if (p.vy < 40) p.vy = 40;
     }
     if (!p.wasWet){
       p.wasWet = true; p.events.push('splash');
-      if (p.vy > 48) p.vy = 48;                       // вход — короткий нырок
+      if (p.vy > 86) p.vy = 86;                       // вход — нырок на ~тайл
     }
-    if (p.vy > 52) p.vy = 52;
-    if (p.vy > 0 && dip > 8) p.vy *= 0.82;            // вязкость вниз
+    if (p.vy > 90) p.vy = 90;
+    if (p.vy > 0 && dip > 8) p.vy *= 0.90;            // вязкость — уже под водой
     var atSurf = surf !== null && (p.y + 4) <= surf + 10;
     p.atSurface = atSurf;
     if (inp.downHeld || inp.downPressed){
-      p.vy += (C.SWIM_DN - p.vy) * Math.min(1, dt * 2.2);  // ныряем медленно
+      p.vy = C.SWIM_DN;                                    // ныряем
     } else if (inp.jumpPressed){
       if (!atSurf && p.stam > 0.25){                       // рывок под водой, пока есть силы
         p.dashT = 0.42; p.stam -= 0.7;
         p.events.push('dash');
       }
-      p.vy = atSurf ? C.SWIM_JUMP : Math.min(C.SWIM_UP * 2, -160); // с поверхности — прыжок, из глубины — гребок
+      p.vy = atSurf ? C.SWIM_JUMP : -140;                  // с поверхности — прыжок, из глубины — гребок
       p.jumping = atSurf; p.apexY = p.y;
-      if (atSurf) p.swimLaunch = 0.5;                      // на время прыжка вода не держит
+      if (atSurf) p.swimLaunch = 0.45;                     // на время прыжка вода не держит
       p.events.push(atSurf ? 'jump' : 'stroke');
     } else if (surf !== null && dip > 12){
-      if (p.vy > C.SWIM_UP)                                // всплываем; гребок вверх не тормозим
-        p.vy += (C.SWIM_UP - p.vy) * Math.min(1, dt * 6);
+      p.vy += (C.SWIM_UP - p.vy) * Math.min(1, dt * 3.6);  // всплываем после нырка
+      if (p.vy < -28) p.vy = -28;                          // не врезаться головой в поверхность
     } else if (surf !== null && dip > 0){
       if (p.vy > 8) p.vy += (-6 - p.vy) * Math.min(1, dt * 1.0);      // ещё ныряем — почти не держит
       else if (dip < 8){                                           // близко к поверхности — дотягиваем
-        var kUp = Math.min(1, dt * 10);
+        var kUp = Math.min(1, dt * 8);
         p.y += (restY - p.y) * kUp;
         p.vy *= 1 - kUp;
         if (Math.abs(p.y - restY) < 1){ p.y = restY; p.vy = 0; }
-      } else if (p.vy > C.SWIM_UP)
-        p.vy += (C.SWIM_UP - p.vy) * Math.min(1, dt * 6);
+      } else p.vy += (C.SWIM_UP - p.vy) * Math.min(1, dt * 3.6);
     } else if (p.vy > 10){
       // ещё идём вниз сквозь поверхность
     } else {
@@ -317,6 +316,8 @@ export function step(S, dt, inp){
         p.vy = 0; p.y = restY;
       }
     }
+    if (surf !== null && p.swimLaunch <= 0 && p.vy < -22 && dip < 16)
+      p.vy = -22;                                        // гребок у поверхности не бьёт головой
     var airMax = p.scuba ? C.SCUBA_AIR : C.AIR_MAX;
     if (atSurf) {
       if (p.air < airMax){ p.air = airMax; p.events.push('gasp'); }
@@ -389,11 +390,7 @@ export function step(S, dt, inp){
     autoLadder(S, p, prevBottom);
     if (!inWater && !rolling && p.state === 'normal') tryBars(S, p);
     if (!inWater && !rolling && p.state === 'normal') tryLadder(S, p, inp);
-    if (!inWater && p.state === 'normal'){
-      var ad = Math.abs(inp.x) > 0.35 ? (inp.x > 0 ? 1 : -1) : 0;
-      if (!(ad && p.stance === 0 && (tryMantle(S, p, ad, p.vx) || tryEnterGap(S, p, ad))))
-        tryGrab(S, p);
-    }
+    if (!inWater && p.state === 'normal') tryGrab(S, p);
     else if (inWater && p.atSurface && p.state === 'normal' && Math.abs(inp.x) > 0.35
              && !inp.downHeld && !inp.downPressed)
       tryClimbOut(S, p, inp.x > 0 ? 1 : -1);
