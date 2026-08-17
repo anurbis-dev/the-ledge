@@ -3,6 +3,8 @@
  * .slider-wrap + input[type=range] → fill bar, drag, Shift fine, click-to-type, Backspace reset.
  */
 
+import { touchOp } from './history.js';
+
 var hoveredReset = null;
 
 export function initSliders(root){
@@ -104,7 +106,10 @@ function upgradeRange(input){
   }
   function reset(){
     var d = +input.dataset.default;
-    if (Number.isFinite(d)) setValue(d, true);
+    if (!Number.isFinite(d)) return;
+    if (String(d) === String(input.value)) return;
+    touchOp();
+    setValue(d, true);
   }
 
   refresh();
@@ -171,11 +176,16 @@ function upgradeRange(input){
     });
   }
 
-  field.addEventListener('mouseenter', function(){ hoveredReset = reset; });
-  field.addEventListener('mouseleave', function(){ if (hoveredReset === reset) hoveredReset = null; });
+  bindResetHover(field, reset);
 
   field._bnSet = setValue;
   field._bnReset = reset;
+}
+
+export function bindResetHover(el, fn){
+  if (!el || !fn) return;
+  el.addEventListener('mouseenter', function(){ hoveredReset = fn; });
+  el.addEventListener('mouseleave', function(){ if (hoveredReset === fn) hoveredReset = null; });
 }
 
 if (typeof document !== 'undefined'){

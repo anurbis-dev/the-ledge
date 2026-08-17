@@ -9,22 +9,28 @@ function near(ax, ay, bx, by, r){
 }
 
 export function pickSpecial(S, wx, wy){
-  var i, o, list;
-  list = S.volumes || [];
-  for (i = list.length - 1; i >= 0; i--){
-    if (pointInVolume(list[i], wx, wy)) return { type: 'volume', obj: list[i] };
-  }
+  var all = pickAllSpecial(S, wx, wy);
+  return all.length ? all[0] : null;
+}
+
+export function pickAllSpecial(S, wx, wy){
+  var out = [], i, o, list;
+  if (!S) return out;
   list = S.lights || [];
   for (i = list.length - 1; i >= 0; i--){
     o = list[i];
-    if (near(wx, wy, o.x, o.y, 10)) return { type: 'light', obj: o };
+    if (near(wx, wy, o.x, o.y, 10)) out.push({ type: 'light', obj: o });
   }
   list = S.sounds || [];
   for (i = list.length - 1; i >= 0; i--){
     o = list[i];
-    if (near(wx, wy, o.x, o.y, 10)) return { type: 'sound', obj: o };
+    if (near(wx, wy, o.x, o.y, 10)) out.push({ type: 'sound', obj: o });
   }
-  return null;
+  list = S.volumes || [];
+  for (i = list.length - 1; i >= 0; i--){
+    if (pointInVolume(list[i], wx, wy)) out.push({ type: 'volume', obj: list[i] });
+  }
+  return out;
 }
 
 export function hitGizmo(S, sel, wx, wy){

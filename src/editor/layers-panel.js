@@ -5,7 +5,8 @@ import {
   layerKind
 } from '../core/layers.js';
 import { invalidateAll } from '../render/tiles.js';
-import { initSliders } from './slider.js';
+import { initSliders, bindResetHover } from './slider.js';
+import { beginOp, endOp, touchOp } from './history.js';
 
 var root = document.getElementById('edLayers');
 var listEl = document.getElementById('edLayerList');
@@ -72,8 +73,9 @@ export function renderLayersPanel(){
       eye.addEventListener('pointerdown', function(e){
         e.stopPropagation(); e.preventDefault();
         if (e.ctrlKey || e.metaKey) toggleSolo(L.id);
-        else L.visible = L.visible === false;
+        else { beginOp(); L.visible = L.visible === false; }
         notify();
+        endOp();
       });
       row.appendChild(eye);
 
@@ -83,8 +85,10 @@ export function renderLayersPanel(){
       lock.title = L.locked ? 'Unlock' : 'Lock — prevents painting';
       lock.addEventListener('pointerdown', function(e){
         e.stopPropagation(); e.preventDefault();
+        beginOp();
         L.locked = !L.locked;
         notify();
+        endOp();
       });
       row.appendChild(lock);
 
@@ -104,8 +108,12 @@ export function renderLayersPanel(){
           if (ev.key === 'Escape'){ inp.value = L.name; inp.blur(); }
         });
         inp.addEventListener('blur', function(){
-          L.name = inp.value || L.name;
-          notify();
+          if (inp.value && inp.value !== L.name){
+            beginOp();
+            L.name = inp.value;
+            notify();
+            endOp();
+          } else notify();
         });
         row.replaceChild(inp, name);
         inp.focus(); inp.select();
@@ -213,14 +221,16 @@ function endLayerDrag(e, row){
   if (drag.from < 0) return;
   var moved = drag.live;
   var slot = drag.slot || (moved ? slotAt(e.clientY) : null);
-  if (moved && slot && isFinite(slot.dest))
+  if (moved && slot && isFinite(slot.dest)){
+    beginOp();
     relocateLayer(drag.from, slot.dest, slot.before);
+  }
   drag.from = -1;
   drag.live = false;
   drag.ptr = -1;
   drag.slot = null;
   clearDropMarks();
-  if (moved) notify();
+  if (moved){ notify(); endOp(); }
 }
 
 function fillLayerProps(){
@@ -229,14 +239,16 @@ function fillLayerProps(){
   var L = getActiveLayer();
   if (!L) return;
   var kind = layerKind(L);
-  function row(label, min, max, step, val, set){
+  function row(label, min, max, step, val, set, def){
     var wrap = document.createElement('label');
     wrap.className = 'slider-wrap';
     wrap.innerHTML = '<div class="slider-label-overlay"><span>' + label + '</span><span></span></div>';
     var inp = document.createElement('input');
     inp.type = 'range'; inp.min = min; inp.max = max; inp.step = step;
-    inp.value = val; inp.dataset.default = String(val);
+    inp.value = val;
+    inp.dataset.default = String(def != null ? def : val);
     inp.addEventListener('input', function(){
+      touchOp();
       set(+inp.value);
       invalidateAll();
       if (onChange) onChange();
@@ -250,24 +262,41 @@ function fillLayerProps(){
     el.className = 'ed-check';
     var cb = document.createElement('input');
     cb.type = 'checkbox'; cb.checked = !!on;
-    cb.addEventListener('change', function(){ set(cb.checked); notify(); });
+    cb.addEventListener('change', function(){ beginOp(); set(cb.checked); notify(); endOp(); });
     el.appendChild(cb);
     el.appendChild(document.createTextNode(' ' + label));
     propsEl.appendChild(el);
   }
-  function color(label, val, set){
+  function color(label, val, set, def){
     var el = document.createElement('label');
     el.className = 'ed-field';
     el.appendChild(document.createTextNode(label + ' '));
     var inp = document.createElement('input');
-    inp.type = 'color'; inp.value = val || '#2b2154';
+    var factory = def || val || '#2b2154';
+    inp.type = 'color'; inp.value = val || factory;
     inp.addEventListener('input', function(){
+      touchOp();
       set(inp.value);
+      invalidateAll();
+      if (onChange) onChange();
+    });
+    bindResetHover(el, function(){
+      if (inp.value === factory) return;
+      touchOp();
+      inp.value = factory;
+      set(factory);
       invalidateAll();
       if (onChange) onChange();
     });
     el.appendChild(inp);
     propsEl.appendChild(el);
+  }
+  function kindDef(k){
+    if (k === 'sky') return { px: 0.05, py: 0.03, hue: 0, sat: 1, bright: 0 };
+    if (k === 'ridge') return { px: 0.18, py: 0.108, hue: 0, sat: 1, bright: 0, amp: 30, y0: 140, color: '#2b2154' };
+    if (k === 'fore') return { px: 1.3, py: 0, hue: 0, sat: 1, bright: 0, period: 120, hmin: 10, hmax: 20, seed: 7, col: '#1b1436', colD: '#241a44' };
+    if (k === 'pollen') return { px: 1.9, py: 1.3, hue: 0, sat: 1, bright: 0 };
+    return { px: 1, py: 1, hue: 0, sat: 1, bright: 0, wrapW: 8, wrapH: 8 };
   }
   var hint = document.createElement('div');
   hint.className = 'ed-layer-kind';
@@ -278,36 +307,38 @@ function fillLayerProps(){
     : kind === 'pollen' ? 'Pollen dust'
     : kind;
   propsEl.appendChild(hint);
-  row('Parallax X', 0, 3, 0.01, L.px == null ? 1 : L.px, function(v){
+  var D = kindDef(kind);
+  if (L.collide){ D.px = 1; D.py = 1; }
+  row('Parallax X', 0, 3, 0.01, L.px == null ? D.px : L.px, function(v){
     if (L.collide) return;
     L.px = v;
-  });
-  row('Parallax Y', 0, 3, 0.01, L.py == null ? 0 : L.py, function(v){
+  }, D.px);
+  row('Parallax Y', 0, 3, 0.01, L.py == null ? D.py : L.py, function(v){
     if (L.collide) return;
     L.py = v;
-  });
-  row('Hue', -180, 180, 1, L.hue || 0, function(v){ L.hue = v; });
-  row('Saturation', 0, 2, 0.01, L.sat == null ? 1 : L.sat, function(v){ L.sat = v; });
-  row('Brightness', -0.8, 1.2, 0.01, L.bright || 0, function(v){ L.bright = v; });
+  }, D.py);
+  row('Hue', -180, 180, 1, L.hue || 0, function(v){ L.hue = v; }, D.hue);
+  row('Saturation', 0, 2, 0.01, L.sat == null ? 1 : L.sat, function(v){ L.sat = v; }, D.sat);
+  row('Brightness', -0.8, 1.2, 0.01, L.bright || 0, function(v){ L.bright = v; }, D.bright);
   if (kind === 'ridge'){
-    row('Amplitude', 8, 80, 1, L.amp == null ? 30 : L.amp, function(v){ L.amp = v; });
-    row('Horizon', 40, 180, 1, L.y0 == null ? 140 : L.y0, function(v){ L.y0 = v; });
-    color('Color', L.color || '#2b2154', function(v){ L.color = v; });
+    row('Amplitude', 8, 80, 1, L.amp == null ? D.amp : L.amp, function(v){ L.amp = v; }, D.amp);
+    row('Horizon', 40, 180, 1, L.y0 == null ? D.y0 : L.y0, function(v){ L.y0 = v; }, D.y0);
+    color('Color', L.color || D.color, function(v){ L.color = v; }, D.color);
   }
   if (kind === 'fore'){
-    row('Period', 40, 220, 1, L.period || 120, function(v){ L.period = v; });
-    row('Height min', 4, 36, 1, L.hmin == null ? 10 : L.hmin, function(v){ L.hmin = v; });
-    row('Height max', 8, 48, 1, L.hmax == null ? 20 : L.hmax, function(v){ L.hmax = v; });
-    color('Color', L.col || '#1b1436', function(v){ L.col = v; });
-    color('Color dark', L.colD || '#241a44', function(v){ L.colD = v; });
-    row('Seed', 0, 99, 1, L.seed == null ? 7 : L.seed, function(v){ L.seed = v; });
+    row('Period', 40, 220, 1, L.period || D.period, function(v){ L.period = v; }, D.period);
+    row('Height min', 4, 36, 1, L.hmin == null ? D.hmin : L.hmin, function(v){ L.hmin = v; }, D.hmin);
+    row('Height max', 8, 48, 1, L.hmax == null ? D.hmax : L.hmax, function(v){ L.hmax = v; }, D.hmax);
+    color('Color', L.col || D.col, function(v){ L.col = v; }, D.col);
+    color('Color dark', L.colD || D.colD, function(v){ L.colD = v; }, D.colD);
+    row('Seed', 0, 99, 1, L.seed == null ? D.seed : L.seed, function(v){ L.seed = v; }, D.seed);
   }
   if (kind === 'tiles'){
     check('Collision layer', !!L.collide, function(on){ setLayerCollide(L, on); });
     check('Repeat (infinite tile)', !!L.wrap, function(on){ setLayerWrap(L, on); });
     if (L.wrap){
-      row('Stamp W', 1, 256, 1, L.wrapW || 8, function(v){ setWrapSize(L, v, L.wrapH || 8); });
-      row('Stamp H', 1, 256, 1, L.wrapH || 8, function(v){ setWrapSize(L, L.wrapW || 8, v); });
+      row('Stamp W', 1, 256, 1, L.wrapW || 8, function(v){ setWrapSize(L, v, L.wrapH || 8); }, 8);
+      row('Stamp H', 1, 256, 1, L.wrapH || 8, function(v){ setWrapSize(L, L.wrapW || 8, v); }, 8);
       var note = document.createElement('div');
       note.className = 'ed-layer-kind';
       note.textContent = 'Paint the stamp — it tiles forever. 1×1 = solid fill.';
@@ -324,7 +355,9 @@ function fillLayerProps(){
 
 var addBtn = document.getElementById('edLayerAdd');
 var delBtn = document.getElementById('edLayerDel');
-if (addBtn) addBtn.addEventListener('click', function(){ addLayer(); notify(); });
+if (addBtn) addBtn.addEventListener('click', function(){ beginOp(); addLayer(); notify(); endOp(); });
 if (delBtn) delBtn.addEventListener('click', function(){
+  beginOp();
   if (deleteLayer(runtime.activeLayer | 0)) notify();
+  endOp();
 });

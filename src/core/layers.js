@@ -378,6 +378,30 @@ function loadLayer(L){
   return o;
 }
 
+export function snapshotLayers(){
+  return {
+    originC: runtime.originC,
+    originR: runtime.originR,
+    w: runtime.MAP_W,
+    h: runtime.MAP_H,
+    active: runtime.activeLayer,
+    solo: runtime.soloLayer,
+    layers: getLayers().map(dumpLayer)
+  };
+}
+
+export function applyLayerSnap(s){
+  if (!s) return;
+  runtime.originC = s.originC;
+  runtime.originR = s.originR;
+  runtime.MAP_W = s.w;
+  runtime.MAP_H = s.h;
+  runtime.layers = (s.layers || []).map(loadLayer);
+  bindMain();
+  runtime.activeLayer = Math.max(0, Math.min(runtime.layers.length - 1, s.active | 0));
+  runtime.soloLayer = s.solo || 0;
+}
+
 export function stashLayers(lv){
   if (!lv || !runtime.layers || !runtime.layers.length) return;
   lv._stash = {

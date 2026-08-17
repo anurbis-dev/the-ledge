@@ -17,6 +17,7 @@ import { showSplash } from '../ui/splash.js';
 import { findById } from '../entities/ids.js';
 import { entitiesShown } from '../core/layers.js';
 import { hydrateAll } from '../core/persist.js';
+import { clearHistory, undoOp, redoOp, canUndo, canRedo } from '../editor/history.js';
 
 var G = GAME;
 hooks.onGrowMap = function(){ invalidateAll(); buildWater(); };
@@ -214,12 +215,14 @@ function advanceScreens(){
 
 function hardReset(){
   gameOver = null;
+  clearHistory();
   setS(G.mkWorld(G.levelIndex()));
   parts.length = 0; view.flash = 0.6;
   applyPal(); buildWater(); invalidateAll();
 }
 
 function startLevel(idx){
+  clearHistory();
   setS(G.mkWorld(idx));
   introT = 1;                                  // плашка с названием, игра ждёт касания
   paused = false; gameOver = null; setOutro(null);
@@ -540,7 +543,8 @@ export function start(){
     window.__fish = getFish;
     window.__editor = { open: edOpen, close: edClose, state: ED,
                         apply: function(c, r){ edApply({ c:c, r:r }); },
-                        exportText: edExportText };
+                        exportText: edExportText,
+                        undo: undoOp, redo: redoOp, canUndo: canUndo, canRedo: canRedo };
   }
   cam.x = S.p.x - VW/2; cam.y = S.p.y - VH/2;
   cam.ax = S.p.x + S.p.w/2; cam.ay = S.p.y + S.p.h/2;

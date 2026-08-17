@@ -12,8 +12,16 @@ import { renderParams, resetAllParams } from './params.js';
 import { getActiveLayer, getLayers, layerTile, layerVar, isTileLayer } from '../core/layers.js';
 import { showLayersPanel, bindLayersPanel } from './layers-panel.js';
 import { showInspect, bindInspect } from './inspect.js';
-import { pickSpecial, hitGizmo, beginGizmo, moveGizmo, endGizmo, gizmoActive, drawGizmos } from './gizmos.js';
-import { markLevelDirty, flushLevel, bindPersist } from '../core/persist.js';
+import { pickSpecial, pickAllSpecial, hitGizmo, beginGizmo, moveGizmo, endGizmo, gizmoActive, drawGizmos } from './gizmos.js';
+import { markLevelDirty as persistDirty, flushLevel, bindPersist } from '../core/persist.js';
+import { beginOp, endOp, noteOp, undoOp, redoOp, canUndo, canRedo, bindHistory, clearHistory } from './history.js';
+import { invalidateAll } from '../render/tiles.js';
+import { renderLayersPanel } from './layers-panel.js';
+
+function markLevelDirty(){
+  noteOp();
+  persistDirty();
+}
 
 
 var G = GAME;
@@ -31,7 +39,8 @@ export var ED = {
   zoom: 1, icon: 28, hover: null,
   clickCell: null, clickBrush: -1,
   holdT: null, holdErased: false, holdX: 0, holdY: 0,
-  dragObj: null, showGeo: false, sel: null, dragPal: null, giz: false
+  dragObj: null, showGeo: false, sel: null, dragPal: null, giz: false,
+  hitObj: null, pendHit: null
 };
 
 /* varN — сколько ручных узоров держит тайл; повторный клик по уже стоящему тайлу того же брашка
@@ -96,13 +105,35 @@ var OBJ_KINDS = [
 ];
 function objNear(pos, ox, oy){ return Math.abs(pos[0] - ox) < 14 && Math.abs(pos[1] - oy) < 18; }
 function findObjectAt(px, py){
-  var S = world();
-  for (var i = 0; i < OBJ_KINDS.length; i++){
-    var k = OBJ_KINDS[i], arr = k.get(S);
-    for (var j = arr.length - 1; j >= 0; j--)
-      if (objNear(k.pos(arr[j]), px, py)) return { kindDef: k, type: k.type, obj: arr[j] };
+  var all = findAllAt(px, py);
+  return all.length ? all[0] : null;
+}
+function findAllAt(px, py){
+  var S = world(), out = [], i, j, k, arr;
+  if (!S) return out;
+  for (i = 0; i < OBJ_KINDS.length; i++){
+    k = OBJ_KINDS[i]; arr = k.get(S) || [];
+    for (j = arr.length - 1; j >= 0; j--)
+      if (objNear(k.pos(arr[j]), px, py))
+        out.push({ kindDef: k, type: k.type, obj: arr[j] });
   }
-  return null;
+  var spec = pickAllSpecial(S, px, py);
+  for (i = 0; i < spec.length; i++) out.push(spec[i]);
+  return out;
+}
+function cycleHit(px, py){
+  var hits = findAllAt(px, py);
+  if (!hits.length) return null;
+  var cur = (ED.sel && ED.sel.obj) || (ED.hitObj && ED.hitObj.obj);
+  var i, idx = -1;
+  for (i = 0; i < hits.length; i++)
+    if (hits[i].obj === cur){ idx = i; break; }
+  return hits[(idx + 1) % hits.length];
+}
+function applyHit(hit){
+  ED.hitObj = hit;
+  if (hit && isSpecialKind(hit.type)) selectSpecial(hit);
+  else selectSpecial(null);
 }
 function removeObject(entry){
   var S = world(), k = entry.kindDef;
@@ -155,6 +186,39 @@ try {
 bindLayersPanel({ onChange: function(){ markLevelDirty(); } });
 bindInspect({ onChange: function(){ markLevelDirty(); }, onClose: function(){ ED.sel = null; } });
 bindPersist({ water: waterExport });
+bindHistory({
+  onChange: function(why){
+    if (why === 'restore'){
+      invalidateAll();
+      buildWater();
+      renderLayersPanel();
+      if (ED.sel && ED.sel.obj){
+        var still = findByIdRestored(ED.sel);
+        if (still) selectSpecial(still);
+        else selectSpecial(null);
+      }
+      persistDirty();
+    }
+    syncUndoBtns();
+  }
+});
+
+function findByIdRestored(sel){
+  var S = world();
+  if (!S || !sel || !sel.obj) return null;
+  var arr = sel.type === 'light' ? S.lights : sel.type === 'sound' ? S.sounds : sel.type === 'volume' ? S.volumes : null;
+  if (!arr) return null;
+  var id = sel.obj.id, i;
+  for (i = 0; i < arr.length; i++) if (arr[i].id === id) return { type: sel.type, obj: arr[i] };
+  return arr.length ? { type: sel.type, obj: arr[0] } : null;
+}
+
+function syncUndoBtns(){
+  var u = document.getElementById('edUndo');
+  var r = document.getElementById('edRedo');
+  if (u) u.disabled = !canUndo();
+  if (r) r.disabled = !canRedo();
+}
 
 export function bindEditor(hooks){
   onOpen = hooks && hooks.onOpen;
@@ -239,7 +303,9 @@ function startPaletteDrag(e, kind, pal, img){
       ED.tool = ED.dragPal.kind === 'obj' ? 'obj' : 'tile';
       ED.pal = ED.dragPal.pal;
       var cell = edCell(ev.clientX, ev.clientY);
+      beginOp();
       edApply(cell, true);
+      endOp();
     }
     ED.dragPal = null;
     if (ghost) ghost.hidden = true;
@@ -411,8 +477,10 @@ function openVarMenu(cell, spec, clientX, clientY){
     b.textContent = label;
     b.addEventListener('click', function(e){
       e.stopPropagation();
+      beginOp();
       G.setVar(cell.c, cell.r, val);
       markLevelDirty();
+      endOp();
       closeVarMenu();
     });
     edVarMenu.appendChild(b);
@@ -745,19 +813,11 @@ function findObjPal(type, obj){
   return 0;
 }
 function eyedrop(e, cell, wcell){
-  var S = world();
-  var specHit = S && pickSpecial(S, wcell.x, wcell.y);
-  if (specHit){
-    setTab('obj');
-    ED.pal = findObjPal(specHit.type, specHit.obj);
-    selectSpecial(specHit);
-    edRefresh();
-    return true;
-  }
-  var hit = findObjectAt(wcell.x, wcell.y);
+  var hit = cycleHit(wcell.x, wcell.y);
   if (hit){
     setTab('obj');
     ED.pal = findObjPal(hit.type, hit.obj);
+    applyHit(hit);
     edRefresh();
     return true;
   }
@@ -831,6 +891,7 @@ cv.addEventListener('pointerdown', function(e){
   }
   if (e.button === 2){
     closeVarMenu();
+    beginOp();
     ED.erasing = true; ED.painting = true; ED.last = null; ED.stroke = null; ED.strokeOrig = null;
     edErase(cell, wcell);
     try { cv.setPointerCapture(e.pointerId); } catch(_){}
@@ -843,30 +904,38 @@ cv.addEventListener('pointerdown', function(e){
     return;
   }
   var S0 = world();
+  var hits = findAllAt(wcell.x, wcell.y);
   var giz = S0 && hitGizmo(S0, ED.sel, wcell.x, wcell.y);
-  if (giz){
+  if (giz && giz.kind !== 'move'){
+    beginOp();
     ED.giz = true;
     beginGizmo(giz, wcell.x, wcell.y);
     try { cv.setPointerCapture(e.pointerId); } catch(_){}
     return;
   }
-  var specHit = S0 && pickSpecial(S0, wcell.x, wcell.y);
-  if (specHit){
-    selectSpecial(specHit);
-    ED.giz = true;
-    beginGizmo({ kind: 'move', type: specHit.type, obj: specHit.obj }, wcell.x, wcell.y);
-    try { cv.setPointerCapture(e.pointerId); } catch(_){}
-    return;
-  }
-  var hit = findObjectAt(wcell.x, wcell.y);
-  if (hit){
-    var copying = e.ctrlKey || e.metaKey;
-    var dragEntry = copying ? copyObjectAt(hit, { c: wcell.c, r: wcell.r }) : hit;
-    ED.dragObj = { entry: dragEntry, at: { c: wcell.c, r: wcell.r }, copied: copying };
+  if (hits.length > 1){
+    applyHit(cycleHit(wcell.x, wcell.y));
+    ED.pendHit = { hit: ED.hitObj, x: e.clientX, y: e.clientY, c: wcell.c, r: wcell.r };
     ED.painting = false;
     try { cv.setPointerCapture(e.pointerId); } catch(_){}
     return;
   }
+  if (giz){
+    beginOp();
+    ED.giz = true;
+    applyHit({ type: giz.type, obj: giz.obj });
+    beginGizmo(giz, wcell.x, wcell.y);
+    try { cv.setPointerCapture(e.pointerId); } catch(_){}
+    return;
+  }
+  if (hits.length === 1){
+    applyHit(hits[0]);
+    ED.pendHit = { hit: hits[0], x: e.clientX, y: e.clientY, c: wcell.c, r: wcell.r };
+    ED.painting = false;
+    try { cv.setPointerCapture(e.pointerId); } catch(_){}
+    return;
+  }
+  beginOp();
   ED.painting = true; ED.erasing = false; ED.last = null; ED.stroke = null; ED.strokeOrig = null;
   ED.holdX = e.clientX; ED.holdY = e.clientY;
   var ospec0 = ED.tool === 'obj' ? ED_OBJS[ED.pal] : null;
@@ -881,6 +950,19 @@ cv.addEventListener('pointermove', function(e){
   var cell = edCell(e.clientX, e.clientY, ED.tool === 'obj');
   var wcell = edCell(e.clientX, e.clientY, true);
   ED.hover = cell;
+  if (ED.pendHit){
+    if (Math.abs(e.clientX - ED.pendHit.x) > 4 || Math.abs(e.clientY - ED.pendHit.y) > 4){
+      var ph = ED.pendHit;
+      ED.pendHit = null;
+      beginOp();
+      if (isSpecialKind(ph.hit.type)){
+        ED.giz = true;
+        beginGizmo({ kind: 'move', type: ph.hit.type, obj: ph.hit.obj }, wcell.x, wcell.y);
+      } else {
+        ED.dragObj = { entry: ph.hit, at: { c: ph.c, r: ph.r }, copied: false };
+      }
+    } else return;
+  }
   if (ED.giz && gizmoActive()){
     moveGizmo(wcell.x, wcell.y);
     if (ED.sel) showInspect(ED.sel);
@@ -912,11 +994,13 @@ cv.addEventListener('pointermove', function(e){
 function edUp(e){
   if (e && e.pointerId === ED.panId) ED.panId = -1;
   ED.dragObj = null;
+  ED.pendHit = null;
   ED.painting = false; ED.erasing = false;
   ED.last = null; ED.stroke = null; ED.strokeOrig = null;
   ED.giz = false;
   endGizmo();
   clearHold();
+  endOp();
 }
 cv.addEventListener('pointerup', edUp);
 cv.addEventListener('pointercancel', edUp);
@@ -1024,9 +1108,24 @@ addEventListener('keydown', function(e){
   if (ED.on && e.key === 'Delete' && ED.sel && ED.sel.obj){
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
     e.preventDefault();
+    beginOp();
     deleteSelected();
+    markLevelDirty();
+    endOp();
+  }
+  if (ED.on && (e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z' || e.key === 'y' || e.key === 'Y')){
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    e.preventDefault();
+    if (e.key === 'y' || e.key === 'Y' || e.shiftKey) redoOp();
+    else undoOp();
   }
 }, true);
+
+var bUndo = document.getElementById('edUndo');
+var bRedo = document.getElementById('edRedo');
+if (bUndo) bUndo.addEventListener('click', function(){ undoOp(); });
+if (bRedo) bRedo.addEventListener('click', function(){ redoOp(); });
+syncUndoBtns();
 
 function deleteSelected(){
   var S = world();
