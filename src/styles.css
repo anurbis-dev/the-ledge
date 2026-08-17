@@ -98,7 +98,11 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
 .layer.active{border-color:#8f88bb;background:#2a2450}
 .layer.hidden-layer{opacity:.45}
 .layer.dim-solo{opacity:.4}
-.layer.dragging{opacity:.55;cursor:grabbing;pointer-events:none}
+.layer.dragging{opacity:.35;cursor:grabbing;pointer-events:none}
+.layerlist.is-dragging{cursor:grabbing}
+.layer-drop-slot{height:12px;margin:1px 0 3px;border-radius:4px;pointer-events:none;
+  background:linear-gradient(#ffd9a0,#e8b86a);box-shadow:0 0 0 1px #ffd9a0,0 0 10px #ffd9a088}
+.layer.drop-near{border-color:#ffd9a066}
 .layer .layername{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-size:11px;color:#e9e4ff}
 .layer input.layername-edit{flex:1;min-width:0;background:#0d0a18;border:1px solid #8f88bb;

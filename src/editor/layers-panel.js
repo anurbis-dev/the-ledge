@@ -11,7 +11,8 @@ var root = document.getElementById('edLayers');
 var listEl = document.getElementById('edLayerList');
 var propsEl = document.getElementById('edLayerProps');
 var onChange = null;
-var drag = { from: -1, y: 0, live: false, ptr: -1 };
+var drag = { from: -1, y: 0, live: false, ptr: -1, slot: null };
+var dropSlot = null;
 
 function eyeSvg(){
   var s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -121,6 +122,7 @@ export function renderLayersPanel(){
         drag.y = e.clientY;
         drag.live = false;
         drag.ptr = e.pointerId;
+        drag.slot = null;
         try { row.setPointerCapture(e.pointerId); } catch (_){}
       });
       row.addEventListener('pointermove', function(e){
@@ -149,39 +151,74 @@ function markActive(ix){
     rows[i].classList.toggle('active', +rows[i].dataset.ix === ix);
 }
 
+function ensureDropSlot(){
+  if (dropSlot && dropSlot.parentNode) return dropSlot;
+  dropSlot = document.createElement('div');
+  dropSlot.className = 'layer-drop-slot';
+  dropSlot.setAttribute('aria-hidden', 'true');
+  return dropSlot;
+}
+
 function clearDropMarks(){
+  if (dropSlot && dropSlot.parentNode) dropSlot.parentNode.removeChild(dropSlot);
   if (!listEl) return;
+  listEl.classList.remove('is-dragging');
   var rows = listEl.querySelectorAll('.layer'), i;
   for (i = 0; i < rows.length; i++)
-    rows[i].classList.remove('drop-before', 'drop-after', 'dragging');
+    rows[i].classList.remove('drop-near', 'dragging');
+}
+
+/* куда встанет слой: слот над строкой или под последней */
+function slotAt(y){
+  if (!listEl) return null;
+  var rows = listEl.querySelectorAll('.layer'), i, row, rect;
+  for (i = 0; i < rows.length; i++){
+    row = rows[i];
+    if ((+row.dataset.ix) === drag.from) continue;
+    rect = row.getBoundingClientRect();
+    if (y < rect.top + rect.height / 2)
+      return { dest: +row.dataset.ix, before: true, el: row };
+  }
+  for (i = rows.length - 1; i >= 0; i--){
+    row = rows[i];
+    if ((+row.dataset.ix) === drag.from) continue;
+    return { dest: +row.dataset.ix, before: false, el: row };
+  }
+  return null;
 }
 
 function paintDropMarks(x, y, self){
-  clearDropMarks();
+  var slot = slotAt(y);
   if (self) self.classList.add('dragging');
-  var el = document.elementFromPoint(x, y);
-  var dest = el && el.closest ? el.closest('#edLayerList .layer') : null;
-  if (!dest || dest === self) return;
-  var rect = dest.getBoundingClientRect();
-  dest.classList.add(y < rect.top + rect.height / 2 ? 'drop-before' : 'drop-after');
+  if (listEl) listEl.classList.add('is-dragging');
+  var rows = listEl ? listEl.querySelectorAll('.layer') : [], i;
+  for (i = 0; i < rows.length; i++)
+    if (rows[i] !== self) rows[i].classList.remove('drop-near');
+  if (!slot){
+    if (dropSlot && dropSlot.parentNode) dropSlot.parentNode.removeChild(dropSlot);
+    drag.slot = null;
+    return;
+  }
+  var bar = ensureDropSlot();
+  if (slot.before) listEl.insertBefore(bar, slot.el);
+  else {
+    if (slot.el.nextSibling) listEl.insertBefore(bar, slot.el.nextSibling);
+    else listEl.appendChild(bar);
+  }
+  slot.el.classList.add('drop-near');
+  drag.slot = slot;
 }
 
 function endLayerDrag(e, row){
   if (drag.from < 0) return;
   var moved = drag.live;
-  if (moved){
-    var el = document.elementFromPoint(e.clientX, e.clientY);
-    var dest = el && el.closest ? el.closest('#edLayerList .layer') : null;
-    if (dest && dest !== row){
-      var to = +dest.dataset.ix;
-      var rect = dest.getBoundingClientRect();
-      var before = e.clientY < rect.top + rect.height / 2;
-      if (isFinite(to)) relocateLayer(drag.from, to, before);
-    }
-  }
+  var slot = drag.slot || (moved ? slotAt(e.clientY) : null);
+  if (moved && slot && isFinite(slot.dest))
+    relocateLayer(drag.from, slot.dest, slot.before);
   drag.from = -1;
   drag.live = false;
   drag.ptr = -1;
+  drag.slot = null;
   clearDropMarks();
   if (moved) notify();
 }
