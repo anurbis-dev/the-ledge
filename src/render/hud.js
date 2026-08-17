@@ -124,20 +124,12 @@ export function digitS(n, x, y, col, sc){
 export function drawIntro(){
   var time = view.time;
   var lv = G.levelSpec();
+  var name = ((lv && lv.name) || 'LEVEL').toUpperCase();
   panel(VW/2 - 74, VH/2 - 26, 148, 52);
-  var t2 = lv.name;
-  rc(VW/2 - 60, VH/2 - 12, 120, 1, '#3b3268');
-  ctx.globalAlpha = 1;
-  // название рисуем крупными «кирпичами» по буквам-заглушкам
-  var step = Math.min(14, 110 / Math.max(1, t2.length));
-  for (var i = 0; i < t2.length; i++){
-    var bx = VW/2 - (t2.length*step)/2 + i*step;
-    rc(bx, VH/2 - 8, step - 2, 10, '#ffd9a0');
-    rc(bx, VH/2 - 8, step - 2, 2, '#fff3c4');
-  }
-  var bl = Math.sin(time*4) > 0;
-  if (bl){ rc(VW/2 - 26, VH/2 + 12, 52, 2, '#8f88bb'); rc(VW/2 - 30, VH/2 + 12, 3, 2, '#8f88bb');
-           rc(VW/2 + 27, VH/2 + 12, 3, 2, '#8f88bb'); }
+  rc(VW/2 - 60, VH/2 - 16, 120, 1, '#3b3268');
+  var sc = name.length <= 6 ? 3 : 2;
+  textPixC(name, VW/2, VH/2 - 10, '#ffd9a0', sc);
+  if (Math.sin(time * 4) > 0) textPixC('TAP', VW/2, VH/2 + 12, '#8f88bb', 1);
 }
 export function drawPaused(){
   panel(VW/2 - 46, VH/2 - 20, 92, 40);
