@@ -151,7 +151,15 @@ export function ladBox(cx, cy){ return { x: cx - C.W/2, y: cy - C.H }; }
 /* площадка над кромкой в стойке st: 0 стоя, 1 присед, 2 лаз */
 export function landBox(cx, cy, facing, st){
   var h = stanceH(st), w = stanceW(st);
-  return { x: cx + facing * C.STAND_OFF - w / 2, y: cy - h, w: w, h: h, stance: st };
+  var tileL = facing > 0 ? cx : cx - T;
+  var x;
+  if (w > T) x = facing > 0 ? cx : cx - w;              // лёжа шире тайла — вылезаем в тоннель
+  else {
+    x = cx + facing * C.STAND_OFF - w / 2;
+    if (x < tileL) x = tileL;
+    if (x + w > tileL + T) x = tileL + T - w;
+  }
+  return { x: x, y: cy - h, w: w, h: h, stance: st };
 }
 export function bestLand(cx, cy, facing){
   for (var st = 0; st <= 2; st++){
@@ -408,22 +416,44 @@ export function stanceFitsAt(p, st){
   var h = stanceH(st), w = stanceW(st);
   return rectFree(p.x + p.w / 2 - w / 2, p.y + p.h - h, w, h);
 }
-/* были в щели (встать нельзя) — авто-подъём только на выходе */
+/* в щели (встать нельзя) — защёлкиваем; сбрасываем только встав или на одноразовом выходе */
 export function markGap(p){
   if (p.stance > 0 && !stanceFitsAt(p, 0)) p.gapCrawl = true;
   else if (p.stance === 0) p.gapCrawl = false;
 }
-/* конец приседа/лаза: встаём сами только после щели; иначе стоп у губы */
+/* сколько пикселей вниз до опоры сразу за краем */
+function dropAhead(S, p, dir){
+  var px = dir > 0 ? p.x + p.w + 2 : p.x - 2;
+  var y0 = p.y + p.h;
+  for (var d = 1; d <= T * 8; d++){
+    if (solidAt(px, y0 + d)) return d;
+    var probe = { x: dir > 0 ? p.x + 4 : p.x - 4, y: p.y, w: p.w, h: p.h };
+    if (platUnder(S, probe, y0 + d)) return d;
+  }
+  return T * 8;
+}
+/* конец приседа/лаза: из лёжа у края — вис если яма >1 тайла, иначе скат;
+   из щели на губу — встать один раз; открытый край в приседе — стоп */
 export function tryCrawlEdge(S, p, dir){
   if (!dir || p.stance <= 0 || !p.onGround) return 0;
   if (groundAhead(S, p, dir)) return 0;
-  if (!p.gapCrawl) return -1;                          // открытый край: стойку не трогаем
+  if (p.stance === 2){
+    if (dropAhead(S, p, dir) > T + 2 && tryDescend(S, p, dir)) return 2;
+    p.grabCd = Math.max(p.grabCd, C.GRAB_CD);          // не хватать губу, с которой скатываемся
+    return 0;
+  }
+  if (!p.gapCrawl) return -1;                          // открытый край в приседе: стойку не трогаем
   if (stanceFitsAt(p, 0)){
+    var from0 = p.stance;
     setStance(S, p, 0);
+    if (p.stance !== from0){ p.stanceFrom = from0; p.stanceT = C.STANCE_T; }
+    p.gapCrawl = false;
     return 1;
   }
   if (stanceFitsAt(p, 1)){
+    var from1 = p.stance;
     setStance(S, p, 1);
+    if (p.stance !== from1){ p.stanceFrom = from1; p.stanceT = C.STANCE_T; }
     return 1;
   }
   if (tryDescend(S, p, dir)) return 2;
@@ -465,61 +495,63 @@ export function tryDescend(S, p, want){
   startClimb(p, -1, d.cx, d.gy, d.facing, 'ledge');
   return true;
 }
-/* пролезает ли стойка st на 2px вперёд по текущему полу (щель, не уступ) */
-function stanceFitsAhead(p, dir, st){
-  var h = stanceH(st), w = stanceW(st);
-  return rectFree(p.x + p.w / 2 - w / 2 + dir * 2, p.y + p.h - h, w, h);
+/* нижняя половина тайла сплошная — это ступень, не HTOP-щель у пола */
+function fullStepTile(col, row){
+  return tileBlocks(col, row, row * T + 8, 8);
+}
+/* уступ в 1 тайл перед собой: пол + стенка в тайл, над ней не стена в полный рост */
+function findChestStep(p, dir){
+  var rG = Math.floor(Math.round(p.y + p.h) / T);
+  for (var d = 1; d <= 6; d++){
+    var wallX = dir > 0 ? p.x + p.w + d : p.x - d;
+    var col = Math.floor(wallX / T);
+    if (!solidTile(col, rG)) continue;
+    if (!fullStepTile(col, rG - 1)) continue;           // HTOP/пусто — щель у пола, не паркур
+    if (fullStepTile(col, rG - 2)) continue;            // стена в 2+ тайла
+    return {
+      col: col,
+      cx: dir > 0 ? col * T : (col + 1) * T,
+      cy: (rG - 1) * T
+    };
+  }
+  return null;
 }
 /* --- автоподъём на уступ в один тайл при ходьбе: рывок через колено, без хвата и без потери скорости --- */
 export function tryMantle(S, p, dir, vx){
   if (p.inWater) return false;
   if (p.state !== 'normal' || !p.onGround || p.rollT > 0 || p.stance !== 0) return false;
-  if (stanceFitsAhead(p, dir, 2)) return false;        // лёжа пролезает — это щель, не уступ
-  var groundY = Math.round(p.y + p.h);
-  var wallX = dir > 0 ? p.x + p.w + 2 : p.x - 2;
-  var col = Math.floor(wallX / T), rG = Math.floor(groundY / T);
-  if (!solidTile(col, rG)) return false;               // впереди опора вровень с полом
-  if (!solidTile(col, rG - 1)) return false;            // а над ней — стенка ровно в тайл
-  if (solidTile(col, rG - 2)) return false;             // выше уже свободно, иначе это стена повыше
-  var cx = dir > 0 ? col * T : (col + 1) * T, cy = (rG - 1) * T;
-  var sb = standBox(cx, cy, dir);
-  if (!rectFree(sb.x, sb.y, p.w, p.h)) return false;
-  startVault(p, cx, cy, dir, vx || 0);
+  var step1 = findChestStep(p, dir);
+  if (!step1) return false;
+  var sb = standBox(step1.cx, step1.cy, dir);
+  if (!rectFree(sb.x, sb.y, C.W, C.H)) return false;    // потолок — это щель, не мантл
+  startVault(p, step1.cx, step1.cy, dir, vx || 0, null);
   return true;
 }
-/* из стойки в щель перед собой: тот же bestLand, что с зацепа; на полу — присед/лаз */
+/* щель на уровне груди: паркур на 1 тайл, стойка — по окончании анимации.
+   щель у пола сама не берётся — игрок жмёт ↓ */
 export function tryEnterGap(S, p, dir){
   if (p.inWater) return false;
   if (p.state !== 'normal' || !p.onGround || p.rollT > 0 || p.stance !== 0) return false;
-  var groundY = Math.round(p.y + p.h);
-  var wallX = dir > 0 ? p.x + p.w + 2 : p.x - 2;
-  var col = Math.floor(wallX / T), rG = Math.floor(groundY / T);
-  if (solidTile(col, rG) && solidTile(col, rG - 1) && !solidTile(col, rG - 2)
-      && !stanceFitsAhead(p, dir, 2)){
-    var cx = dir > 0 ? col * T : (col + 1) * T, cy = (rG - 1) * T;
-    var land = bestLand(cx, cy, dir);
-    if (land && land.stance > 0){
-      startClimb(p, 1, cx, cy, dir, 'ledge', land);
-      return true;
-    }
-  }
-  for (var st = 1; st <= 2; st++){
-    if (!stanceFitsAhead(p, dir, st)) continue;
-    if (!setStance(S, p, st)) continue;
-    var slide = dir * 4;
-    if (rectFree(p.x + slide, p.y, p.w, p.h)) p.x += slide;
-    p.stanceFrom = 0;
-    p.stanceT = C.STANCE_T;
-    p.vx = dir * (st === 2 ? C.PRONE_V : C.CROUCH_V);
-    return true;
-  }
-  return false;
+  var step1 = findChestStep(p, dir);
+  if (!step1) return false;
+  var land = bestLand(step1.cx, step1.cy, dir);
+  if (!land || land.stance === 0) return false;         // стоя влезает — это tryMantle
+  startVault(p, step1.cx, step1.cy, dir, p.vx || 0, land);
+  return true;
 }
-export function startVault(p, cx, cy, facing, vx){
-  var from = { x: p.x, y: p.y }, to = standBox(cx, cy, facing);
+export function startVault(p, cx, cy, facing, vx, land){
+  var from = { x: p.x, y: p.y };
+  var to = standBox(cx, cy, facing);
+  var st = 0;
+  if (land && land.stance > 0){
+    to = { x: land.x, y: cy - C.H };                    // пока стоим — поза паркура от полного роста
+    st = land.stance;
+  }
   p.facing = facing; p.state = 'climb'; p.vy = 0; p.onGround = false;
   p.climb = { dir: 1, kind: 'vault', p: 0, dur: C.VAULT_T,
-              cx: cx, cy: cy, facing: facing, from: from, to: to, vx: vx };
+              cx: cx, cy: cy, facing: facing, from: from, to: to, vx: vx || 0,
+              stance: st,
+              landX: land ? land.x : to.x, landY: land ? land.y : to.y };
   p.events.push('vault');
 }
 export function startClimb(p, dir, cx, cy, facing, kind, land){
@@ -530,7 +562,7 @@ export function startClimb(p, dir, cx, cy, facing, kind, land){
     if (land){ to = { x: land.x, y: land.y }; st = land.stance; }
     else to = standBox(cx, cy, facing);
     ideal = hangBox(cx, cy, facing, 'ledge');
-    if (st > 0){ p.stance = st; p.w = land.w; p.h = land.h; }
+    // стойку жмём в конце анимации — иначе поза щёлкает сразу
   } else {
     to = hangBox(cx, cy, facing, 'ledge'); ideal = standBox(cx, cy, facing);
     p.stance = 0; p.w = C.W; p.h = C.H;                 // с лаза в вис — полный рост
@@ -591,6 +623,12 @@ export function updateClimb(S, p, dt){
     p.x = cl.to.x; p.y = cl.to.y; p.vy = 0; p.apexY = p.y;
     p.vx = cl.kind === 'vault' ? cl.vx : 0;
     if (cl.kind === 'vault'){
+      if (cl.stance > 0){
+        p.x = cl.landX; p.y = cl.landY;
+        p.w = stanceW(cl.stance); p.h = stanceH(cl.stance);
+        p.stanceFrom = 0; p.stance = cl.stance; p.stanceT = C.STANCE_T;
+        p.gapCrawl = true;
+      }
       p.state = 'normal'; p.onGround = true; p.coyote = C.COYOTE; p.landT = 0;
       p.climb = null; p.events.push('mantled');
     } else if (cl.dir > 0 && cl.kind === 'lad'){
@@ -601,7 +639,10 @@ export function updateClimb(S, p, dt){
       p.lad.tc = lc; p.lad.tr = lr;
     } else if (cl.dir > 0){
       if (cl.stance > 0){
-        p.stance = cl.stance; p.w = stanceW(cl.stance); p.h = stanceH(cl.stance);
+        p.stanceFrom = 0; p.stance = cl.stance;
+        p.w = stanceW(cl.stance); p.h = stanceH(cl.stance);
+        p.stanceT = C.STANCE_T;
+        p.gapCrawl = true;
       }
       p.state = 'normal'; p.onGround = true; p.coyote = C.COYOTE; p.landT = 0.08;
       p.hang = null; p.climb = null; p.events.push('mantled');

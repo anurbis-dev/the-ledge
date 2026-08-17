@@ -5,7 +5,8 @@ import {
   moveX, moveY, damage, updateBars, ease, updateClimb, updateHang, updateLadder,
   setStance, setH, slopeUnder, slopeGradeUnder, grounded, autoLadder, tryBars,
   tryLadder, tryGrab, tryClimbOut, tryCrawlEdge, ladderTopUnder, attach, tryDescend, tryMantle,
-  tryEnterGap, markGap, canDescend, awayFromEdge, startFallRecover, finishFallRecover
+  tryEnterGap, markGap, canDescend, awayFromEdge, startFallRecover, finishFallRecover,
+  stanceFitsAt
 } from './player.js';
 import { stepPlats, platUnder } from '../entities/plats.js';
 import { stepLifts, inLift, liftConstrain } from '../entities/lifts.js';
@@ -135,15 +136,15 @@ export function step(S, dt, inp){
   var onLadTop = ladderTopUnder(p, p.y + p.h + 1) !== null;
   var stanceBefore = p.stance;
   var onEdge = p.onGround && !inCab && !onLadTop && !p.inWater && canDescend(p, inp.x);
-  if (!rolling && p.onGround && !inCab && !onLadTop && !p.inWater){    // на верхушке лестницы ↓ — это спуск
+  if (!rolling && p.onGround && !inCab && !onLadTop && !p.inWater && p.stanceT <= 0){
     if (inp.downPressed && p.stance < 2 && Math.abs(p.vx) <= 58) setStance(S, p, p.stance + 1);
     else if (!onEdge && inp.downHeld && p.stance === 0 && Math.abs(p.vx) <= 58) setStance(S, p, 1);
     if ((inp.upPressed || inp.upHeld || inp.jumpPressed) && p.stance > 0){
-      if (setStance(S, p, p.stance - 1)) { p.buf = 0; }   // удержание ↑ поднимает до стойки
+      if (setStance(S, p, p.stance - 1)) { p.buf = 0; }   // удержание ↑ — шаг стойки после анимации
     }
-    // авто-подъём только после щели, не в открытом месте перед ней
-    if (p.gapCrawl && p.stance > 0 && !inp.downHeld && !inp.downPressed){
-      if (!setStance(S, p, 0) && p.stance === 2) setStance(S, p, 1);
+    // авто-вставание: один раз в момент выхода из тоннеля, не внутри и не каждый кадр
+    if (p.gapCrawl && p.stance > 0 && stanceFitsAt(p, 0) && !inp.downHeld && !inp.downPressed){
+      if (setStance(S, p, 0)) p.gapCrawl = false;
     }
   }
   if (p.stance !== stanceBefore){ p.stanceFrom = stanceBefore; p.stanceT = C.STANCE_T; }  // плавный переход позы
@@ -152,11 +153,8 @@ export function step(S, dt, inp){
                      inp.upHeld && !inp.downHeld && Math.abs(p.vx) < 10) ? 1 : 0;
   p.lookUp += (wantLookUp - p.lookUp) * Math.min(1, dt * 6);
   if (p.lookUp < 0.01) p.lookUp = 0;
-  // под низким потолком встать нельзя — держим стойку
-  if (p.stance > 0 && p.onGround && !inp.downHeld && !inp.downPressed){
-    if (p.stance === 2 && rectFree(p.x, p.y + p.h - C.CRH, p.w, C.CRH) && inp.upHeld) setStance(S, p, 1);
-  }
-  if (p.stance > 0 && !p.onGround && rectFree(p.x, p.y + p.h - C.H, p.w, C.H)) setStance(S, p, 0);
+  // под низким потолком встать нельзя — держим стойку; шаг ↑ уже в блоке stanceT выше
+  if (p.stance === 1 && !p.onGround && rectFree(p.x, p.y + p.h - C.H, p.w, C.H)) setStance(S, p, 0);
   // страховка: габариты рассинхронились со стойкой (например, после переката под потолком).
   // проверяем не только над головой, но и с запасом по бокам — иначе можно «встать» внутри щели
   if (!rolling && p.h !== C.H){

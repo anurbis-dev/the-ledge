@@ -74,7 +74,7 @@ export function hero(){
   var wag = tail.a;
 
   if ((p.state === 'hang' && p.hang.kind === 'ledge') ||
-      (p.state === 'climb' && p.climb.kind === 'ledge' && !(p.climb.stance > 0))){
+      (p.state === 'climb' && p.climb.kind === 'ledge')){
     var cx, cy, facing, pose, ox = 0, oy = 0;
     if (p.state === 'hang'){
       cx = p.hang.cx; cy = p.hang.cy; facing = p.facing;
