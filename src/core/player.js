@@ -381,12 +381,13 @@ export function grabTo(p, cx, cy, facing, kind, tc, tr){
   p.hang = { cx: cx, cy: cy, kind: kind, tc: tc, tr: tr, lt: tileAt(tc, tr) };
   p.events.push('grab');
 }
-/* с поверхности воды: к сухому берегу; подводные полки не вылаз */
+/* с поверхности воды: к сухому берегу; подводные полки и потолок над водой — нет */
 export function tryClimbOut(S, p, dir){
   if (!dir || p.state !== 'normal' || p.grabCd > 0 || p.rollT > 0) return false;
   if (!p.atSurface || !p.inWater) return false;
   var surf = p.swimSurf;
   if (surf == null || p.y > surf + 2) return false;         // голова уже ниже линии воды
+  if (!rectFree(p.x + 1, surf - 4, p.w - 2, 4)) return false; // потолок над водой — остаёмся
   var led = findLedge(p, dir, T + 4);                       // с поверхности достаём губу в тайл
   if (!led || led.top > surf + 2) return false;             // кромка под водой
   var land = bestLand(led.cx, led.top, dir);

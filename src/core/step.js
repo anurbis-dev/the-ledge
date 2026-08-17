@@ -266,6 +266,8 @@ export function step(S, dt, inp){
     var surf = surf0;
     p.swimSurf = surf;
     var restY = surf !== null ? surf - 4 : p.y;
+    if (surf !== null && !rectFree(p.x + 1, restY, p.w - 2, p.h))
+      restY = surf;                                    // потолок над водой — покоимся под камнем
     var dip = surf !== null ? p.y - restY : 0;         // >0 ниже линии покоя
     if (p.swimLaunch > 0){                             // дуга обратно — короткий нырок, не стоп
       p.swimLaunch = 0;
