@@ -168,8 +168,9 @@ export function step(S, dt, inp){
       p.facing = ax > 0 ? 1 : -1;
       if (p.stance > 0 && p.onGround && !groundAhead(S, p, p.facing)) p.vx = 0;
       if (!rectFree(p.x + p.facing*2, p.y, p.w, p.h) && slopeUnder(p) === null){
+        var wasVx = p.vx;
         p.vx = 0;                                 // упор в стену — не толкаемся (на склоне не мешаем)
-        if (p.onGround && p.stance === 0 && tryMantle(S, p, p.facing)){
+        if (p.onGround && p.stance === 0 && tryMantle(S, p, p.facing, wasVx)){
           crumbCheck(S, p); pickups(S, p);
           return;
         }
@@ -226,19 +227,22 @@ export function step(S, dt, inp){
     p.vy += C.GRAV * dt;
     p.atSurface = false;
   } else if (inWater){
-    if (p.swimLaunch > 0){                             // падаем обратно — вода ловит
+    var surf = surf0;
+    p.swimSurf = surf;
+    var restY = surf !== null ? surf - 4 : p.y;
+    var dip = surf !== null ? p.y - restY : 0;         // >0 ниже линии покоя
+    if (p.swimLaunch > 0){                             // дуга обратно — короткий нырок, не стоп
       p.swimLaunch = 0;
-      if (p.vy > 10) p.vy = 10;
+      if (p.vy > 86) p.vy = 86;
+      else if (p.vy < 40) p.vy = 40;
     }
     if (!p.wasWet){
       p.wasWet = true; p.events.push('splash');
-      if (p.vy > 10) p.vy = 10;                       // вход в воду почти гасит скорость
+      if (p.vy > 86) p.vy = 86;                       // вход — нырок на ~тайл
     }
-    if (p.vy > 26) p.vy = 26;
-    if (p.vy > 0) p.vy *= 0.88;                       // вязкость гасит только погружение
-    var surf = surf0;
-    p.swimSurf = surf;
-    var atSurf = surf !== null && (p.y + 4) <= surf + 10;  // у поверхности (с запасом)
+    if (p.vy > 90) p.vy = 90;
+    if (p.vy > 0 && dip > 8) p.vy *= 0.90;            // вязкость — уже под водой
+    var atSurf = surf !== null && (p.y + 4) <= surf + 10;
     p.atSurface = atSurf;
     if (inp.downHeld || inp.downPressed){
       p.vy = C.SWIM_DN;                                    // ныряем
@@ -251,11 +255,24 @@ export function step(S, dt, inp){
       p.jumping = atSurf; p.apexY = p.y;
       if (atSurf) p.swimLaunch = 0.45;                     // на время прыжка вода не держит
       p.events.push(atSurf ? 'jump' : 'stroke');
-    } else if (surf !== null && p.y + 4 > surf + 2){
-      p.vy += (C.SWIM_UP - p.vy) * Math.min(1, dt * 3.2);  // всплываем плавно
+    } else if (surf !== null && dip > 12){
+      p.vy += (C.SWIM_UP - p.vy) * Math.min(1, dt * 3.6);  // всплываем после нырка
+    } else if (surf !== null && dip > 0){
+      if (p.vy > 8) p.vy += (-6 - p.vy) * Math.min(1, dt * 1.0);      // ещё ныряем — почти не держит
+      else if (dip < 8){                                           // близко к поверхности — дотягиваем
+        var kUp = Math.min(1, dt * 8);
+        p.y += (restY - p.y) * kUp;
+        p.vy *= 1 - kUp;
+        if (Math.abs(p.y - restY) < 1){ p.y = restY; p.vy = 0; }
+      } else p.vy += (C.SWIM_UP - p.vy) * Math.min(1, dt * 3.6);
+    } else if (p.vy > 10){
+      // ещё идём вниз сквозь поверхность
     } else {
-      p.vy = 0;                                            // держимся на поверхности
-      if (surf !== null) p.y = surf - 4;
+      p.vy += (restY - p.y) * 14 * dt;
+      p.vy *= 0.82;
+      if (Math.abs(p.y - restY) < 1.2 && Math.abs(p.vy) < 10){
+        p.vy = 0; p.y = restY;
+      }
     }
     if (atSurf) {
       if (p.air < C.AIR_MAX){ p.air = C.AIR_MAX; p.events.push('gasp'); }
