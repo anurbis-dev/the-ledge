@@ -1,6 +1,6 @@
 import GAME from '../core/game.js';
 import { damage } from '../core/player.js';
-import { getLayers, layerShown } from '../core/layers.js';
+import { getLayers, layerShown, layerCssFilter } from '../core/layers.js';
 import { ctx, cam, view, VW, VH, rc, lb, setFill, world } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
 
@@ -112,20 +112,31 @@ export function sky(){
   for (i = 0; i < ls.length; i++){
     L = ls[i];
     if (L.kind !== 'sky' || !layerShown(L, view.edit)) continue;
-    fillSky();
-    drawStars(L.px == null ? 0.05 : L.px, L.py == null ? 0.03 : L.py);
+    withFilter(L, function(){
+      fillSky();
+      drawStars(L.px == null ? 0.05 : L.px, L.py == null ? 0.03 : L.py);
+    });
   }
   for (i = 0; i < ls.length; i++){
     L = ls[i];
     if (L.kind !== 'ridge' || !layerShown(L, view.edit)) continue;
-    ridge(
-      L.px == null ? 0.2 : L.px,
-      L.py == null ? 0.12 : L.py,
-      L.amp == null ? 30 : L.amp,
-      L.y0 == null ? 140 : L.y0,
-      L.color || '#2b2154'
-    );
+    withFilter(L, function(){
+      ridge(
+        L.px == null ? 0.2 : L.px,
+        L.py == null ? 0.12 : L.py,
+        L.amp == null ? 30 : L.amp,
+        L.y0 == null ? 140 : L.y0,
+        L.color || '#2b2154'
+      );
+    });
   }
+}
+
+function withFilter(L, fn){
+  var f = layerCssFilter(L);
+  if (f) ctx.filter = f;
+  try { fn(); }
+  finally { if (f) ctx.filter = 'none'; }
 }
 export function bush(x, y, w, h, col, colD){
   setFill(col);
@@ -199,20 +210,24 @@ export function fore(){
     L = ls[i];
     if (!layerShown(L, view.edit)) continue;
     if (L.kind === 'fore'){
-      foreLayer(
-        L.px == null ? 1 : L.px,
-        L.period || 120,
-        L.hmin == null ? 10 : L.hmin,
-        L.hmax == null ? 20 : L.hmax,
-        L.col || '#1b1436',
-        L.colD || '#241a44',
-        L.seed == null ? 7 : L.seed,
-        VH,
-        cam.x * (L.px == null ? 1 : L.px),
-        -(cam.y * (L.py || 0))
-      );
+      withFilter(L, function(){
+        foreLayer(
+          L.px == null ? 1 : L.px,
+          L.period || 120,
+          L.hmin == null ? 10 : L.hmin,
+          L.hmax == null ? 20 : L.hmax,
+          L.col || '#1b1436',
+          L.colD || '#241a44',
+          L.seed == null ? 7 : L.seed,
+          VH,
+          cam.x * (L.px == null ? 1 : L.px),
+          -(cam.y * (L.py || 0))
+        );
+      });
     } else if (L.kind === 'pollen'){
-      drawPollen(L.px == null ? 1.9 : L.px, L.py == null ? 1.3 : L.py);
+      withFilter(L, function(){
+        drawPollen(L.px == null ? 1.9 : L.px, L.py == null ? 1.3 : L.py);
+      });
     }
   }
 }

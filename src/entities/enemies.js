@@ -7,7 +7,7 @@ import { GEAR, wearGear } from './gear.js';
 
 export function mkEnemies(){
   var LV = runtime.LV;
-  return LV.enemies.map(function(a, i){
+  return (LV.enemies || []).map(function(a, i){
     var kind = a[5] !== undefined ? a[5] : (i % 3);
     var hh = kind === 2 ? 18 : 14, ww = kind === 2 ? 14 : 11;
     return { id:i, x:a[0], y:a[1]-hh, w:ww, h:hh, x0:a[2], x1:a[3],

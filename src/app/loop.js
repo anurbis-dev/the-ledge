@@ -15,6 +15,8 @@ import { hooks } from '../core/runtime.js';
 import { prog, buildMenu, showMenu, isMenu, setMenu, saveProgress } from '../ui/menu.js';
 import { showSplash } from '../ui/splash.js';
 import { findById } from '../entities/ids.js';
+import { entitiesShown } from '../core/layers.js';
+import { hydrateAll } from '../core/persist.js';
 
 var G = GAME;
 hooks.onGrowMap = function(){ invalidateAll(); buildWater(); };
@@ -303,14 +305,19 @@ function frame(now){
     ctx.clearRect(0, 0, VW, VH);
     sky();
     ctx.setTransform(z, 0, 0, z, 0, 0);
-    tiles(); plats(); lifts(); caveExit(); doors(); chests();
-    lootDrops(); items(); pickables(); drawTorches(); drawHarpoons(); enemies(); spiders(); fliers();
-    hero(); drawFish(); tilesFront();
+    tiles();
+    if (entitiesShown(true)){
+      plats(); lifts(); caveExit(); doors(); chests();
+      lootDrops(); items(); pickables(); drawTorches(); drawHarpoons(); enemies(); spiders(); fliers();
+      hero(); drawFish();
+    }
+    tilesFront();
     drawParts(dt); drawHearts(dt);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     applyVolumes();
     ctx.setTransform(z, 0, 0, z, 0, 0);
-    drawWeeds(); tendrils();
+    drawWeeds();
+    if (entitiesShown(true)) tendrils();
     if (ED.showGeo) drawCollideOverlay();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     fore();
@@ -329,9 +336,13 @@ function frame(now){
     acc = 0;
     hushLift(); hushSounds();
     ctx.clearRect(0, 0, VW, VH);
-    sky(); tiles(); plats(); lifts(); caveExit(); doors(); chests();
-    lootDrops(); items(); pickables(); drawTorches(); drawHarpoons(); enemies(); spiders(); fliers();
-    hero(); drawFish(); tilesFront(); lightPass(); applyVolumes(); drawWeeds(); tendrils();
+    sky(); tiles();
+    if (entitiesShown(false)){
+      plats(); lifts(); caveExit(); doors(); chests();
+      lootDrops(); items(); pickables(); drawTorches(); drawHarpoons(); enemies(); spiders(); fliers();
+      hero(); drawFish();
+    }
+    tilesFront(); lightPass(); applyVolumes(); drawWeeds(); tendrils();
     if (ED.showGeo) drawCollideOverlay();
     fore(); vignette(); hud();
     if (introT > 0) drawIntro();
@@ -464,6 +475,7 @@ function resolveDevLevel(){
 }
 
 export function start(){
+  hydrateAll(G.LEVELS);
   setS(G.mkWorld());
   dbgEl = document.getElementById('dbg');
   bindInput({ onReset: hardReset, onDbg: toggleDbg });

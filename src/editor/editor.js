@@ -13,6 +13,7 @@ import { getActiveLayer, getLayers, layerTile, layerVar, isTileLayer } from '../
 import { showLayersPanel, bindLayersPanel } from './layers-panel.js';
 import { showInspect, bindInspect } from './inspect.js';
 import { pickSpecial, hitGizmo, beginGizmo, moveGizmo, endGizmo, gizmoActive, drawGizmos } from './gizmos.js';
+import { markLevelDirty, flushLevel, bindPersist } from '../core/persist.js';
 
 
 var G = GAME;
@@ -151,8 +152,9 @@ try {
   ED.showGeo = localStorage.getItem(GKEY) === '1';
 } catch (_){}
 
-bindLayersPanel({ onChange: function(){} });
-bindInspect({ onChange: function(){}, onClose: function(){ ED.sel = null; } });
+bindLayersPanel({ onChange: function(){ markLevelDirty(); } });
+bindInspect({ onChange: function(){ markLevelDirty(); }, onClose: function(){ ED.sel = null; } });
+bindPersist({ water: waterExport });
 
 export function bindEditor(hooks){
   onOpen = hooks && hooks.onOpen;
@@ -325,6 +327,7 @@ export function edOpen(){
   dispatchEvent(new Event('resize'));
 }
 export function edClose(){
+  flushLevel(world());
   ED.on = false;
   view.edit = false;
   setViewScale(1);
@@ -409,6 +412,7 @@ function openVarMenu(cell, spec, clientX, clientY){
     b.addEventListener('click', function(e){
       e.stopPropagation();
       G.setVar(cell.c, cell.r, val);
+      markLevelDirty();
       closeVarMenu();
     });
     edVarMenu.appendChild(b);
@@ -436,6 +440,7 @@ export function edApply(cell, isClick){
     if (isClick && ED.clickCell === key && ED.clickBrush === ED.pal && spec.varN &&
         tileMatchesBrush(spec, brushTile(cell.c, cell.r))){
       G.setVar(cell.c, cell.r, (brushVar(cell.c, cell.r) % spec.varN) + 1);
+      markLevelDirty();
       return;
     }
     if (isSlopeBrush(nv)){ edPaintSlope(cell, nv); return; }
@@ -450,6 +455,7 @@ export function edApply(cell, isClick){
       buildWater();
       if (nv === G.WATER) setPondShade(cell.c, cell.r, ED.waterShade);
     }
+    markLevelDirty();
   } else if (ED.tool === 'obj'){
     var ospec = ED_OBJS[ED.pal];
     if (ospec && isSpecialKind(ospec.kind)){
@@ -458,9 +464,10 @@ export function edApply(cell, isClick){
       if (hit && hit.type === ospec.kind){ selectSpecial(hit); return; }
     }
     edPlaceObject(cell);
+    markLevelDirty();
   }
 }
-function edErase(cell){
+function edErase(cell, wcell){
   var S = world();
   if (cell.c !== cell.c || cell.r !== cell.r) return;
   var key = cell.c + ':' + cell.r;
@@ -469,7 +476,7 @@ function edErase(cell){
   var actE = getActiveLayer();
   var oldE = (actE && isTileLayer(actE)) ? brushTile(cell.c, cell.r) : G.tileAt(cell.c, cell.r);
   if (!actE || isTileLayer(actE)) G.setTile(cell.c, cell.r, 0);
-  edEraseObjects(cell);
+  edEraseObjects(wcell || cell);
   G.buildGates(S);
   if (oldE === G.WATER || oldE === G.FALL) buildWater();
 }
@@ -492,6 +499,7 @@ function edEraseObjects(cell){
     var still = pickSpecial(S, ox, oy);
     if (!still || still.obj !== ED.sel.obj) selectSpecial(null);
   }
+  markLevelDirty();
 }
 function edPlaceObject(cell){
   var S = world();
@@ -633,7 +641,9 @@ export function edExportText(){
   var ls = getLayers();
   out.push('layers: [' + ls.map(function(L){
     var p = "{name:'" + L.name + "',kind:'" + (L.kind || 'tiles') +
-      "',px:" + L.px + ',py:' + L.py + ',collide:' + !!L.collide;
+      "',px:" + L.px + ',py:' + L.py +
+      ',hue:' + (L.hue || 0) + ',sat:' + (L.sat == null ? 1 : L.sat) +
+      ',bright:' + (L.bright || 0) + ',collide:' + !!L.collide;
     if (L.wrap) p += ',wrap:true,wrapW:' + (L.wrapW || 8) + ',wrapH:' + (L.wrapH || 8);
     if (L.kind === 'ridge')
       p += ',amp:' + L.amp + ',y0:' + L.y0 + ",color:'" + (L.color || '#2b2154') + "'";
@@ -699,15 +709,67 @@ function clearHold(){
   ED.holdErased = false;
 }
 
-function startHold(cell){
+function startHold(cell, wcell){
   clearHold();
   ED.holdT = setTimeout(function(){
     ED.holdT = null;
     ED.holdErased = true;
-    ED.painting = false;
+    ED.erasing = true;
+    ED.painting = true;
     ED.last = null;
-    edErase(cell);
+    edErase(cell, wcell);
   }, HOLD_MS);
+}
+
+function findTilePal(v){
+  if (!v) return 0;
+  for (var i = 1; i < ED_TILES.length; i++)
+    if (tileMatchesBrush(ED_TILES[i], v)) return i;
+  return 0;
+}
+function findObjPal(type, obj){
+  var i, k;
+  for (i = 0; i < ED_OBJS.length; i++){
+    k = ED_OBJS[i].kind;
+    if (type === 'enemy' && k === 'enemy' + (obj.kind | 0)) return i;
+    if (type === 'flier' && k === 'flier' + (obj.kind | 0)) return i;
+    if (type === 'spider' && k.indexOf('spider') === 0) return i;
+    if (type === 'tendril' && k === 'tendril' + (obj.kind | 0)) return i;
+    if (type === 'torch' && k === 'torch') return i;
+    if (type === 'chest' && k === (obj.locked ? 'chestL' : 'chest')) return i;
+    if (type === 'item' && k === obj.kind) return i;
+    if (type === 'sound' && k === 'sound') return i;
+    if (type === 'light' && k === 'light') return i;
+    if (type === 'volume' && k === 'volume') return i;
+  }
+  return 0;
+}
+function eyedrop(e, cell, wcell){
+  var S = world();
+  var specHit = S && pickSpecial(S, wcell.x, wcell.y);
+  if (specHit){
+    setTab('obj');
+    ED.pal = findObjPal(specHit.type, specHit.obj);
+    selectSpecial(specHit);
+    edRefresh();
+    return true;
+  }
+  var hit = findObjectAt(wcell.x, wcell.y);
+  if (hit){
+    setTab('obj');
+    ED.pal = findObjPal(hit.type, hit.obj);
+    edRefresh();
+    return true;
+  }
+  var v = brushTile(cell.c, cell.r);
+  var pal = findTilePal(v);
+  setTab('tile');
+  ED.pal = pal;
+  var spec = ED_TILES[pal];
+  if (spec && spec.varN && tileMatchesBrush(spec, v))
+    openVarMenu(cell, spec, e.clientX, e.clientY);
+  edRefresh();
+  return true;
 }
 
 export function snapEditCam(){
@@ -769,20 +831,17 @@ cv.addEventListener('pointerdown', function(e){
   }
   if (e.button === 2){
     closeVarMenu();
-    if (ED.tool === 'tile'){
-      var vspec = findVarSpec(brushTile(cell.c, cell.r));
-      if (vspec){
-        openVarMenu(cell, vspec, e.clientX, e.clientY);
-        return;
-      }
-    }
     ED.erasing = true; ED.painting = true; ED.last = null; ED.stroke = null; ED.strokeOrig = null;
-    edErase(cell);
+    edErase(cell, wcell);
     try { cv.setPointerCapture(e.pointerId); } catch(_){}
     return;
   }
   if (e.button !== 0) return;
   closeVarMenu();
+  if (e.ctrlKey || e.metaKey){
+    eyedrop(e, cell, wcell);
+    return;
+  }
   var S0 = world();
   var giz = S0 && hitGizmo(S0, ED.sel, wcell.x, wcell.y);
   if (giz){
@@ -811,7 +870,7 @@ cv.addEventListener('pointerdown', function(e){
   ED.painting = true; ED.erasing = false; ED.last = null; ED.stroke = null; ED.strokeOrig = null;
   ED.holdX = e.clientX; ED.holdY = e.clientY;
   var ospec0 = ED.tool === 'obj' ? ED_OBJS[ED.pal] : null;
-  if (!(ospec0 && isSpecialKind(ospec0.kind))) startHold(cell);
+  if (!(ospec0 && isSpecialKind(ospec0.kind))) startHold(cell, wcell);
   edApply(cell, true);
   ED.clickCell = cell.c + ':' + cell.r;
   ED.clickBrush = ED.pal;
@@ -825,12 +884,14 @@ cv.addEventListener('pointermove', function(e){
   if (ED.giz && gizmoActive()){
     moveGizmo(wcell.x, wcell.y);
     if (ED.sel) showInspect(ED.sel);
+    markLevelDirty();
     return;
   }
   if (ED.dragObj){
     if (wcell.c !== ED.dragObj.at.c || wcell.r !== ED.dragObj.at.r){
       ED.dragObj.entry = moveObjectTo(ED.dragObj.entry, wcell);
       ED.dragObj.at = { c: wcell.c, r: wcell.r };
+      markLevelDirty();
     }
     return;
   }
@@ -845,9 +906,8 @@ cv.addEventListener('pointermove', function(e){
   }
   if (ED.holdT && (Math.abs(e.clientX - ED.holdX) > 5 || Math.abs(e.clientY - ED.holdY) > 5))
     clearHold();
-  if (ED.holdErased) return;
-  if (ED.erasing && ED.painting) edErase(cell);
-  else if (ED.painting) edApply(cell, false);
+  if (ED.erasing && ED.painting) edErase(cell, wcell);
+  else if (ED.painting && !ED.holdErased) edApply(cell, false);
 });
 function edUp(e){
   if (e && e.pointerId === ED.panId) ED.panId = -1;

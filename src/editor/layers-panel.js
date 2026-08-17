@@ -1,6 +1,6 @@
 import { runtime } from '../core/runtime.js';
 import {
-  getLayers, setActiveLayer, addLayer, deleteLayer, moveLayer,
+  getLayers, setActiveLayer, addLayer, deleteLayer, relocateLayer,
   setLayerCollide, setLayerWrap, setWrapSize, toggleSolo, getActiveLayer,
   layerKind
 } from '../core/layers.js';
@@ -11,7 +11,7 @@ var root = document.getElementById('edLayers');
 var listEl = document.getElementById('edLayerList');
 var propsEl = document.getElementById('edLayerProps');
 var onChange = null;
-var dragFrom = -1;
+var drag = { from: -1, y: 0, live: false, ptr: -1 };
 
 function eyeSvg(){
   var s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -115,25 +115,75 @@ export function renderLayersPanel(){
         if (e.button !== 0) return;
         if (e.target.closest('.eye, input')) return;
         setActiveLayer(ix);
-        dragFrom = ix;
+        markActive(ix);
+        fillLayerProps();
+        drag.from = ix;
+        drag.y = e.clientY;
+        drag.live = false;
+        drag.ptr = e.pointerId;
         try { row.setPointerCapture(e.pointerId); } catch (_){}
-        notify();
+      });
+      row.addEventListener('pointermove', function(e){
+        if (drag.from < 0 || e.pointerId !== drag.ptr) return;
+        if (!drag.live && Math.abs(e.clientY - drag.y) < 5) return;
+        drag.live = true;
+        row.classList.add('dragging');
+        paintDropMarks(e.clientX, e.clientY, row);
       });
       row.addEventListener('pointerup', function(e){
-        if (dragFrom < 0) return;
-        var el = document.elementFromPoint(e.clientX, e.clientY);
-        var dest = el && el.closest ? el.closest('#edLayerList .layer') : null;
-        if (dest && dest !== row){
-          var to = +dest.dataset.ix;
-          if (isFinite(to)) moveLayer(dragFrom, to);
-        }
-        dragFrom = -1;
-        notify();
+        endLayerDrag(e, row);
+      });
+      row.addEventListener('pointercancel', function(e){
+        endLayerDrag(e, row);
       });
       listEl.appendChild(row);
     })(i);
   }
   fillLayerProps();
+}
+
+function markActive(ix){
+  if (!listEl) return;
+  var rows = listEl.querySelectorAll('.layer'), i;
+  for (i = 0; i < rows.length; i++)
+    rows[i].classList.toggle('active', +rows[i].dataset.ix === ix);
+}
+
+function clearDropMarks(){
+  if (!listEl) return;
+  var rows = listEl.querySelectorAll('.layer'), i;
+  for (i = 0; i < rows.length; i++)
+    rows[i].classList.remove('drop-before', 'drop-after', 'dragging');
+}
+
+function paintDropMarks(x, y, self){
+  clearDropMarks();
+  if (self) self.classList.add('dragging');
+  var el = document.elementFromPoint(x, y);
+  var dest = el && el.closest ? el.closest('#edLayerList .layer') : null;
+  if (!dest || dest === self) return;
+  var rect = dest.getBoundingClientRect();
+  dest.classList.add(y < rect.top + rect.height / 2 ? 'drop-before' : 'drop-after');
+}
+
+function endLayerDrag(e, row){
+  if (drag.from < 0) return;
+  var moved = drag.live;
+  if (moved){
+    var el = document.elementFromPoint(e.clientX, e.clientY);
+    var dest = el && el.closest ? el.closest('#edLayerList .layer') : null;
+    if (dest && dest !== row){
+      var to = +dest.dataset.ix;
+      var rect = dest.getBoundingClientRect();
+      var before = e.clientY < rect.top + rect.height / 2;
+      if (isFinite(to)) relocateLayer(drag.from, to, before);
+    }
+  }
+  drag.from = -1;
+  drag.live = false;
+  drag.ptr = -1;
+  clearDropMarks();
+  if (moved) notify();
 }
 
 function fillLayerProps(){
@@ -199,6 +249,9 @@ function fillLayerProps(){
     if (L.collide) return;
     L.py = v;
   });
+  row('Hue', -180, 180, 1, L.hue || 0, function(v){ L.hue = v; });
+  row('Saturation', 0, 2, 0.01, L.sat == null ? 1 : L.sat, function(v){ L.sat = v; });
+  row('Brightness', -0.8, 1.2, 0.01, L.bright || 0, function(v){ L.bright = v; });
   if (kind === 'ridge'){
     row('Amplitude', 8, 80, 1, L.amp == null ? 30 : L.amp, function(v){ L.amp = v; });
     row('Horizon', 40, 180, 1, L.y0 == null ? 140 : L.y0, function(v){ L.y0 = v; });
@@ -216,12 +269,18 @@ function fillLayerProps(){
     check('Collision layer', !!L.collide, function(on){ setLayerCollide(L, on); });
     check('Repeat (infinite tile)', !!L.wrap, function(on){ setLayerWrap(L, on); });
     if (L.wrap){
-      row('Stamp W', 1, 32, 1, L.wrapW || 8, function(v){ setWrapSize(L, v, L.wrapH || 8); });
-      row('Stamp H', 1, 32, 1, L.wrapH || 8, function(v){ setWrapSize(L, L.wrapW || 8, v); });
+      row('Stamp W', 1, 256, 1, L.wrapW || 8, function(v){ setWrapSize(L, v, L.wrapH || 8); });
+      row('Stamp H', 1, 256, 1, L.wrapH || 8, function(v){ setWrapSize(L, L.wrapW || 8, v); });
       var note = document.createElement('div');
       note.className = 'ed-layer-kind';
       note.textContent = 'Paint the stamp — it tiles forever. 1×1 = solid fill.';
       propsEl.appendChild(note);
+    }
+    if (L.collide){
+      var objNote = document.createElement('div');
+      objNote.className = 'ed-layer-kind';
+      objNote.textContent = 'Hero & objects live on this layer.';
+      propsEl.appendChild(objNote);
     }
   }
 }

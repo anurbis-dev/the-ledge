@@ -11,7 +11,7 @@ import { fireHarpoon, tryHarpoonPickup } from './harpoons.js';
 
 export function mkTorches(){
   var LV = runtime.LV;
-  return LV.torches.map(function(a, i){
+  return (LV.torches || []).map(function(a, i){
     return { id:i, x:a[0]*T+8, y:(a[1]+1)*T, vx:0, vy:0, held:false, ground:true, ph:i*1.7,
              ang:0, spin:0, wasAir:false, thrown:false, lit:true,
              hx:a[0]*T+8, hy:(a[1]+1)*T };

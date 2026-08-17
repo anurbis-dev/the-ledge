@@ -1,6 +1,6 @@
 import GAME from '../core/game.js';
 import { hooks } from '../core/runtime.js';
-import { getLayers, layerShown, lastCollideIndex, layerTile, layerVar, isTileLayer, wrapSize } from '../core/layers.js';
+import { getLayers, layerShown, lastCollideIndex, layerTile, layerVar, isTileLayer, wrapSize, layerCssFilter } from '../core/layers.js';
 import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH, viewScale } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
 import { waterDepthK } from './fx.js';
@@ -465,6 +465,8 @@ export function tilesLayer(L){
   _L = L || null;
   var px = L && L.px != null ? L.px : 1;
   var py = L && L.py != null ? L.py : 1;
+  var filt = layerCssFilter(L);
+  if (filt) ctx.filter = filt;
   try {
     syncPal();
     if (L && L.wrap) blitWrapLayer(L, cam.x * px, cam.y * py);
@@ -473,6 +475,7 @@ export function tilesLayer(L){
       blitLayer(cam.x * px, cam.y * py);
     }
   } finally {
+    if (filt) ctx.filter = 'none';
     chunkCache = prev;
     _L = null;
   }

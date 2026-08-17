@@ -3,7 +3,10 @@ import { runtime } from '../core/runtime.js';
 
 export function mkItems(){
   var LV = runtime.LV;
-  return LV.items().map(function(a, i){
+  var raw = LV.items;
+  if (typeof raw === 'function') raw = raw();
+  if (!raw) raw = [];
+  return raw.map(function(a, i){
     return { id:i, x:a[0]*T+8, y:a[1]*T+8+(a[3]||0), kind:a[2], got:false, ph:(i*37%100)/100*6.28 };
   });
 }

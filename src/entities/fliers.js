@@ -6,7 +6,7 @@ import { wearGear } from './gear.js';
 
 export function mkFliers(){
   var LV = runtime.LV;
-  return LV.fliers.map(function(a, i){
+  return (LV.fliers || []).map(function(a, i){
     var kind = a[5] !== undefined ? a[5] : (i % 3);
     if (i % 4 === 3) kind = 3;                        // пикировщик
     return { id:i, x:a[0], y:a[1], w: kind === 2 ? 16 : 13, h: kind === 2 ? 11 : 9,

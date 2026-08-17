@@ -91,13 +91,14 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
 .ed-inspect{right:8px;top:36px;width:230px}
 .ed-float-head{display:flex;align-items:center;justify-content:space-between;gap:6px;
   padding:5px 6px;border-bottom:1px solid #2a2444;color:#cfc6ff;font-size:11px;letter-spacing:.08em}
-.layerlist{flex:1 1 auto;min-height:48px;max-height:240px;overflow:auto;padding:4px}
+.layerlist{flex:1 1 auto;min-height:48px;max-height:240px;overflow:auto;padding:4px;cursor:grab}
 .layer{position:relative;display:flex;align-items:center;gap:4px;padding:5px 6px;
   border-radius:5px;border:1px solid transparent;background:#1a152e;margin-bottom:4px;
   cursor:pointer;user-select:none}
 .layer.active{border-color:#8f88bb;background:#2a2450}
 .layer.hidden-layer{opacity:.45}
 .layer.dim-solo{opacity:.4}
+.layer.dragging{opacity:.55;cursor:grabbing;pointer-events:none}
 .layer .layername{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-size:11px;color:#e9e4ff}
 .layer input.layername-edit{flex:1;min-width:0;background:#0d0a18;border:1px solid #8f88bb;

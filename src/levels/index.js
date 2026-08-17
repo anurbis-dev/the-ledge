@@ -6,10 +6,12 @@ import { level as crucible } from './crucible.js';
 import { runtime, resetMap } from '../core/runtime.js';
 import { fillR } from '../core/map.js';
 import { stashLayers, restoreLayers, initDefaultLayers } from '../core/layers.js';
+import { flushLevel } from '../core/persist.js';
 
 export const LEVELS = [caves, cliff, waterfall, halls, crucible];
 
 export function loadLevel(i){
+  flushLevel(runtime.W);
   stashLayers(runtime.LV);
   runtime.LVI = Math.max(0, Math.min(LEVELS.length - 1, i));
   runtime.LV = LEVELS[runtime.LVI];

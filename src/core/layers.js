@@ -30,6 +30,24 @@ export function layerShown(L, honorSolo){
   return L.visible !== false;
 }
 
+/* герой и объекты живут на collision-слое; соло другого слоя их прячет */
+export function entitiesShown(honorSolo){
+  if (!honorSolo || !runtime.soloLayer) return true;
+  var ls = getLayers(), i;
+  for (i = 0; i < ls.length; i++)
+    if (ls[i].id === runtime.soloLayer) return !!ls[i].collide;
+  return true;
+}
+
+export function layerCssFilter(L){
+  if (!L) return '';
+  var hue = L.hue || 0;
+  var sat = L.sat == null ? 1 : L.sat;
+  var br = 1 + (L.bright || 0);
+  if (!hue && sat === 1 && Math.abs(br - 1) < 0.001) return '';
+  return 'hue-rotate(' + hue + 'deg) saturate(' + sat + ') brightness(' + br + ')';
+}
+
 export function lastCollideIndex(){
   var ls = getLayers(), last = -1, i;
   for (i = 0; i < ls.length; i++) if (ls[i].collide) last = i;
@@ -63,10 +81,18 @@ function ensureUniqueIds(){
   }
 }
 
+function colorDefaults(L){
+  if (L.hue == null) L.hue = 0;
+  if (L.sat == null) L.sat = 1;
+  if (L.bright == null) L.bright = 0;
+  return L;
+}
+
 function proc(kind, name, extra){
   var L = {
     id: 0, kind: kind, name: name,
-    px: 1, py: 1, visible: true, locked: false, collide: false
+    px: 1, py: 1, visible: true, locked: false, collide: false,
+    hue: 0, sat: 1, bright: 0
   };
   if (extra) for (var k in extra) L[k] = extra[k];
   return L;
@@ -109,6 +135,7 @@ export function initDefaultLayers(){
     id: nextId(), name: 'Main', kind: 'tiles',
     px: 1, py: 1, visible: true, locked: false, collide: true,
     wrap: false, wrapW: 8, wrapH: 8,
+    hue: 0, sat: 1, bright: 0,
     base: runtime.base, vary: runtime.vary
   });
   var front = takeIds(defaultFront());
@@ -122,8 +149,10 @@ export function ensureDecorLayers(){
   var ls = getLayers();
   if (!ls.length){ initDefaultLayers(); return 0; }
   var i;
-  for (i = 0; i < ls.length; i++)
+  for (i = 0; i < ls.length; i++){
     if (!ls[i].kind) ls[i].kind = 'tiles';
+    colorDefaults(ls[i]);
+  }
   var back = takeIds(defaultBack());
   for (i = 0; i < back.length; i++) ls.splice(i, 0, back[i]);
   runtime.activeLayer = (runtime.activeLayer | 0) + back.length;
@@ -139,6 +168,7 @@ export function addLayer(name){
     kind: 'tiles',
     px: 1, py: 1, visible: true, locked: false, collide: false,
     wrap: false, wrapW: 8, wrapH: 8,
+    hue: 0, sat: 1, bright: 0,
     base: new Uint8Array(runtime.MAP_W * runtime.MAP_H),
     vary: new Uint8Array(runtime.MAP_W * runtime.MAP_H)
   };
@@ -174,6 +204,17 @@ export function moveLayer(from, to){
   bindMain();
 }
 
+/* dest — индекс цели; beforeVisual: вставить выше в списке (ближе к переднему плану) */
+export function relocateLayer(from, dest, beforeVisual){
+  var n = getLayers().length;
+  if (from < 0 || dest < 0 || from >= n || dest >= n) return;
+  var insert = beforeVisual ? dest + 1 : dest;
+  if (from < insert) insert--;
+  if (insert < 0) insert = 0;
+  if (insert > n - 1) insert = n - 1;
+  moveLayer(from, insert);
+}
+
 function collideCount(except){
   var ls = getLayers(), n = 0, i;
   for (i = 0; i < ls.length; i++) if (ls[i].collide && ls[i] !== except) n++;
@@ -195,10 +236,12 @@ export function setLayerCollide(L, on){
   bindMain();
 }
 
+var WRAP_MAX = 256;
+
 export function wrapSize(L){
   return {
-    w: Math.max(1, Math.min(32, (L && L.wrapW) || 8)),
-    h: Math.max(1, Math.min(32, (L && L.wrapH) || 8))
+    w: Math.max(1, Math.min(WRAP_MAX, (L && L.wrapW) || 8)),
+    h: Math.max(1, Math.min(WRAP_MAX, (L && L.wrapH) || 8))
   };
 }
 
@@ -271,8 +314,8 @@ export function setLayerWrap(L, on){
 
 export function setWrapSize(L, w, h){
   if (!L) return;
-  L.wrapW = Math.max(1, Math.min(32, w | 0));
-  L.wrapH = Math.max(1, Math.min(32, h | 0));
+  L.wrapW = Math.max(1, Math.min(WRAP_MAX, w | 0));
+  L.wrapH = Math.max(1, Math.min(WRAP_MAX, h | 0));
   if (L.wrap) ensureStamp(L);
 }
 
@@ -307,6 +350,7 @@ function dumpLayer(L){
   return {
     id: L.id, name: L.name, kind: layerKind(L),
     px: L.px, py: L.py,
+    hue: L.hue || 0, sat: L.sat == null ? 1 : L.sat, bright: L.bright || 0,
     visible: L.visible !== false, locked: !!L.locked, collide: !!L.collide,
     wrap: !!L.wrap, wrapW: L.wrapW || 8, wrapH: L.wrapH || 8,
     amp: L.amp, y0: L.y0, color: L.color,
@@ -321,6 +365,7 @@ function loadLayer(L){
   var o = {
     id: L.id, name: L.name, kind: L.kind || 'tiles',
     px: L.px, py: L.py,
+    hue: L.hue || 0, sat: L.sat == null ? 1 : L.sat, bright: L.bright || 0,
     visible: L.visible !== false, locked: !!L.locked, collide: !!L.collide,
     wrap: !!L.wrap, wrapW: L.wrapW || 8, wrapH: L.wrapH || 8,
     amp: L.amp, y0: L.y0, color: L.color,
