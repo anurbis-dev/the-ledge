@@ -24,7 +24,7 @@ npm run build    # → dist/index.html (один файл)
 | `src/render/` | canvas, позы, свет, HUD |
 | `src/input/` | клавиши + виртуальный стик |
 | `src/editor/` | встроенный тайл-редактор |
-| `src/audio/` | WebAudio blips |
+| `src/audio/` | WebAudio blips + chip-музыка (`music.js`, `scores/`) |
 | `tmp/ledge-v19.html` | канон монолита |
 
 ## Version

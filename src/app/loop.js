@@ -9,6 +9,7 @@ import {
   setViewScale, applyVolumes, drawCollideOverlay
 } from '../render/index.js';
 import { blip, liftSound, hushLift, hushSounds, stepSounds } from '../audio/sfx.js';
+import { startMusic, hushMusic, resumeMusic, musicPlaying } from '../audio/music.js';
 import { held, latch, ax, stick, bindInput } from '../input/input.js';
 import { ED, edOpen, edClose, edApply, edExportText, edDrawOverlay, bindEditor, snapEditCam, syncDelBtn } from '../editor/editor.js';
 import { hooks } from '../core/runtime.js';
@@ -280,6 +281,7 @@ function startLevel(idx){
   setMenu(false);
   canResume = true;
   syncDelBtn();
+  startMusic();
   if (G.levelSpec() && G.levelSpec().blank){
     introT = 0;
     if (!ED.on) edOpen();
@@ -344,10 +346,11 @@ function frame(now){
   if (!ED.on && !isMenu()){ view.time += dt; view.animT += dt; }
   if (view.flash > 0) view.flash = Math.max(0, view.flash - dt*2.2);
 
-  if (isMenu()){ acc = 0; hushLift(); hushSounds(); requestAnimationFrame(frame); return; }
+  if (isMenu()){ acc = 0; hushLift(); hushSounds(); hushMusic(); requestAnimationFrame(frame); return; }
   if (ED.on){
     acc = 0;
     hushLift();
+    hushMusic();
     view.edit = true;
     snapEditCam();
     var z = ED.zoom || 1;
@@ -387,6 +390,8 @@ function frame(now){
   if (introT > 0 || paused || outro || gameOver){
     acc = 0;
     hushLift(); hushSounds();
+    if (paused || outro || gameOver) hushMusic();
+    else resumeMusic();
     ctx.clearRect(0, 0, VW, VH);
     sky(); tiles();
     if (entitiesShown(false)){
@@ -405,6 +410,7 @@ function frame(now){
     return;
   }
 
+  resumeMusic();
   var first = true;
   while (acc >= STEP){
     acc -= STEP;
@@ -581,7 +587,7 @@ export function start(){
   });
   document.getElementById('bReset').addEventListener('click', hardReset);
   document.addEventListener('visibilitychange', function(){
-    if (document.hidden){ paused = true; hushLift(); hushSounds(); }
+    if (document.hidden){ paused = true; hushLift(); hushSounds(); hushMusic(); }
   });
   addEventListener('resize', function(){ resize(); });
   addEventListener('orientationchange', function(){ setTimeout(resize, 160); });
@@ -603,6 +609,7 @@ export function start(){
     window.__skip = function(){ introT = 0; paused = false; gameOver = null; setOutro(null); };
     window.__screens = function(){ return { intro: introT, paused: paused, outro: !!outro, dead: !!gameOver, resume: canResume }; };
     window.__game = G;
+    window.__music = { start: startMusic, hush: hushMusic, resume: resumeMusic, playing: musicPlaying };
     window.__fish = getFish;
     window.__editor = { open: edOpen, close: edClose, state: ED,
                         apply: function(c, r){ edApply({ c:c, r:r }); },

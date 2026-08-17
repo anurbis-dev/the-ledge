@@ -44,6 +44,8 @@
 
 Упор в стену: `p.pushWall` (в `step.js`, рядом с проверкой мантла в ветке `ax !== 0` при блокировке движения) — true только пока держат ввод в стену на земле в стойке; отпустили — сразу `false`, обычная стойка. Поза `WALLPUSH` (`render/hero.js:boxPose`) — ладони на уровне груди, чуть вверх по стене, не вытянуты вперёд.
 
+Музыка: `src/audio/music.js` + партитура `src/audio/scores/lantern-key.json`. WebAudio chip (triangle bass / square arp+lead / noise drums), без MP3. Сборщик `scripts/track-to-score.mjs` (`npm run music:score`, декодер `mpg123-decoder` в `tmp/tools`). Старт в `startLevel`, hush на меню/паузе/редакторе/outro/dead/hidden. Отладка: `window.__music`.
+
 Реплики: `src/speech/` — неблокирующие бабблы героини (`mutterHero`: empty / locked / first) и ветвящиеся диалоги NPC (`TREES` в `trees.js`, `startTalk` / `stepSpeech`). Баббл пиксельный (`render/bubbles.js`), хвост к говорящему, печать по буквам. Звук буквы — `audio/talk.js` (`talkBlip`, варианты в `TALK_VARIANTS`); выбранный тембр в `ledge.dev.talk`. Лаборатория: `/talk-lab.html`. Первый подбор каждого kind — `ledge.dev.seenKinds`. NPC: `LV.npcs: [[col,row,tree,facing]]`, объекты редактора Hermit / Wanderer. Пустой сундук (`loot: []` или повторный action) и запертая дверь без ключа — mutter.
 
 ## Рендер

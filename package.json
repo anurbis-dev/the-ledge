@@ -1,6 +1,6 @@
 {
   "name": "the-ledge",
-  "version": "0.1.0-dev.40",
+  "version": "0.1.0-dev.41",
   "description": "the LEDGE — caves and ledges",
   "type": "module",
   "scripts": {
@@ -14,7 +14,8 @@
     "bump:alpha": "node scripts/bump-version.mjs alpha",
     "bump:beta": "node scripts/bump-version.mjs beta",
     "bump:rc": "node scripts/bump-version.mjs rc",
-    "bump:release": "node scripts/bump-version.mjs release"
+    "bump:release": "node scripts/bump-version.mjs release",
+    "music:score": "node scripts/track-to-score.mjs"
   },
   "repository": {
     "type": "git",
