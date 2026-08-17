@@ -18,9 +18,10 @@ export function mkPlayer(){
     apexY: sy, fell: 0, ride: null, hang: null, climb: null, lad: null,
     rollAng: 0, torch: -1, walking: false, warp: null,
     lastWall: 0, stick: false, helmet: false, shield: false, shieldCd: 0,
-    scuba: false, flippers: false, harpoonGun: false,
+    scuba: false, flippers: false, harpoonGun: false, hand: 'weapon',
     gear: { weapon:null, shield:null, helmet:null }, spare: [], bashT: 0,
     atkT: 0, atkCd: 0, hurtCd: 0, snap: null, pickT: 0, pickPend: null, throwT: 0, throwPend: false, bowT: 0,
+    grapple: null, harpoonCd: 0,
     stance: 0, bars: null, ladCd: 0, inWater: false, wading: false,
     atSurface: false, swimSurf: null, swimAng: 0, wasWet: false, bubT: 0,
     air: C.AIR_MAX, swimLaunch: 0, stam: C.STAM_MAX, dashT: 0,
@@ -34,11 +35,13 @@ export function resetPlayer(S){
   var had = S.p ? S.p.stick : false;
   var hadH = S.p ? S.p.helmet : false, hadS = S.p ? S.p.shield : false;
   var hadSc = S.p ? S.p.scuba : false, hadF = S.p ? S.p.flippers : false, hadHp = S.p ? S.p.harpoonGun : false;
+  var hadHand = S.p ? S.p.hand : 'weapon';
   if (S.torches) for (var i = 0; i < S.torches.length; i++) S.torches[i].held = false;
   var np = mkPlayer();
   np.x = S.respawn.x; np.y = S.respawn.y; np.apexY = np.y; np.onGround = true;
   np.stick = had; np.helmet = hadH; np.shield = hadS;
   np.scuba = hadSc; np.flippers = hadF; np.harpoonGun = hadHp;
+  np.hand = hadHand;
   if (S.p){ np.gear = S.p.gear; np.spare = S.p.spare; }
   S.p = np;
 }
@@ -202,6 +205,7 @@ export function damage(S, n, stun){
   S.hp -= n;
   if (S.hp < 0) S.hp = 0;
   S.p.stunT = stun; S.p.state = 'stun'; S.p.vx = 0;
+  S.p.grapple = null; S.p.harpoonCd = C.HARPOON_CD;
   S.shake = Math.min(7, 3 + n * 2); S.hitStop = 0.09;
   S.p.events.push('hurt');
   breakTalk(S, 'hit');

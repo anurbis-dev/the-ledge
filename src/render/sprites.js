@@ -35,6 +35,17 @@ export function drawHarpoons(){
     lb([x - d*7, y], [x + d*7, y], 2, P.stickD);
     rc(x + d*5, y - 1, d*3, 3, '#c9d4dc');           // наконечник
   }
+  var g = S.p && S.p.grapple;
+  if (g){
+    var p = S.p;
+    var hx = Math.round(g.x - cam.x), hy = Math.round(g.y - cam.y);
+    var px = Math.round(p.x + p.w / 2 - cam.x), py = Math.round(p.y + 8 - cam.y);
+    lb([px, py], [hx, hy], 1, '#8a94a0');
+    var ang = Math.atan2(g.vy || (g.y - g.oy), g.vx || (g.x - g.ox));
+    var cs = Math.cos(ang), sn = Math.sin(ang);
+    lb([hx - cs * 6, hy - sn * 6], [hx + cs * 5, hy + sn * 5], 2, P.stickD);
+    rc(Math.round(hx + cs * 4) - 1, Math.round(hy + sn * 4) - 1, 3, 3, '#c9d4dc');
+  }
 }
 
 export function drawArrows(){

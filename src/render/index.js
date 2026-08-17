@@ -10,4 +10,4 @@ export { plats, lifts, caveExit, doors, chests, lootDrops, items, pickables, dra
 export { drawBubbles } from './bubbles.js';
 export { hero } from './hero.js';
 export { lightPass } from './light.js';
-export { hud, drawIntro, drawPaused, drawOutro, drawDead } from './hud.js';
+export { hud, drawIntro, drawPaused, drawOutro, drawDead, hudHitsWeapon } from './hud.js';

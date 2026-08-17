@@ -2,6 +2,7 @@ import GAME from '../core/game.js';
 import { ctx, view, VW, VH, rc, world } from './ctx.js';
 import { P } from './palette.js';
 import { pickIntroLine } from '../core/intro.js';
+import { listHand, activeHandItem, isHarpoonHand } from '../entities/gear.js';
 
 var G = GAME, C = G.C;
 
@@ -57,13 +58,31 @@ export function hud(){
     rc(sx3, sy3 + (S.p.stance === 2 ? 4 : 2), 8, 2, S.p.stance === 2 ? '#ff9b6a' : '#9fe0ff');
     rc(sx3 + 2, sy3, 4, 2, '#4a4368');
   }
-  // инвентарь: активное снаряжение с прочностью и число запасных
-  var slots = [['weapon', 84], ['helmet', 108], ['shield', 130], ['scuba', 152], ['flippers', 174], ['harpoon', 196]];
+  // инвентарь: активная рука (оружие/гарпун) + шлем/щит/ласты
+  var handIt = activeHandItem(S.p);
+  var handList = listHand(S.p);
+  var slots = [['hand', 84], ['helmet', 108], ['shield', 130], ['scuba', 152], ['flippers', 174]];
   for (var si = 0; si < slots.length; si++){
-    var sl = slots[si][0], ox2 = bx + slots[si][1], g2 = S.p.gear[sl];
+    var sl = slots[si][0], ox2 = bx + slots[si][1];
+    var g2 = sl === 'hand' ? handIt : S.p.gear[sl];
     if (!g2) continue;
     var gc = P.gearCol[g2.type] || ['#cfc6ff', '#7a72a8'];
-    if (sl === 'weapon' || sl === 'harpoon'){ rc(ox2, by + 2, 14, 2, gc[0]); rc(ox2, by + 4, 14, 1, gc[1]); }
+    if (sl === 'hand'){
+      if (handList.length > 1){                              // рамка — можно переключить (Q / тап)
+        rc(ox2 - 2, by - 2, 18, 13, '#3a3460');
+        rc(ox2 - 1, by - 1, 16, 11, '#150f26');
+      }
+      if (g2.type === 'harpoon' || isHarpoonHand(S.p)){
+        rc(ox2, by + 3, 11, 2, gc[0]); rc(ox2, by + 5, 11, 1, gc[1]);
+        rc(ox2 + 10, by + 1, 3, 2, gc[0]); rc(ox2 + 11, by, 2, 2, '#c9d4dc');
+      } else if (g2.type === 'bow'){
+        rc(ox2 + 6, by, 2, 8, gc[1]); rc(ox2 + 3, by + 1, 3, 1, gc[0]);
+        rc(ox2 + 8, by + 1, 3, 1, gc[0]); rc(ox2 + 2, by + 6, 4, 1, gc[0]);
+        rc(ox2 + 8, by + 6, 4, 1, gc[0]);
+      } else {
+        rc(ox2, by + 2, 14, 2, gc[0]); rc(ox2, by + 4, 14, 1, gc[1]);
+      }
+    }
     else if (sl === 'helmet'){ rc(ox2, by, 8, 4, gc[1]); rc(ox2 - 1, by + 4, 10, 2, gc[0]); }
     else if (sl === 'scuba'){ rc(ox2, by, 6, 8, gc[0]); rc(ox2+6, by+2, 3, 4, gc[1]); }
     else if (sl === 'flippers'){ rc(ox2, by+2, 10, 4, gc[0]); rc(ox2-1, by+5, 4, 3, gc[1]); rc(ox2+7, by+5, 4, 3, gc[1]); }
@@ -71,8 +90,10 @@ export function hud(){
     var wgt = Math.max(0, Math.round(g2.uses / g2.max * 14));   // полоска прочности (у ласт/акваланга всегда полная)
     rc(ox2, by + 8, 14, 2, '#2a2444');
     rc(ox2, by + 8, wgt, 2, g2.uses <= 2 ? '#ff7a6a' : '#7de08a');
-    var sp2 = 0;
-    for (var q2 = 0; q2 < S.p.spare.length; q2++) if (S.p.spare[q2].slot === sl) sp2++;
+    var sp2 = sl === 'hand' ? Math.max(0, handList.length - 1) : 0;
+    if (sl !== 'hand'){
+      for (var q2 = 0; q2 < S.p.spare.length; q2++) if (S.p.spare[q2].slot === sl) sp2++;
+    }
     if (sp2 > 0) num(sp2, ox2 + 16, by + 1, '#cfc6ff');
   }
   var airMax2 = S.p.scuba ? C.SCUBA_AIR : C.AIR_MAX;
@@ -91,6 +112,12 @@ export function hud(){
     ctx.globalAlpha = a; rc(VW/2-18, 8, 36, 10, P.relicD);
     rc(VW/2-16, 10, 32, 6, P.relic); ctx.globalAlpha = 1;
   }
+}
+
+export function hudWeaponRect(){ return { x: 88, y: 12, w: 20, h: 14 }; }
+export function hudHitsWeapon(sx, sy){
+  var r = hudWeaponRect();
+  return sx >= r.x && sx <= r.x + r.w && sy >= r.y && sy <= r.y + r.h;
 }
 
 export function panel(x, y, w, h){

@@ -4,7 +4,7 @@ import {
   sky, tiles, tilesFront, plats, lifts, caveExit, doors, chests, boulders, npcs,
   lootDrops, items, pickables, drawTorches, drawHarpoons, drawArrows, enemies, spiders, fliers, tendrils,
   hero, lightPass, drawWeeds, drawFish, drawParts, drawHearts,
-  vignette, hud, drawIntro, drawPaused, drawOutro, drawDead, drawBubbles,
+  vignette, hud, drawIntro, drawPaused, drawOutro, drawDead, drawBubbles, hudHitsWeapon,
   applyPal, buildWater, stepWater, invalidateAll, fore, rc, getFish, spark, landDust, bonkDust, clampCam,
   setViewScale, applyVolumes, drawCollideOverlay
 } from '../render/index.js';
@@ -16,6 +16,7 @@ import { hooks } from '../core/runtime.js';
 import { prog, buildMenu, showMenu, showMenuHome, menuScreen, isMenu, setMenu, saveProgress, dropProgressAt, applyBootSettings } from '../ui/menu.js';
 import { showSplash } from '../ui/splash.js';
 import { findById } from '../entities/ids.js';
+import { cycleHand } from '../entities/gear.js';
 import { entitiesShown } from '../core/layers.js';
 import { hydrateAll } from '../core/persist.js';
 import { speechBlocks } from '../speech/runtime.js';
@@ -169,8 +170,11 @@ function onEvent(ev){
   else if (k === 'harpoon'){
     var hSub = ev.split(':')[1];
     if (hSub === 'shoot'){ blip(380, 0.09, 'square', 0.05); spark(p.x+5+p.facing*8, p.y+p.h/2, 4, '#c9d4dc', 60); }
+    else if (hSub === 'hook'){ blip(220, 0.08, 'square', 0.05); spark(p.x+5, p.y+8, 5, '#c9d4dc', 50); }
+    else if (hSub === 'release'){ blip(300, 0.07, 'triangle', 0.035); }
     else { blip(700, 0.08, 'triangle'); }
   }
+  else if (k === 'swap'){ blip(640, 0.07, 'triangle', 0.04); }
   else if (k === 'tank'){ blip(500, 0.14, 'sine', 0.045); view.flash = 0.25; }
   else if (k === 'kelpsting'){ blip(180, 0.16, 'sawtooth', 0.06); view.flash = 0.3; spark(p.x+5, p.y+10, 8, '#c9de6a', 80); }
   else if (k === 'kelpwrap'){ blip(140, 0.2, 'sine', 0.05); S.shake = Math.max(S.shake, 2); spark(p.x+5, p.y+10, 10, '#4a8a7a', 70); }
@@ -560,12 +564,35 @@ export function start(){
     }
   });
 
+  function tryCycleHand(){
+    if (!S || ED.on || isMenu() || introT > 0 || gameOver || outro) return false;
+    return cycleHand(S);
+  }
+
   addEventListener('keydown', function(e){
     var tag = (e.target && e.target.tagName) || '';
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
     if (gameOver){ if (gameOver.t > 0.5) dismissDead(); return; }
     if (e.key === 'r' || e.key === 'R'){ hardReset(); return; }
     if (e.key === 'h' || e.key === 'H'){ toggleDbg(); return; }
+    if (e.key === 'q' || e.key === 'Q'){
+      e.preventDefault();
+      if (tryCycleHand()){
+        try { onEvent(S.p.events[S.p.events.length - 1]); } catch (_){}
+      }
+      return;
+    }
+  });
+  cv.addEventListener('pointerdown', function(e){
+    if (!S || ED.on || isMenu() || introT > 0 || gameOver || outro) return;
+    var r = cv.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    var mx = (e.clientX - r.left) / r.width * VW;
+    var my = (e.clientY - r.top) / r.height * VH;
+    if (hudHitsWeapon(mx, my) && tryCycleHand()){
+      e.preventDefault();
+      try { onEvent(S.p.events[S.p.events.length - 1]); } catch (_){}
+    }
   });
   document.getElementById('bFS').addEventListener('click', toggleFS);
   document.getElementById('bMenu').addEventListener('click', function(){

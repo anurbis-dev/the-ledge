@@ -79,8 +79,14 @@ export var PARAM_GROUPS = [
     { key: 'SWIM_UP', label: 'Swim up', min: -180, max: -10, step: 1 },
     { key: 'SWIM_DN', label: 'Swim down', min: 20, max: 160, step: 1 },
     { key: 'SWIM_JUMP', label: 'Swim launch', min: -320, max: -60, step: 1 },
-    { key: 'FLIP_MUL', label: 'Flipper mul', min: 1, max: 2.2, step: 0.05 },
-    { key: 'HARPOON_V', label: 'Harpoon speed', min: 60, max: 280, step: 1 }
+    { key: 'FLIP_MUL', label: 'Flipper mul', min: 1, max: 2.2, step: 0.05 }
+  ]},
+  { id: 'harpoon', name: 'Harpoon / Grapple', items: [
+    { key: 'HARPOON_V', label: 'Shot speed', min: 60, max: 420, step: 5, hint: 'bolt and hook fly' },
+    { key: 'HARPOON_LEN', label: 'Grapple length', min: 32, max: 320, step: 4 },
+    { key: 'HARPOON_PULL', label: 'Pull speed', min: 80, max: 480, step: 5 },
+    { key: 'HARPOON_DETACH', label: 'Detach dist', min: 6, max: 56, step: 1 },
+    { key: 'HARPOON_CD', label: 'Cooldown', min: 0, max: 1, step: 0.01 }
   ]},
   { id: 'ladder', name: 'Ladder / Bar / Lift', items: [
     { key: 'LAD_V', label: 'Ladder speed', min: 20, max: 140, step: 1 },

@@ -7,15 +7,16 @@ import {
   PRONE0, PRONE1, BARS0, BARS1, LADD0, LADD1, SWIM0, SWIM1,
   HANGL, HANG_A, HANG_B, lerpPose, climbPose, vaultPose, pickPose, throwPose, getupPose,
   BOW_STANCE, bowPose, bowHandOnString, bowReleaseFx,
-  WALLPUSH
+  WALLPUSH, GRAPPLE_D, GRAPPLE_U
 } from './poses.js';
 import { figure, drawBow } from './figure.js';
 import { torchPts } from './light.js';
+import { isBowHand, isHarpoonHand } from '../entities/gear.js';
 
 var G = GAME, C = G.C;
 
 function stancePose(st){ return st === 2 ? PRONE0 : (st === 1 ? CROUCH : IDLE_A); }
-function isBow(p){ return !!(p.gear.weapon && p.gear.weapon.type === 'bow'); }
+function isBow(p){ return isBowHand(p); }
 
 export function boxPose(p){
   var animT = view.animT, runPh = view.runPh;
@@ -27,6 +28,7 @@ export function boxPose(p){
     return lerpPose(stancePose(p.stanceFrom), stancePose(p.stance), 1 - p.stanceT / C.STANCE_T);
   if (p.stance === 2) return (Math.abs(p.vx) > 4 && Math.sin(animT*7) > 0) ? PRONE1 : PRONE0;
   if (p.stance === 1) return (Math.abs(p.vx) > 4 && Math.sin(animT*6) > 0) ? CROUCH_W : CROUCH;
+  if (p.grapple) return (p.grapple.up || (p.grapple.phase !== 'fly' && Math.abs(p.grapple.vx) < 20)) ? GRAPPLE_U : GRAPPLE_D;
   if (p.atkT > 0){
     var t = 1 - p.atkT / C.ATK_T;
     return t < 0.32 ? lerpPose(ATK0, ATK1, t/0.32) : lerpPose(ATK1, ATK2, (t-0.32)/0.68);
@@ -118,9 +120,14 @@ export function hero(){
     }
     pt[k] = [Math.round(p.x) + lxp - cam.x, Math.round(oy) + ly - cam.y];
   }
-  var hs = null, onBack = false, bow = isBow(p);
+  var hs = null, onBack = false, bow = isBow(p), harp = isHarpoonHand(p);
   var bowHeld = bow && (p.bowT > 0 || pose2 === BOW_STANCE);  // держит в руках только стоя на месте / в цикле выстрела
-  if (p.stick && !bow){
+  if (harp){
+    if (p.grapple){
+      var ga = Math.atan2(p.grapple.y - (p.y + 8), p.grapple.x - (p.x + p.w / 2));
+      hs = { ang: ga, type: 'harpoon' };
+    } else onBack = true;
+  } else if (p.stick && !bow){
     if (p.atkT > 0){
       var tt = 1 - p.atkT / C.ATK_T;
       var a0 = -2.1 + tt*3.5;                   // замах -> удар сверху вниз
@@ -135,7 +142,7 @@ export function hero(){
     helmet: p.helmet, shield: p.shield,
     helmType: p.gear.helmet && p.gear.helmet.type,
     shieldType: p.gear.shield && p.gear.shield.type,
-    weaponType: p.gear.weapon && p.gear.weapon.type,
+    weaponType: harp ? 'harpoon' : (p.gear.weapon && p.gear.weapon.type),
     bash: p.bashT,
     eyesClosed: p.knockedOut
   }, headTilt);

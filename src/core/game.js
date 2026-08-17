@@ -26,7 +26,7 @@ import { mkFliers } from '../entities/fliers.js';
 import { mkSpiders } from '../entities/spiders.js';
 import { mkDark, inDark, lightAt } from '../entities/dark.js';
 import { mkChests, tryChest } from '../entities/chests.js';
-import { GEAR, giveGear, wearGear } from '../entities/gear.js';
+import { GEAR, giveGear, wearGear, cycleHand } from '../entities/gear.js';
 import { mkHarpoons } from '../entities/harpoons.js';
 import { mkArrows } from '../entities/arrows.js';
 import { mkTendrils, mkTendrilAt } from '../entities/tendrils.js';
@@ -149,7 +149,7 @@ export const GAME = {
   LEVELS, loadLevel, newBlankLevel: addBlankLevel, removeLevel, levelIndex(){ return runtime.LVI; },
   levelSpec(){ return runtime.LV; },
   tryAction, dropTorch, attack, tryDoor, inLift,
-  GEAR, giveGear, wearGear,
+  GEAR, giveGear, wearGear, cycleHand,
   tryExit, liftSideOpen, tryChest,
   mutter, mutterHero, startTalk, endTalk, breakTalk,
   inDark, lightAt,

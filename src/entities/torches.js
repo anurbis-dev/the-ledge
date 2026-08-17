@@ -6,10 +6,10 @@ import { ignitePlank } from './planks.js';
 import { dropLoot } from './loot.js';
 import { tryChest } from './chests.js';
 import { tryTalk } from './npcs.js';
-import { giveGear } from './gear.js';
+import { giveGear, isHarpoonHand, isBowHand, isMeleeHand } from './gear.js';
 import { attack } from './enemies.js';
 import { findById } from './ids.js';
-import { fireHarpoon, tryHarpoonPickup } from './harpoons.js';
+import { fireHarpoon, fireGrapple, tryHarpoonPickup } from './harpoons.js';
 import { fireArrow, tryArrowPickup } from './arrows.js';
 
 export function mkTorches(){
@@ -138,7 +138,7 @@ export function resolvePickup(S){
     dropTorch(S, true);
   }
 }
-export function tryAction(S){
+export function tryAction(S, inp){
   var p = S.p;
   if (tryTalk(S)) return true;
   if (tryChest(S)) return true;                          // сундук открываем не выпуская факел
@@ -146,24 +146,24 @@ export function tryAction(S){
     if (p.throwT <= 0){ p.throwT = C.THROW_T; p.throwPend = true; }
     return true;
   }
-  var isBowEq = !!(p.gear.weapon && p.gear.weapon.type === 'bow');
-  if (p.state === 'snare' && p.stick && !isBowEq) return attack(S);
-  if (p.harpoonGun && p.gear.harpoon){
-    if (tryHarpoonPickup(S)) return true;
-    if (p.inWater && fireHarpoon(S)) return true;
-  }
-  if (isBowEq){
-    if (tryArrowPickup(S)) return true;
-    if (fireArrow(S)) return true;
-  }
+  if (p.state === 'snare' && isMeleeHand(p)) return attack(S);
   var pk = S.pick;
   if (!pk.stick.taken && p.state === 'normal' && p.pickT <= 0 &&
       Math.abs(pk.stick.x - (p.x + p.w/2)) < C.ACT_R && Math.abs(pk.stick.y - (p.y + p.h/2)) < 22){
     p.pickT = C.PICK_T; p.pickPend = { kind: 'stick' };
     return true;
   }
+  if (isHarpoonHand(p)){
+    if (tryHarpoonPickup(S)) return true;
+    if (p.inWater) return fireHarpoon(S);                // в воде — болт, без подтяга
+    return fireGrapple(S, inp);
+  }
+  if (isBowHand(p)){
+    if (tryArrowPickup(S)) return true;
+    if (fireArrow(S)) return true;
+  }
   if (p.state !== 'normal' && p.state !== 'ladder') return false;
-  if (p.stick && !isBowEq && p.stance === 0){              // враг в досягаемости — бьём
+  if (isMeleeHand(p) && p.stance === 0){              // враг в досягаемости — бьём
     var ax0 = p.x + p.w/2 + p.facing*(C.ATK_R*0.55), ay0 = p.y + p.h/2, hit = false, q;
     for (var qi = 0; qi < S.enemies.length; qi++){
       q = S.enemies[qi]; if (q.dead) continue;
@@ -175,14 +175,14 @@ export function tryAction(S){
     }
     if (hit) return attack(S);
   }
-  if (p.pickT > 0) return (p.stick && !isBowEq) ? attack(S) : false;   // уже приседаем за предметом
+  if (p.pickT > 0) return isMeleeHand(p) ? attack(S) : false;   // уже приседаем за предметом
   var best = -1, bd = C.ACT_R*C.ACT_R, cx = p.x + p.w/2, cy = p.y + p.h/2;
   for (var i = 0; i < S.torches.length; i++){
     var t = S.torches[i]; if (t.held) continue;
     var dx = t.x - cx, dy = (t.y - 6) - cy, d = dx*dx + dy*dy;
     if (d < bd){ bd = d; best = i; }
   }
-  if (best < 0) return (p.stick && !isBowEq) ? attack(S) : false;    // рядом нет факела — бьём палкой
+  if (best < 0) return isMeleeHand(p) ? attack(S) : false;    // рядом нет факела — бьём палкой
   p.pickT = C.PICK_T; p.pickPend = { kind: 'torch', id: S.torches[best].id };
   return true;
 }

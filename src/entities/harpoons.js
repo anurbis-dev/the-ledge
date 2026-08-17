@@ -65,6 +65,82 @@ export function fireHarpoon(S){
   return true;
 }
 
+function hookFree(x, y){ return rectFree(x - 1, y - 1, 2, 2); }
+
+export function releaseGrapple(S, p, ev){
+  if (!p.grapple) return;
+  p.grapple = null;
+  p.harpoonCd = C.HARPOON_CD;
+  p.jumping = false;
+  p.buf = 0;
+  p.coyote = 0;
+  p.onGround = false;
+  p.apexY = p.y;
+  if (p.state === 'grapple') p.state = 'normal';
+  if (ev) p.events.push(ev);
+}
+
+/* крюк на суше: 45° вперёд или строго вверх, если держали ↑.
+   застревает в твёрдом, тянет героиню, отстёгивается не долетая. */
+export function fireGrapple(S, inp){
+  var p = S.p, g = p.gear.harpoon;
+  if (!g) return false;
+  if (p.grapple || p.harpoonCd > 0) return false;
+  if (p.stance > 0 || p.rollT > 0) return false;
+  if (p.state !== 'normal' && p.state !== 'hang' && p.state !== 'ladder' && p.state !== 'bars')
+    return false;
+  var up = !!(inp && inp.upHeld);
+  var ang = up ? -Math.PI / 2 : (p.facing > 0 ? -Math.PI / 4 : -3 * Math.PI / 4);
+  var ox = p.x + p.w / 2 + p.facing * 6, oy = p.y + 8;
+  if (p.state === 'hang' || p.state === 'ladder' || p.state === 'bars'){
+    p.state = 'normal';
+    p.hang = null; p.lad = null; p.bars = null;
+  }
+  p.grapple = {
+    phase: 'fly', up: up,
+    x: ox, y: oy, ox: ox, oy: oy,
+    vx: Math.cos(ang) * C.HARPOON_V, vy: Math.sin(ang) * C.HARPOON_V,
+    travel: 0
+  };
+  p.events.push('harpoon:shoot');
+  return true;
+}
+
+/* полёт и сматывание — без движения игрока. phase==='pull' крутит step.js */
+export function stepGrapple(S, dt){
+  var p = S.p, g = p.grapple;
+  if (!g) return;
+  if (g.phase === 'pull') return;
+  if (g.phase === 'retract'){
+    var pcx = p.x + p.w / 2, pcy = p.y + 8;
+    var dx = pcx - g.x, dy = pcy - g.y, d = Math.hypot(dx, dy);
+    if (d < 8){ releaseGrapple(S, p); return; }
+    var rs = C.HARPOON_V * 1.7 * dt / d;
+    g.x += dx * rs; g.y += dy * rs;
+    return;
+  }
+  var span = Math.hypot(g.vx, g.vy) * dt;
+  var steps = Math.max(1, Math.ceil(span / 2));
+  var sx = g.vx * dt / steps, sy = g.vy * dt / steps, i;
+  for (i = 0; i < steps; i++){
+    var nx = g.x + sx, ny = g.y + sy;
+    if (!hookFree(nx, ny)){
+      g.phase = 'pull';
+      p.onGround = false;
+      p.jumping = false;
+      p.events.push('harpoon:hook');
+      return;
+    }
+    g.x = nx; g.y = ny;
+    g.travel += Math.hypot(sx, sy);
+    if (g.travel >= C.HARPOON_LEN){
+      g.phase = 'retract';
+      p.events.push('harpoon:miss');
+      return;
+    }
+  }
+}
+
 export function tryHarpoonPickup(S){
   var p = S.p, g = p.gear.harpoon;
   if (!g) return false;

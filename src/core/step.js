@@ -15,7 +15,7 @@ import { stepTorches, tryAction, resolvePickup } from '../entities/torches.js';
 import { stepPlanks } from '../entities/planks.js';
 import { stepGive } from '../entities/give.js';
 import { stepBoulders, pushBoulders } from '../entities/boulders.js';
-import { stepHarpoons } from '../entities/harpoons.js';
+import { stepHarpoons, stepGrapple, releaseGrapple } from '../entities/harpoons.js';
 import { stepArrows } from '../entities/arrows.js';
 import { stepEnemies } from '../entities/enemies.js';
 import { stepFliers, stepDrops } from '../entities/fliers.js';
@@ -44,6 +44,7 @@ export function step(S, dt, inp){
   stepPlanks(S, dt);
   stepBoulders(S, dt);
   stepHarpoons(S, dt);
+  stepGrapple(S, dt);
   stepArrows(S, dt);
   stepEnemies(S, dt);
   stepFliers(S, dt);
@@ -96,9 +97,10 @@ export function step(S, dt, inp){
     inp.downHeld = false;
   }
   if (inp.upPressed && (tryExit(S) || tryDoor(S))) { /* вверх: пещера или дверь */ }
-  else if (inp.actPressed) tryAction(S);
+  else if (inp.actPressed) tryAction(S, inp);
 
   var p = S.p;
+  if (p.harpoonCd > 0) p.harpoonCd = Math.max(0, p.harpoonCd - dt);
   if (p.grabCd > 0) p.grabCd = Math.max(0, p.grabCd - dt);
   if (p.ladCd > 0) p.ladCd = Math.max(0, p.ladCd - dt);
   if (p.rollCd > 0) p.rollCd = Math.max(0, p.rollCd - dt);
@@ -156,6 +158,33 @@ export function step(S, dt, inp){
   if (p.state === 'climb'){ updateClimb(S, p, dt); crumbCheck(S, p); pickups(S, p); return; }
   if (p.state === 'hang'){ updateHang(S, p, dt, inp); crumbCheck(S, p); pickups(S, p); return; }
   if (p.state === 'ladder'){ updateLadder(S, p, dt, inp); pickups(S, p); return; }
+
+  /* крюк: тянем к точке, не долетая отстёгиваемся с текущей скоростью */
+  if (p.grapple && p.grapple.phase === 'pull'){
+    if (inp.jumpPressed){
+      releaseGrapple(S, p, 'harpoon:release');
+    } else {
+      var hg = p.grapple;
+      var hcx = p.x + p.w / 2, hcy = p.y + p.h / 2;
+      var hdx = hg.x - hcx, hdy = hg.y - hcy, hd = Math.hypot(hdx, hdy);
+      if (hd <= C.HARPOON_DETACH){
+        releaseGrapple(S, p, 'harpoon:release');
+      } else {
+        var hn = 1 / hd;
+        p.vx = hdx * hn * C.HARPOON_PULL;
+        p.vy = hdy * hn * C.HARPOON_PULL;
+        p.onGround = false; p.jumping = false; p.buf = 0; p.apexY = p.y;
+        var hox = p.x, hoy = p.y;
+        moveX(S, p, p.vx * dt);
+        moveY(S, p, p.vy * dt);
+        if (Math.hypot(p.x - hox, p.y - hoy) < 0.25 && hd > C.HARPOON_DETACH + 4)
+          releaseGrapple(S, p, 'harpoon:release');
+        liftConstrain(S);
+        crumbCheck(S, p); pickups(S, p);
+        return;
+      }
+    }
+  }
 
   /* --- normal / roll --- */
   var rolling = p.rollT > 0;

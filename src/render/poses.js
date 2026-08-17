@@ -94,15 +94,18 @@ export function getupPose(t){
 export const BOW_STANCE = po({head:[5,4],neck:[5,8],hip:[5,14], eF:[7,11],hF:[7,15], eB:[9,6],hB:[15,6], kF:[8,17],fF:[9,21],kB:[3,19],fB:[2,22]});
 export const BOW_DRAW   = po({head:[5,4],neck:[5,8],hip:[5,14], eF:[3,6], hF:[-1,6],eB:[9,6],hB:[15,6], kF:[8,17],fF:[9,21],kB:[3,19],fB:[2,22]});
 export const BOW_RELEASE= po({head:[5,3],neck:[5,7],hip:[5,14], eF:[2,4], hF:[-2,2],eB:[9,6],hB:[15,6], kF:[8,17],fF:[9,21],kB:[3,19],fB:[2,22]});
-/* t — доля цикла выстрела (0..1): стойка -> натяжение -> резкий спуск -> сброс в стойку */
+/* t — доля цикла выстрела (0..1): сразу поза полного натяга (без замаха) -> резкий спуск -> сброс в стойку */
 export function bowPose(t){
   if (t <= 0 || t >= 1) return BOW_STANCE;
-  if (t < 0.55) return lerpPose(BOW_STANCE, BOW_DRAW, t/0.55);
-  if (t < 0.68) return BOW_DRAW;
-  if (t < 0.78) return lerpPose(BOW_DRAW, BOW_RELEASE, (t-0.68)/0.10);
-  return lerpPose(BOW_RELEASE, BOW_STANCE, (t-0.78)/0.22);
+  if (t < 0.6) return BOW_DRAW;
+  if (t < 0.72) return lerpPose(BOW_DRAW, BOW_RELEASE, (t-0.6)/0.12);
+  return lerpPose(BOW_RELEASE, BOW_STANCE, (t-0.72)/0.28);
 }
-/* кисть на тетиве только пока идёт натяжение — вне этого окна тетива рисуется прямой */
-export function bowHandOnString(t){ return t > 0 && t < 0.68; }
+/* кисть на тетиве, пока держим полный натяг — вне этого окна тетива рисуется прямой */
+export function bowHandOnString(t){ return t > 0 && t < 0.6; }
 /* окно сразу после спуска — тетива уже прямая и независима от кисти */
-export function bowReleaseFx(t){ return t >= 0.68 && t < 0.92; }
+export function bowReleaseFx(t){ return t >= 0.6 && t < 0.9; }
+
+/* рука с крюком: 45° вперёд или строго вверх */
+export const GRAPPLE_D = po({head:[5,3],neck:[5,7],hip:[5,14],eF:[9,6],hF:[13,2],eB:[4,10],hB:[3,13],kF:[7,17],fF:[8,21],kB:[3,18],fB:[3,22]});
+export const GRAPPLE_U = po({head:[5,2],neck:[5,6],hip:[5,14],eF:[6,3],hF:[6,-2],eB:[4,10],hB:[3,14],kF:[7,17],fF:[7,21],kB:[3,18],fB:[3,22]});
