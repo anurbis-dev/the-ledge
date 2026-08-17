@@ -5,7 +5,7 @@ import {
   moveX, moveY, damage, updateBars, ease, updateClimb, updateHang, updateLadder,
   setStance, setH, slopeUnder, grounded, autoLadder, tryBars,
   tryLadder, tryGrab, tryClimbOut, tryCrawlEdge, ladderTopUnder, attach, tryDescend, tryMantle,
-  markGap, canDescend
+  markGap, canDescend, awayFromEdge
 } from './player.js';
 import { stepPlats, platUnder } from '../entities/plats.js';
 import { stepLifts, inLift, liftConstrain } from '../entities/lifts.js';
@@ -428,9 +428,10 @@ export function step(S, dt, inp){
       if (!tryLadder(S, p, inp)){
         onEdge = canDescend(p, inp.x);
         if (onEdge && p.grabCd <= 0){
-          if (inp.downHeld) p.edgeHoldT += dt; else p.edgeHoldT = 0;
-          var tapHang = inp.downPressed && stanceBefore === 2;
-          var holdHang = inp.downHeld && p.edgeHoldT >= C.EDGE_HOLD;
+          var inland = awayFromEdge(p, inp.x);           // ход от края — лаз лёжа, не вис
+          if (inp.downHeld && !inland) p.edgeHoldT += dt; else p.edgeHoldT = 0;
+          var tapHang = inp.downPressed && stanceBefore === 2 && !inland;
+          var holdHang = inp.downHeld && !inland && p.edgeHoldT >= C.EDGE_HOLD;
           if (tapHang || holdHang){
             if (tryDescend(S, p, inp.x)) p.edgeHoldT = 0;
           }

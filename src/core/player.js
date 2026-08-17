@@ -408,12 +408,18 @@ function findDescend(p, want){
     var cx = dir > 0 ? (col + 1) * T : col * T, f = -dir;
     var hb = hangBox(cx, gy, f, 'ledge');
     if (!rectFree(hb.x, hb.y, C.W, C.H)) continue;       // вис всегда в полный рост
-    return { cx: cx, gy: gy, facing: f };
+    return { cx: cx, gy: gy, facing: f, drop: dir };
   }
   return null;
 }
 export function canDescend(p, want){
   return !!findDescend(p, want);
+}
+/* держат ход от обрыва — не спускаться (лаз лёжа от края) */
+export function awayFromEdge(p, ax){
+  if (!ax) return false;
+  var d = findDescend(p, 0);
+  return !!(d && ax * d.drop < 0);
 }
 /* --- спуск спиной с края --- */
 export function tryDescend(S, p, want){
