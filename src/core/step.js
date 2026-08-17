@@ -6,7 +6,7 @@ import {
   setStance, setH, slopeUnder, slopeGradeUnder, grounded, autoLadder, tryBars,
   tryLadder, tryGrab, tryClimbOut, tryCrawlEdge, ladderTopUnder, attach, tryDescend, tryMantle,
   tryEnterGap, markGap, canDescend, awayFromEdge, startFallRecover, finishFallRecover,
-  stanceFitsAt
+  stanceFitsAt, groundAhead
 } from './player.js';
 import { stepPlats, platUnder } from '../entities/plats.js';
 import { stepLifts, inLift, liftConstrain } from '../entities/lifts.js';
@@ -201,17 +201,18 @@ export function step(S, dt, inp){
         if (edge === 2){ crumbCheck(S, p); pickups(S, p); return; }  // в вис
         if (edge === -1) p.vx = 0;                                   // упёрлись
       }
-      if (!rectFree(p.x + p.facing*2, p.y, p.w, p.h) && slopeUnder(p) === null){
-        var wasVx = p.vx;
-        p.vx = 0;                                 // упор в стену — не толкаемся (на склоне не мешаем)
-        if (p.onGround && stanceBefore === 0 && p.stance === 0 && tryMantle(S, p, p.facing, wasVx)){
-          crumbCheck(S, p); pickups(S, p);
-          return;
-        }
-        // щель перед собой: bestLand был только с зацепа; мантл сюда не лезет (высота)
-        if (p.onGround && stanceBefore === 0 && p.stance === 0 && tryEnterGap(S, p, p.facing)){
-          if (p.state === 'climb'){ crumbCheck(S, p); pickups(S, p); return; }
-        }
+      var blocked = !rectFree(p.x + p.facing*2, p.y, p.w, p.h) && slopeUnder(p) === null;
+      var wasVx = p.vx;
+      if (blocked) p.vx = 0;                      // упор в стену — не толкаемся (на склоне не мешаем)
+      // паркур в 1 тайл: в стену, в воздухе у парящей полки, или к яме с уступом впереди
+      var wantParkour = stanceBefore === 0 && p.stance === 0 &&
+        (blocked || (p.onGround && !groundAhead(S, p, p.facing)));
+      if (wantParkour && tryMantle(S, p, p.facing, wasVx)){
+        crumbCheck(S, p); pickups(S, p);
+        return;
+      }
+      if (wantParkour && tryEnterGap(S, p, p.facing)){
+        if (p.state === 'climb'){ crumbCheck(S, p); pickups(S, p); return; }
       }
 
     } else {
@@ -389,7 +390,11 @@ export function step(S, dt, inp){
     autoLadder(S, p, prevBottom);
     if (!inWater && !rolling && p.state === 'normal') tryBars(S, p);
     if (!inWater && !rolling && p.state === 'normal') tryLadder(S, p, inp);
-    if (!inWater && p.state === 'normal') tryGrab(S, p);
+    if (!inWater && p.state === 'normal'){
+      var ad = Math.abs(inp.x) > 0.35 ? (inp.x > 0 ? 1 : -1) : 0;
+      if (!(ad && p.stance === 0 && (tryMantle(S, p, ad, p.vx) || tryEnterGap(S, p, ad))))
+        tryGrab(S, p);
+    }
     else if (inWater && p.atSurface && p.state === 'normal' && Math.abs(inp.x) > 0.35
              && !inp.downHeld && !inp.downPressed)
       tryClimbOut(S, p, inp.x > 0 ? 1 : -1);

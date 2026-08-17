@@ -499,13 +499,13 @@ export function tryDescend(S, p, want){
 function fullStepTile(col, row){
   return tileBlocks(col, row, row * T + 8, 8);
 }
-/* уступ в 1 тайл перед собой: пол + стенка в тайл, над ней не стена в полный рост */
+/* уступ в 1 тайл перед собой: стенка в тайл на высоте колена, над ней не стена.
+   земля под ступенью не нужна — парящая полка тоже паркур */
 function findChestStep(p, dir){
   var rG = Math.floor(Math.round(p.y + p.h) / T);
-  for (var d = 1; d <= 6; d++){
+  for (var d = 1; d <= T + 6; d++){
     var wallX = dir > 0 ? p.x + p.w + d : p.x - d;
     var col = Math.floor(wallX / T);
-    if (!solidTile(col, rG)) continue;
     if (!fullStepTile(col, rG - 1)) continue;           // HTOP/пусто — щель у пола, не паркур
     if (fullStepTile(col, rG - 2)) continue;            // стена в 2+ тайла
     return {
@@ -516,10 +516,10 @@ function findChestStep(p, dir){
   }
   return null;
 }
-/* --- автоподъём на уступ в один тайл при ходьбе: рывок через колено, без хвата и без потери скорости --- */
+/* --- автоподъём на уступ в один тайл: рывок через колено, без хвата и без потери скорости --- */
 export function tryMantle(S, p, dir, vx){
   if (p.inWater) return false;
-  if (p.state !== 'normal' || !p.onGround || p.rollT > 0 || p.stance !== 0) return false;
+  if (p.state !== 'normal' || p.rollT > 0 || p.stance !== 0) return false;
   var step1 = findChestStep(p, dir);
   if (!step1) return false;
   var sb = standBox(step1.cx, step1.cy, dir);
@@ -531,7 +531,7 @@ export function tryMantle(S, p, dir, vx){
    щель у пола сама не берётся — игрок жмёт ↓ */
 export function tryEnterGap(S, p, dir){
   if (p.inWater) return false;
-  if (p.state !== 'normal' || !p.onGround || p.rollT > 0 || p.stance !== 0) return false;
+  if (p.state !== 'normal' || p.rollT > 0 || p.stance !== 0) return false;
   var step1 = findChestStep(p, dir);
   if (!step1) return false;
   var land = bestLand(step1.cx, step1.cy, dir);
