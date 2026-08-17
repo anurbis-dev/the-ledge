@@ -17,7 +17,7 @@
 | `core/runtime.js` | `MAP_W/H`, `base` Uint8Array, `LV`, `W` |
 | `core/map.js` | запросы тайлов, скосы, `rectFree` |
 | `core/player.js` | хват кромки, лаз, лестницы, перекладины, вода, авто-карабканье на уступ в 1 тайл (`tryMantle`) |
-| `core/step.js` | один тик мира |
+| `core/step.js` | один тик мира; на скосе `dx` режется на `SLOPE_ALONG/√2` (~90% бега вдоль склона) |
 | `levels/` | 5 карт, `build()` пишет в `base` |
 | `entities/` | mk/step врагов, лифтов, факелов, сундуков, щупалец |
 | `entities/ids.js` | `findById` / `allocId` — двери и объекты по id, не по индексу |

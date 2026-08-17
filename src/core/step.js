@@ -368,12 +368,15 @@ export function step(S, dt, inp){
   }
 
   var wasAir = !p.onGround, prevBottom = p.y + p.h, preX = p.x, preY = p.y;
+  var slPre = null;
   if (!wasAir){                                  // встаём на склон ДО шага, иначе упрёмся в ступень
-    var slPre = slopeUnder(p);
+    slPre = slopeUnder(p);
     if (slPre !== null) p.y = slPre - p.h;
   }
   p.onGround = false;
-  moveX(S, p, p.vx * dt);
+  var dx = p.vx * dt;
+  if (slPre !== null) dx *= C.SLOPE_ALONG / Math.SQRT2;  // 45°: путь не быстрее бега
+  moveX(S, p, dx);
   moveY(S, p, p.vy * dt);
   if (!p.onGround && grounded(S, p) && p.vy >= 0){ p.onGround = true; p.vy = 0; }
 
