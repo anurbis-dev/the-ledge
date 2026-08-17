@@ -145,6 +145,9 @@ function onEvent(ev){
   else if (k === 'kelphold'){ blip(90, 0.12, 'sine', 0.04); }
   else if (k === 'kelprelease'){ blip(280, 0.1, 'triangle', 0.04); spark(p.x+5, p.y+8, 6, '#8fd0b0', 50); }
   else if (k === 'kelpreach' || k === 'kelpstir'){ blip(210, 0.06, 'sine', 0.03); }
+  else if (k === 'webcut'){ blip(480, 0.08, 'triangle', 0.04); spark(p.x+5, p.y, 6, '#d8e4f0', 50); }
+  else if (k === 'spiderfall'){ blip(160, 0.1, 'sawtooth', 0.04); }
+  else if (k === 'spiderflee'){ blip(220, 0.07, 'sine', 0.03); }
   else if (k === 'droptorch'){ blip(220, 0.06); }
   else if (k === 'crack'){ blip(120, 0.05, 'sawtooth'); }
   else if (k === 'crumble'){ blip(70, 0.25, 'sawtooth', 0.05); }

@@ -63,7 +63,7 @@ function mkFlierAt(S, x, y, kind){
 }
 function mkSpiderAt(S, x, y, kind){
   S.spiders.push({ id:allocId(S.spiders), hx:x, hy:y, x:x, y:y, kind:kind,
-                   len:0, state:'wait', t:1, dir:1, dead:false, hitT:0, ph:0 });
+                   len:0, state:'wait', t:1, dir:1, dead:false, hitT:0, ph:0, vy:0 });
 }
 function mkTorchAt(S, x, y){
   S.torches.push({ id:allocId(S.torches), x:x, y:y, vx:0, vy:0, held:false, ground:true,

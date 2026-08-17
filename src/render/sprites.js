@@ -319,12 +319,16 @@ export function spiders(){
     var body = sp.kind === 0 ? '#3b2f4a' : (sp.kind === 1 ? '#6b2f3a' : '#2f4a3b');
     var mark = sp.kind === 0 ? '#c9a0ff' : (sp.kind === 1 ? '#ff9a7a' : '#9fe0a0');
     if (sp.dead){ rc(x - 3, y, 6, 2, body); continue; }
-    if (sp.len > 0.5){                                  // паутина
-      ctx.globalAlpha = 0.55;
-      rc(x, hy, 1, Math.max(1, y - hy), '#d8e4f0');
+    if (sp.len > 0.5 && sp.state !== 'fall' && sp.state !== 'flee'){
+      var wh = Math.max(1, y - hy);
+      for (var wy = 0; wy < wh; wy += 2){
+        var dark = ((wy / 2) | 0) % 2;
+        ctx.globalAlpha = dark ? 0.34 : 0.58;
+        rc(x, hy + wy, 1, Math.min(2, wh - wy), dark ? '#5a6874' : '#d0dce8');
+      }
       ctx.globalAlpha = 1;
     }
-    var wig = Math.sin(time*8 + sp.ph);
+    var wig = Math.sin(time * (sp.state === 'flee' ? 14 : 8) + sp.ph);
     for (var l = 0; l < 4; l++){                         // лапки
       var sgn = l < 2 ? -1 : 1, k2 = (l % 2);
       lb([x, y], [x + sgn*(4 + k2*2), y + 3 + Math.round(wig*(1 + k2))], 1, body);
@@ -349,12 +353,15 @@ export function tendrils(){
     var colD = w.dead ? '#322820' : (sting ? '#1c5a32' : '#163840');
     var thick = sting ? 2 : 3;
     var segs = sting ? 5 : 6;
+    var dx = tx - bx, dy = ty - by;
+    var ln = Math.sqrt(dx * dx + dy * dy) || 1;
+    var pxp = -dy / ln, pyp = dx / ln;
     var px = bx, py = by;
     for (var k = 1; k <= segs; k++){
       var t = k / segs;
       var sway = Math.sin(time * 2.1 + w.ph + k * 0.7) * (w.state === 'idle' ? 3.2 : 1.1) * (1 - t * 0.35);
-      var nx = bx + (tx - bx) * t + sway;
-      var ny = by + (ty - by) * t;
+      var nx = bx + dx * t + pxp * sway;
+      var ny = by + dy * t + pyp * sway;
       lb([px, py], [nx, ny], thick + (k < 2 ? 1 : 0), k < 3 ? colD : col);
       if (!sting && !w.dead && k > 1 && k < segs){
         var sx = Math.round((px + nx) / 2), sy = Math.round((py + ny) / 2);
@@ -368,8 +375,11 @@ export function tendrils(){
     }
     if (sting){
       var barb = w.state === 'reach' ? 5 : 3;
-      rc(tx - 1, ty - barb, 2, barb, '#d4de6a');
-      rc(tx, ty - barb - 1, 1, 2, '#f2f0a8');
+      var gx = w.gx || 0, gy = w.gy === undefined ? -1 : w.gy;
+      if (gy < 0){ rc(tx - 1, ty - barb, 2, barb, '#d4de6a'); rc(tx, ty - barb - 1, 1, 2, '#f2f0a8'); }
+      else if (gy > 0){ rc(tx - 1, ty, 2, barb, '#d4de6a'); rc(tx, ty + barb, 1, 2, '#f2f0a8'); }
+      else if (gx > 0){ rc(tx, ty - 1, barb, 2, '#d4de6a'); rc(tx + barb, ty, 2, 1, '#f2f0a8'); }
+      else { rc(tx - barb, ty - 1, barb, 2, '#d4de6a'); rc(tx - barb - 1, ty, 2, 1, '#f2f0a8'); }
     } else {
       rc(tx - 2, ty - 2, 4, 4, col);
       rc(tx - 1, ty - 1, 2, 2, '#8fc4b0');

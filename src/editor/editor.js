@@ -120,7 +120,7 @@ function edEraseObjects(cell){
   S.enemies = S.enemies.filter(function(e){ return !near(e.x + e.w/2, e.y + e.h/2); });
   S.fliers  = S.fliers.filter(function(f){ return !near(f.x + f.w/2, f.y + f.h/2); });
   S.spiders = S.spiders.filter(function(s2){ return !near(s2.hx, s2.hy - 8); });
-  S.tendrils = (S.tendrils || []).filter(function(td){ return !near(td.bx, td.by - 8); });
+  S.tendrils = (S.tendrils || []).filter(function(td){ return !near(td.bx, td.by); });
   S.torches = S.torches.filter(function(t){ return !near(t.x, t.y - 8); });
   S.chests  = S.chests.filter(function(c2){ return !near(c2.x + 10, c2.y - 6); });
   S.items   = S.items.filter(function(i2){ return !near(i2.x, i2.y); });
@@ -134,7 +134,7 @@ function edPlaceObject(cell){
   if (kind.indexOf('enemy') === 0) G.mkEnemyAt(S, cx - 5, floorY, +kind.slice(5));
   else if (kind.indexOf('flier') === 0) G.mkFlierAt(S, cx - 6, cy - 4, +kind.slice(5));
   else if (kind.indexOf('spider') === 0) G.mkSpiderAt(S, cx, floorY, 0);
-  else if (kind.indexOf('tendril') === 0) G.mkTendrilAt(S, cx, floorY, +kind.slice(7));
+  else if (kind.indexOf('tendril') === 0) G.mkTendrilAt(S, cx, cy, +kind.slice(7));
   else if (kind === 'torch') G.mkTorchAt(S, cx, floorY);
   else if (kind === 'chest') G.mkChestAt(S, cell.c*T, floorY, 'coin', false);
   else if (kind === 'chestL') G.mkChestAt(S, cell.c*T, floorY, 'gem', true);
@@ -172,7 +172,16 @@ export function edExportText(){
     return '[' + Math.floor(s2.hx / T) + ',' + (Math.floor(s2.hy / T) - 1) + ',' + s2.kind + ']';
   }).join(',') + '],');
   out.push('tendrils: [' + (S.tendrils || []).map(function(td){
-    return '[' + Math.floor(td.bx / T) + ',' + Math.floor(td.by / T) + ',' + td.kind + ']';
+    var side = td.side || 0;
+    var col = td.col, row = td.row;
+    if (col === undefined){
+      if (side === 1){ col = Math.floor(td.bx / T); row = Math.floor((td.by - 1) / T); }
+      else if (side === 2){ col = Math.floor((td.bx - 1) / T); row = Math.floor(td.by / T); }
+      else { col = Math.floor(td.bx / T); row = Math.floor(td.by / T); }
+    }
+    return side
+      ? '[' + col + ',' + row + ',' + td.kind + ',' + side + ']'
+      : '[' + col + ',' + row + ',' + td.kind + ']';
   }).join(',') + '],');
   out.push('torches: [' + S.torches.map(function(t){
     return '[' + Math.floor(t.x / T) + ',' + (Math.floor(t.y / T) - 1) + ']';
