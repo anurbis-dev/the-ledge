@@ -4,12 +4,12 @@ import { tileAt, rectFree, isWaterV, waterSurfaceY, ladderTile } from './map.js'
 import {
   moveX, moveY, damage, updateBars, ease, updateClimb, updateHang, updateLadder,
   setStance, setH, groundAhead, slopeUnder, grounded, autoLadder, tryBars,
-  tryLadder, tryGrab, ladderTopUnder, attach, tryDescend, tryMantle
+  tryLadder, tryGrab, tryClimbOut, ladderTopUnder, attach, tryDescend, tryMantle
 } from './player.js';
 import { stepPlats, platUnder } from '../entities/plats.js';
 import { stepLifts, inLift, liftConstrain } from '../entities/lifts.js';
 import { stepCrumbs, crumbCheck } from '../entities/crumbs.js';
-import { stepTorches, tryAction } from '../entities/torches.js';
+import { stepTorches, tryAction, resolvePickup } from '../entities/torches.js';
 import { stepEnemies } from '../entities/enemies.js';
 import { stepFliers, stepDrops } from '../entities/fliers.js';
 import { stepSpiders } from '../entities/spiders.js';
@@ -40,6 +40,8 @@ export function step(S, dt, inp){
   if (S.p.atkT > 0) S.p.atkT -= dt;
   if (S.p.atkCd > 0) S.p.atkCd -= dt;
   if (S.p.pickT > 0) S.p.pickT -= dt;
+  if (S.p.throwT > 0) S.p.throwT -= dt;
+  resolvePickup(S);
   var pk = S.pick;
   if (!pk.key.taken && Math.abs(pk.key.x - (S.p.x + S.p.w/2)) < 12 &&
       Math.abs(pk.key.y - (S.p.y + S.p.h/2)) < 14){
@@ -72,6 +74,7 @@ export function step(S, dt, inp){
   if (p.rollCd > 0) p.rollCd = Math.max(0, p.rollCd - dt);
   if (p.landT > 0) p.landT = Math.max(0, p.landT - dt);
   if (p.lock > 0 && p.lock < 9) p.lock = Math.max(0, p.lock - dt);
+  if (p.stanceT > 0) p.stanceT = Math.max(0, p.stanceT - dt);
 
   if (p.ride && p.onGround && p.state === 'normal'){
     if (p.ride.dx) moveX(S, p, p.ride.dx);
@@ -116,6 +119,7 @@ export function step(S, dt, inp){
   for (var lc2 = 0; lc2 < S.lifts.length; lc2++) if (inLift(p, S.lifts[lc2])) inCab = true;
   if (inCab && p.stance > 0) setStance(S, p, 0);
   var onLadTop = ladderTopUnder(p, p.y + p.h + 1) !== null;
+  var stanceBefore = p.stance;
   if (!rolling && p.onGround && !inCab && !onLadTop && !p.inWater){    // на верхушке лестницы ↓ — это спуск
     if (inp.downPressed && p.stance < 2 && Math.abs(p.vx) <= 58) setStance(S, p, p.stance + 1);
     else if (inp.downHeld && p.stance === 0 && Math.abs(p.vx) <= 58) setStance(S, p, 1);
@@ -123,6 +127,12 @@ export function step(S, dt, inp){
       if (setStance(S, p, p.stance - 1)) { p.buf = 0; }   // удержание ↑ поднимает до стойки
     }
   }
+  if (p.stance !== stanceBefore){ p.stanceFrom = stanceBefore; p.stanceT = C.STANCE_T; }  // плавный переход позы
+  // смотрим вверх стоя на месте — голова запрокидывается, камера чуть приподнимается (см. loop.js)
+  var wantLookUp = (!rolling && p.onGround && !inCab && p.state === 'normal' && p.stance === 0 &&
+                     inp.upHeld && !inp.downHeld && Math.abs(p.vx) < 10) ? 1 : 0;
+  p.lookUp += (wantLookUp - p.lookUp) * Math.min(1, dt * 6);
+  if (p.lookUp < 0.01) p.lookUp = 0;
   // под низким потолком встать нельзя — держим стойку
   if (p.stance > 0 && p.onGround && !inp.downHeld && !inp.downPressed){
     if (p.stance === 2 && rectFree(p.x, p.y + p.h - C.CRH, p.w, C.CRH) && inp.upHeld) setStance(S, p, 1);
@@ -343,6 +353,8 @@ export function step(S, dt, inp){
     if (!inWater && !rolling && p.state === 'normal') tryBars(S, p);
     if (!inWater && !rolling && p.state === 'normal') tryLadder(S, p, inp);
     if (!inWater && p.state === 'normal') tryGrab(S, p);
+    else if (inWater && p.atSurface && p.state === 'normal' && Math.abs(inp.x) > 0.35)
+      tryClimbOut(S, p, inp.x > 0 ? 1 : -1);
   } else {
     var slY = slopeUnder(p);
     if (slY !== null && !p.ride){

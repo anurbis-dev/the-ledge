@@ -4,17 +4,22 @@ import {
   K, IDLE_A, IDLE_B, RUN, JUMPP, FALLP, LANDP, SLIDEP, STUNP, ROLLP,
   LADP0, LADP1, LADF0, LADF1, ATK0, ATK1, ATK2, CROUCH, CROUCH_W,
   PRONE0, PRONE1, BARS0, BARS1, LADD0, LADD1, SWIM0, SWIM1,
-  HANGL, HANG_A, HANG_B, lerpPose, climbPose
+  HANGL, HANG_A, HANG_B, lerpPose, climbPose, vaultPose, pickPose, throwPose,
+  WALLPUSH, LOOKUP_A
 } from './poses.js';
 import { figure } from './figure.js';
 import { torchPts } from './light.js';
 
 var G = GAME, C = G.C;
 
+function stancePose(st){ return st === 2 ? PRONE0 : (st === 1 ? CROUCH : IDLE_A); }
+
 export function boxPose(p){
   var animT = view.animT, runPh = view.runPh;
   if (p.inWater) return (Math.sin(animT*7) > 0) ? SWIM0 : SWIM1;   // одна поза, наклон задаётся поворотом
   if (p.state === 'bars') return (Math.sin(p.bars.ph*2.4) > 0) ? BARS0 : BARS1;
+  if (p.stanceT > 0)                                  // плавный переход стоя/присед/лёжа
+    return lerpPose(stancePose(p.stanceFrom), stancePose(p.stance), 1 - p.stanceT / C.STANCE_T);
   if (p.stance === 2) return (Math.abs(p.vx) > 4 && Math.sin(animT*7) > 0) ? PRONE1 : PRONE0;
   if (p.stance === 1) return (Math.abs(p.vx) > 4 && Math.sin(animT*6) > 0) ? CROUCH_W : CROUCH;
   if (p.atkT > 0){
@@ -23,6 +28,8 @@ export function boxPose(p){
   }
   if (p.state === 'stun') return STUNP;
   if (p.rollT > 0) return ROLLP;
+  if (p.pickT > 0 && p.onGround) return pickPose(1 - p.pickT / C.PICK_T);
+  if (p.throwT > 0) return throwPose(1 - p.throwT / C.THROW_T);
   if (p.state === 'ladder'){
     var moving = Math.abs(p.lad.ph - (p.lad.lastPh || 0)) > 0.0001;
     p.lad.lastPh = p.lad.ph;
@@ -34,14 +41,16 @@ export function boxPose(p){
   if (p.state === 'hang' && p.hang.kind === 'lad') return HANGL;
   if (p.state === 'climb' && p.climb.kind === 'lad')
     return lerpPose(HANGL, (p.lad && p.lad.v === G.LADF) ? LADF0 : LADP0, p.climb.p);
+  if (p.state === 'climb' && p.climb.kind === 'vault') return vaultPose(p.climb.p);
   if (!p.onGround){
     if (p.sliding) return SLIDEP;
     return p.vy < -40 ? JUMPP : (p.vy > 60 ? FALLP : lerpPose(JUMPP, FALLP, 0.5));
   }
   if (p.landT > 0) return LANDP;
   var pushing = Math.abs(p.vx) < 7 && !G.rectFree(p.x + p.facing*3, p.y, p.w, p.h);
-  if (pushing) return IDLE_A;                       // упёрлась в стену — стоим
+  if (pushing) return WALLPUSH;                     // упёрлась в стену — руки перед собой
   if (Math.abs(p.vx) > 8) return RUN[(runPh|0) % 4];
+  if (p.lookUp > 0.02) return lerpPose(IDLE_A, LOOKUP_A, p.lookUp);
   return (Math.sin(animT*2.6) > 0) ? IDLE_A : IDLE_B;
 }
 export function lightDirAt(wx, wy){
@@ -63,7 +72,8 @@ export function hero(){
   if (rim[0] === 0 && rim[1] === 0) rim[1] = -1;
   var wag = tail.a;
 
-  if ((p.state === 'hang' && p.hang.kind === 'ledge') || (p.state === 'climb' && p.climb.kind === 'ledge')){
+  if ((p.state === 'hang' && p.hang.kind === 'ledge') ||
+      (p.state === 'climb' && p.climb.kind === 'ledge' && !(p.climb.stance > 0))){
     var cx, cy, facing, pose, ox = 0, oy = 0;
     if (p.state === 'hang'){
       cx = p.hang.cx; cy = p.hang.cy; facing = p.facing;
@@ -81,6 +91,10 @@ export function hero(){
   }
   var pose2 = boxPose(p), rot = 0, cxs = 0, cys = 0;
   if (p.rollT > 0){ rot = p.rollAng; cxs = 5; cys = 11; }
+  else if (p.state === 'climb' && p.climb.kind === 'vault'){
+    var vt = p.climb.p, lean = Math.sin(Math.min(1, Math.max(0, vt)) * Math.PI) * 0.5;
+    rot = lean * (p.facing > 0 ? 1 : -1); cxs = 6; cys = 12;  // пригибание с наклоном вперёд
+  }
   else if (p.inWater && Math.abs(p.swimAng) > 0.02){
     rot = p.swimAng * (p.facing > 0 ? 1 : -1);            // наклон корпуса по ходу плавания
     cxs = 5; cys = 6;

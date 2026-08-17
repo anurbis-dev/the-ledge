@@ -2,7 +2,7 @@ import { T, C, LADR, LADL, LADW } from './constants.js';
 import { runtime } from './runtime.js';
 import {
   tileAt, rectFree, solidAt, isSlopeV, slopeTop, isLadV, ladderTop,
-  isBarV, ladderTile, solidTile
+  isBarV, ladderTile, solidTile, tileBlocks
 } from './map.js';
 import { dropTorch } from '../entities/torches.js';
 import { platUnder } from '../entities/plats.js';
@@ -18,10 +18,11 @@ export function mkPlayer(){
     rollAng: 0, torch: -1, walking: false, warp: null,
     lastWall: 0, stick: false, helmet: false, shield: false, shieldCd: 0,
     gear: { weapon:null, shield:null, helmet:null }, spare: [], bashT: 0,
-    atkT: 0, atkCd: 0, hurtCd: 0, snap: null,
+    atkT: 0, atkCd: 0, hurtCd: 0, snap: null, pickT: 0, pickPend: null, throwT: 0, throwPend: false,
     stance: 0, bars: null, ladCd: 0, inWater: false, wading: false,
     atSurface: false, swimSurf: null, swimAng: 0, wasWet: false, bubT: 0,
     air: C.AIR_MAX, swimLaunch: 0, stam: C.STAM_MAX, dashT: 0,
+    stanceT: 0, stanceFrom: 0, lookUp: 0,
     events: []
   };
 }
@@ -126,6 +127,45 @@ export function hangBox(cx, cy, facing, kind){
 }
 export function standBox(cx, cy, facing){ return { x: cx + facing*C.STAND_OFF - C.W/2, y: cy - C.H }; }
 export function ladBox(cx, cy){ return { x: cx - C.W/2, y: cy - C.H }; }
+/* площадка над кромкой в стойке st: 0 стоя, 1 присед, 2 лаз */
+export function landBox(cx, cy, facing, st){
+  var h = stanceH(st), w = stanceW(st);
+  return { x: cx + facing * C.STAND_OFF - w / 2, y: cy - h, w: w, h: h, stance: st };
+}
+export function bestLand(cx, cy, facing){
+  for (var st = 0; st <= 2; st++){
+    var b = landBox(cx, cy, facing, st);
+    if (rectFree(b.x, b.y, b.w, b.h)) return b;
+  }
+  return null;
+}
+function dryOff(p){
+  p.inWater = false; p.wading = false; p.atSurface = false; p.wasWet = false;
+  p.swimLaunch = 0; p.apexY = p.y;
+}
+function pixSolid(px, py){
+  return tileBlocks(Math.floor(px / T), Math.floor(py / T), py, 1);
+}
+function findLedge(p, dir, extraUp){
+  var handY = p.y + C.HAND;
+  var hx = dir > 0 ? p.x + p.w + 2 : p.x - 2;
+  var lo = -C.TOL_DN - (extraUp || 0);                    // extraUp — выше рук (берег)
+  var hi = C.TOL_UP;
+  var best = null, bestD = 1e9;
+  for (var dy = lo; dy <= hi; dy++){
+    var py = handY + dy;
+    if (pixSolid(hx, py) || !pixSolid(hx, py + 2)) continue;
+    var top = Math.floor((py + 2) / T) * T, wc = Math.floor(hx / T);
+    var d = Math.abs(top - handY);
+    if (d >= bestD) continue;
+    bestD = d;
+    best = {
+      cx: dir > 0 ? wc * T : (wc + 1) * T,
+      top: top, wc: wc, tr: Math.floor(top / T)
+    };
+  }
+  return best;
+}
 
 export function damage(S, n, stun){
   S.hp -= n; S.p.stunT = stun; S.p.state = 'stun'; S.p.vx = 0;
@@ -248,20 +288,15 @@ export function autoLadder(S, p, prevBottom){
 export function tryGrab(S, p){
   if (p.grabCd > 0 || p.onGround || p.state !== 'normal' || p.rollT > 0) return false;
   if (p.vy < C.GRAB_VY) return false;
-  var handY = p.y + C.HAND, dir = p.facing, dy, py;
+  var handY = p.y + C.HAND, dir = p.facing, dy;
 
-  var hx = dir > 0 ? p.x + p.w + 2 : p.x - 2;               // кромка уступа
-  for (dy = -C.TOL_DN; dy <= C.TOL_UP; dy++){
-    py = handY + dy;
-    if (solidAt(hx, py) || !solidAt(hx, py + 2)) continue;
-    var top = Math.floor((py + 2) / T) * T, wc = Math.floor(hx / T);
-    var cx = dir > 0 ? wc * T : (wc + 1) * T;
-    var hb = hangBox(cx, top, dir, 'ledge');
-    if (!rectFree(hb.x, hb.y, p.w, p.h)) continue;
-    var sb = standBox(cx, top, dir);
-    if (!rectFree(sb.x, sb.y, p.w, p.h)) continue;
-    grabTo(p, cx, top, dir, 'ledge', wc, Math.floor((py + 2) / T));
-    return true;
+  var led = findLedge(p, dir, 0);                           // кромка уступа
+  if (led){
+    var hb = hangBox(led.cx, led.top, dir, 'ledge');
+    if (rectFree(hb.x, hb.y, p.w, p.h)){
+      grabTo(p, led.cx, led.top, dir, 'ledge', led.wc, led.tr);
+      return true;
+    }
   }
   for (var pi = 0; pi < runtime.W.plats.length; pi++){              // кромка движущейся платформы
     var q = runtime.W.plats[pi];
@@ -298,11 +333,28 @@ export function grabTo(p, cx, cy, facing, kind, tc, tr){
   if (p.torch >= 0 && runtime.W) dropTorch(runtime.W, false);
   if (p.stance !== 0 && runtime.W) setStance(runtime.W, p, 0);
   p.lastWall = 0;
+  dryOff(p);
   var b = hangBox(cx, cy, facing, kind === 'lad' ? 'lad' : 'ledge');
   p.x = b.x; p.y = b.y; p.vx = 0; p.vy = 0; p.facing = facing;
   p.state = 'hang'; p.onGround = false;
   p.hang = { cx: cx, cy: cy, kind: kind, tc: tc, tr: tr, lt: tileAt(tc, tr) };
   p.events.push('grab');
+}
+/* с поверхности воды: к краю и забраться, если есть щель; под водой не вызывать */
+export function tryClimbOut(S, p, dir){
+  if (!dir || p.state !== 'normal' || p.grabCd > 0 || p.rollT > 0) return false;
+  var led = findLedge(p, dir, T + 4);                       // с поверхности достаём губу в тайл
+  if (!led) return false;
+  var land = bestLand(led.cx, led.top, dir);
+  if (land){
+    p.facing = dir;
+    startClimb(p, 1, led.cx, led.top, dir, 'ledge', land);
+    return true;
+  }
+  var hb = hangBox(led.cx, led.top, dir, 'ledge');
+  if (!rectFree(hb.x, hb.y, p.w, p.h)) return false;
+  grabTo(p, led.cx, led.top, dir, 'ledge', led.wc, led.tr);
+  return true;
 }
 
 /* --- спуск спиной с края --- */
@@ -327,8 +379,8 @@ export function tryDescend(S, p, want){
   }
   return false;
 }
-/* --- автоподъём на уступ в один тайл при ходьбе (без хвата, факел не роняем) --- */
-export function tryMantle(S, p, dir){
+/* --- автоподъём на уступ в один тайл при ходьбе: рывок через колено, без хвата и без потери скорости --- */
+export function tryMantle(S, p, dir, vx){
   if (p.state !== 'normal' || !p.onGround || p.rollT > 0 || p.stance !== 0) return false;
   var groundY = Math.round(p.y + p.h);
   var wallX = dir > 0 ? p.x + p.w + 2 : p.x - 2;
@@ -339,19 +391,34 @@ export function tryMantle(S, p, dir){
   var cx = dir > 0 ? col * T : (col + 1) * T, cy = (rG - 1) * T;
   var sb = standBox(cx, cy, dir);
   if (!rectFree(sb.x, sb.y, p.w, p.h)) return false;
-  startClimb(p, 1, cx, cy, dir, 'ledge');
+  startVault(p, cx, cy, dir, vx || 0);
   return true;
 }
-export function startClimb(p, dir, cx, cy, facing, kind){
-  var from = { x: p.x, y: p.y }, to, ideal;
+export function startVault(p, cx, cy, facing, vx){
+  var from = { x: p.x, y: p.y }, to = standBox(cx, cy, facing);
+  p.facing = facing; p.state = 'climb'; p.vy = 0; p.onGround = false;
+  p.climb = { dir: 1, kind: 'vault', p: 0, dur: C.VAULT_T,
+              cx: cx, cy: cy, facing: facing, from: from, to: to, vx: vx };
+  p.events.push('vault');
+}
+export function startClimb(p, dir, cx, cy, facing, kind, land){
+  var from = { x: p.x, y: p.y }, to, ideal, st = 0;
   if (dir > 0 && kind === 'lad'){ to = ladBox(cx, cy); ideal = hangBox(cx, cy, facing, 'lad'); }
-  else if (dir > 0){ to = standBox(cx, cy, facing); ideal = hangBox(cx, cy, facing, 'ledge'); }
-  else { to = hangBox(cx, cy, facing, 'ledge'); ideal = standBox(cx, cy, facing); }
+  else if (dir > 0){
+    if (!land) land = bestLand(cx, cy, facing);
+    if (land){ to = { x: land.x, y: land.y }; st = land.stance; }
+    else to = standBox(cx, cy, facing);
+    ideal = hangBox(cx, cy, facing, 'ledge');
+    if (st > 0){ p.stance = st; p.w = land.w; p.h = land.h; }
+  } else { to = hangBox(cx, cy, facing, 'ledge'); ideal = standBox(cx, cy, facing); }
+  dryOff(p);
   p.facing = facing; p.state = 'climb'; p.vx = 0; p.vy = 0; p.onGround = false;
   p.climb = { dir: dir, kind: kind, p: 0, dur: dir > 0 ? (kind === 'lad' ? C.TO_LAD : C.CLIMB_UP) : C.CLIMB_DN,
-              cx: cx, cy: cy, facing: facing, from: from, to: to,
+              cx: cx, cy: cy, facing: facing, from: from, to: to, stance: st,
               off: { x: from.x - ideal.x, y: from.y - ideal.y } };
   p.events.push(dir > 0 ? 'climbup' : 'climbdown');
+  if (st === 1) p.events.push('crouch');
+  else if (st === 2) p.events.push('prone');
 }
 export function releaseHang(p, push){
   p.state = 'normal'; p.hang = null; p.grabCd = C.GRAB_CD;
@@ -366,7 +433,9 @@ export function updateHang(S, p, dt, inp){
     p.hang.cx += q.dx; p.hang.cy = q.y;
     p.x += q.dx; p.y = q.y - C.HAND;
   }
-  var away = (inp.x !== 0 && inp.x !== p.facing) ? inp.x : 0;
+  var ax = Math.abs(inp.x) > 0.35 ? (inp.x > 0 ? 1 : -1) : 0;
+  var away = (ax && ax !== p.facing) ? ax : 0;
+  var toward = ax === p.facing;
   if (p.hang.kind === 'lad') away = 0;
   if (inp.jumpPressed){
     if (away){                                       // прыжок спиной от стены
@@ -375,32 +444,41 @@ export function updateHang(S, p, dt, inp){
       p.lock = C.WJ_LOCK; p.apexY = p.y; p.events.push('backjump');
       return;
     }
-    if (p.hang.kind === 'lad'){ startClimb(p, 1, p.hang.cx, p.hang.cy, p.facing, 'lad'); return; }
-    if (rectFree(standBox(p.hang.cx, p.hang.cy, p.facing).x, standBox(p.hang.cx, p.hang.cy, p.facing).y, p.w, p.h)){
-      startClimb(p, 1, p.hang.cx, p.hang.cy, p.facing, 'ledge'); return;
-    }
+    if (tryClimbUp(p)) return;
   }
-  if (inp.upPressed || inp.upHeld){
-    if (p.hang.kind === 'lad'){ startClimb(p, 1, p.hang.cx, p.hang.cy, p.facing, 'lad'); return; }
-    var sb = standBox(p.hang.cx, p.hang.cy, p.facing);
-    if (rectFree(sb.x, sb.y, p.w, p.h)){ startClimb(p, 1, p.hang.cx, p.hang.cy, p.facing, 'ledge'); return; }
+  if (inp.upPressed || inp.upHeld || toward){
+    if (tryClimbUp(p)) return;
   }
   if (inp.downPressed){ releaseHang(p, 0); return; }
   if (away) releaseHang(p, away);
+}
+export function tryClimbUp(p){
+  if (p.hang.kind === 'lad'){ startClimb(p, 1, p.hang.cx, p.hang.cy, p.facing, 'lad'); return true; }
+  var land = bestLand(p.hang.cx, p.hang.cy, p.facing);
+  if (!land) return false;
+  startClimb(p, 1, p.hang.cx, p.hang.cy, p.facing, 'ledge', land);
+  return true;
 }
 export function ease(t){ return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2)/2; }
 export function updateClimb(S, p, dt){
   var cl = p.climb;
   cl.p += dt / cl.dur;
   if (cl.p >= 1){
-    p.x = cl.to.x; p.y = cl.to.y; p.vx = 0; p.vy = 0; p.apexY = p.y;
-    if (cl.dir > 0 && cl.kind === 'lad'){
+    p.x = cl.to.x; p.y = cl.to.y; p.vy = 0; p.apexY = p.y;
+    p.vx = cl.kind === 'vault' ? cl.vx : 0;
+    if (cl.kind === 'vault'){
+      p.state = 'normal'; p.onGround = true; p.coyote = C.COYOTE; p.landT = 0;
+      p.climb = null; p.events.push('mantled');
+    } else if (cl.dir > 0 && cl.kind === 'lad'){
       var lc = Math.floor((p.x + p.w/2) / T);
       p.hang = null; p.climb = null;
       var lr = Math.floor((p.y + p.h/2) / T);
       attach(p, tileAt(lc, lr) || LADW, lc, 0, 0);
       p.lad.tc = lc; p.lad.tr = lr;
     } else if (cl.dir > 0){
+      if (cl.stance > 0){
+        p.stance = cl.stance; p.w = stanceW(cl.stance); p.h = stanceH(cl.stance);
+      }
       p.state = 'normal'; p.onGround = true; p.coyote = C.COYOTE; p.landT = 0.08;
       p.hang = null; p.climb = null; p.events.push('mantled');
     } else {

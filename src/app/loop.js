@@ -172,6 +172,7 @@ function startLevel(idx){
   paused = false; setOutro(null);
   parts.length = 0; view.flash = 0.7; view.warpJump = true;
   cam.x = S.p.x - VW/2; cam.y = S.p.y - VH/2;
+  cam.ax = S.p.x + S.p.w/2; cam.ay = S.p.y + S.p.h/2;
   applyPal(); buildWater(); invalidateAll();
   setMenu(false);
 }
@@ -282,12 +283,16 @@ function frame(now){
   }
 
   var p2 = S.p;
+  var pcx = p2.x + p2.w/2, pcy = p2.y + p2.h/2;    // мёртвая зона: якорь двигаем только за её границей
+  var DZX = 10, DZY = 8;
+  if (pcx - cam.ax > DZX) cam.ax = pcx - DZX; else if (pcx - cam.ax < -DZX) cam.ax = pcx + DZX;
+  if (pcy - cam.ay > DZY) cam.ay = pcy - DZY; else if (pcy - cam.ay < -DZY) cam.ay = pcy + DZY;
   var tgtLead = p2.facing * 20 * (Math.abs(p2.vx) > 30 ? 1 : 0.35);
   cam.lead += (tgtLead - cam.lead) * Math.min(1, dt*3.2);
   var wantLook = (inp.downHeld && p2.onGround && Math.abs(p2.vx) < 10 && p2.state === 'normal') ? 44 :
                  (inp.upHeld && p2.onGround && Math.abs(p2.vx) < 10 && p2.state === 'normal' ? -30 : 0);
   cam.look += (wantLook - cam.look) * Math.min(1, dt*2.2);
-  var want = clampCam(p2.x + p2.w/2 - VW/2 + cam.lead, p2.y + p2.h/2 - VH/2 + cam.look);
+  var want = clampCam(cam.ax - VW/2 + cam.lead, cam.ay - VH/2 + cam.look);
   var tx = want.x, ty = want.y;
   var kk = 1 - Math.pow(0.0015, dt);
   if (S.fade >= 0.95 || view.warpJump){ cam.x = tx; cam.y = ty; view.warpJump = false; }   // прыжок камеры под чёрным экраном
@@ -393,6 +398,7 @@ export function start(){
                         exportText: edExportText };
   }
   cam.x = S.p.x - VW/2; cam.y = S.p.y - VH/2;
+  cam.ax = S.p.x + S.p.w/2; cam.ay = S.p.y + S.p.h/2;
   resize();
   last = performance.now();
   requestAnimationFrame(frame);

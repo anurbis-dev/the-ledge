@@ -6,6 +6,16 @@ export const RUN_0 = po({head:[5,4],neck:[5,8],hip:[5,14],eF:[4,11],hF:[2,13],eB
 export const RUN_1 = po({head:[5,3],neck:[5,7],hip:[5,13],eF:[5,10],hF:[4,14],eB:[5,10],hB:[6,14],kF:[6,17],fF:[6,22],kB:[4,16],fB:[5,18]});
 export function swapFB(a){ return {head:a.head,neck:a.neck,hip:a.hip,eF:a.eB,hF:a.hB,eB:a.eF,hB:a.hF,kF:a.kB,fF:a.fB,kB:a.kF,fB:a.fF}; }
 export const RUN = [RUN_0, RUN_1, swapFB(RUN_0), swapFB(RUN_1)];
+/* рывок через колено на уступ — низкий наклонный присед, не вставание в рост */
+export const VAULT_B = po({head:[9,9],neck:[8,11],hip:[6,14],eF:[11,10],hF:[13,7],eB:[3,12],hB:[1,15],kF:[10,15],fF:[13,11],kB:[3,18],fB:[1,21]});
+/* подбор предмета с земли — присед и рука вниз, к стопам */
+export const PICK_B = po({head:[7,12],neck:[7,15],hip:[6,17],eF:[10,16],hF:[12,20],eB:[3,15],hB:[2,18],kF:[8,17],fF:[8,21],kB:[3,17],fB:[3,21]});
+/* бросок факела — рука выброшена вперёд, корпус довёрнут за замахом */
+export const THROW_B = po({head:[5,2],neck:[5,5],hip:[5,11],eF:[10,3],hF:[15,-1],eB:[2,10],hB:[0,14],kF:[7,15],fF:[9,19],kB:[3,16],fB:[1,20]});
+/* упор руками в стену перед собой */
+export const WALLPUSH = po({head:[5,4],neck:[5,8],hip:[5,14],eF:[9,9],hF:[12,9],eB:[6,10],hB:[9,10],kF:[7,17],fF:[8,21],kB:[4,18],fB:[4,22]});
+/* смотрим вверх стоя на месте — только голова/шея запрокинуты */
+export const LOOKUP_A = po({head:[6,-2],neck:[5,3],hip:[5,14],eF:[7,11],hF:[7,15],eB:[3,11],hB:[3,15],kF:[6,18],fF:[6,22],kB:[4,18],fB:[4,22]});
 export const JUMPP = po({head:[5,4],neck:[5,8],hip:[5,14],eF:[8,10],hF:[9,6],eB:[3,10],hB:[2,7],kF:[7,17],fF:[6,20],kB:[3,18],fB:[3,22]});
 export const FALLP = po({head:[5,4],neck:[5,8],hip:[5,14],eF:[9,11],hF:[10,8],eB:[1,11],hB:[0,8],kF:[8,18],fF:[8,22],kB:[2,18],fB:[2,22]});
 export const LANDP = po({head:[5,7],neck:[5,10],hip:[5,16],eF:[8,14],hF:[8,17],eB:[2,14],hB:[2,17],kF:[8,19],fF:[7,22],kB:[2,19],fB:[3,22]});
@@ -55,4 +65,19 @@ export function climbPose(t){
   for (var i = 1; i < CL_T.length; i++)
     if (t <= CL_T[i]) return lerpPose(CL_K[i-1], CL_K[i], (t-CL_T[i-1])/(CL_T[i]-CL_T[i-1]));
   return CL_K[4];
+}
+export function vaultPose(t){
+  if (t <= 0) return RUN_0;
+  if (t >= 1) return RUN_1;
+  return t <= 0.5 ? lerpPose(RUN_0, VAULT_B, t/0.5) : lerpPose(VAULT_B, RUN_1, (t-0.5)/0.5);
+}
+export function pickPose(t){
+  if (t <= 0) return IDLE_A;
+  if (t >= 1) return IDLE_A;
+  return t <= 0.45 ? lerpPose(IDLE_A, PICK_B, t/0.45) : lerpPose(PICK_B, IDLE_A, (t-0.45)/0.55);
+}
+export function throwPose(t){
+  if (t <= 0) return IDLE_A;
+  if (t >= 1) return IDLE_A;
+  return t <= 0.4 ? lerpPose(IDLE_A, THROW_B, t/0.4) : lerpPose(THROW_B, IDLE_A, (t-0.4)/0.6);
 }

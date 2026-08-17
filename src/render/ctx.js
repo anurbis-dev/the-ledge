@@ -10,7 +10,7 @@ lc.width = VW; lc.height = VH;
 export const lx = lc.getContext('2d');
 lx.imageSmoothingEnabled = false;
 
-export const cam = { x: 0, y: 0, lead: 0, look: 0 };
+export const cam = { x: 0, y: 0, lead: 0, look: 0, ax: 0, ay: 0 };
 export const view = {
   time: 0, animT: 0, runPh: 0, parts: [], flash: 0,
   tail: { a: 0, v: 0 }, warpJump: false, hearts: [],

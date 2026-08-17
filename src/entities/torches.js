@@ -21,7 +21,9 @@ export function stepTorches(S, dt){
   for (var i = 0; i < S.torches.length; i++){
     var t = S.torches[i];
     if (t.held){
-      t.x = p.x + p.w/2 + p.facing*7; t.y = p.y + 15; t.vx = 0; t.vy = 0;
+      // атач случился на нижней точке приседа — от неё и доводим руку до обычной высоты
+      var reachK = p.pickT > 0 ? Math.min(1, p.pickT / (C.PICK_T * (1 - PICK_APEX))) : 0;
+      t.x = p.x + p.w/2 + p.facing*7; t.y = p.y + 15 + reachK*7; t.vx = 0; t.vy = 0;
       if (!t.lit){                                        // поджигаем от чужого огня
         for (var oi = 0; oi < S.torches.length; oi++){
           var o = S.torches[oi];
@@ -105,18 +107,39 @@ export function dropTorch(S, hard){
   t.spin = p.facing * (hard ? 15 : 7); t.wasAir = true; t.thrown = hard;
   p.torch = -1; p.events.push(hard ? 'throw' : 'droptorch');
 }
+var PICK_APEX = 0.45;     // доля анимации до нижней точки приседа — как в render/poses.js:pickPose
+var THROW_REL = 0.4;      // доля анимации до броска — как в render/poses.js:throwPose
+/* --- довести отложенный подбор/бросок до нужного кадра анимации --- */
+export function resolvePickup(S){
+  var p = S.p, pend = p.pickPend;
+  if (pend && p.pickT <= C.PICK_T * (1 - PICK_APEX)){
+    p.pickPend = null;
+    if (pend.kind === 'torch'){
+      var t = findById(S.torches, pend.id);
+      if (t && !t.held){ t.held = true; p.torch = t.id; p.events.push(t.lit ? 'take' : 'takedark'); }
+    } else if (pend.kind === 'stick'){
+      if (p.torch >= 0) dropTorch(S, false);
+      if (!S.pick.stick.taken){ S.pick.stick.taken = true; giveGear(S, 'stick'); p.events.push('getstick'); }
+    }
+  }
+  if (p.throwPend && p.throwT <= C.THROW_T * (1 - THROW_REL)){
+    p.throwPend = false;
+    dropTorch(S, true);
+  }
+}
 export function tryAction(S){
   var p = S.p;
   if (tryChest(S)) return true;                          // сундук открываем не выпуская факел
-  if (p.torch >= 0){ dropTorch(S, true); return true; }
-  var pk = S.pick;
-  if (!pk.stick.taken && p.state === 'normal' &&
-      Math.abs(pk.stick.x - (p.x + p.w/2)) < C.ACT_R && Math.abs(pk.stick.y - (p.y + p.h/2)) < 22){
-    pk.stick.taken = true; giveGear(S, 'stick');
-    if (p.torch >= 0) dropTorch(S, false);
-    p.events.push('getstick'); return true;
+  if (p.torch >= 0){
+    if (p.throwT <= 0){ p.throwT = C.THROW_T; p.throwPend = true; }
+    return true;
   }
-  if (p.torch >= 0){ dropTorch(S, true); return true; }   // в руке факел — сначала бросаем
+  var pk = S.pick;
+  if (!pk.stick.taken && p.state === 'normal' && p.pickT <= 0 &&
+      Math.abs(pk.stick.x - (p.x + p.w/2)) < C.ACT_R && Math.abs(pk.stick.y - (p.y + p.h/2)) < 22){
+    p.pickT = C.PICK_T; p.pickPend = { kind: 'stick' };
+    return true;
+  }
   if (p.state !== 'normal' && p.state !== 'ladder') return false;
   if (p.stick && p.stance === 0){                         // враг в досягаемости — бьём
     var ax0 = p.x + p.w/2 + p.facing*(C.ATK_R*0.55), ay0 = p.y + p.h/2, hit = false, q;
@@ -130,6 +153,7 @@ export function tryAction(S){
     }
     if (hit) return attack(S);
   }
+  if (p.pickT > 0) return p.stick ? attack(S) : false;   // уже приседаем за предметом
   var best = -1, bd = C.ACT_R*C.ACT_R, cx = p.x + p.w/2, cy = p.y + p.h/2;
   for (var i = 0; i < S.torches.length; i++){
     var t = S.torches[i]; if (t.held) continue;
@@ -137,7 +161,6 @@ export function tryAction(S){
     if (d < bd){ bd = d; best = i; }
   }
   if (best < 0) return p.stick ? attack(S) : false;    // рядом нет факела — бьём палкой
-  S.torches[best].held = true; p.torch = S.torches[best].id;
-  p.events.push(S.torches[best].lit ? 'take' : 'takedark');
+  p.pickT = C.PICK_T; p.pickPend = { kind: 'torch', id: S.torches[best].id };
   return true;
 }
