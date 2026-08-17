@@ -35,7 +35,7 @@ import { mkSounds, mkSoundAt } from '../entities/sounds.js';
 import { mkVolumes, mkVolumeAt } from '../entities/volumes.js';
 import { mkBoulders, mkBoulderAt } from '../entities/boulders.js';
 import { mkNpcs, mkNpcAt } from '../entities/npcs.js';
-import { mutter, mutterHero, startTalk, endTalk } from '../speech/runtime.js';
+import { mutter, mutterHero, startTalk, endTalk, breakTalk } from '../speech/runtime.js';
 
 export function mkWorld(li){
   if (li !== undefined || !runtime.LV) loadLevel(li === undefined ? runtime.LVI : li);
@@ -151,7 +151,7 @@ export const GAME = {
   tryAction, dropTorch, attack, tryDoor, inLift,
   GEAR, giveGear, wearGear,
   tryExit, liftSideOpen, tryChest,
-  mutter, mutterHero, startTalk, endTalk,
+  mutter, mutterHero, startTalk, endTalk, breakTalk,
   inDark, lightAt,
   hangBox, standBox, setWorld,
   get W(){ return runtime.W; },

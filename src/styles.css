@@ -99,6 +99,20 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
   font-size:11px;text-align:center}
 .ed-chestlist{z-index:26}
 #edChestListBody{padding:6px;display:flex;flex-direction:column;gap:4px;overflow:auto;max-height:260px}
+.ed-npctalk{z-index:26;width:340px;max-height:min(72vh, calc(100vh - 200px))}
+#edNpcTalkBody{padding:6px;display:flex;flex-direction:column;gap:6px;overflow:auto}
+.ed-talk-nodes{display:flex;flex-wrap:wrap;gap:4px}
+.ed-talk-ta{width:100%;min-height:52px;resize:vertical;background:#150f26;color:#e9e4ff;
+  border:1px solid #3a3460;border-radius:4px;font:inherit;font-size:11px;padding:4px 6px}
+.ed-talk-in{flex:1;min-width:0;height:22px;background:#150f26;color:#e9e4ff;border:1px solid #3a3460;
+  border-radius:4px;font:inherit;font-size:11px;padding:0 6px}
+.ed-talk-in.sm{width:92px;flex:0 0 auto}
+.ed-choice-row{display:flex;align-items:center;gap:4px}
+.ed-choice-row select{flex:0 0 88px;min-width:0;height:22px;background:#150f26;color:#e9e4ff;
+  border:1px solid #3a3460;border-radius:4px;font:inherit;font-size:11px}
+.ed-npctalk .ed-field select{flex:1;min-width:0}
+.ed-npctalk .ed-check{font-size:11px;color:#cfc6ff}
+.ed-npctalk input,.ed-npctalk textarea,.ed-npctalk select{-webkit-user-select:text;user-select:text}
 .ed-loot-row{display:flex;align-items:center;gap:6px}
 .ed-loot-row .ed-loot-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap;font-size:11px;color:#e9e4ff}

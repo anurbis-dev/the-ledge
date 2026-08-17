@@ -42,11 +42,13 @@ export function drawArrows(){
   for (var i = 0; i < S.arrows.length; i++){
     var b = S.arrows[i], x = Math.round(b.x - cam.x), y = Math.round(b.y - cam.y);
     if (x < -14 || x > viewW()+14) continue;
-    var d = b.vx >= 0 ? 1 : -1;
-    lb([x - d*8, y], [x + d*6, y], 1, P.wood);
-    rc(x + d*5, y - 1, d*3, 2, P.out);                // наконечник
-    lb([x - d*8, y - 1], [x - d*6, y - 1], 1, P.out); // оперение
-    lb([x - d*8, y + 1], [x - d*6, y + 1], 1, P.out);
+    var a = b.ang || 0, cs = Math.cos(a), sn = Math.sin(a);
+    var tip = [x + cs*7, y + sn*7], tail = [x - cs*7, y - sn*7];
+    var px = -sn*1.6, py = cs*1.6;                          // поперёк древка — для двух перьев
+    lb(tail, tip, 1, P.wood);
+    rc(Math.round(tip[0]) - 1, Math.round(tip[1]) - 1, 2, 2, P.arrowTip);      // белый наконечник
+    lb(tail, [tail[0] - cs*4 + px, tail[1] - sn*4 + py], 1, P.arrowFletch);    // чёрное оперение
+    lb(tail, [tail[0] - cs*4 - px, tail[1] - sn*4 - py], 1, P.arrowFletch);
   }
 }
 export function liftButtons(){
@@ -149,13 +151,23 @@ export function npcs(){
   var S = world(), time = view.time;
   var list = S.npcs || [];
   for (var i = 0; i < list.length; i++){
-    var n = list[i], x = Math.round(n.x - cam.x), y = Math.round(n.y - cam.y);
+    var n = list[i];
+    if (n.inside) continue;
+    var x = Math.round(n.x - cam.x), y = Math.round(n.y - cam.y);
     if (x < -16 || x > viewW() + 16) continue;
     var f = n.facing >= 0 ? 1 : -1;
-    var bob = Math.round(Math.sin(time * 2.2 + n.ph) * 0.5);
+    var bob = n.st === 'flee' ? Math.round(Math.sin(time * 10 + n.ph)) : Math.round(Math.sin(time * 2.2 + n.ph) * 0.5);
     var cloak = n.tree === 'wanderer' ? '#3a5a4a' : '#4a3a68';
     var cloakD = n.tree === 'wanderer' ? '#243830' : '#2e2446';
     var cx = x + 5;
+    if (n.crouch){
+      rc(cx - 4, y + 11, 8, 7, cloakD);
+      rc(cx - 3, y + 11, 6, 6, cloak);
+      rc(cx - 2, y + 9, 4, 4, P.skin);
+      rc(cx - 3, y + 8, 6, 2, cloak);
+      rc(cx + (f > 0 ? 1 : -2), y + 11, 2, 1, '#1a1220');
+      continue;
+    }
     rc(cx - 4, y + 8 + bob, 8, 10, cloakD);
     rc(cx - 3, y + 8 + bob, 6, 9, cloak);
     rc(cx - 3, y + 2 + bob, 6, 6, cloakD);

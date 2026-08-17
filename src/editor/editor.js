@@ -13,6 +13,7 @@ import { getActiveLayer, getLayers, layerTile, layerVar, isTileLayer } from '../
 import { showLayersPanel, bindLayersPanel } from './layers-panel.js';
 import { bindIntroPanel, renderIntroPanel } from './intro-panel.js';
 import { showInspect, bindInspect } from './inspect.js';
+import { bindNpcTalk, openNpcTalk, closeNpcTalk } from './npc-talk.js';
 import { pickSpecial, pickAllSpecial, hitGizmo, beginGizmo, moveGizmo, endGizmo, gizmoActive, drawGizmos } from './gizmos.js';
 import { markLevelDirty as persistDirty, flushLevel, bindPersist } from '../core/persist.js';
 import { beginOp, endOp, noteOp, undoOp, redoOp, canUndo, canRedo, bindHistory, clearHistory } from './history.js';
@@ -195,7 +196,7 @@ function respawnObjectAt(entry, cell){
   else if (entry.type === 'chest') G.mkChestAt(S, cell.c*T, floorY, o.loot, o.locked, o.random);
   else if (entry.type === 'item') G.mkItemAt(S, cx, cy, o.kind);
   else if (entry.type === 'boulder') G.mkBoulderAt(S, cx, floorY);
-  else if (entry.type === 'npc') G.mkNpcAt(S, cx, floorY, o.tree, o.facing);
+  else if (entry.type === 'npc') G.mkNpcAt(S, cx, floorY, o.tree, o.facing, o.dialog);
 }
 function newestOf(entry){
   var arr = entry.kindDef.get(world());
@@ -232,6 +233,7 @@ try {
 bindLayersPanel({ onChange: function(){ markLevelDirty(); } });
 bindIntroPanel();
 bindInspect({ onChange: function(){ markLevelDirty(); }, onClose: function(){ ED.sel = null; } });
+bindNpcTalk({ onChange: function(){ markLevelDirty(); } });
 bindPersist({ water: waterExport });
 bindHistory({
   onChange: function(why){
@@ -478,6 +480,7 @@ export function edClose(){
   edBar.classList.remove('on');
   showLayersPanel(false);
   showInspect(null);
+  closeNpcTalk();
   ED.sel = null;
   endGizmo();
   closeVarMenu();
@@ -924,8 +927,10 @@ export function edExportText(){
     return '[' + Math.floor((b.x + 6) / T) + ',' + (Math.floor((b.y + 11) / T) - 1) + ']';
   }).join(',') + '],');
   out.push('npcs: [' + (S.npcs || []).map(function(n){
-    return '[' + Math.floor((n.x + 5) / T) + ',' + (Math.floor((n.y + 18) / T) - 1) +
-      ",'" + (n.tree || 'hermit') + "'," + (n.facing != null ? n.facing : -1) + ']';
+    var row = '[' + Math.floor((n.x + 5) / T) + ',' + (Math.floor((n.y + 18) / T) - 1) +
+      ",'" + (n.tree || 'hermit') + "'," + (n.facing != null ? n.facing : -1);
+    if (n.dialog && n.dialog.nodes) row += ',' + JSON.stringify(n.dialog);
+    return row + ']';
   }).join(',') + '],');
   out.push('chests: [' + S.chests.map(function(c2){
     var loot2 = c2.loot || [];
@@ -1155,6 +1160,7 @@ cv.addEventListener('pointerdown', function(e){
   closeVarMenu();
   closeChestAdd();
   closeChestList();
+  closeNpcTalk();
   if (e.ctrlKey || e.metaKey){
     eyedrop(e, cell, wcell);
     return;
@@ -1170,8 +1176,10 @@ cv.addEventListener('pointerdown', function(e){
     return;
   }
   if (hits.length > 1){
-    applyHit(cycleHit(wcell.x, wcell.y));
-    ED.pendHit = { hit: ED.hitObj, x: e.clientX, y: e.clientY, c: wcell.c, r: wcell.r, single: false };
+    var npcHit = null, hi;
+    for (hi = 0; hi < hits.length; hi++) if (hits[hi].type === 'npc'){ npcHit = hits[hi]; break; }
+    applyHit(npcHit || cycleHit(wcell.x, wcell.y));
+    ED.pendHit = { hit: ED.hitObj, x: e.clientX, y: e.clientY, c: wcell.c, r: wcell.r, single: !npcHit };
     ED.painting = false;
     try { cv.setPointerCapture(e.pointerId); } catch(_){}
     return;
@@ -1249,9 +1257,13 @@ cv.addEventListener('pointermove', function(e){
 });
 function edUp(e){
   if (e && e.pointerId === ED.panId) ED.panId = -1;
-  if (e && e.type === 'pointerup' && ED.pendHit && ED.pendHit.single &&
-      (ED.pendHit.hit.type === 'chest' || ED.pendHit.hit.type === 'enemy'))
-    openChestList(ED.pendHit.hit.obj, ED.pendHit.hit.type, ED.pendHit.x, ED.pendHit.y);
+  if (e && e.type === 'pointerup' && ED.pendHit){
+    var ph = ED.pendHit.hit;
+    if (ph && (ph.type === 'chest' || ph.type === 'enemy') && ED.pendHit.single)
+      openChestList(ph.obj, ph.type, ED.pendHit.x, ED.pendHit.y);
+    else if (ph && ph.type === 'npc')
+      openNpcTalk(ph.obj, ED.pendHit.x, ED.pendHit.y);
+  }
   ED.dragObj = null;
   ED.pendHit = null;
   ED.painting = false; ED.erasing = false;

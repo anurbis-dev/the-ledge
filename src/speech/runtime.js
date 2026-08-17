@@ -1,6 +1,6 @@
 import { talkBlip, resolveVoice } from '../audio/talk.js';
 import { pickLine } from './lines.js';
-import { getTree } from './trees.js';
+import { treeOf } from './trees.js';
 
 var SEEN_KEY = 'ledge.dev.seenKinds';
 
@@ -106,8 +106,26 @@ function applyFlag(S, flag){
   S.flags[flag] = true;
 }
 
+export function metKey(npc){
+  return (npc && npc.tree ? npc.tree : 'hermit') + '.met';
+}
+export function toldKey(npc){
+  return (npc && npc.tree ? npc.tree : 'hermit') + '.told';
+}
+
+function findNpc(S, id){
+  var list = S.npcs || [];
+  for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+  return null;
+}
+
 function nodeOf(tree, id){
   return tree.nodes[id] || null;
+}
+
+function nodeText(node){
+  if (node.textPool) return pickLine(node.textPool);
+  return node.text || '';
 }
 
 function openNode(S, npc, tree, nodeId){
@@ -117,14 +135,15 @@ function openNode(S, npc, tree, nodeId){
     return;
   }
   applyFlag(S, node.flag);
+  if (node.told) applyFlag(S, toldKey(npc));
   if (node.grant === 'key') S.keys = (S.keys || 0) + 1;
   else if (node.grant && S.bag && S.bag[node.grant] != null) S.bag[node.grant]++;
   var choices = node.choices && node.choices.length ? node.choices : null;
   var b = mkBubble(S, {
-    text: node.text,
+    text: nodeText(node),
     who: 'npc',
     speakerId: npc.id,
-    voice: tree.voice || 'npc',
+    voice: tree.voice || npc.tree || 'npc',
     blocking: true,
     choices: choices,
     hold: choices ? 0.15 : 1.6,
@@ -136,10 +155,15 @@ function openNode(S, npc, tree, nodeId){
 }
 
 export function startTalk(S, npc){
-  if (!npc) return false;
-  var tree = getTree(npc.tree);
-  var met = S.flags && S.flags[(npc.tree || 'hermit') + '.met'];
-  var startId = met && tree.again ? tree.again : (tree.start || 'hello');
+  if (!npc || npc.inside || npc.st === 'flee' || npc.st === 'hide') return false;
+  var tree = treeOf(npc);
+  var told = S.flags && S.flags[toldKey(npc)];
+  var met = S.flags && S.flags[metKey(npc)];
+  var startId;
+  if (told && tree.already) startId = tree.already;
+  else if (met && tree.again) startId = tree.again;
+  else startId = tree.start || 'hello';
+  applyFlag(S, metKey(npc));
   if (typeof startId === 'function') startId = startId(S, npc);
   openNode(S, npc, tree, startId);
   S.p.events.push('talk:' + (npc.tree || 'npc'));
@@ -150,6 +174,16 @@ export function endTalk(S){
   if (S.talk) S.talk.closed = true;
   S.talk = null;
   S.bubbles = (S.bubbles || []).filter(function(b){ return !b.blocking; });
+}
+
+export function breakTalk(S, why){
+  if (!speechBlocks(S)) return false;
+  var npc = S.talk ? findNpc(S, S.talk.speakerId) : null;
+  endTalk(S);
+  if (npc && (why === 'flee' || why === 'hit'))
+    mutter(S, pickLine('flee'), 'npc', npc.id, npc.tree || 'npc');
+  if (S.p && S.p.events) S.p.events.push('talkbreak:' + (why || 'x'));
+  return true;
 }
 
 function advanceShown(b, dt){
@@ -197,7 +231,7 @@ export function stepSpeech(S, dt, inp){
           for (i = 0; i < list.length; i++) if (list[i].id === b.speakerId) npc = list[i];
           if (inp) inp.actPressed = false;
           if (!npc || !pick || pick.next == null) endTalk(S);
-          else openNode(S, npc, getTree(npc.tree), pick.next);
+          else openNode(S, npc, treeOf(npc), pick.next);
         }
       } else {
         b.hold -= dt;

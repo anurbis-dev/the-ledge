@@ -191,8 +191,10 @@ function writeObjects(lv, S){
             loot.map(function(e){ return [e.kind, e.qty]; }), !!c.random];
   });
   lv.npcs = (S.npcs || []).map(function(n){
-    return [Math.floor((n.x + 5) / T), Math.floor((n.y + 18) / T) - 1,
-            n.tree || 'hermit', n.facing != null ? n.facing : -1];
+    var row = [Math.floor((n.x + 5) / T), Math.floor((n.y + 18) / T) - 1,
+               n.tree || 'hermit', n.facing != null ? n.facing : -1];
+    if (n.dialog && n.dialog.nodes) row.push(JSON.parse(JSON.stringify(n.dialog)));
+    return row;
   });
   var items = (S.items || []).filter(function(it){ return !it.got; }).map(function(it){
     return [Math.floor(it.x / T), Math.floor(it.y / T), it.kind];

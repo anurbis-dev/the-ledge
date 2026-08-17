@@ -6,6 +6,7 @@ import {
 } from './map.js';
 import { dropTorch } from '../entities/torches.js';
 import { platUnder } from '../entities/plats.js';
+import { breakTalk } from '../speech/runtime.js';
 
 /* ---------------- игрок ---------------- */
 export function mkPlayer(){
@@ -203,6 +204,7 @@ export function damage(S, n, stun){
   S.p.stunT = stun; S.p.state = 'stun'; S.p.vx = 0;
   S.shake = Math.min(7, 3 + n * 2); S.hitStop = 0.09;
   S.p.events.push('hurt');
+  breakTalk(S, 'hit');
   if (S.hp <= 0){ S.hp = 0; S.dead = true; S.p.events.push('dead'); }
 }
 /* приземление: залипаем в приседе (среднее) или лёжа (высокое), без управления */

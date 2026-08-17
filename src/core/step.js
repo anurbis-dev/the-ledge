@@ -16,6 +16,7 @@ import { stepPlanks } from '../entities/planks.js';
 import { stepGive } from '../entities/give.js';
 import { stepBoulders, pushBoulders } from '../entities/boulders.js';
 import { stepHarpoons } from '../entities/harpoons.js';
+import { stepArrows } from '../entities/arrows.js';
 import { stepEnemies } from '../entities/enemies.js';
 import { stepFliers, stepDrops } from '../entities/fliers.js';
 import { stepSpiders } from '../entities/spiders.js';
@@ -26,6 +27,7 @@ import { pickups } from '../entities/items.js';
 import { stepDark } from '../entities/dark.js';
 import { stepSpeech } from '../speech/runtime.js';
 import { noteFirstItem } from '../speech/runtime.js';
+import { stepNpcs } from '../entities/npcs.js';
 
 /* --- основной шаг --- */
 export function step(S, dt, inp){
@@ -42,9 +44,11 @@ export function step(S, dt, inp){
   stepPlanks(S, dt);
   stepBoulders(S, dt);
   stepHarpoons(S, dt);
+  stepArrows(S, dt);
   stepEnemies(S, dt);
   stepFliers(S, dt);
   stepSpiders(S, dt);
+  stepNpcs(S, dt);
   stepTendrils(S, dt, inp);
   stepDrops(S, dt);
   stepLoot(S, dt);
@@ -55,6 +59,7 @@ export function step(S, dt, inp){
   if (S.p.atkCd > 0) S.p.atkCd -= dt;
   if (S.p.pickT > 0) S.p.pickT -= dt;
   if (S.p.throwT > 0) S.p.throwT -= dt;
+  if (S.p.bowT > 0) S.p.bowT -= dt;
   resolvePickup(S);
   var pk = S.pick;
   if (!pk.key.taken && Math.abs(pk.key.x - (S.p.x + S.p.w/2)) < 12 &&
@@ -83,9 +88,12 @@ export function step(S, dt, inp){
   if (talking){
     inp.x = 0;
     inp.jumpPressed = false;
+    inp.jumpHeld = false;
     inp.actPressed = false;
     inp.upPressed = false;
     inp.downPressed = false;
+    inp.upHeld = false;
+    inp.downHeld = false;
   }
   if (inp.upPressed && (tryExit(S) || tryDoor(S))) { /* вверх: пещера или дверь */ }
   else if (inp.actPressed) tryAction(S);
@@ -152,7 +160,7 @@ export function step(S, dt, inp){
   var onLadTop = ladderTopUnder(p, p.y + p.h + 1) !== null;
   var stanceBefore = p.stance;
   var onEdge = p.onGround && !inCab && !onLadTop && !p.inWater && canDescend(p, inp.x);
-  if (!rolling && p.onGround && !inCab && !onLadTop && !p.inWater && p.stanceT <= 0){
+  if (!talking && !rolling && p.onGround && !inCab && !onLadTop && !p.inWater && p.stanceT <= 0){
     if (inp.downPressed && p.stance < 2 && Math.abs(p.vx) <= 58) setStance(S, p, p.stance + 1);
     else if (!onEdge && inp.downHeld && p.stance === 0 && Math.abs(p.vx) <= 58) setStance(S, p, 1);
     if ((inp.upPressed || inp.upHeld || inp.jumpPressed) && p.stance > 0){
@@ -165,7 +173,7 @@ export function step(S, dt, inp){
   }
   if (p.stance !== stanceBefore){ p.stanceFrom = stanceBefore; p.stanceT = C.STANCE_T; }  // плавный переход позы
   // смотрим вверх стоя на месте — голова запрокидывается, камера чуть приподнимается (см. loop.js)
-  var wantLookUp = (!rolling && p.onGround && !inCab && p.state === 'normal' && p.stance === 0 &&
+  var wantLookUp = (!talking && !rolling && p.onGround && !inCab && p.state === 'normal' && p.stance === 0 &&
                      inp.upHeld && !inp.downHeld && Math.abs(p.vx) < 10) ? 1 : 0;
   p.lookUp += (wantLookUp - p.lookUp) * Math.min(1, dt * 6);
   if (p.lookUp < 0.01) p.lookUp = 0;

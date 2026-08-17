@@ -1,9 +1,10 @@
-/* деревья диалогов NPC: start / again + nodes с choices[].next */
+/* деревья диалогов NPC: start / again / already + nodes с choices[].next */
 export var TREES = {
   hermit: {
     voice: 'hermit',
     start: 'hello',
     again: 'again',
+    already: 'already',
     nodes: {
       hello: {
         text: 'Lost, traveler?',
@@ -21,28 +22,27 @@ export var TREES = {
       },
       tip: {
         text: 'Keys hide in chests. Usually.',
-        flag: 'hermit.met',
-        next: null
+        told: true
       },
       bye: {
-        text: 'Then keep walking.',
-        flag: 'hermit.met',
-        next: null
+        text: 'Then keep walking.'
       },
       again: {
         text: 'Still here?',
         choices: [
-          { text: 'Need a hint.', next: 'tip2' },
+          { text: 'Need a hint.', next: 'tip' },
           { text: 'I am fine.', next: 'later' }
         ]
       },
-      tip2: {
-        text: 'Doors want a key. Chests too.',
-        next: null
+      already: {
+        textPool: 'already',
+        choices: [
+          { text: 'Tell me again.', next: 'tip' },
+          { text: 'Never mind.', next: 'later' }
+        ]
       },
       later: {
-        text: 'The stone waits.',
-        next: null
+        text: 'The stone waits.'
       }
     }
   },
@@ -50,6 +50,7 @@ export var TREES = {
     voice: 'wanderer',
     start: 'hi',
     again: 'back',
+    already: 'already',
     nodes: {
       hi: {
         text: 'Oh! A living soul.',
@@ -74,18 +75,14 @@ export var TREES = {
       },
       key: {
         text: 'Not lately. Try the chests, not the doors.',
-        flag: 'wanderer.met',
-        next: null
+        told: true
       },
       tip: {
         text: 'If it looks empty, someone beat you to it.',
-        flag: 'wanderer.met',
-        next: null
+        told: true
       },
       bye: {
-        text: 'Watch your step.',
-        flag: 'wanderer.met',
-        next: null
+        text: 'Watch your step.'
       },
       back: {
         text: 'You again. Still in one piece?',
@@ -94,9 +91,15 @@ export var TREES = {
           { text: 'Need a hint.', next: 'key' }
         ]
       },
+      already: {
+        textPool: 'already',
+        choices: [
+          { text: 'Tell me again.', next: 'key' },
+          { text: 'Never mind.', next: 'ok' }
+        ]
+      },
       ok: {
-        text: 'Keep it that way.',
-        next: null
+        text: 'Keep it that way.'
       }
     }
   }
@@ -108,4 +111,23 @@ export function treeIds(){
 
 export function getTree(id){
   return TREES[id] || TREES.hermit;
+}
+
+export function cloneTree(id){
+  return JSON.parse(JSON.stringify(getTree(id)));
+}
+
+export function treeOf(npc){
+  if (npc && npc.dialog && npc.dialog.nodes) return npc.dialog;
+  return getTree(npc && npc.tree);
+}
+
+export function ensureDialog(npc){
+  if (!npc.dialog || !npc.dialog.nodes) npc.dialog = cloneTree(npc.tree);
+  if (!npc.dialog.nodes) npc.dialog.nodes = {};
+  return npc.dialog;
+}
+
+export function nodeIds(tree){
+  return tree && tree.nodes ? Object.keys(tree.nodes) : [];
 }

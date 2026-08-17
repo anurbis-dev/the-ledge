@@ -18,6 +18,7 @@ import { showSplash } from '../ui/splash.js';
 import { findById } from '../entities/ids.js';
 import { entitiesShown } from '../core/layers.js';
 import { hydrateAll } from '../core/persist.js';
+import { speechBlocks } from '../speech/runtime.js';
 import { clearHistory, undoOp, redoOp, canUndo, canRedo } from '../editor/history.js';
 
 var G = GAME;
@@ -444,7 +445,8 @@ function frame(now){
   if (pcy - cam.ay > DZY) cam.ay = pcy - DZY; else if (pcy - cam.ay < -DZY) cam.ay = pcy + DZY;
   var tgtLead = p2.facing * 20 * (Math.abs(p2.vx) > 30 ? 1 : 0.35);
   cam.lead += (tgtLead - cam.lead) * Math.min(1, dt*3.2);
-  var wantLook = (inp.downHeld && p2.onGround && Math.abs(p2.vx) < 10 && p2.state === 'normal') ? 44 :
+  var wantLook = speechBlocks(S) ? 0 :
+                 (inp.downHeld && p2.onGround && Math.abs(p2.vx) < 10 && p2.state === 'normal') ? 44 :
                  (inp.upHeld && p2.onGround && Math.abs(p2.vx) < 10 && p2.state === 'normal' ? -30 : 0);
   cam.look += (wantLook - cam.look) * Math.min(1, dt*2.2);
   var want = clampCam(cam.ax - VW/2 + cam.lead, cam.ay - VH/2 + cam.look);
