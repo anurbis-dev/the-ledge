@@ -527,16 +527,39 @@ export function tryMantle(S, p, dir, vx){
   startVault(p, step1.cx, step1.cy, dir, vx || 0, null);
   return true;
 }
-/* щель на уровне груди: паркур на 1 тайл, стойка — по окончании анимации.
-   щель у пола сама не берётся — игрок жмёт ↓ */
-export function tryEnterGap(S, p, dir){
+/* щель у пола: тот же уровень ног, встать нельзя, присед/лёжа влезает.
+   дыра вниз и ступень в 1 тайл — не сюда */
+function findFloorGap(p, dir){
+  var rG = Math.floor(Math.round(p.y + p.h) / T);
+  var cy = rG * T;
+  for (var d = 1; d <= 6; d++){
+    var wallX = dir > 0 ? p.x + p.w + d : p.x - d;
+    var col = Math.floor(wallX / T);
+    if (!solidTile(col, rG)) continue;                  // яма под ногами — сам жмёт ↓
+    if (fullStepTile(col, rG - 1) && !fullStepTile(col, rG - 2)) continue;
+    var cx = dir > 0 ? col * T : (col + 1) * T;
+    var land = bestLand(cx, cy, dir);
+    if (!land || land.stance === 0) continue;
+    return { cx: cx, cy: cy, land: land };
+  }
+  return null;
+}
+/* щель на груди или у пола: паркур, стойка — по окончании анимации */
+export function tryEnterGap(S, p, dir, vx){
   if (p.inWater) return false;
   if (p.state !== 'normal' || p.rollT > 0 || p.stance !== 0) return false;
+  var spd = vx != null ? vx : (p.vx || 0);
   var step1 = findChestStep(p, dir);
-  if (!step1) return false;
-  var land = bestLand(step1.cx, step1.cy, dir);
-  if (!land || land.stance === 0) return false;         // стоя влезает — это tryMantle
-  startVault(p, step1.cx, step1.cy, dir, p.vx || 0, land);
+  if (step1){
+    var land = bestLand(step1.cx, step1.cy, dir);
+    if (land && land.stance > 0){
+      startVault(p, step1.cx, step1.cy, dir, spd, land);
+      return true;
+    }
+  }
+  var gap = findFloorGap(p, dir);
+  if (!gap) return false;
+  startVault(p, gap.cx, gap.cy, dir, spd, gap.land);
   return true;
 }
 export function startVault(p, cx, cy, facing, vx, land){
