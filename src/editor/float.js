@@ -1,8 +1,10 @@
-/* плавающие окна редактора: drag за шапку / ПКМ, скролл СКМ и колесом */
+/* плавающие окна редактора: drag за шапку / ПКМ, ресайз за уголок, скролл СКМ и колесом */
 
 var KEY = 'ledge.ed.float';
 var zTop = 30;
 var bound = [];
+var MIN_W = 160;
+var MIN_H = 72;
 
 function loadAll(){
   try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e){ return {}; }
@@ -40,17 +42,42 @@ export function hasFloatPos(el){
 }
 
 function persist(el){
-  if (!el || !el.id || !el.style.left) return;
+  if (!el || !el.id) return;
   var all = loadAll();
-  all[el.id] = { x: parseFloat(el.style.left) || 0, y: parseFloat(el.style.top) || 0 };
+  var prev = all[el.id] || {};
+  var next = {
+    x: el.style.left ? parseFloat(el.style.left) || 0 : prev.x,
+    y: el.style.top ? parseFloat(el.style.top) || 0 : prev.y
+  };
+  if (el.style.width) next.w = Math.round(el.offsetWidth);
+  else if (prev.w) next.w = prev.w;
+  if (el.style.height) next.h = Math.round(el.offsetHeight);
+  else if (prev.h) next.h = prev.h;
+  all[el.id] = next;
   saveAll(all);
+}
+
+function applySize(el, w, h){
+  if (!el) return;
+  var left = el.style.left ? parseFloat(el.style.left) || 0 : el.getBoundingClientRect().left;
+  var top = el.style.top ? parseFloat(el.style.top) || 0 : el.getBoundingClientRect().top;
+  var maxW = Math.max(MIN_W, innerWidth - left - 4);
+  var maxH = Math.max(MIN_H, innerHeight - top - 4);
+  if (w != null){
+    el.style.width = Math.max(MIN_W, Math.min(maxW, w)) + 'px';
+  }
+  if (h != null){
+    el.style.height = Math.max(MIN_H, Math.min(maxH, h)) + 'px';
+    el.style.maxHeight = 'none';
+  }
 }
 
 function restore(el){
   if (!el || !el.id) return;
   var pos = loadAll()[el.id];
   if (!pos) return;
-  placeFloat(el, pos.x, pos.y);
+  if (pos.w || pos.h) applySize(el, pos.w, pos.h);
+  if (pos.x != null && pos.y != null) placeFloat(el, pos.x, pos.y);
 }
 
 function ensureBody(root){
@@ -62,11 +89,21 @@ function ensureBody(root){
   var move = [], i, ch;
   for (i = 0; i < root.children.length; i++){
     ch = root.children[i];
-    if (ch !== head) move.push(ch);
+    if (ch !== head && !(ch.classList && ch.classList.contains('ed-float-sz'))) move.push(ch);
   }
   for (i = 0; i < move.length; i++) b.appendChild(move[i]);
   root.appendChild(b);
   return b;
+}
+
+function ensureGrip(root){
+  var g = root.querySelector(':scope > .ed-float-sz');
+  if (g) return g;
+  g = document.createElement('div');
+  g.className = 'ed-float-sz';
+  g.title = 'Resize';
+  root.appendChild(g);
+  return g;
 }
 
 function isChrome(t){
@@ -79,7 +116,8 @@ export function bindFloat(root){
   bound.push(root);
   var head = root.querySelector(':scope > .ed-float-head');
   var scroller = ensureBody(root);
-  var mode = null, pid = -1, ox = 0, oy = 0, sTop = 0, sLeft = 0;
+  var grip = ensureGrip(root);
+  var mode = null, pid = -1, ox = 0, oy = 0, sTop = 0, sLeft = 0, sW = 0, sH = 0;
   restore(root);
 
   function hookWin(){
@@ -118,11 +156,26 @@ export function bindFloat(root){
     hookWin();
   }
 
+  function startSize(e){
+    var r = root.getBoundingClientRect();
+    mode = 'size';
+    pid = e.pointerId;
+    ox = e.clientX;
+    oy = e.clientY;
+    sW = r.width;
+    sH = r.height;
+    root.classList.add('is-sz');
+    raiseFloat(root);
+    try { root.setPointerCapture(e.pointerId); } catch (_){}
+    hookWin();
+  }
+
   function onMove(e){
     if (!mode || e.pointerId !== pid) return;
     e.preventDefault();
     e.stopPropagation();
     if (mode === 'move') placeFloat(root, e.clientX - ox, e.clientY - oy);
+    else if (mode === 'size') applySize(root, sW + (e.clientX - ox), sH + (e.clientY - oy));
     else {
       scroller.scrollTop = sTop - (e.clientY - oy);
       scroller.scrollLeft = sLeft - (e.clientX - ox);
@@ -131,16 +184,22 @@ export function bindFloat(root){
 
   function onUp(e){
     if (e && e.pointerId !== pid) return;
-    if (mode === 'move') persist(root);
+    if (mode === 'move' || mode === 'size') persist(root);
     mode = null;
     pid = -1;
-    root.classList.remove('is-drag', 'is-pan');
+    root.classList.remove('is-drag', 'is-pan', 'is-sz');
     unhookWin();
   }
 
   root.addEventListener('pointerdown', function(e){
     if (root.hidden) return;
     raiseFloat(root);
+    if (e.button === 0 && grip && (e.target === grip || grip.contains(e.target))){
+      e.preventDefault();
+      e.stopPropagation();
+      startSize(e);
+      return;
+    }
     if (e.button === 2){
       e.preventDefault();
       e.stopPropagation();
@@ -183,8 +242,11 @@ export function bindAllFloats(){
 addEventListener('resize', function(){
   for (var i = 0; i < bound.length; i++){
     var el = bound[i];
-    if (el.hidden || !el.style.left) continue;
-    placeFloat(el, parseFloat(el.style.left) || 0, parseFloat(el.style.top) || 0);
+    if (el.hidden) continue;
+    if (el.style.width || el.style.height){
+      applySize(el, el.offsetWidth, el.offsetHeight);
+    }
+    if (el.style.left) placeFloat(el, parseFloat(el.style.left) || 0, parseFloat(el.style.top) || 0);
   }
 });
 

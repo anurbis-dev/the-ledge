@@ -133,6 +133,11 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
 .ed-float-body::-webkit-scrollbar{width:0;height:0;display:none}
 .ed-float.is-drag,.ed-float.is-drag *{cursor:grabbing!important}
 .ed-float.is-pan,.ed-float.is-pan *{cursor:ns-resize!important}
+.ed-float.is-sz,.ed-float.is-sz *{cursor:nwse-resize!important}
+.ed-float-sz{position:absolute;right:0;bottom:0;width:16px;height:16px;z-index:3;
+  cursor:nwse-resize;touch-action:none}
+.ed-float-sz::before{content:"";position:absolute;right:3px;bottom:3px;width:10px;height:10px;
+  background:linear-gradient(135deg,transparent 46%,#6a5fa8 46% 54%,transparent 54% 66%,#6a5fa8 66% 74%,transparent 74% 86%,#6a5fa8 86%)}
 #edLayers{left:8px;top:8px}
 .ed-inspect{right:8px;top:8px;width:230px}
 .ed-float-head{display:flex;align-items:center;justify-content:space-between;gap:6px;
