@@ -73,6 +73,12 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
 .ed-mix-vol{flex:1;min-width:80px}
 .ed-mix-song{width:100%;height:26px;border-radius:6px;border:1px solid #3a3460;
   background:#150f26;color:#e9e4ff;font:inherit;font-size:11px;margin:2px 0 6px;padding:0 6px}
+.ed-mix-tr{display:flex;flex-direction:column;gap:6px;margin:4px 0 8px}
+.ed-mix-time{font-size:11px;color:#cfc6ff;font-variant-numeric:tabular-nums}
+.ed-mix-seek{width:100%;height:18px;margin:0;accent-color:#8f88bb}
+.ed-mix-marks{position:relative;height:0;margin-top:-4px}
+.ed-mix-mark{position:absolute;top:0;width:1px;height:8px;background:#8f88bb;opacity:.7}
+.ed-mix-form{display:flex;flex-wrap:wrap;gap:4px}
 .edb{min-width:38px;height:26px;padding:0 7px;border-radius:6px;border:2px solid #4a4370;
   background:#1a152ecc;color:#e9e4ff;font-size:10px;letter-spacing:.04em}
 .edb.on{background:#4d3f86dd;border-color:#8f88bb}

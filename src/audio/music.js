@@ -12,9 +12,10 @@ scoreId = catalogEntry(scoreId).id;
 var BASE_MASTER = score.master != null ? score.master : 0.1;
 var BASE_FADE = score.fadeIn != null ? score.fadeIn : 2.6;
 
-var playing = false, hushed = true, origin = 0, pausedAt = 0, timer = null;
+var playing = false, hushed = true, hold = false, origin = 0, pausedAt = 0, timer = null;
 var master = null, noiseBuf = null;
 var schedUntil = 0;
+var live = [];
 var mix = { master: 1, fadeIn: BASE_FADE, voices: {}, solo: '' };
 
 loadMix();
@@ -56,6 +57,42 @@ function tickSec(){
 
 function loopDur(){
   return (score.loopEnd - score.loopStart) * tickSec();
+}
+
+function scoreDur(){
+  return (score.loopEnd || 0) * tickSec();
+}
+
+function elapsedNow(){
+  if (playing && !hushed){
+    try{ return Math.max(0, getActx().currentTime - origin); }catch(e){}
+  }
+  return pausedAt;
+}
+
+function scorePos(elapsed){
+  var ts = tickSec();
+  var ls = (score.loopStart || 0) * ts;
+  var le = (score.loopEnd || 0) * ts;
+  if (le <= 0) return 0;
+  if (elapsed < le || le <= ls) return Math.min(elapsed, le);
+  return ls + ((elapsed - le) % (le - ls));
+}
+
+function remember(node){
+  live.push(node);
+  if (live.length > 900) live.splice(0, 450);
+}
+
+function cutVoices(){
+  try{
+    var ctx = getActx();
+    var now = ctx.currentTime;
+    for (var i = 0; i < live.length; i++){
+      try{ live[i].stop(now); }catch(e){}
+    }
+  }catch(e){}
+  live.length = 0;
 }
 
 function masterLevel(){
@@ -119,12 +156,13 @@ function playOsc(t, midi, dur, vel, spec){
   var rel = spec.rel || 0.06;
   g.gain.setValueAtTime(0.0001, t);
   g.gain.exponentialRampToValueAtTime(Math.max(0.0002, amp), t + atk);
-  var hold = Math.max(atk + 0.01, dur - rel);
-  g.gain.setValueAtTime(Math.max(0.0002, amp), t + hold);
+  var holdT = Math.max(atk + 0.01, dur - rel);
+  g.gain.setValueAtTime(Math.max(0.0002, amp), t + holdT);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   o.connect(g); g.connect(master);
   o.start(t);
   o.stop(t + dur + 0.02);
+  remember(o);
   if (spec.sub){
     var so = ctx.createOscillator(), sg = ctx.createGain();
     so.type = 'sine';
@@ -132,11 +170,12 @@ function playOsc(t, midi, dur, vel, spec){
     var samp = spec.sub * (vel / 15);
     sg.gain.setValueAtTime(0.0001, t);
     sg.gain.exponentialRampToValueAtTime(Math.max(0.0002, samp), t + Math.max(atk, 0.02));
-    sg.gain.setValueAtTime(Math.max(0.0002, samp), t + hold);
+    sg.gain.setValueAtTime(Math.max(0.0002, samp), t + holdT);
     sg.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     so.connect(sg); sg.connect(master);
     so.start(t);
     so.stop(t + dur + 0.02);
+    remember(so);
   }
 }
 
@@ -161,6 +200,7 @@ function playDrum(t, kind, dur, vel){
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   src.connect(f); f.connect(g); g.connect(master);
   src.start(t); src.stop(t + dur + 0.02);
+  remember(src);
   if (kind === 0){
     var o = ctx.createOscillator(), og = ctx.createGain();
     o.type = 'sine'; o.frequency.setValueAtTime(88, t);
@@ -169,6 +209,7 @@ function playDrum(t, kind, dur, vel){
     og.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
     o.connect(og); og.connect(master);
     o.start(t); o.stop(t + 0.1);
+    remember(o);
   } else if (kind === 2){
     var c = ctx.createOscillator(), cg = ctx.createGain();
     c.type = 'triangle'; c.frequency.value = 1568;
@@ -176,6 +217,7 @@ function playDrum(t, kind, dur, vel){
     cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
     c.connect(cg); cg.connect(master);
     c.start(t); c.stop(t + 0.22);
+    remember(c);
   }
 }
 
@@ -235,23 +277,44 @@ function pump(){
   }catch(e){}
 }
 
-export function startMusic(){
-  try{
-    stopMusic();
-    var ctx = getActx();
-    ensureGraph();
-    playing = true;
-    hushed = false;
-    schedUntil = 0;
-    origin = ctx.currentTime + 0.06;
-    pausedAt = 0;
-    master.gain.cancelScheduledValues(ctx.currentTime);
+function armGraph(pos, fade){
+  var ctx = getActx();
+  ensureGraph();
+  cutVoices();
+  playing = true;
+  hushed = false;
+  hold = false;
+  pausedAt = Math.max(0, pos || 0);
+  schedUntil = 0;
+  origin = ctx.currentTime + 0.03 - pausedAt;
+  master.gain.cancelScheduledValues(ctx.currentTime);
+  if (fade){
     master.gain.setValueAtTime(0, ctx.currentTime);
     master.gain.linearRampToValueAtTime(masterLevel(), ctx.currentTime + fadeInSec());
-    if (timer) clearInterval(timer);
-    timer = setInterval(pump, 40);
-    pump();
+  } else {
+    master.gain.setValueAtTime(masterLevel(), ctx.currentTime);
+  }
+  if (timer) clearInterval(timer);
+  timer = setInterval(pump, 40);
+  pump();
+}
+
+export function startMusic(){
+  try{ armGraph(0, true); }catch(e){}
+}
+
+export function playMusic(){
+  hold = false;
+  try{
+    if (playing && !hushed) return;
+    if (playing && hushed){ resumeMusic(); return; }
+    armGraph(pausedAt, pausedAt < 0.03);
   }catch(e){}
+}
+
+export function pauseMusic(){
+  hold = true;
+  hushMusic();
 }
 
 export function hushMusic(){
@@ -268,6 +331,7 @@ export function hushMusic(){
 }
 
 export function resumeMusic(){
+  if (hold) return;
   if (!playing) { startMusic(); return; }
   if (!hushed) return;
   try{
@@ -286,6 +350,7 @@ export function stopMusic(){
   playing = false;
   hushed = true;
   if (timer){ clearInterval(timer); timer = null; }
+  cutVoices();
   try{
     if (master){
       var ctx = getActx();
@@ -295,7 +360,95 @@ export function stopMusic(){
   }catch(e){}
 }
 
+export function stopToStart(){
+  hold = true;
+  pausedAt = 0;
+  stopMusic();
+  hold = true;
+  pausedAt = 0;
+}
+
+export function seekMusic(sec){
+  var dur = scoreDur();
+  var pos = Math.max(0, Math.min(Math.max(0, dur - 0.001), +sec || 0));
+  pausedAt = pos;
+  if (!playing && !hushed) return pos;
+  try{
+    var ctx = getActx();
+    ensureGraph();
+    cutVoices();
+    origin = ctx.currentTime - pos;
+    schedUntil = ctx.currentTime;
+    if (playing && !hushed){
+      master.gain.cancelScheduledValues(ctx.currentTime);
+      master.gain.setValueAtTime(masterLevel(), ctx.currentTime);
+      pump();
+    }
+  }catch(e){}
+  if (!playing) hold = true;
+  return pos;
+}
+
+export function seekSection(id){
+  var form = score.form || [];
+  var ts = tickSec();
+  for (var i = 0; i < form.length; i++){
+    if (form[i].id === id || form[i].title === id){
+      return seekMusic(form[i].start * ts);
+    }
+  }
+  return seekMusic(0);
+}
+
+export function seekBars(delta){
+  var ts = tickSec();
+  var bar = 16 * ts;
+  var pos = scorePos(elapsedNow());
+  var snapped = Math.round(pos / bar) * bar + (delta || 0) * bar;
+  return seekMusic(snapped);
+}
+
 export function musicPlaying(){ return playing && !hushed; }
+export function musicHeld(){ return !!hold; }
+export function musicArmed(){ return !!playing; }
+
+export function getTransport(){
+  var ts = tickSec();
+  var dur = scoreDur();
+  var pos = scorePos(elapsedNow());
+  var tick = ts > 0 ? pos / ts : 0;
+  var form = score.form || [];
+  var section = null;
+  var sections = [];
+  for (var i = 0; i < form.length; i++){
+    var s = form[i];
+    var item = {
+      id: s.id,
+      title: s.title || s.id,
+      start: s.start,
+      end: s.end,
+      startSec: s.start * ts,
+      endSec: s.end * ts,
+      once: !!s.once
+    };
+    sections.push(item);
+    if (tick >= s.start && tick < s.end) section = item;
+  }
+  if (!section && sections.length && tick >= (score.loopEnd || 0)) section = sections[sections.length - 1];
+  return {
+    pos: pos,
+    duration: dur,
+    tick: tick,
+    bar: Math.floor(tick / 16) + 1,
+    bars: Math.max(1, Math.round((score.loopEnd || 0) / 16)),
+    section: section ? (section.title || section.id) : '',
+    sectionId: section ? section.id : '',
+    playing: playing && !hushed,
+    paused: !!(hold || (playing && hushed)),
+    held: !!hold,
+    form: sections
+  };
+}
 
 export function listScores(){
   var out = [];
@@ -320,6 +473,7 @@ export function setScore(id){
   if (!entry || entry.id === scoreId && entry.score === score) return;
   applyScore(entry);
   try{ localStorage.setItem(SCORE_KEY, scoreId); }catch(e){}
+  pausedAt = 0;
   if (playing && !hushed) startMusic();
 }
 
@@ -341,7 +495,8 @@ export function getMix(){
     scoreId: scoreId,
     title: catalogEntry(scoreId).title || score.title || score.name,
     form: score.form || [],
-    scores: listScores()
+    scores: listScores(),
+    transport: getTransport()
   };
 }
 

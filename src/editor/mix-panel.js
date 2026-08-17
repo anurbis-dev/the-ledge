@@ -1,11 +1,14 @@
 import { initSliders } from './slider.js';
 import {
   getMix, setMixMaster, setMixFade, setMixVoice, setMixSolo, resetMix,
-  startMusic, hushMusic, musicPlaying, setScore
+  playMusic, pauseMusic, stopToStart, seekMusic, seekSection, seekBars,
+  getTransport, musicPlaying, setScore
 } from '../audio/music.js';
 import { resumeAudio } from '../audio/context.js';
 
 var host = null;
+var raf = 0;
+var seeking = false;
 var LABELS = {
   bass: 'Bass',
   pad: 'Pad',
@@ -18,6 +21,9 @@ var LABELS = {
 
 export function bindMixPanel(){
   host = document.getElementById('edMix');
+  if (bindMixPanel._up) return;
+  bindMixPanel._up = true;
+  addEventListener('pointerup', function(){ seeking = false; });
 }
 
 export function renderMixPanel(){
@@ -49,31 +55,21 @@ export function renderMixPanel(){
     sel.addEventListener('change', function(){
       resumeAudio();
       setScore(sel.value);
-      if (!musicPlaying()) startMusic();
+      playMusic();
       renderMixPanel();
     });
     top.appendChild(sel);
   }
+  top.appendChild(buildTransport(m));
   top.appendChild(rangeRow('Volume', m.master, 0, 2, 0.01, function(v){ setMixMaster(v); }));
   top.appendChild(rangeRow('Fade in', m.fadeIn, 0.2, 8, 0.1, function(v){ setMixFade(v); }, 's'));
   var acts = document.createElement('div');
   acts.className = 'ed-mix-acts';
-  var play = document.createElement('button');
-  play.type = 'button';
-  play.className = 'edb' + (musicPlaying() ? ' on' : '');
-  play.textContent = musicPlaying() ? 'Playing' : 'Preview';
-  play.addEventListener('click', function(){
-    resumeAudio();
-    if (musicPlaying()) hushMusic();
-    else startMusic();
-    renderMixPanel();
-  });
   var rst = document.createElement('button');
   rst.type = 'button';
   rst.className = 'edb';
-  rst.textContent = 'Reset';
+  rst.textContent = 'Reset mix';
   rst.addEventListener('click', function(){ resetMix(); renderMixPanel(); });
-  acts.appendChild(play);
   acts.appendChild(rst);
   top.appendChild(acts);
   host.appendChild(top);
@@ -148,14 +144,153 @@ export function renderMixPanel(){
   }
   host.appendChild(sec);
   initSliders(host);
-  requestAnimationFrame(function(){
-    if (!host) return;
-    var b = host.querySelector('.ed-mix-acts .edb');
-    if (!b) return;
-    var on = musicPlaying();
-    b.textContent = on ? 'Playing' : 'Preview';
-    b.classList.toggle('on', on);
+  paintTransport();
+  kickTransport();
+}
+
+function buildTransport(m){
+  var t = m.transport || getTransport();
+  var box = document.createElement('div');
+  box.className = 'ed-mix-tr';
+
+  var acts = document.createElement('div');
+  acts.className = 'ed-mix-acts';
+  var play = document.createElement('button');
+  play.type = 'button';
+  play.className = 'edb ed-mix-play' + (t.playing ? ' on' : '');
+  play.textContent = t.playing ? 'Pause' : 'Play';
+  play.addEventListener('click', function(){
+    resumeAudio();
+    if (musicPlaying()) pauseMusic();
+    else playMusic();
+    paintTransport();
   });
+  var stop = document.createElement('button');
+  stop.type = 'button';
+  stop.className = 'edb';
+  stop.textContent = 'Stop';
+  stop.addEventListener('click', function(){
+    stopToStart();
+    paintTransport();
+  });
+  var prev = document.createElement('button');
+  prev.type = 'button';
+  prev.className = 'edb';
+  prev.textContent = '−bar';
+  prev.title = 'Back 1 bar';
+  prev.addEventListener('click', function(){ resumeAudio(); seekBars(-1); paintTransport(); });
+  var next = document.createElement('button');
+  next.type = 'button';
+  next.className = 'edb';
+  next.textContent = '+bar';
+  next.title = 'Forward 1 bar';
+  next.addEventListener('click', function(){ resumeAudio(); seekBars(1); paintTransport(); });
+  acts.appendChild(play);
+  acts.appendChild(stop);
+  acts.appendChild(prev);
+  acts.appendChild(next);
+  box.appendChild(acts);
+
+  var time = document.createElement('div');
+  time.className = 'ed-mix-time';
+  box.appendChild(time);
+
+  var seek = document.createElement('input');
+  seek.type = 'range';
+  seek.className = 'ed-mix-seek';
+  seek.min = '0';
+  seek.max = String(Math.max(1, t.duration || 1));
+  seek.step = '0.05';
+  seek.value = String(t.pos || 0);
+  seek.dataset.bnSkip = '1';
+  seek.addEventListener('pointerdown', function(){ seeking = true; });
+  seek.addEventListener('pointerup', function(){ seeking = false; });
+  seek.addEventListener('change', function(){ seeking = false; });
+  seek.addEventListener('input', function(){
+    seeking = true;
+    resumeAudio();
+    seekMusic(+seek.value);
+    paintTransport();
+  });
+  box.appendChild(seek);
+
+  if (t.form && t.form.length){
+    var marks = document.createElement('div');
+    marks.className = 'ed-mix-marks';
+    var dur = t.duration || 1;
+    for (var i = 0; i < t.form.length; i++){
+      var mk = document.createElement('span');
+      mk.className = 'ed-mix-mark';
+      mk.style.left = (100 * t.form[i].startSec / dur) + '%';
+      mk.title = t.form[i].title;
+      marks.appendChild(mk);
+    }
+    box.appendChild(marks);
+    var form = document.createElement('div');
+    form.className = 'ed-mix-form';
+    for (var f = 0; f < t.form.length; f++){
+      (function(sec){
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'edb ed-mix-sec';
+        b.dataset.sec = sec.id;
+        b.textContent = sec.title;
+        b.addEventListener('click', function(){
+          resumeAudio();
+          seekSection(sec.id);
+          if (!musicPlaying()) playMusic();
+          paintTransport();
+        });
+        form.appendChild(b);
+      })(t.form[f]);
+    }
+    box.appendChild(form);
+  }
+  return box;
+}
+
+function fmtTime(sec){
+  sec = Math.max(0, sec || 0);
+  var m = Math.floor(sec / 60);
+  var s = Math.floor(sec % 60);
+  return m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+function paintTransport(){
+  if (!host) return;
+  var t = getTransport();
+  var play = host.querySelector('.ed-mix-play');
+  if (play){
+    play.textContent = t.playing ? 'Pause' : 'Play';
+    play.classList.toggle('on', t.playing);
+  }
+  var time = host.querySelector('.ed-mix-time');
+  if (time){
+    var bits = [fmtTime(t.pos) + ' / ' + fmtTime(t.duration)];
+    if (t.section) bits.push(t.section);
+    bits.push('bar ' + t.bar + '/' + t.bars);
+    time.textContent = bits.join(' · ');
+  }
+  var seek = host.querySelector('.ed-mix-seek');
+  if (seek && !seeking){
+    seek.max = String(Math.max(1, t.duration || 1));
+    seek.value = String(t.pos || 0);
+  }
+  var secs = host.querySelectorAll('.ed-mix-sec');
+  for (var i = 0; i < secs.length; i++){
+    secs[i].classList.toggle('on', secs[i].dataset.sec === t.sectionId);
+  }
+}
+
+function kickTransport(){
+  if (raf) return;
+  function tick(){
+    raf = 0;
+    if (!host || host.hidden) return;
+    paintTransport();
+    raf = requestAnimationFrame(tick);
+  }
+  raf = requestAnimationFrame(tick);
 }
 
 function formMeta(m){

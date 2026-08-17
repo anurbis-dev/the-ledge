@@ -14,7 +14,7 @@ export function initSliders(root){
 }
 
 function upgradeRange(input){
-  if (input.dataset.bnReady === '1') return;
+  if (input.dataset.bnReady === '1' || input.dataset.bnSkip === '1') return;
   input.dataset.bnReady = '1';
 
   var wrap = input.closest('.slider-wrap');
