@@ -76,7 +76,7 @@ export var PARAM_GROUPS = [
     { key: 'AIR_MAX', label: 'Air max', min: 3, max: 30, step: 0.5 },
     { key: 'SCUBA_AIR', label: 'Scuba air', min: 10, max: 80, step: 1 },
     { key: 'SWIM_V', label: 'Swim speed', min: 20, max: 140, step: 1 },
-    { key: 'SWIM_UP', label: 'Swim up', min: -120, max: -10, step: 1 },
+    { key: 'SWIM_UP', label: 'Swim up', min: -180, max: -10, step: 1 },
     { key: 'SWIM_DN', label: 'Swim down', min: 20, max: 160, step: 1 },
     { key: 'SWIM_JUMP', label: 'Swim launch', min: -320, max: -60, step: 1 },
     { key: 'FLIP_MUL', label: 'Flipper mul', min: 1, max: 2.2, step: 0.05 },

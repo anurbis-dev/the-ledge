@@ -7,6 +7,8 @@ export const SLR2 = 15, SLR3 = 16, SLL2 = 17, SLL3 = 18;
 export const SLR4A = 19, SLR4B = 20, SLR4C = 21, SLR4D = 22;
 export const SLL4A = 23, SLL4B = 24, SLL4C = 25, SLL4D = 26;
 export const SLRCA = 27, SLRCB = 28, SLLCB = 29, SLLCA = 30;
+/* PLANK — деревянный настил (сгорает от факела навсегда); GIVE — пружинящий блок (проседает под ногами) */
+export const PLANK = 31, GIVE = 32;
 
 export const C = {
   W: 10, H: 22, RH: 12, CRH: 14, PRH: 8, PRW: 17,
@@ -20,12 +22,14 @@ export const C = {
   WALK_V: 42, THROW_X: 155, THROW_Y: -135, ACT_R: 26,
   ATK_T: 0.3, ATK_R: 26, ATK_CD: 0.16, HURT_CD: 1.0, PICK_T: 0.32, THROW_T: 0.2, STANCE_T: 0.13,
   EDGE_HOLD: 0.2,
-  LAD_SNAP: 0.14, AIR_MAX: 11, STAM_MAX: 2.2, DASH_V: 128, SWIM_V: 62, SWIM_UP: -46, SWIM_DN: 78, SWIM_JUMP: -196, CROUCH_V: 40, PRONE_V: 26, BAR_V: 52, LIFT_V: 42, LIFT_DWELL: 1.6, WARP_T: 0.62,
+  LAD_SNAP: 0.14, AIR_MAX: 11, STAM_MAX: 2.2, DASH_V: 128, SWIM_V: 62, SWIM_UP: -90, SWIM_DN: 40, SWIM_JUMP: -236, CROUCH_V: 40, PRONE_V: 26, BAR_V: 52, LIFT_V: 42, LIFT_DWELL: 1.6, WARP_T: 0.62,
   SCUBA_AIR: 40, FLIP_MUL: 1.35, HARPOON_V: 150,
+  ARROW_V: 190, BOW_ANIM_T: 0.4, BOW_CD: 0.5,
   TEND_REACH: 88, TEND_HOLD: 2.6,
   ROLL_V: 152, ROLL_T: 0.42, ROLL_CD: 0.14,
   LAD_V: 58, LAD_TOL: 6, LAD_XTOL: 11,
   SAFE: 46, HURT: 104, HITSTOP: 0.055,
-  FALL_CROUCH_T: 0.55, FALL_PRONE_T: 1.2,
-  CRUMB_T: 1.05, CRUMB_BACK: 3.4
+  FALL_CROUCH_T: 0.55, FALL_PRONE_T: 1.2, GETUP_T: 0.5,
+  CRUMB_T: 1.05, CRUMB_BACK: 3.4,
+  PLANK_BURN: 1.6
 };
