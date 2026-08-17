@@ -14,8 +14,36 @@ var ABC = {
   M:'101111111101101', N:'110111111101101', O:'010101101101010', P:'110101110100100',
   Q:'010101101111011', R:'110101110101101', S:'011100010001110', T:'111010010010010',
   U:'101101101101011', V:'101101101101010', W:'101101111111101', X:'101101010101101',
-  Y:'101101010010010', Z:'111001010100111'
+  Y:'101101010010010', Z:'111001010100111',
+  '.':'000000000000010', ',':'000000000010100', "'":'010010000000000'
 };
+var INTRO_LINES = [
+  'GO ON. SLIP.',
+  'FATE FIRST',
+  'THE PIT SAYS HI',
+  'GRIP OR GO',
+  "DON'T LOOK DOWN",
+  'GRAVITY IS HUNGRY',
+  'ONE MORE LEDGE',
+  'NO ROPE, NO MERCY',
+  'THE VOID IS PATIENT',
+  'LUCK IS A FINGERHOLD',
+  'TRUST THE STONE',
+  'FALL OR FLY',
+  'THE CAVE IS LISTENING',
+  'LEAVE THE LIGHT',
+  'A LONG WAY DOWN',
+  'THE FALL CAN WAIT',
+  'STEP INTO IT'
+];
+var introLine = '', lastIntro = -1;
+
+function pickIntroLine(){
+  var n = INTRO_LINES.length, i = Math.floor(Math.random() * n);
+  if (n > 1 && i === lastIntro) i = (i + 1) % n;
+  lastIntro = i;
+  introLine = INTRO_LINES[i];
+}
 export function digit(n, x, y, col){
   var s = DIG[n];
   for (var r = 0; r < 5; r++) for (var c = 0; c < 3; c++) if (s[r*3+c] === '1') rc(x+c, y+r, 1, 1, col);
@@ -129,7 +157,11 @@ export function drawIntro(){
   rc(VW/2 - 60, VH/2 - 16, 120, 1, '#3b3268');
   var sc = name.length <= 6 ? 3 : 2;
   textPixC(name, VW/2, VH/2 - 10, '#ffd9a0', sc);
-  if (Math.sin(time * 4) > 0) textPixC('TAP', VW/2, VH/2 + 12, '#8f88bb', 1);
+  if (view.warpJump || !introLine){
+    pickIntroLine();
+    view.warpJump = false;
+  }
+  if (Math.sin(time * 4) > 0) textPixC(introLine, VW/2, VH/2 + 12, '#8f88bb', 1);
 }
 export function drawPaused(){
   panel(VW/2 - 46, VH/2 - 20, 92, 40);
