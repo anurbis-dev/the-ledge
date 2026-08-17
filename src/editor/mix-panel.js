@@ -1,7 +1,7 @@
 import { initSliders } from './slider.js';
 import {
   getMix, setMixMaster, setMixFade, setMixVoice, setMixSolo, resetMix,
-  startMusic, hushMusic, musicPlaying
+  startMusic, hushMusic, musicPlaying, setScore
 } from '../audio/music.js';
 import { resumeAudio } from '../audio/context.js';
 
@@ -34,8 +34,26 @@ export function renderMixPanel(){
   top.appendChild(th);
   var meta = document.createElement('div');
   meta.className = 'ed-pg-empty';
-  meta.textContent = (m.key || '') + ' · ' + (m.bpm || '') + ' BPM · loop ' + (m.loopSec || 0).toFixed(0) + 's';
+  meta.textContent = formMeta(m);
   top.appendChild(meta);
+  if (m.scores && m.scores.length){
+    var sel = document.createElement('select');
+    sel.className = 'ed-mix-song';
+    for (var si = 0; si < m.scores.length; si++){
+      var opt = document.createElement('option');
+      opt.value = m.scores[si].id;
+      opt.textContent = m.scores[si].title;
+      if (m.scores[si].id === m.scoreId) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    sel.addEventListener('change', function(){
+      resumeAudio();
+      setScore(sel.value);
+      if (!musicPlaying()) startMusic();
+      renderMixPanel();
+    });
+    top.appendChild(sel);
+  }
   top.appendChild(rangeRow('Volume', m.master, 0, 2, 0.01, function(v){ setMixMaster(v); }));
   top.appendChild(rangeRow('Fade in', m.fadeIn, 0.2, 8, 0.1, function(v){ setMixFade(v); }, 's'));
   var acts = document.createElement('div');
@@ -138,6 +156,19 @@ export function renderMixPanel(){
     b.textContent = on ? 'Playing' : 'Preview';
     b.classList.toggle('on', on);
   });
+}
+
+function formMeta(m){
+  var bits = [];
+  if (m.title) bits.push(m.title);
+  if (m.key) bits.push(m.key);
+  if (m.bpm) bits.push(m.bpm + ' BPM');
+  if (m.introSec) bits.push('intro ' + m.introSec.toFixed(0) + 's');
+  if (m.loopSec) bits.push('loop ' + m.loopSec.toFixed(0) + 's');
+  if (m.form && m.form.length){
+    bits.push(m.form.map(function(s){ return s.title || s.id; }).join(' → '));
+  }
+  return bits.join(' · ');
 }
 
 function rangeRow(label, value, min, max, step, onInput, suffix, asPct){

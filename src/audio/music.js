@@ -1,11 +1,16 @@
 import { getActx } from './context.js';
-import score from './scores/lantern-key.json';
+import { CATALOG, DEFAULT_SCORE, catalogEntry } from './scores/catalog.js';
 
 var MIX_KEY = 'ledge.dev.mix';
-var BASE_MASTER = score.master != null ? score.master : 0.1;
-var BASE_FADE = score.fadeIn != null ? score.fadeIn : 2.6;
+var SCORE_KEY = 'ledge.dev.score';
 var CHAN = ['bass', 'pad', 'arp', 'lead', 'harm', 'echo', 'drum'];
 var WAVES = ['sine', 'triangle', 'square', 'sawtooth'];
+
+var scoreId = loadScoreId();
+var score = catalogEntry(scoreId).score;
+scoreId = catalogEntry(scoreId).id;
+var BASE_MASTER = score.master != null ? score.master : 0.1;
+var BASE_FADE = score.fadeIn != null ? score.fadeIn : 2.6;
 
 var playing = false, hushed = true, origin = 0, pausedAt = 0, timer = null;
 var master = null, noiseBuf = null;
@@ -13,6 +18,21 @@ var schedUntil = 0;
 var mix = { master: 1, fadeIn: BASE_FADE, voices: {}, solo: '' };
 
 loadMix();
+
+function loadScoreId(){
+  try{
+    var id = localStorage.getItem(SCORE_KEY);
+    if (id) return id;
+  }catch(e){}
+  return DEFAULT_SCORE;
+}
+
+function applyScore(entry){
+  scoreId = entry.id;
+  score = entry.score;
+  BASE_MASTER = score.master != null ? score.master : 0.1;
+  BASE_FADE = score.fadeIn != null ? score.fadeIn : 2.6;
+}
 
 function loadMix(){
   try{
@@ -159,30 +179,43 @@ function playDrum(t, kind, dur, vel){
   }
 }
 
-function scheduleRange(from, to){
-  var ld = loopDur();
+function eachWhen(tick, from, to, fn){
   var ts = tickSec();
-  if (ld <= 0 || to <= from) return;
+  var ls = score.loopStart || 0;
+  var le = score.loopEnd || 0;
+  var t0 = origin + tick * ts;
+  if (t0 >= from && t0 < to) fn(t0);
+  if (tick < ls || tick >= le) return;
+  var ld = (le - ls) * ts;
+  if (ld <= 0) return;
+  var body0 = origin + le * ts;
+  var local = (tick - ls) * ts;
+  var k = Math.ceil((from - body0 - local) / ld - 1e-9);
+  if (k < 0) k = 0;
+  for (;;){
+    var t = body0 + k * ld + local;
+    if (t >= to) break;
+    if (t >= from) fn(t);
+    k++;
+    if (k > 20000) break;
+  }
+}
+
+function scheduleRange(from, to){
+  var ts = tickSec();
+  if (to <= from || ts <= 0) return;
   for (var v = 0; v < CHAN.length; v++){
     var name = CHAN[v];
     var evs = (score.tracks && score.tracks[name]) || [];
     var spec = voiceSpec(name);
     for (var i = 0; i < evs.length; i++){
-      var ev = evs[i];
-      var local = ev[0] * ts;
-      var k = Math.ceil((from - origin - local) / ld - 1e-9);
-      if (k < 0) k = 0;
-      for (;;){
-        var t = origin + k * ld + local;
-        if (t >= to) break;
-        if (t >= from){
+      (function(ev, ch, spec){
+        eachWhen(ev[0], from, to, function(t){
           var dur = Math.max(0.03, ev[2] * ts);
-          if (name === 'drum') playDrum(t, ev[1], dur, ev[3] || 10);
+          if (ch === 'drum') playDrum(t, ev[1], dur, ev[3] || 10);
           else playOsc(t, ev[1], dur, ev[3] || 10, spec);
-        }
-        k++;
-        if (k > 20000) break;
-      }
+        });
+      })(evs[i], name, spec);
     }
   }
 }
@@ -264,7 +297,35 @@ export function stopMusic(){
 
 export function musicPlaying(){ return playing && !hushed; }
 
+export function listScores(){
+  var out = [];
+  for (var i = 0; i < CATALOG.length; i++){
+    var e = CATALOG[i];
+    var s = e.score;
+    out.push({
+      id: e.id,
+      title: e.title || s.title || e.id,
+      bpm: s.bpm,
+      key: s.key,
+      form: s.form || []
+    });
+  }
+  return out;
+}
+
+export function currentScoreId(){ return scoreId; }
+
+export function setScore(id){
+  var entry = catalogEntry(id);
+  if (!entry || entry.id === scoreId && entry.score === score) return;
+  applyScore(entry);
+  try{ localStorage.setItem(SCORE_KEY, scoreId); }catch(e){}
+  if (playing && !hushed) startMusic();
+}
+
 export function getMix(){
+  var ts = tickSec();
+  var ls = score.loopStart || 0;
   return {
     master: mix.master,
     fadeIn: mix.fadeIn,
@@ -274,8 +335,13 @@ export function getMix(){
     waves: WAVES,
     defaults: score.voices || {},
     loopSec: loopDur(),
+    introSec: ls * ts,
     bpm: score.bpm,
-    key: score.key
+    key: score.key,
+    scoreId: scoreId,
+    title: catalogEntry(scoreId).title || score.title || score.name,
+    form: score.form || [],
+    scores: listScores()
   };
 }
 
