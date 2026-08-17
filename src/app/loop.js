@@ -5,9 +5,8 @@ import {
   lootDrops, items, pickables, drawTorches, enemies, spiders, fliers,
   hero, lightPass, drawWeeds, drawFish, drawParts, drawHearts,
   vignette, hud, drawIntro, drawPaused, drawOutro,
-  applyPal, buildWater, stepWater, invalidateAll, fore, rc, getFish
+  applyPal, buildWater, stepWater, invalidateAll, fore, rc, getFish, spark, clampCam
 } from '../render/index.js';
-import { spark } from '../render/fx.js';
 import { blip, liftSound, hushLift } from '../audio/sfx.js';
 import { held, latch, ax, stick, bindInput } from '../input/input.js';
 import { ED, edOpen, edClose, edApply, edExportText, edDrawOverlay, bindEditor } from '../editor/editor.js';
@@ -19,7 +18,7 @@ var S = null;
 var paused = false, introT = 0, outro = null;
 var parts = view.parts, hearts = view.hearts;
 
-function setS(w){ S = w; G.setWorld(w); G.W = w; }
+function setS(w){ S = w; G.W = w; }
 function setOutro(o){ outro = o; view.outro = o; }
 var dbgOn = false, dbgEl = null;
 var acc = 0, last = 0, STEP = 1/60;
@@ -288,10 +287,8 @@ function frame(now){
   var wantLook = (inp.downHeld && p2.onGround && Math.abs(p2.vx) < 10 && p2.state === 'normal') ? 44 :
                  (inp.upHeld && p2.onGround && Math.abs(p2.vx) < 10 && p2.state === 'normal' ? -30 : 0);
   cam.look += (wantLook - cam.look) * Math.min(1, dt*2.2);
-  var tx = p2.x + p2.w/2 - VW/2 + cam.lead;
-  var ty = p2.y + p2.h/2 - VH/2 + cam.look;
-  tx = Math.max(0, Math.min(G.MAP_W*G.T - VW, tx));
-  ty = Math.max(0, Math.min(G.MAP_H*G.T - VH, ty));
+  var want = clampCam(p2.x + p2.w/2 - VW/2 + cam.lead, p2.y + p2.h/2 - VH/2 + cam.look);
+  var tx = want.x, ty = want.y;
   var kk = 1 - Math.pow(0.0015, dt);
   if (S.fade >= 0.95 || view.warpJump){ cam.x = tx; cam.y = ty; view.warpJump = false; }   // прыжок камеры под чёрным экраном
   else { cam.x += (tx - cam.x)*kk; cam.y += (ty - cam.y)*kk; }

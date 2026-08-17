@@ -1,6 +1,6 @@
 import GAME from '../core/game.js';
 import { hooks } from '../core/runtime.js';
-import { ctx, cam, view, VW, VH, rc, lb, setCtx, getCtx, world } from './ctx.js';
+import { ctx, cam, view, VW, VH, rc, lb, setCtx, getCtx, setFill, world } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
 
 var G = GAME, T = G.T;
@@ -41,6 +41,68 @@ export function grabby(c, r){
   return G.solidTile(c,r) && !G.solidTile(c,r-1) && (!G.solidTile(c-1,r) || !G.solidTile(c+1,r));
 }
 export function hashT(c, r){ var h = (c*73856093) ^ (r*19349663); h = (h ^ (h >> 13)) >>> 0; return h; }
+
+var WAVE_PAD = 4, WAVE_H = 20;
+var wStrip = { t: NaN, c0: 0, c1: -1, lo: null, hi: null };
+
+function reuseCan(old, w, h){
+  if (old && old.width === w && old.height === h){
+    var g = old.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalAlpha = 1;
+    g.clearRect(0, 0, w, h);
+    return old;
+  }
+  var c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  var g2 = c.getContext('2d');
+  g2.imageSmoothingEnabled = false;
+  return c;
+}
+function paintWaves(x, y, c, time, w1){
+  var wx, wx2;
+  for (wx = 0; wx < T; wx += 2){
+    var ph2 = (c*T + wx) * 0.09 - time * 2.2;
+    var wv = Math.round(Math.sin(ph2) * 1.6 + Math.sin(ph2*2.3) * 0.7);
+    rc(x + wx, y + 1 + wv, 2, 2, w1);
+    rc(x + wx, y + wv, 2, 1, '#bfe6ff');
+    rc(x + wx, y + 7 + Math.round(Math.sin(ph2*1.4)*1.2), 2, 1, w1);
+  }
+  ctx.globalAlpha = 0.4;
+  for (wx2 = 0; wx2 < T; wx2 += 2){
+    var ph3 = (c*T + wx2) * 0.062 - time * 1.25 + 1.9;
+    var wv2 = Math.round(Math.sin(ph3) * 2.1);
+    rc(x + wx2, y + 2 + wv2, 2, 2, '#dff2ff');
+    rc(x + wx2, y + 10 + Math.round(Math.sin(ph3*1.1)*1.4), 2, 1, '#9fd0ef');
+  }
+  ctx.globalAlpha = 1;
+}
+function fillWaveCan(can, c0, c1, time, w1){
+  var saved = getCtx();
+  setCtx(can.getContext('2d'));
+  try {
+    for (var c = c0; c <= c1; c++)
+      paintWaves((c - c0) * T, WAVE_PAD, c, time, w1);
+  } finally {
+    setCtx(saved);
+  }
+}
+function prepWaveStrip(time, c0, c1){
+  if (wStrip.lo && wStrip.t === time && wStrip.c0 === c0 && wStrip.c1 === c1) return;
+  var w = Math.max(T, (c1 - c0 + 1) * T);
+  wStrip.lo = reuseCan(wStrip.lo, w, WAVE_H);
+  wStrip.hi = reuseCan(wStrip.hi, w, WAVE_H);
+  fillWaveCan(wStrip.lo, c0, c1, time, '#49a0cf');
+  fillWaveCan(wStrip.hi, c0, c1, time, '#2f7fae');
+  wStrip.t = time; wStrip.c0 = c0; wStrip.c1 = c1;
+}
+function blitWaves(c, x, y, deep){
+  if (!wStrip.lo || c < wStrip.c0 || c > wStrip.c1) return false;
+  ctx.drawImage(deep ? wStrip.hi : wStrip.lo,
+    (c - wStrip.c0) * T, 0, T, WAVE_H,
+    Math.round(x), Math.round(y - WAVE_PAD), T, WAVE_H);
+  return true;
+}
 export function drawTile(c, r, x, y, dyn){
   var v = G.tileAt(c, r);
   var time = view.time;
@@ -67,23 +129,7 @@ export function drawTile(c, r, x, y, dyn){
         rc(x + ((c*7)%9), y + 12, 2, 1, '#6fb8dd');
         return;
       }
-      for (var wx = 0; wx < T; wx += 2){
-        var ph2 = (c*T + wx) * 0.09 - time * 2.2;
-        var wv = Math.round(Math.sin(ph2) * 1.6 + Math.sin(ph2*2.3) * 0.7);
-        if (top){
-          rc(x + wx, y + 1 + wv, 2, 2, w1);
-          rc(x + wx, y + wv, 2, 1, '#bfe6ff');
-        }
-        rc(x + wx, y + 7 + Math.round(Math.sin(ph2*1.4)*1.2), 2, 1, w1);
-      }
-      ctx.globalAlpha = 0.4;                              // вторая волна: медленнее и прозрачнее
-      for (var wx2 = 0; wx2 < T; wx2 += 2){
-        var ph3 = (c*T + wx2) * 0.062 - time * 1.25 + 1.9;
-        var wv2 = Math.round(Math.sin(ph3) * 2.1);
-        if (top) rc(x + wx2, y + 2 + wv2, 2, 2, '#dff2ff');
-        rc(x + wx2, y + 10 + Math.round(Math.sin(ph3*1.1)*1.4), 2, 1, '#9fd0ef');
-      }
-      ctx.globalAlpha = 1;
+      if (!blitWaves(c, x, y, deepW)) paintWaves(x, y, c, time, w1);
       if ((c*7 + r*3) % 4 === 0){                          // пузырьки со дна
         var bz = ((time*22 + c*9) % 16) | 0;
         rc(x + 4 + ((c*3)%8), y + 15 - bz, 1, 1, '#bfe6ff');
@@ -96,7 +142,7 @@ export function drawTile(c, r, x, y, dyn){
     var up = (v === G.SLR || v === G.LADR);
     var deepS = r > 30;
     var bsS = deepS ? TINT.deepA : TINT.rock, bdS = deepS ? TINT.deepB : TINT.rockD, blS = deepS ? TINT.deepC : TINT.rockL;
-    ctx.fillStyle = bsS;
+    setFill(bsS);
     ctx.beginPath();
     if (up){ ctx.moveTo(x, y + T); ctx.lineTo(x + T, y); ctx.lineTo(x + T, y + T); }
     else   { ctx.moveTo(x, y); ctx.lineTo(x + T, y + T); ctx.lineTo(x, y + T); }
@@ -256,6 +302,7 @@ export function tiles(){
   for (var cy = y0; cy <= y1; cy++)
     for (var cx = x0; cx <= x1; cx++)
       ctx.drawImage(chunkOf(cx, cy), Math.round(cx*CH*T - cam.x) - PAD, Math.round(cy*CH*T - cam.y) - PAD);
+  prepWaveStrip(view.time, c0, c1);
   for (var r = r0; r <= r1; r++){
     for (var c = c0; c <= c1; c++){
       var vd = G.tileAt(c, r);

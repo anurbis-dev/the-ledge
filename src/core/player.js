@@ -327,6 +327,21 @@ export function tryDescend(S, p, want){
   }
   return false;
 }
+/* --- автоподъём на уступ в один тайл при ходьбе (без хвата, факел не роняем) --- */
+export function tryMantle(S, p, dir){
+  if (p.state !== 'normal' || !p.onGround || p.rollT > 0 || p.stance !== 0) return false;
+  var groundY = Math.round(p.y + p.h);
+  var wallX = dir > 0 ? p.x + p.w + 2 : p.x - 2;
+  var col = Math.floor(wallX / T), rG = Math.floor(groundY / T);
+  if (!solidTile(col, rG)) return false;               // впереди опора вровень с полом
+  if (!solidTile(col, rG - 1)) return false;            // а над ней — стенка ровно в тайл
+  if (solidTile(col, rG - 2)) return false;             // выше уже свободно, иначе это стена повыше
+  var cx = dir > 0 ? col * T : (col + 1) * T, cy = (rG - 1) * T;
+  var sb = standBox(cx, cy, dir);
+  if (!rectFree(sb.x, sb.y, p.w, p.h)) return false;
+  startClimb(p, 1, cx, cy, dir, 'ledge');
+  return true;
+}
 export function startClimb(p, dir, cx, cy, facing, kind){
   var from = { x: p.x, y: p.y }, to, ideal;
   if (dir > 0 && kind === 'lad'){ to = ladBox(cx, cy); ideal = hangBox(cx, cy, facing, 'lad'); }

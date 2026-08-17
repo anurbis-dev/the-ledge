@@ -1,6 +1,6 @@
 import GAME from '../core/game.js';
 import {
-  cv, ctx, VW, VH, cam, rc, invalidateChunk, buildWater
+  cv, ctx, VW, VH, cam, rc, buildWater, clampCam
 } from '../render/index.js';
 import { isMenu } from '../ui/menu.js';
 import { hushLift } from '../audio/sfx.js';
@@ -100,13 +100,13 @@ export function edApply(cell){
     var nv = ED_TILES[ED.pal][1];
     var old = G.tileAt(cell.c, cell.r);
     G.setTile(cell.c, cell.r, nv);
-    invalidateChunk(cell.c, cell.r); G.buildGates(S);
+    G.buildGates(S);
     if (old === G.WATER || old === G.FALL || nv === G.WATER || nv === G.FALL) buildWater();
   } else if (ED.tool === 'erase'){
     var oldE = G.tileAt(cell.c, cell.r);
     G.setTile(cell.c, cell.r, 0);
     edEraseObjects(cell);
-    invalidateChunk(cell.c, cell.r); G.buildGates(S);
+    G.buildGates(S);
     if (oldE === G.WATER || oldE === G.FALL) buildWater();
   } else if (ED.tool === 'obj'){
     edPlaceObject(cell);
@@ -216,10 +216,9 @@ cv.addEventListener('pointermove', function(e){
   ED.hover = cell;
   if (ED.tool === 'pan' && e.pointerId === ED.panId){
     var r = cv.getBoundingClientRect();
-    cam.x = ED.camX - (e.clientX - ED.panX) / r.width * VW;
-    cam.y = ED.camY - (e.clientY - ED.panY) / r.height * VH;
-    cam.x = Math.max(0, Math.min(G.MAP_W*G.T - VW, cam.x));
-    cam.y = Math.max(0, Math.min(G.MAP_H*G.T - VH, cam.y));
+    var cl = clampCam(ED.camX - (e.clientX - ED.panX) / r.width * VW,
+                      ED.camY - (e.clientY - ED.panY) / r.height * VH);
+    cam.x = cl.x; cam.y = cl.y;
   } else if (ED.painting) edApply(cell);
 });
 function edUp(e){ ED.painting = false; ED.panId = -1; ED.last = null; }

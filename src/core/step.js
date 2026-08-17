@@ -4,7 +4,7 @@ import { tileAt, rectFree, isWaterV, waterSurfaceY, ladderTile } from './map.js'
 import {
   moveX, moveY, damage, updateBars, ease, updateClimb, updateHang, updateLadder,
   setStance, setH, groundAhead, slopeUnder, grounded, autoLadder, tryBars,
-  tryLadder, tryGrab, ladderTopUnder, attach, tryDescend
+  tryLadder, tryGrab, ladderTopUnder, attach, tryDescend, tryMantle
 } from './player.js';
 import { stepPlats, platUnder } from '../entities/plats.js';
 import { stepLifts, inLift, liftConstrain } from '../entities/lifts.js';
@@ -167,8 +167,13 @@ export function step(S, dt, inp){
       if (p.vx < -lim) p.vx = -lim;
       p.facing = ax > 0 ? 1 : -1;
       if (p.stance > 0 && p.onGround && !groundAhead(S, p, p.facing)) p.vx = 0;
-      if (!rectFree(p.x + p.facing*2, p.y, p.w, p.h) && slopeUnder(p) === null)
+      if (!rectFree(p.x + p.facing*2, p.y, p.w, p.h) && slopeUnder(p) === null){
         p.vx = 0;                                 // упор в стену — не толкаемся (на склоне не мешаем)
+        if (p.onGround && p.stance === 0 && tryMantle(S, p, p.facing)){
+          crumbCheck(S, p); pickups(S, p);
+          return;
+        }
+      }
 
     } else {
       var f = C.FRIC * dt;
@@ -216,14 +221,18 @@ export function step(S, dt, inp){
   var inWater = wetCenter && !wading;
   p.wading = wading;
   p.inWater = inWater;
-  if (inWater && p.swimLaunch > 0){                      // выпрыгнули — летим свободно
+  if (inWater && p.swimLaunch > 0 && p.vy < 0){          // выпрыгнули — летим свободно только вверх
     p.swimLaunch -= dt;
     p.vy += C.GRAV * dt;
     p.atSurface = false;
   } else if (inWater){
+    if (p.swimLaunch > 0){                             // падаем обратно — вода ловит
+      p.swimLaunch = 0;
+      if (p.vy > 10) p.vy = 10;
+    }
     if (!p.wasWet){
       p.wasWet = true; p.events.push('splash');
-      if (p.vy > 18) p.vy = 18;                       // вход в воду почти гасит скорость
+      if (p.vy > 10) p.vy = 10;                       // вход в воду почти гасит скорость
     }
     if (p.vy > 26) p.vy = 26;
     if (p.vy > 0) p.vy *= 0.88;                       // вязкость гасит только погружение
@@ -271,6 +280,7 @@ export function step(S, dt, inp){
     p.apexY = Math.min(p.apexY, p.y);
     p.buf = 0;
   } else {
+    if (p.swimLaunch > 0) p.swimLaunch = Math.max(0, p.swimLaunch - dt);
     if (p.wasWet && !p.wading){ p.wasWet = false; p.events.push('splash'); }
     p.atSurface = false;
     p.swimAng += (0 - p.swimAng) * Math.min(1, dt * 6);

@@ -13,8 +13,6 @@ export function getLights(){
   if (lv && lv.id === 1) return DEFAULT_LIGHTS;
   return [];
 }
-export { getLights as LIGHTS };
-
 var _tp = null, _tpT = NaN;
 export function torchPts(){
   if (_tp && _tpT === view.time) return _tp;
@@ -56,7 +54,7 @@ export function lightPass(){
   for (i = 0; i < LP.length; i++){
     var fx = LP[i][0] - cam.x, fy = LP[i][1] - cam.y;
     var fl = 0.84 + Math.sin(time*7 + i)*0.09 + Math.sin(time*17 + i*3)*0.05;
-    add(fx, fy, 82*fl, 'rgba(255,190,116,0.95)', 0.95);
+    add(fx, fy, 82, 'rgba(255,190,116,0.95)', 0.95 * fl);
   }
   for (i = 0; i < LIGHTS.length; i++){
     var wx2 = LIGHTS[i][0]*T + 8 - cam.x, wy2 = LIGHTS[i][1]*T + 8 - cam.y;

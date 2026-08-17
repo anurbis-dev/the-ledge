@@ -1,11 +1,8 @@
 import GAME from '../core/game.js';
-import { ctx, cam, view, VW, rc, lb, world } from './ctx.js';
+import { ctx, cam, view, VW, rc, lb, world, setFill } from './ctx.js';
 import { P } from './palette.js';
-import { torchPts, getLights } from './light.js';
 
 var G = GAME, T = G.T;
-
-export { torchPts, getLights };
 
 export function drawTorches(){
   var S = world(), time = view.time;
@@ -131,13 +128,13 @@ export function caveExit(){
   var x = Math.round(e.x - cam.x), y = Math.round(e.y - cam.y);
   if (x < -60 || x > VW + 60) return;
   // скальная арка
-  ctx.fillStyle = '#1b1430';
+  setFill('#1b1430');
   ctx.beginPath();
   ctx.moveTo(x - 14, y);
   ctx.quadraticCurveTo(x - 14, y - 34, x + 8, y - 36);
   ctx.quadraticCurveTo(x + 30, y - 34, x + 30, y);
   ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#08060f';
+  setFill('#08060f');
   ctx.beginPath();
   ctx.moveTo(x - 9, y);
   ctx.quadraticCurveTo(x - 9, y - 28, x + 8, y - 30);

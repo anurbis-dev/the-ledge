@@ -1,6 +1,6 @@
 import GAME from '../core/game.js';
 import { damage } from '../core/player.js';
-import { ctx, cam, view, VW, VH, rc, lb, world } from './ctx.js';
+import { ctx, cam, view, VW, VH, rc, lb, setFill, setCtx, getCtx, world } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
 
 var G = GAME, T = G.T;
@@ -22,14 +22,14 @@ export function sky(){
     SKYG.addColorStop(0, sk[0]); SKYG.addColorStop(0.42, sk[1]); SKYG.addColorStop(1, sk[2]);
     skyRev = palRev;
   }
-  ctx.fillStyle = SKYG; ctx.fillRect(0, 0, VW, VH);
+  setFill(SKYG); ctx.fillRect(0, 0, VW, VH);
   for (var i = 0; i < 54; i++){
     var sx = (i*67 - cam.x*0.05) % 340; if (sx < 0) sx += 340;
     var sy = (i*29) % 90 - cam.y*0.03;
     if (sy > -2 && sy < VH) rc(sx, sy, 1, 1, i%4 ? '#ffffff44' : '#ffd9a044');
   }
   function ridge(off, amp, base, col){
-    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(0, VH);
+    setFill(col); ctx.beginPath(); ctx.moveTo(0, VH);
     for (var x = 0; x <= VW; x += 4){
       var wx = x + cam.x*off;
       ctx.lineTo(x, (base - Math.abs(Math.sin(wx*0.011))*amp - Math.sin(wx*0.031)*amp*0.3 - cam.y*off*0.6)|0);
@@ -41,7 +41,7 @@ export function sky(){
   ridge(0.30, 24, 162, '#4a2f6b');
 }
 export function bush(x, y, w, h, col, colD){
-  ctx.fillStyle = col;
+  setFill(col);
   ctx.beginPath();
   ctx.moveTo(x, y + h);
   ctx.quadraticCurveTo(x + w*0.10, y + h*0.30, x + w*0.26, y + h*0.42);
@@ -49,7 +49,7 @@ export function bush(x, y, w, h, col, colD){
   ctx.quadraticCurveTo(x + w*0.70, y - h*0.02, x + w*0.78, y + h*0.40);
   ctx.quadraticCurveTo(x + w*0.92, y + h*0.30, x + w, y + h);
   ctx.closePath(); ctx.fill();
-  ctx.fillStyle = colD;
+  setFill(colD);
   for (var i = 0; i < 5; i++){
     var lx2 = x + w*(0.16 + i*0.16), ly = y + h*(0.30 + (i%2)*0.22);
     ctx.fillRect(lx2|0, ly|0, 3, 2);
@@ -64,15 +64,32 @@ export function branch(x, y, len, dir, col){
     rc(bx - dir*2, by + 3, 3, 2, col);
   }
 }
-export function foreLayer(par, per, hmin, hmax, col, colD, seed){
-  var n = Math.ceil(VW/per) + 3, base = Math.floor(cam.x*par/per);
-  for (var j = 0; j < n; j++){
-    var idx = base + j, x = idx*per - cam.x*par;
-    if (x < -90 || x > VW + 60) continue;
+var FORE_H = 40;
+var FORE_SPEC = [
+  [0.9, 150, 10, 17, '#2a2048', '#372a5c', 3],
+  [1.3, 122, 13, 22, '#1b1436', '#241a44', 7],
+  [1.8,  96, 16, 28, '#0e0a1e', '#150f2a', 11]
+];
+var foreCans = null, foreW = 0, foreMapW = -1;
+
+export function foreLayer(par, per, hmin, hmax, col, colD, seed, screenH, xOff, xMax){
+  if (screenH == null) screenH = VH;
+  if (xOff == null) xOff = cam.x * par;
+  var i0, i1;
+  if (xMax != null){
+    i0 = Math.floor(-90 / per) - 1;
+    i1 = Math.ceil((xMax + 60) / per) + 1;
+  } else {
+    var n = Math.ceil(VW/per) + 3, base = Math.floor(xOff/per);
+    i0 = base; i1 = base + n - 1;
+  }
+  for (var idx = i0; idx <= i1; idx++){
+    var x = idx*per - xOff;
+    if (xMax == null && (x < -90 || x > VW + 60)) continue;
     var hsh = ((idx*2654435761) ^ (seed*40503)) >>> 0;
     var sd = (hsh % 1000)/1000, kind = (hsh >> 11) % 3;
     var h = hmin + sd*(hmax - hmin), w = 34 + sd*30;
-    var y = VH - h + 4;                        // всегда стоят на нижней кромке кадра
+    var y = screenH - h + 4;                        // всегда стоят на нижней кромке кадра
     if (kind === 0) bush(x, y, w, h, col, colD);
     else if (kind === 1){
       bush(x, y + h*0.30, w*0.7, h*0.70, col, colD);
@@ -81,21 +98,45 @@ export function foreLayer(par, per, hmin, hmax, col, colD, seed){
       for (var g = 0; g < 9; g++){                 // пучок травы от самого низа
         var gx = x + g*4 + (hsh >> g) % 3;
         var gh = h*0.55 + ((hsh >> (g*2)) % 10);
-        lb([gx, VH + 4], [gx + ((g%2)?3:-3), VH + 4 - gh], 2, col);
+        lb([gx, screenH + 4], [gx + ((g%2)?3:-3), screenH + 4 - gh], 2, col);
       }
     }
   }
 }
+function ensureFore(){
+  var needW = Math.ceil(G.MAP_W * T * 1.8 + VW + 180);
+  if (foreCans && foreW === needW && foreMapW === G.MAP_W) return;
+  foreW = needW; foreMapW = G.MAP_W;
+  foreCans = [];
+  var saved = getCtx();
+  for (var i = 0; i < FORE_SPEC.length; i++){
+    var s = FORE_SPEC[i];
+    var can = document.createElement('canvas');
+    can.width = needW; can.height = FORE_H;
+    var g = can.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    setCtx(g);
+    foreLayer(s[0], s[1], s[2], s[3], s[4], s[5], s[6], FORE_H, 0, needW);
+    foreCans.push({ can: can, par: s[0] });
+  }
+  setCtx(saved);
+}
 export function fore(){
   var time = view.time;
-  foreLayer(0.9, 150, 10, 17, '#2a2048', '#372a5c', 3);   // дальние кусты
-  foreLayer(1.3, 122, 13, 22, '#1b1436', '#241a44', 7);   // средние
-  foreLayer(1.8,  96, 16, 28, '#0e0a1e', '#150f2a', 11);  // ближние, у самой камеры
-  for (var i = 0; i < 20; i++){                            // пыльца
-    var px = ((i*137 - cam.x*1.9) % 380 + 380) % 380 - 20;
-    var py = ((i*83 + Math.sin(time*0.6 + i)*14 - cam.y*1.3) % 210 + 210) % 210 - 10;
+  ensureFore();
+  for (var i = 0; i < foreCans.length; i++){
+    var L = foreCans[i];
+    var sx = Math.round(cam.x * L.par);
+    if (sx < 0) sx = 0;
+    var sw = VW;
+    if (sx + sw > L.can.width) sw = Math.max(0, L.can.width - sx);
+    if (sw > 0) ctx.drawImage(L.can, sx, 0, sw, FORE_H, 0, VH - FORE_H, sw, FORE_H);
+  }
+  for (var p = 0; p < 20; p++){                            // пыльца
+    var px = ((p*137 - cam.x*1.9) % 380 + 380) % 380 - 20;
+    var py = ((p*83 + Math.sin(time*0.6 + p)*14 - cam.y*1.3) % 210 + 210) % 210 - 10;
     if (px < -4 || px > VW+4) continue;
-    ctx.globalAlpha = 0.45; rc(px, py, 1, 1, i%3 ? '#c9b6ff' : '#ffd9a0'); ctx.globalAlpha = 1;
+    ctx.globalAlpha = 0.45; rc(px, py, 1, 1, p%3 ? '#c9b6ff' : '#ffd9a0'); ctx.globalAlpha = 1;
   }
 }
 
@@ -252,7 +293,7 @@ export function vignette(){
     VIGG = ctx.createRadialGradient(VW/2, VH/2, VH*0.45, VW/2, VH/2, VH*1.05);
     VIGG.addColorStop(0, 'rgba(0,0,0,0)'); VIGG.addColorStop(1, 'rgba(6,3,14,0.40)');
   }
-  ctx.fillStyle = VIGG; ctx.fillRect(0, 0, VW, VH);
+  setFill(VIGG); ctx.fillRect(0, 0, VW, VH);
 }
 
 export function drawHearts(dt){
