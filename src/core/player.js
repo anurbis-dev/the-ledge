@@ -25,6 +25,7 @@ export function mkPlayer(){
     air: C.AIR_MAX, swimLaunch: 0, stam: C.STAM_MAX, dashT: 0,
     stanceT: 0, stanceFrom: 0, lookUp: 0,
     gapCrawl: false, edgeHoldT: 0,
+    recoverSt: 0,
     events: []
   };
 }
@@ -57,10 +58,14 @@ export function moveX(S, p, dx){
 }
 export function moveY(S, p, dy){
   var oldB = p.y + p.h;
+  var prevVy = p.vy;
   p.y += dy;
   if (!rectFree(p.x, p.y, p.w, p.h)){
     if (dy > 0){ p.y = Math.floor((p.y + p.h) / T) * T - p.h; p.onGround = true; }
-    else        p.y = Math.floor(p.y / T) * T + T;
+    else {
+      p.y = Math.floor(p.y / T) * T + T;
+      if (prevVy < -36) p.events.push('bonk:' + Math.round(-prevVy));
+    }
     p.vy = 0; p.ride = null;
     return;
   }
@@ -172,10 +177,29 @@ function findLedge(p, dir, extraUp){
 }
 
 export function damage(S, n, stun){
-  S.hp -= n; S.p.stunT = stun; S.p.state = 'stun'; S.p.vx = 0;
+  if (S.dead) return;
+  S.hp -= n;
+  if (S.hp < 0) S.hp = 0;
+  S.p.stunT = stun; S.p.state = 'stun'; S.p.vx = 0;
   S.shake = Math.min(7, 3 + n * 2); S.hitStop = 0.09;
   S.p.events.push('hurt');
-  if (S.hp <= 0){ S.hp = 3; resetPlayer(S); S.p.events.push('respawn'); }
+  if (S.hp <= 0){ S.hp = 0; S.dead = true; S.p.events.push('dead'); }
+}
+/* приземление: залипаем в приседе (среднее) или лёжа (высокое), без управления */
+export function startFallRecover(S, p, st, dur){
+  var from = p.stance;
+  if (!setStance(S, p, st) && st === 2) setStance(S, p, 1);
+  p.recoverSt = p.stance;
+  if (p.stance !== from){ p.stanceFrom = from; p.stanceT = C.STANCE_T; }
+  p.stunT = dur; p.state = 'stun'; p.vx = 0;
+}
+export function finishFallRecover(S, p){
+  if (!p.recoverSt) return false;
+  var from = p.recoverSt;
+  if (!setStance(S, p, 0)) setStance(S, p, Math.min(1, from));
+  if (p.stance !== from){ p.stanceFrom = from; p.stanceT = C.STANCE_T; }
+  p.recoverSt = 0;
+  return p.stanceT > 0;
 }
 
 /* --- потолочные перекладины: движение на руках --- */

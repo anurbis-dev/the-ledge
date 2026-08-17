@@ -15,6 +15,56 @@ export function spark(x, y, n, col, spd, up){
                  t:0.3+Math.random()*0.3, c:col||'#e9e4ff', g: 140 });
 }
 
+function puff(x, y, vx, vy, life, col, sz, g, drag){
+  view.parts.push({
+    x: x, y: y, vx: vx, vy: vy, t: life, life: life, c: col,
+    g: g == null ? 32 : g, sz: sz || 1, drag: drag == null ? 3.4 : drag, kind: 'dust'
+  });
+}
+function dustCols(){
+  return [TINT.rockL, TINT.rock, TINT.ruinC, P.crumL];
+}
+/* мягкая пыль: n пылинок, spread — разлёт в стороны, lift — подброс */
+export function dust(x, y, n, spread, lift){
+  var cols = dustCols();
+  spread = spread || 36; lift = lift || 16;
+  for (var i = 0; i < n; i++){
+    var dir = (i % 2 ? 1 : -1);
+    var sp = (0.28 + Math.random()) * spread;
+    puff(x + (Math.random() - 0.5) * 10, y - Math.random() * 2,
+         dir * sp, -(5 + Math.random() * lift),
+         0.28 + Math.random() * 0.42, cols[i % cols.length],
+         Math.random() < 0.5 ? 2 : 1, 20 + Math.random() * 38, 3.6);
+  }
+}
+export function landDust(p, fall){
+  var x = p.x + p.w / 2, y = p.y + p.h;
+  var f = Math.max(0, fall);
+  var n = Math.min(22, 3 + (f / 7) | 0);
+  var spread = Math.min(118, 22 + f * 0.72);
+  var lift = Math.min(40, 10 + f * 0.2);
+  dust(x, y, n, spread, lift);
+  var haze = Math.min(6, 1 + (f / 22) | 0);
+  for (var i = 0; i < haze; i++)
+    puff(x + (Math.random() - 0.5) * 14, y - 1,
+         (Math.random() - 0.5) * (16 + f * 0.12), -(2 + Math.random() * 8),
+         0.34 + Math.random() * 0.28, TINT.rockL, 2, 14, 5.2);
+}
+export function bonkDust(p, spd){
+  var x = p.x + p.w / 2, y = p.y + 1;
+  var n = Math.min(16, 4 + (spd / 28) | 0);
+  var cols = dustCols();
+  for (var i = 0; i < n; i++)
+    puff(x + (Math.random() - 0.5) * p.w, y + Math.random() * 2,
+         (Math.random() - 0.5) * 52, 10 + Math.random() * 34,
+         0.22 + Math.random() * 0.34, cols[i % cols.length],
+         Math.random() < 0.4 ? 2 : 1, 76 + Math.random() * 40, 1.5);
+  for (var j = 0; j < 3; j++)
+    puff(x + (j - 1) * 5 + (Math.random() - 0.5) * 3, y,
+         (j - 1) * 20 + (Math.random() - 0.5) * 10, 3 + Math.random() * 10,
+         0.2 + Math.random() * 0.18, TINT.rockL, 2, 18, 4);
+}
+
 export function sky(){
   if (!SKYG || skyRev !== palRev){
     SKYG = ctx.createLinearGradient(0, 0, 0, VH);
@@ -315,10 +365,18 @@ export function drawParts(dt){
   for (var i = parts.length-1; i >= 0; i--){
     var q = parts[i];
     q.t -= dt; if (q.t <= 0){ parts.splice(i,1); continue; }
+    if (q.drag) q.vx *= Math.max(0, 1 - q.drag * dt);
     q.x += q.vx*dt; q.y += q.vy*dt; q.vy += q.g*dt;
     if (q.top !== undefined && q.top !== null && q.y < q.top){   // пузырь лопнул у поверхности
       parts.splice(i, 1); continue;
     }
-    rc(q.x - cam.x, q.y - cam.y, 1, 1, q.t > 0.18 ? q.c : '#7a72a8');
+    if (q.kind === 'dust'){
+      var a = q.life ? q.t / q.life : Math.min(1, q.t * 2.4);
+      ctx.globalAlpha = a * 0.7;
+      rc(q.x - cam.x, q.y - cam.y, q.sz || 1, q.sz || 1, q.c);
+      ctx.globalAlpha = 1;
+    } else {
+      rc(q.x - cam.x, q.y - cam.y, 1, 1, q.t > 0.18 ? q.c : '#7a72a8');
+    }
   }
 }

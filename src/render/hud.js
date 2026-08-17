@@ -6,6 +6,16 @@ var G = GAME, C = G.C;
 
 export var DIG = ['111101101101111','010110010010111','111001111100111','111001111001111','101101111001001',
            '111100111001111','111100111101111','111001001010010','111101111101111','111101111001111'];
+/* 3×5 заглавные — для плашек */
+var ABC = {
+  A:'010101111101101', B:'110101110101110', C:'011100100100011', D:'110101101101110',
+  E:'111100110100111', F:'111100110100100', G:'011100101101011', H:'101101111101101',
+  I:'111010010010111', J:'001001001101010', K:'101101110101101', L:'100100100100111',
+  M:'101111111101101', N:'110111111101101', O:'010101101101010', P:'110101110100100',
+  Q:'010101101111011', R:'110101110101101', S:'011100010001110', T:'111010010010010',
+  U:'101101101101011', V:'101101101101010', W:'101101111111101', X:'101101010101101',
+  Y:'101101010010010', Z:'111001010100111'
+};
 export function digit(n, x, y, col){
   var s = DIG[n];
   for (var r = 0; r < 5; r++) for (var c = 0; c < 3; c++) if (s[r*3+c] === '1') rc(x+c, y+r, 1, 1, col);
@@ -85,10 +95,26 @@ export function panel(x, y, w, h){
 }
 export function textPix(str, x, y, col, scale){
   scale = scale || 1;
+  var adv = 4 * scale;
   for (var i = 0; i < str.length; i++){
-    var ch = str.charCodeAt(i) - 48;
-    if (ch >= 0 && ch <= 9) digitS(ch, x + i*4*scale, y, col, scale);
+    var ch = str.charAt(i), up = ch.toUpperCase();
+    if (ch === ' ') continue;
+    var bits = ABC[up];
+    if (bits) glyphBits(bits, x + i * adv, y, col, scale);
+    else {
+      var d = str.charCodeAt(i) - 48;
+      if (d >= 0 && d <= 9) digitS(d, x + i * adv, y, col, scale);
+    }
   }
+}
+export function textPixC(str, cx, y, col, scale){
+  scale = scale || 1;
+  var w = str.length * 4 * scale - scale;
+  textPix(str, cx - (w / 2 | 0), y, col, scale);
+}
+function glyphBits(bits, x, y, col, sc){
+  for (var r = 0; r < 5; r++) for (var c = 0; c < 3; c++)
+    if (bits[r * 3 + c] === '1') rc(x + c * sc, y + r * sc, sc, sc, col);
 }
 export function digitS(n, x, y, col, sc){
   var s2 = DIG[n];
@@ -141,4 +167,19 @@ export function drawOutro(){
     textPix('' + rows[i][2], VW/2 - 2, y, '#cfc6ff', 1);
   }
   if (Math.sin(time*4) > 0) rc(VW/2 - 26, VH/2 + 34, 52, 2, '#8f88bb');
+}
+export function drawDead(over){
+  var fade = Math.min(0.58, over.t / 0.85 * 0.58);
+  ctx.globalAlpha = fade;
+  rc(0, 0, VW, VH, '#07060f');
+  ctx.globalAlpha = 1;
+  if (over.t < 0.4) return;
+  var a = Math.min(1, (over.t - 0.4) / 0.28);
+  ctx.globalAlpha = a;
+  panel(VW / 2 - 70, VH / 2 - 24, 140, 48);
+  textPixC('LIFE CAPACITY', VW / 2, VH / 2 - 12, '#ffd9a0', 2);
+  textPixC('REACHED', VW / 2, VH / 2 + 4, '#ffe9c0', 2);
+  if (over.t > 0.75 && Math.sin(view.time * 4) > 0)
+    rc(VW / 2 - 26, VH / 2 + 16, 52, 2, '#8f88bb');
+  ctx.globalAlpha = 1;
 }

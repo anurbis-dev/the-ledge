@@ -5,7 +5,7 @@ import {
   moveX, moveY, damage, updateBars, ease, updateClimb, updateHang, updateLadder,
   setStance, setH, slopeUnder, grounded, autoLadder, tryBars,
   tryLadder, tryGrab, tryClimbOut, tryCrawlEdge, ladderTopUnder, attach, tryDescend, tryMantle,
-  markGap, canDescend, awayFromEdge
+  markGap, canDescend, awayFromEdge, startFallRecover, finishFallRecover
 } from './player.js';
 import { stepPlats, platUnder } from '../entities/plats.js';
 import { stepLifts, inLift, liftConstrain } from '../entities/lifts.js';
@@ -95,7 +95,12 @@ export function step(S, dt, inp){
   if (p.state === 'stun'){
     p.stunT -= dt;
     p.vx = 0; p.vy += C.GRAV * dt; moveY(S, p, p.vy * dt);
-    if (p.stunT <= 0){ p.state = 'normal'; p.apexY = p.y; }
+    if (p.stunT <= 0){
+      if (p.recoverSt && !S.dead){
+        if (finishFallRecover(S, p)){ p.stunT = C.STANCE_T; crumbCheck(S, p); pickups(S, p); return; }
+      }
+      p.state = 'normal'; p.apexY = p.y;
+    }
     crumbCheck(S, p); pickups(S, p); return;
   }
   if (p.state === 'snare'){
@@ -405,10 +410,13 @@ export function step(S, dt, inp){
           if (fall > C.HURT * 1.6) damage(S, 1, 0.35);
         } else {
           S.hitStop = Math.max(S.hitStop, C.HITSTOP);
-          if (fall > C.HURT) damage(S, 2, 0.62); else damage(S, 1, 0.4);
+          var high = fall > C.HURT;
+          startFallRecover(S, p, high ? 2 : 1, high ? C.FALL_PRONE_T : C.FALL_CROUCH_T);
+          if (high) damage(S, 2, C.FALL_PRONE_T); else damage(S, 1, C.FALL_CROUCH_T);
           p.events.push('hardland');
         }
       } else if (fall > 18){ p.landT = 0.1; p.events.push('land'); }
+      if (fall > 6) p.events.push('landdust:' + Math.round(fall));
       p.apexY = p.y;
     }
     if (p.state === 'normal' && !rolling){

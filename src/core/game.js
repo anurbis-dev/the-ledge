@@ -35,7 +35,8 @@ export function mkWorld(li){
     dark: mkDark(), darkNow: false, darkT: 0, darkDist: 999, chests: mkChests(), loot: [],
     harpoons: mkHarpoons(), tendrils: mkTendrils(),
     gone: {}, hp: 3, bag: { gem:0, shroom:0, coin:0, relic:0, tank:0 },
-    respawn: { x: runtime.LV.spawn.x, y: runtime.LV.spawn.y }, t: 0, hitStop: 0, shake: 0, fx: [], done: false
+    respawn: { x: runtime.LV.spawn.x, y: runtime.LV.spawn.y }, t: 0, hitStop: 0, shake: 0, fx: [], done: false,
+    dead: false
   };
   buildGates(w);
   return w;

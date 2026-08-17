@@ -1,7 +1,7 @@
 import { T, C } from '../core/constants.js';
 import { runtime } from '../core/runtime.js';
 import { tileAt, isWetV, isWaterV, waterSurfaceY, rectFree, solidTile } from '../core/map.js';
-import { damage, resetPlayer } from '../core/player.js';
+import { damage } from '../core/player.js';
 import { dropLoot } from './loot.js';
 import { allocId } from './ids.js';
 
@@ -216,11 +216,8 @@ export function tickSnareAir(S, p, dt){
         S.bag.tank--; p.air = airMax; p.events.push('tank');
       } else {
         p.air = 1.4;
-        S.hp -= 1;
-        S.shake = Math.min(7, S.shake + 3);
+        damage(S, 1, 0.2);
         p.events.push('drown');
-        p.events.push('hurt');
-        if (S.hp <= 0){ S.hp = 3; resetPlayer(S); p.events.push('respawn'); }
       }
     } else if (p.air < 4 && Math.floor(p.air * 2) !== Math.floor((p.air + dt) * 2))
       p.events.push('lowair');

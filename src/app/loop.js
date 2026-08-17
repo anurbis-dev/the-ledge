@@ -4,8 +4,8 @@ import {
   sky, tiles, plats, lifts, caveExit, doors, chests,
   lootDrops, items, pickables, drawTorches, drawHarpoons, enemies, spiders, fliers, tendrils,
   hero, lightPass, drawWeeds, drawFish, drawParts, drawHearts,
-  vignette, hud, drawIntro, drawPaused, drawOutro,
-  applyPal, buildWater, stepWater, invalidateAll, fore, rc, getFish, spark, clampCam
+  vignette, hud, drawIntro, drawPaused, drawOutro, drawDead,
+  applyPal, buildWater, stepWater, invalidateAll, fore, rc, getFish, spark, landDust, bonkDust, clampCam
 } from '../render/index.js';
 import { blip, liftSound, hushLift } from '../audio/sfx.js';
 import { held, latch, ax, stick, bindInput } from '../input/input.js';
@@ -15,7 +15,7 @@ import { findById } from '../entities/ids.js';
 
 var G = GAME;
 var S = null;
-var paused = false, introT = 0, outro = null;
+var paused = false, introT = 0, outro = null, gameOver = null;
 var parts = view.parts, hearts = view.hearts;
 
 function setS(w){ S = w; G.W = w; }
@@ -28,9 +28,17 @@ function onEvent(ev){
   var p = S.p, k = ev.split(':')[0];
   if (k === 'jump') { blip(430, 0.08); spark(p.x+5, p.y+p.h, 4, '#b9b2e6'); }
   else if (k === 'walljump' || k === 'backjump'){ blip(500, 0.09); spark(p.x+5, p.y+12, 7, '#cfc6ff', 90); }
-  else if (k === 'land'){ blip(160, 0.06); spark(p.x+5, p.y+p.h, 5, '#b9b2e6'); }
-  else if (k === 'hardland'){ blip(90, 0.2, 'sawtooth', 0.06); spark(p.x+5, p.y+p.h, 16, '#ffbba0', 130, 60); }
-  else if (k === 'rollland' || k === 'roll'){ blip(240, 0.09, 'triangle'); spark(p.x+5, p.y+p.h, 9, '#d6cdb0', 110); }
+  else if (k === 'land'){ blip(160, 0.06); }
+  else if (k === 'hardland'){ blip(90, 0.2, 'sawtooth', 0.06); spark(p.x+5, p.y+p.h, 10, '#ffbba0', 110, 50); }
+  else if (k === 'rollland' || k === 'roll'){ blip(240, 0.09, 'triangle'); spark(p.x+5, p.y+p.h, 6, '#d6cdb0', 90); }
+  else if (k === 'landdust'){ landDust(p, +ev.split(':')[1] || 0); }
+  else if (k === 'bonk'){
+    var bSpd = +ev.split(':')[1] || 80;
+    bonkDust(p, bSpd);
+    if (p.helmet) blip(360, 0.07, 'square', 0.04);
+    else blip(130, 0.09, 'sine', 0.045);
+    if (bSpd > 150) S.shake = Math.max(S.shake, 1);
+  }
   else if (k === 'grab'){ blip(720, 0.06); spark(p.hang.cx, p.hang.cy, 6, '#ffe08a', 60); }
   else if (k === 'mantled'){ blip(640, 0.09, 'triangle'); }
   else if (k === 'hanged' || k === 'onladder'){ blip(520, 0.05); }
@@ -156,6 +164,7 @@ function onEvent(ev){
     hearts.push({ x: p.x + p.w/2, y: p.y + 6, vx: (p.facing > 0 ? -1 : 1) * (30 + Math.random()*30),
                   vy: -110 - Math.random()*40, t: 1.1 });
   }
+  else if (k === 'dead'){ blip(70, 0.45, 'sine', 0.08); view.flash = 0.35; }
   else if (k === 'respawn'){ blip(300, 0.3, 'sine', 0.05); view.flash = 0.9; }
   else if (k === 'pick'){
     var kind = ev.split(':')[1], it = findById(S.items, +ev.split(':')[2]);
@@ -168,7 +177,12 @@ function onEvent(ev){
 
 function toggleDbg(){ dbgOn = !dbgOn; dbgEl.style.display = dbgOn ? 'block' : 'none'; }
 
+function dismissDead(){
+  gameOver = null;
+  showMenu();
+}
 function advanceScreens(){
+  if (gameOver && gameOver.t > 0.5){ dismissDead(); return true; }
   if (introT > 0){ introT = 0; return true; }
   if (outro && outro.t > 0.4){
     var nx = outro.next; setOutro(null);
@@ -180,6 +194,7 @@ function advanceScreens(){
 }
 
 function hardReset(){
+  gameOver = null;
   setS(G.mkWorld(G.levelIndex()));
   parts.length = 0; view.flash = 0.6;
   applyPal(); buildWater(); invalidateAll();
@@ -188,7 +203,7 @@ function hardReset(){
 function startLevel(idx){
   setS(G.mkWorld(idx));
   introT = 1;                                  // плашка с названием, игра ждёт касания
-  paused = false; setOutro(null);
+  paused = false; gameOver = null; setOutro(null);
   parts.length = 0; view.flash = 0.7; view.warpJump = true;
   cam.x = S.p.x - VW/2; cam.y = S.p.y - VH/2;
   cam.ax = S.p.x + S.p.w/2; cam.ay = S.p.y + S.p.h/2;
@@ -266,7 +281,8 @@ function frame(now){
     return;
   }
   if (S.done && !outro && S.p.warp && S.p.warp.exit && S.p.warp.moved){ finishLevel(); }
-  if (introT > 0 || paused || outro){
+  if (S.dead && !gameOver) gameOver = { t: 0 };
+  if (introT > 0 || paused || outro || gameOver){
     acc = 0;
     hushLift();
     ctx.clearRect(0, 0, VW, VH);
@@ -275,6 +291,7 @@ function frame(now){
     hero(); drawFish(); lightPass(); drawWeeds(); tendrils(); fore(); vignette(); hud();
     if (introT > 0) drawIntro();
     else if (outro){ outro.t += dt; drawOutro(); }
+    else if (gameOver){ gameOver.t += dt; drawDead(gameOver); }
     else drawPaused();
     requestAnimationFrame(frame);
     return;
@@ -299,6 +316,11 @@ function frame(now){
     var p = S.p;
     if (p.onGround && Math.abs(p.vx) > 8 && p.rollT <= 0) view.runPh += Math.abs(p.vx)*STEP*0.26;
     else if (p.state !== 'normal' || p.onGround) view.runPh = 0;
+    if (S.dead){
+      if (!gameOver) gameOver = { t: 0 };
+      acc = 0;
+      break;
+    }
   }
 
   var p2 = S.p;
@@ -356,6 +378,7 @@ function frame(now){
   tendrils();
   fore();
   vignette();
+  if (gameOver){ gameOver.t += dt; drawDead(gameOver); }
   if (S.fade > 0){
     ctx.globalAlpha = Math.min(1, S.fade);
     rc(0, 0, VW, VH, '#07060f');
@@ -384,16 +407,18 @@ export function start(){
   addEventListener('keydown', function(e){
     var tag = (e.target && e.target.tagName) || '';
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (gameOver){ if (gameOver.t > 0.5) dismissDead(); return; }
     if (e.key === 'r' || e.key === 'R'){ hardReset(); return; }
     if (e.key === 'h' || e.key === 'H'){ toggleDbg(); return; }
   });
   document.getElementById('bFS').addEventListener('click', toggleFS);
-  document.getElementById('bMenu').addEventListener('click', function(){ showMenu(); });
+  document.getElementById('bMenu').addEventListener('click', function(){ gameOver = null; showMenu(); });
   document.getElementById('bPause').addEventListener('click', function(){
-    if (!isMenu() && introT <= 0 && !outro) paused = !paused;
+    if (!isMenu() && introT <= 0 && !outro && !gameOver) paused = !paused;
   });
   addEventListener('pointerdown', function(){ if (!ED.on) advanceScreens(); });
   addEventListener('keydown', function(e){
+    if (gameOver) return;
     if (e.key === 'p' || e.key === 'P'){ if (!isMenu() && introT <= 0 && !outro) paused = !paused; return; }
     if (e.key === 'Enter' || e.key === ' ') advanceScreens();
   });
@@ -410,8 +435,8 @@ export function start(){
     window.__state = function(){ return S; };
     window.__start = startLevel;
     window.__menu = function(){ return isMenu(); };
-    window.__skip = function(){ introT = 0; paused = false; setOutro(null); };
-    window.__screens = function(){ return { intro: introT, paused: paused, outro: !!outro }; };
+    window.__skip = function(){ introT = 0; paused = false; gameOver = null; setOutro(null); };
+    window.__screens = function(){ return { intro: introT, paused: paused, outro: !!outro, dead: !!gameOver }; };
     window.__game = G;
     window.__fish = getFish;
     window.__editor = { open: edOpen, close: edClose, state: ED,
