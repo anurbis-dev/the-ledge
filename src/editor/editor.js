@@ -175,7 +175,7 @@ var edParams = document.getElementById('edParams');
 var edParamList = document.getElementById('edParamList');
 var edParamQ = document.getElementById('edParamQ');
 var paramsBuilt = false;
-var onOpen = null, onNewLevel = null;
+var onOpen = null, onNewLevel = null, onDelLevel = null;
 
 try {
   var ih = +localStorage.getItem(IKEY);
@@ -223,6 +223,12 @@ function syncUndoBtns(){
 export function bindEditor(hooks){
   onOpen = hooks && hooks.onOpen;
   onNewLevel = hooks && hooks.onNewLevel;
+  onDelLevel = hooks && hooks.onDelLevel;
+}
+
+export function syncDelBtn(){
+  var b = document.getElementById('edDel');
+  if (b) b.disabled = G.LEVELS.length <= 1;
 }
 
 function world(){ return G.W; }
@@ -369,6 +375,7 @@ function showParams(){
 
 function edRefresh(){
   syncTabs();
+  syncDelBtn();
   if (ED.tab === 'params'){
     showParams();
   } else {
@@ -1092,6 +1099,7 @@ addEventListener('keydown', function(e){
   }
   if (e.key === 'Escape' && ED.on){
     e.preventDefault();
+    e.stopImmediatePropagation();
     edClose();
     return;
   }
@@ -1165,4 +1173,8 @@ document.getElementById('edOk').addEventListener('click', function(){ edOut.clas
 var bNew = document.getElementById('edNew');
 if (bNew) bNew.addEventListener('click', function(){
   if (onNewLevel) onNewLevel();
+});
+var bDel = document.getElementById('edDel');
+if (bDel) bDel.addEventListener('click', function(){
+  if (onDelLevel) onDelLevel();
 });

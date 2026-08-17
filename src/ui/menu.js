@@ -17,6 +17,7 @@ export function saveProgress(){
 export var prog = loadProgress();
 var inMenu = true;
 var startLevelCb = null;
+var deleteLevelCb = null;
 var menuEl = document.getElementById('menu'), listEl = document.getElementById('mlist');
 
 export function isMenu(){ return inMenu; }
@@ -26,9 +27,24 @@ export function setMenu(v){
   else menuEl.classList.add('hide');
 }
 
-export function buildMenu(onStart){
+export function dropProgressAt(idx){
+  var nd = {}, k, i;
+  for (k in prog.done){
+    i = +k;
+    if (i === idx) continue;
+    nd[i > idx ? i - 1 : i] = prog.done[k];
+  }
+  prog.done = nd;
+  if (prog.max > idx) prog.max--;
+  else if (prog.max === idx) prog.max = Math.max(0, prog.max - 1);
+  saveProgress();
+}
+
+export function buildMenu(onStart, onDelete){
   if (typeof onStart === 'function') startLevelCb = onStart;
+  if (typeof onDelete === 'function') deleteLevelCb = onDelete;
   listEl.textContent = '';
+  var canDel = G.LEVELS.length > 1;
   for (var i = 0; i < G.LEVELS.length; i++){
     (function(idx){
       var lv = G.LEVELS[idx];
@@ -38,8 +54,28 @@ export function buildMenu(onStart){
       var num = document.createElement('div');
       num.className = 'mnum'; num.textContent = prog.done[idx] ? '✓' : (idx + 1);
       var name = document.createElement('div');
+      name.className = 'mname';
       name.textContent = open ? lv.name : '— locked —';
       row.appendChild(num); row.appendChild(name);
+      if (canDel){
+        var del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'mdel';
+        del.title = 'Delete level';
+        del.textContent = '×';
+        del.addEventListener('click', function(e){
+          e.preventDefault();
+          e.stopPropagation();
+          if (deleteLevelCb) deleteLevelCb(idx);
+          else {
+            if (!confirm('Delete "' + lv.name + '"?')) return;
+            var next = G.removeLevel(idx);
+            dropProgressAt(idx);
+            if (next >= 0) buildMenu();
+          }
+        });
+        row.appendChild(del);
+      }
       if (open) row.addEventListener('click', function(){
         if (startLevelCb) startLevelCb(idx);
       });

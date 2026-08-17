@@ -13,7 +13,7 @@ import {
 } from './map.js';
 import { mkPlayer, resetPlayer, stanceH, hangBox, standBox } from './player.js';
 import { step } from './step.js';
-import { LEVELS, loadLevel, addBlankLevel } from '../levels/index.js';
+import { LEVELS, loadLevel, addBlankLevel, removeLevel } from '../levels/index.js';
 import { mkItems } from '../entities/items.js';
 import { mkPlats } from '../entities/plats.js';
 import { mkTorches, tryAction, dropTorch } from '../entities/torches.js';
@@ -135,7 +135,7 @@ export const GAME = {
   mkItemAt, mkEnemyAt, mkFlierAt, mkSpiderAt, mkTorchAt, mkChestAt, mkTendrilAt,
   mkLightAt, mkSoundAt, mkVolumeAt, getLayers, getActiveLayer,
   rectFree, mkWorld, step, resetPlayer,
-  LEVELS, loadLevel, newBlankLevel: addBlankLevel, levelIndex(){ return runtime.LVI; },
+  LEVELS, loadLevel, newBlankLevel: addBlankLevel, removeLevel, levelIndex(){ return runtime.LVI; },
   levelSpec(){ return runtime.LV; },
   tryAction, dropTorch, attack, tryDoor, inLift,
   GEAR, giveGear, wearGear,

@@ -223,11 +223,27 @@ export function flushLevel(S){
   dirty = false;
 }
 
+export function forgetLevel(lv){
+  if (!lv) return;
+  var store = readStore() || {};
+  var k = keyOf(lv);
+  delete store[k];
+  if (!lv.blank){
+    if (!store._gone) store._gone = [];
+    if (store._gone.indexOf(k) < 0) store._gone.push(k);
+  }
+  writeStore(store);
+}
+
 export function hydrateAll(levels){
   if (!levels) return;
   var store = readStore();
   if (!store) return;
-  var seen = {}, i, k, rec;
+  var gone = {}, seen = {}, i, k, rec;
+  (store._gone || []).forEach(function(id){ gone[id] = 1; });
+  for (i = levels.length - 1; i >= 0; i--){
+    if (gone[keyOf(levels[i])] && levels.length > 1) levels.splice(i, 1);
+  }
   for (i = 0; i < levels.length; i++){
     k = keyOf(levels[i]);
     seen[k] = 1;
@@ -235,8 +251,9 @@ export function hydrateAll(levels){
     if (rec) applyRecord(levels[i], rec);
   }
   for (k in store){
+    if (k === '_gone') continue;
     rec = store[k];
-    if (!rec || seen[k]) continue;
+    if (!rec || seen[k] || gone[k]) continue;
     if (rec.blank || rec.stash) levels.push(makeBlank(rec));
   }
 }
