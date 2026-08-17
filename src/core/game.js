@@ -13,9 +13,10 @@ import { LEVELS, loadLevel } from '../levels/index.js';
 import { mkItems } from '../entities/items.js';
 import { mkPlats } from '../entities/plats.js';
 import { mkTorches, tryAction, dropTorch } from '../entities/torches.js';
-import { mkDoors, tryDoor } from '../entities/doors.js';
+import { mkDoors, tryDoor, tryExit } from '../entities/doors.js';
 import { mkEnemies, attack } from '../entities/enemies.js';
-import { mkPickable, tryExit } from '../entities/pickable.js';
+import { mkPickable } from '../entities/pickable.js';
+import { allocId } from '../entities/ids.js';
 import { mkLifts, buildGates, inLift, liftSideOpen } from '../entities/lifts.js';
 import { mkFliers } from '../entities/fliers.js';
 import { mkSpiders } from '../entities/spiders.js';
@@ -45,28 +46,28 @@ function setTile(c, r, v){
 }
 
 function mkItemAt(S, cx, cy, kind){
-  S.items.push({ id:S.items.length, x:cx, y:cy, kind:kind, got:false, ph:Math.random()*6.28 });
+  S.items.push({ id:allocId(S.items), x:cx, y:cy, kind:kind, got:false, ph:Math.random()*6.28 });
 }
 function mkEnemyAt(S, x, y, kind){
-  S.enemies.push({ id:S.enemies.length, x:x, y:y-14, w: kind===2?14:11, h: kind===2?18:14,
+  S.enemies.push({ id:allocId(S.enemies), x:x, y:y-14, w: kind===2?14:11, h: kind===2?18:14,
                    x0:x-64, x1:x+64, v:26, kind:kind, tough: kind===2?2:1,
                    dir:1, dead:false, hitT:0, ph:0, vy:0 });
 }
 function mkFlierAt(S, x, y, kind){
-  S.fliers.push({ id:S.fliers.length, x:x, y:y, w: kind===2?16:13, h: kind===2?11:9,
+  S.fliers.push({ id:allocId(S.fliers), x:x, y:y, w: kind===2?16:13, h: kind===2?11:9,
                   x0:x-80, x1:x+80, v:28, kind:kind, dir:1, dead:false, hitT:0,
                   ph:0, cd:1.2, flap:0 });
 }
 function mkSpiderAt(S, x, y, kind){
-  S.spiders.push({ id:S.spiders.length, hx:x, hy:y, x:x, y:y, kind:kind,
+  S.spiders.push({ id:allocId(S.spiders), hx:x, hy:y, x:x, y:y, kind:kind,
                    len:0, state:'wait', t:1, dir:1, dead:false, hitT:0, ph:0 });
 }
 function mkTorchAt(S, x, y){
-  S.torches.push({ id:S.torches.length, x:x, y:y, vx:0, vy:0, held:false, ground:true,
+  S.torches.push({ id:allocId(S.torches), x:x, y:y, vx:0, vy:0, held:false, ground:true,
                    ph:0, ang:0, spin:0, wasAir:false, thrown:false, lit:true, hx:x, hy:y });
 }
 function mkChestAt(S, x, y, kind, locked){
-  S.chests.push({ id:S.chests.length, x:x, y:y, kind:kind, locked:!!locked, opened:false, t:0 });
+  S.chests.push({ id:allocId(S.chests), x:x, y:y, kind:kind, locked:!!locked, opened:false, t:0 });
 }
 
 export const GAME = {

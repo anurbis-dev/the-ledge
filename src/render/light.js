@@ -15,11 +15,14 @@ export function getLights(){
 }
 export { getLights as LIGHTS };
 
+var _tp = null, _tpT = NaN;
 export function torchPts(){
+  if (_tp && _tpT === view.time) return _tp;
   var S = world(), LIGHTS = getLights();
   var a = [], i;
   for (i = 0; i < LIGHTS.length; i++) a.push([LIGHTS[i][0]*T+8, LIGHTS[i][1]*T+8]);
   for (i = 0; i < S.torches.length; i++) if (S.torches[i].lit) a.push([S.torches[i].x, S.torches[i].y - 9]);
+  _tp = a; _tpT = view.time;
   return a;
 }
 

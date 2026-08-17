@@ -31,7 +31,7 @@ export function stepFliers(S, dt){
             f.y = Math.floor((f.y + f.h + d2)/T)*T - f.h;
             f.phase = 'stuck'; f.rest = 4.5; f.vy = 0;
             f.spin = Math.PI/2;                       // воткнулась клювом
-            S.p.events.push('thud:' + i);
+            S.p.events.push('thud:' + f.id);
             break;
           }
           f.y += d2;

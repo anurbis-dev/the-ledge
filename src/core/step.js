@@ -14,8 +14,7 @@ import { stepEnemies } from '../entities/enemies.js';
 import { stepFliers, stepDrops } from '../entities/fliers.js';
 import { stepSpiders } from '../entities/spiders.js';
 import { stepLoot } from '../entities/loot.js';
-import { tryExit } from '../entities/pickable.js';
-import { tryDoor, updateWarp } from '../entities/doors.js';
+import { tryDoor, updateWarp, tryExit } from '../entities/doors.js';
 import { pickups } from '../entities/items.js';
 import { stepDark } from '../entities/dark.js';
 
@@ -200,7 +199,8 @@ export function step(S, dt, inp){
 
   if (p.onGround && !rolling && !p.inWater && p.rollCd <= 0 && p.stance <= 1 &&
       (inp.downHeld || inp.downPressed) && Math.abs(p.vx) > 58){
-    p.facing = inp.x > 0 ? 1 : -1;
+    if (inp.x !== 0) p.facing = inp.x > 0 ? 1 : -1;
+    else if (p.vx !== 0) p.facing = p.vx > 0 ? 1 : -1;
     p.rollT = C.ROLL_T; setH(p, C.RH); p.events.push('roll');
     rolling = true;
   }
@@ -322,7 +322,7 @@ export function step(S, dt, inp){
     }
     p.vy = 0; p.coyote = C.COYOTE; p.jumping = false; p.lastWall = 0; p.lock = 0;
     if (wasAir){
-      var fall = p.inWater ? 0 : (p.y - p.apexY);
+      var fall = (p.inWater || p.wading || wetCenter) ? 0 : (p.y - p.apexY);
       p.fell = fall;
       if (fall > C.SAFE){
         if (inp.x !== 0 && !rolling && p.rollCd <= 0){

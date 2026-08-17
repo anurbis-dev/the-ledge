@@ -18,7 +18,7 @@ export function pickups(S, p){
       if (it.kind === 'shroom' && S.hp < 3) S.hp++;
 
       S.hitStop = Math.max(S.hitStop, it.kind === 'relic' ? 0.25 : 0.03);
-      p.events.push('pick:' + it.kind + ':' + i);
+      p.events.push('pick:' + it.kind + ':' + it.id);
     }
   }
 }

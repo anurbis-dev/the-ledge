@@ -59,6 +59,14 @@ export function drawTile(c, r, x, y, dyn){
       rc(x, y, T, 1, '#8fd0ef');
     } else {                                             // спокойная вода: бегущая волна
       var top = !G.isWaterV(G.tileAt(c, r - 1));
+      if (!top){                                         // глубина — без волн
+        if ((c*7 + r*3) % 4 === 0){
+          var bzD = ((time*22 + c*9) % 16) | 0;
+          rc(x + 4 + ((c*3)%8), y + 15 - bzD, 1, 1, '#bfe6ff');
+        }
+        rc(x + ((c*7)%9), y + 12, 2, 1, '#6fb8dd');
+        return;
+      }
       for (var wx = 0; wx < T; wx += 2){
         var ph2 = (c*T + wx) * 0.09 - time * 2.2;
         var wv = Math.round(Math.sin(ph2) * 1.6 + Math.sin(ph2*2.3) * 0.7);

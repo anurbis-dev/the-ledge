@@ -28,7 +28,7 @@ export function stepEnemies(S, dt){
     var near = Math.abs((p.x + p.w/2) - (e.x + e.w/2)) < 42 && p.y + p.h < e.y + e.h + 4;
     if (near && e.hopCd <= 0 && e.vy === 0){
       e.vy = -175; e.hopCd = 0.9 + Math.random()*0.5;
-      p.events.push('snap:' + i);
+      p.events.push('snap:' + e.id);
     }
     if (e.vy !== 0){
       e.vy += 620*dt; e.y += e.vy*dt;
@@ -42,7 +42,7 @@ export function stepEnemies(S, dt){
       dropLoot(S, e.x + e.w/2, e.y + e.h/2, 's');
       p.vy = -190; p.onGround = false; p.apexY = p.y;
       S.hitStop = Math.max(S.hitStop, 0.05); S.shake = Math.max(S.shake, 3);
-      p.events.push('stomp:' + i);
+      p.events.push('stomp:' + e.id);
       continue;
     }
     var ex0 = e.x;
@@ -68,7 +68,7 @@ export function stepEnemies(S, dt){
         e.x -= kb * 16; e.dir = -kb; e.vy = -90;
         p.shieldCd = 0.4; p.hurtCd = 0.35; p.bashT = 0.26;
         S.shake = Math.max(S.shake, 2);
-        p.events.push('bash:' + i);
+        p.events.push('bash:' + e.id);
         wearGear(S, 'shield');
         continue;
       }
@@ -98,7 +98,7 @@ export function attack(S){
       S.hitStop = Math.max(S.hitStop, 0.06); S.shake = Math.max(S.shake, 3);
       dropLoot(S, e.x + e.w/2, e.y + e.h/2, 'e');
       wearGear(S, 'weapon');
-      p.events.push('kill:' + i);
+      p.events.push('kill:' + e.id);
     }
   }
   for (var fj = 0; fj < S.fliers.length; fj++){
@@ -109,7 +109,7 @@ export function attack(S){
       fl.dead = true; fl.hitT = 0.6;
       S.hitStop = Math.max(S.hitStop, 0.06);
       dropLoot(S, fl.x + fl.w/2, fl.y + fl.h/2, 'f');
-      p.events.push('kill:f' + fj);
+      p.events.push('kill:f' + fl.id);
     }
   }
   return true;

@@ -101,49 +101,80 @@ export function fore(){
 
 export function buildWater(){
   WEEDS = []; FISH = [];
-  var pools = {};                                     // группируем воду в водоёмы по колонкам
-  for (var c = 0; c < G.MAP_W; c++){
-    var top = -1, bot = -1;
-    for (var r = 0; r < G.MAP_H; r++){
-      if (G.tileAt(c, r) === G.WATER){ if (top < 0) top = r; bot = r; }
-      else if (top >= 0 && r > bot + 1){ break; }
+  var MW = G.MAP_W, MH = G.MAP_H, WATER = G.WATER;
+  var seen = new Uint8Array(MW * MH);
+  function ix(c, r){ return r * MW + c; }
+  var ponds = [];
+  for (var r = 0; r < MH; r++){
+    for (var c = 0; c < MW; c++){
+      if (G.tileAt(c, r) !== WATER || seen[ix(c, r)]) continue;
+      var stack = [[c, r]], cols = {}, c0 = c, c1 = c, top = r, bot = r;
+      seen[ix(c, r)] = 1;
+      while (stack.length){
+        var cr = stack.pop(), cc = cr[0], rr = cr[1];
+        if (cc < c0) c0 = cc; if (cc > c1) c1 = cc;
+        if (rr < top) top = rr; if (rr > bot) bot = rr;
+        if (!cols[cc]) cols[cc] = { top: rr, bot: rr };
+        else {
+          if (rr < cols[cc].top) cols[cc].top = rr;
+          if (rr > cols[cc].bot) cols[cc].bot = rr;
+        }
+        var nbs = [[cc + 1, rr], [cc - 1, rr], [cc, rr + 1], [cc, rr - 1]];
+        for (var n = 0; n < 4; n++){
+          var nc = nbs[n][0], nr = nbs[n][1];
+          if (nc < 0 || nr < 0 || nc >= MW || nr >= MH) continue;
+          if (seen[ix(nc, nr)] || G.tileAt(nc, nr) !== WATER) continue;
+          seen[ix(nc, nr)] = 1;
+          stack.push([nc, nr]);
+        }
+      }
+      ponds.push({ c0: c0, c1: c1, top: top, bot: bot, cols: cols });
     }
-    if (top >= 0){
-      pools[c] = { top: top, bot: bot };
-      var depth = (bot - top + 1);
-      var n = depth > 3 ? 3 : (depth > 1 ? 2 : 1);
-      for (var k = 0; k < n; k++){
-        var h1 = ((c*7 + k*13) % 100) / 100;
-        if (h1 < 0.32) continue;                      // не сплошным забором
-        var len = 5 + h1 * depth * 10;                // глубже — длиннее
-        WEEDS.push({ x: c*T + 2 + ((c*5 + k*7) % 12),
-                     y: (bot + 1) * T,
-                     len: len, w: 1 + ((c + k) % 3),
-                     hue: (c + k) % 3, ph: ((c*17 + k*31) % 100) / 100 * 6.28,
+  }
+  var fi = 0;
+  for (var p = 0; p < ponds.length; p++){
+    var pond = ponds[p];
+    for (var ck in pond.cols){
+      var col = +ck, rec = pond.cols[ck];
+      var depth = rec.bot - rec.top + 1;
+      var nw = depth > 3 ? 3 : (depth > 1 ? 2 : 1);
+      for (var k = 0; k < nw; k++){
+        var h1 = ((col*7 + k*13) % 100) / 100;
+        if (h1 < 0.32) continue;
+        WEEDS.push({ x: col*T + 2 + ((col*5 + k*7) % 12),
+                     y: (rec.bot + 1) * T,
+                     len: 5 + h1 * depth * 10, w: 1 + ((col + k) % 3),
+                     hue: (col + k) % 3, ph: ((col*17 + k*31) % 100) / 100 * 6.28,
                      sway: 0.5 + h1 });
       }
     }
-  }
-  // рыбы: разные размеры и глубины
-  var cols = Object.keys(pools).map(Number);
-  if (cols.length > 4){
-    var c0 = cols[0], c1 = cols[cols.length - 1];
-    var count = Math.min(9, Math.max(3, Math.floor(cols.length / 8)));
+    var width = pond.c1 - pond.c0 + 1;
+    if (width <= 4) continue;                         // лужа — без рыб
+    var count = Math.min(9, Math.max(3, Math.floor(width / 8)));
+    var colKeys = Object.keys(pond.cols);
     for (var f = 0; f < count; f++){
-      var pc = cols[(f * 7 + 3) % cols.length];
-      var pool = pools[pc];
+      var pc = +colKeys[(f * 7 + 3) % colKeys.length];
+      var pool = pond.cols[pc];
       var big = f % 3 === 2;
+      var fy0 = pond.top*T + 4, fy1 = (pond.bot + 1)*T - 4;
+      if (fy1 < fy0) fy1 = fy0;
+      var fy = (pool.top + 1 + ((f*3) % Math.max(1, pool.bot - pool.top))) * T;
+      if (fy < fy0) fy = fy0; if (fy > fy1) fy = fy1;
       FISH.push({
-        x: pc*T, y: (pool.top + 1 + ((f*3) % Math.max(1, pool.bot - pool.top))) * T,
-        x0: c0*T + 8, x1: (c1 + 1)*T - 8,
+        x: pc*T, y: fy,
+        x0: pond.c0*T + 8, x1: (pond.c1 + 1)*T - 8,
+        y0: fy0, y1: fy1,
         big: big, w: big ? 13 : 7, h: big ? 7 : 4,
         v: (big ? 26 : 44) + (f % 3) * 7,
         dir: f % 2 ? -1 : 1, kind: f % 3,
-        ph: f * 1.7, scare: 0, bite: 0
+        ph: fi * 1.7, scare: 0, bite: 0
       });
+      fi++;
     }
   }
 }
+export function getFish(){ return FISH; }
+
 export function stepWater(dt){
   var S = world(), time = view.time, C = G.C;
   var p = S.p, pcx = p.x + p.w/2, pcy = p.y + p.h/2;
@@ -169,6 +200,8 @@ export function stepWater(dt){
       f.x += f.dir * f.v * dt;
     }
     f.y += Math.sin(time * 1.6 + f.ph) * 6 * dt;
+    if (f.y0 != null && f.y < f.y0) f.y = f.y0;
+    if (f.y1 != null && f.y > f.y1) f.y = f.y1;
     if (f.x < f.x0){ f.x = f.x0; f.dir = 1; }
     if (f.x > f.x1){ f.x = f.x1; f.dir = -1; }
     if (!G.isWaterV(G.tileAt(Math.floor(f.x/T), Math.floor(f.y/T)))){
@@ -181,7 +214,7 @@ export function drawWeeds(){
   for (var i = 0; i < WEEDS.length; i++){
     var w = WEEDS[i];
     var x = Math.round(w.x - cam.x), y = Math.round(w.y - cam.y);
-    if (x < -8 || x > VW + 8) continue;
+    if (x < -8 || x > VW + 8 || y < -4 || y - w.len > VH + 8) continue;
     var col = w.hue === 0 ? '#2f7a52' : (w.hue === 1 ? '#3f8f5f' : '#6aa83f');
     var px = x, py = y;
     for (var k = 0; k < 4; k++){
@@ -199,7 +232,7 @@ export function drawFish(){
   for (var i = 0; i < FISH.length; i++){
     var f = FISH[i];
     var x = Math.round(f.x - cam.x), y = Math.round(f.y - cam.y);
-    if (x < -20 || x > VW + 20) continue;
+    if (x < -20 || x > VW + 20 || y < -16 || y > VH + 16) continue;
     var body = f.kind === 0 ? '#e0a04a' : (f.kind === 1 ? '#5fb0d0' : '#b05f7a');
     var fin  = f.kind === 0 ? '#ffd08a' : (f.kind === 1 ? '#9fd8ef' : '#e09fb0');
     var d = f.dir;

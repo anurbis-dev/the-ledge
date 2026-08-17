@@ -4,6 +4,7 @@ import {
 } from '../render/index.js';
 import { isMenu } from '../ui/menu.js';
 import { hushLift } from '../audio/sfx.js';
+import { findById } from '../entities/ids.js';
 
 var G = GAME;
 
@@ -96,12 +97,17 @@ export function edApply(cell){
   if (ED.last === key && ED.tool !== 'pan') return;
   ED.last = key;
   if (ED.tool === 'tile'){
-    G.setTile(cell.c, cell.r, ED_TILES[ED.pal][1]);
-    invalidateChunk(cell.c, cell.r); G.buildGates(S); buildWater();
+    var nv = ED_TILES[ED.pal][1];
+    var old = G.tileAt(cell.c, cell.r);
+    G.setTile(cell.c, cell.r, nv);
+    invalidateChunk(cell.c, cell.r); G.buildGates(S);
+    if (old === G.WATER || old === G.FALL || nv === G.WATER || nv === G.FALL) buildWater();
   } else if (ED.tool === 'erase'){
+    var oldE = G.tileAt(cell.c, cell.r);
     G.setTile(cell.c, cell.r, 0);
     edEraseObjects(cell);
-    invalidateChunk(cell.c, cell.r); G.buildGates(S); buildWater();
+    invalidateChunk(cell.c, cell.r); G.buildGates(S);
+    if (oldE === G.WATER || oldE === G.FALL) buildWater();
   } else if (ED.tool === 'obj'){
     edPlaceObject(cell);
   }
@@ -116,6 +122,7 @@ function edEraseObjects(cell){
   S.torches = S.torches.filter(function(t){ return !near(t.x, t.y - 8); });
   S.chests  = S.chests.filter(function(c2){ return !near(c2.x + 10, c2.y - 6); });
   S.items   = S.items.filter(function(i2){ return !near(i2.x, i2.y); });
+  if (S.p.torch >= 0 && !findById(S.torches, S.p.torch)) S.p.torch = -1;
 }
 function edPlaceObject(cell){
   var S = world();

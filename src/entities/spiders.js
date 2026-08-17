@@ -59,7 +59,7 @@ export function stepSpiders(S, dt){
         Math.abs(sp.y - (p.y + p.h/2)) < 20){
       sp.dead = true; sp.hitT = 0.5;
       dropLoot(S, sp.x, sp.y, 'sp');
-      p.events.push('kill:s' + i);
+      p.events.push('kill:s' + sp.id);
     }
   }
 }

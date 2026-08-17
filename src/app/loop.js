@@ -5,17 +5,18 @@ import {
   lootDrops, items, pickables, drawTorches, enemies, spiders, fliers,
   hero, lightPass, drawWeeds, drawFish, drawParts, drawHearts,
   vignette, hud, drawIntro, drawPaused, drawOutro,
-  applyPal, buildWater, stepWater, invalidateAll, fore, rc
+  applyPal, buildWater, stepWater, invalidateAll, fore, rc, getFish
 } from '../render/index.js';
 import { spark } from '../render/fx.js';
 import { blip, liftSound, hushLift } from '../audio/sfx.js';
 import { held, latch, ax, stick, bindInput } from '../input/input.js';
 import { ED, edOpen, edClose, edApply, edExportText, edDrawOverlay, bindEditor } from '../editor/editor.js';
 import { prog, buildMenu, showMenu, isMenu, setMenu, saveProgress } from '../ui/menu.js';
+import { findById } from '../entities/ids.js';
 
 var G = GAME;
 var S = null;
-var paused = false, introT = 0, outroT = 0, outro = null;
+var paused = false, introT = 0, outro = null;
 var parts = view.parts, hearts = view.hearts;
 
 function setS(w){ S = w; G.setWorld(w); G.W = w; }
@@ -40,8 +41,9 @@ function onEvent(ev){
   else if (k === 'kill'){
     blip(160, 0.16, 'sawtooth', 0.05);
     var tag = ev.split(':')[1] || '', vic;
-    if (tag.charAt(0) === 'f') vic = S.fliers[+tag.slice(1)];
-    else vic = S.enemies[+tag];
+    if (tag.charAt(0) === 'f') vic = findById(S.fliers, +tag.slice(1));
+    else if (tag.charAt(0) === 's') vic = findById(S.spiders, +tag.slice(1));
+    else vic = findById(S.enemies, +tag);
     if (vic) spark(vic.x + vic.w/2, vic.y + vic.h/2, 14, '#c79ae0', 110, 70);
   }
   else if (k === 'getstick'){ blip(700, 0.16, 'triangle'); view.flash = 0.4; }
@@ -62,7 +64,7 @@ function onEvent(ev){
   else if (k === 'burn'){
     blip(200, 0.22, 'sawtooth', 0.06); view.flash = 0.45;
     var pr = ev.split(':');
-    if (pr[1] && pr[1].charAt(0) === 'f'){ var fv = S.fliers[+pr[1].slice(1)];
+    if (pr[1] && pr[1].charAt(0) === 'f'){ var fv = findById(S.fliers, +pr[1].slice(1));
       if (fv) spark(fv.x + fv.w/2, fv.y, 18, '#ffd06a', 130, 80); }
     if (pr.length >= 4){
       var bxr = +pr[2], byr = +pr[3];
@@ -75,9 +77,10 @@ function onEvent(ev){
   else if (k === 'snuff'){ blip(150, 0.2, 'sine', 0.05); spark(p.x+5, p.y+12, 10, '#6b6270', 60); }
   else if (k === 'stomp'){ blip(260, 0.09, 'square'); spark(p.x+5, p.y+p.h, 10, '#e0d0ff', 90); }
   else if (k === 'snap'){ blip(210, 0.05, 'sawtooth', 0.03); }
-  else if (k === 'torchland'){ var ti2 = +ev.split(':')[1]; spark(S.torches[ti2].x, S.torches[ti2].y, 6, '#ffb060', 70); }
-  else if (k === 'torchtrail'){ var ti3 = +ev.split(':')[1];
-    if (Math.random() < 0.6) spark(S.torches[ti3].x, S.torches[ti3].y - 6, 1, '#ffcf7a', 24, 8); }
+  else if (k === 'torchland'){ var tL = findById(S.torches, +ev.split(':')[1]);
+    if (tL) spark(tL.x, tL.y, 6, '#ffb060', 70); }
+  else if (k === 'torchtrail'){ var tT = findById(S.torches, +ev.split(':')[1]);
+    if (tT && Math.random() < 0.6) spark(tT.x, tT.y - 6, 1, '#ffcf7a', 24, 8); }
   else if (k === 'chest'){
     var kind2 = ev.split(':')[1];
     blip(kind2 === 'helmet' || kind2 === 'shield' ? 880 : 700, 0.22, 'triangle');
@@ -116,7 +119,7 @@ function onEvent(ev){
   else if (k === 'peck'){ blip(180, 0.16, 'sawtooth', 0.06); view.flash = 0.35; }
   else if (k === 'thud'){
     blip(90, 0.2, 'sawtooth', 0.06); S.shake = Math.max(S.shake, 3);
-    var ti4 = +ev.split(':')[1], fv2 = S.fliers[ti4];
+    var fv2 = findById(S.fliers, +ev.split(':')[1]);
     if (fv2) spark(fv2.x + fv2.w/2, fv2.y + fv2.h, 12, '#a08a70', 90, 50);
   }
   else if (k === 'revive'){ blip(500, 0.1, 'triangle', 0.04); }
@@ -137,9 +140,9 @@ function onEvent(ev){
   }
   else if (k === 'respawn'){ blip(300, 0.3, 'sine', 0.05); view.flash = 0.9; }
   else if (k === 'pick'){
-    var kind = ev.split(':')[1], it = S.items[+ev.split(':')[2]];
+    var kind = ev.split(':')[1], it = findById(S.items, +ev.split(':')[2]);
     blip(kind==='relic'?900:(kind==='gem'?820:620), kind==='relic'?0.4:0.09, 'triangle');
-    spark(it.x, it.y, kind==='relic'?26:10,
+    if (it) spark(it.x, it.y, kind==='relic'?26:10,
       kind==='gem'?'#9ff0ff':(kind==='shroom'?'#ffb08a':(kind==='relic'?'#f0e0ff':'#ffe9a8')), 90, 50);
     view.flash = kind==='relic' ? 0.8 : 0.25;
   }
@@ -167,7 +170,7 @@ function hardReset(){
 function startLevel(idx){
   setS(G.mkWorld(idx));
   introT = 1;                                  // плашка с названием, игра ждёт касания
-  paused = false; setOutro(null); outroT = 0;
+  paused = false; setOutro(null);
   parts.length = 0; view.flash = 0.7; view.warpJump = true;
   cam.x = S.p.x - VW/2; cam.y = S.p.y - VH/2;
   applyPal(); buildWater(); invalidateAll();
@@ -185,7 +188,8 @@ function levelTotals(){
   t.secrets = S.dark.length;
   for (var d = 0; d < S.dark.length; d++){
     var dz = S.dark[d];
-    if (S.doors[dz.doorId] && !S.doors[dz.doorId].locked) t.secretsFound++;
+    var secD = findById(S.doors, dz.doorId);
+    if (secD && !secD.locked) t.secretsFound++;
   }
   return t;
 }
@@ -194,14 +198,9 @@ function finishLevel(){
   prog.done[i] = true;
   setOutro({ t: 0, totals: levelTotals(), bag: { coin:S.bag.coin, gem:S.bag.gem, shroom:S.bag.shroom },
             next: i + 1 < G.LEVELS.length ? i + 1 : -1 });
-  if (i + 1 < G.LEVELS.length){
-    prog.max = Math.max(prog.max, i + 1);
-    saveProgress();
-  } else {
-    prog.max = Math.max(prog.max, i);
-    saveProgress();
-    showMenu();
-  }
+  if (i + 1 < G.LEVELS.length) prog.max = Math.max(prog.max, i + 1);
+  else prog.max = Math.max(prog.max, i);
+  saveProgress();
 }
 
 function isFS(){ return !!(document.fullscreenElement || document.webkitFullscreenElement); }
@@ -391,6 +390,7 @@ export function start(){
     window.__skip = function(){ introT = 0; paused = false; setOutro(null); };
     window.__screens = function(){ return { intro: introT, paused: paused, outro: !!outro }; };
     window.__game = G;
+    window.__fish = getFish;
     window.__editor = { open: edOpen, close: edClose, state: ED,
                         apply: function(c, r){ edApply({ c:c, r:r }); },
                         exportText: edExportText };

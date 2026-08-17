@@ -6,6 +6,7 @@ import { dropLoot } from './loot.js';
 import { tryChest } from './chests.js';
 import { giveGear } from './gear.js';
 import { attack } from './enemies.js';
+import { findById } from './ids.js';
 
 export function mkTorches(){
   var LV = runtime.LV;
@@ -43,20 +44,20 @@ export function stepTorches(S, dt){
       t.vy = 0;
     }
     if (t.lit && isWaterV(tileAt(Math.floor(t.x/T), Math.floor((t.y - 4)/T)))){
-      t.lit = false; S.p.events.push('snuff:' + i);    // в воде гаснет — остаётся палка
+      t.lit = false; S.p.events.push('snuff:' + t.id);    // в воде гаснет — остаётся палка
     }
     if (t.ground){
       t.vx *= 0.86; if (Math.abs(t.vx) < 4) t.vx = 0;
       t.spin = 0;
       t.ang += (0 - t.ang) * Math.min(1, dt*10);       // лёг горизонтально
       if (t.wasAir){
-        t.wasAir = false; S.p.events.push('torchland:' + i);
-        if (t.thrown && inDark(S, t.x, t.y - 6)){ t.lit = false; t.thrown = false; S.p.events.push('snuff:' + i); }
+        t.wasAir = false; S.p.events.push('torchland:' + t.id);
+        if (t.thrown && inDark(S, t.x, t.y - 6)){ t.lit = false; t.thrown = false; S.p.events.push('snuff:' + t.id); }
       }
     } else {
       t.wasAir = true;
       t.ang += t.spin * dt;
-      if (Math.abs(t.vx) > 20 || Math.abs(t.vy) > 20) S.p.events.push('torchtrail:' + i);
+      if (Math.abs(t.vx) > 20 || Math.abs(t.vy) > 20) S.p.events.push('torchtrail:' + t.id);
     }
     if (Math.abs(t.vx) > 45 || Math.abs(t.vy) > 45){        // летящий факел жжёт врагов
       for (var ei = 0; ei < S.enemies.length; ei++){
@@ -67,7 +68,7 @@ export function stepTorches(S, dt){
           en.dead = true; en.hitT = 0.6;
           t.vx *= -0.3; t.vy = -60;
           S.hitStop = Math.max(S.hitStop, 0.06); S.shake = Math.max(S.shake, 3);
-          p.events.push('burn:' + ei + ':' + Math.round(t.x) + ':' + Math.round(t.y));
+          p.events.push('burn:' + en.id + ':' + Math.round(t.x) + ':' + Math.round(t.y));
         }
       }
       for (var si2 = 0; si2 < S.spiders.length; si2++){
@@ -77,7 +78,7 @@ export function stepTorches(S, dt){
           spg.dead = true; spg.hitT = 0.5;
           dropLoot(S, spg.x, spg.y, 'sp');
           t.vy = -50;
-          p.events.push('burn:s' + si2 + ':' + Math.round(t.x) + ':' + Math.round(t.y));
+          p.events.push('burn:s' + spg.id + ':' + Math.round(t.x) + ':' + Math.round(t.y));
         }
       }
       for (var fi2 = 0; fi2 < S.fliers.length; fi2++){
@@ -87,7 +88,7 @@ export function stepTorches(S, dt){
             t.y > fl2.y - 2 && t.y - 15 < fl2.y + fl2.h){
           fl2.dead = true; fl2.hitT = 0.6; t.vy = -60;
           S.hitStop = Math.max(S.hitStop, 0.06);
-          p.events.push('burn:f' + fi2);
+          p.events.push('burn:f' + fl2.id);
         }
       }
     }
@@ -95,7 +96,7 @@ export function stepTorches(S, dt){
 }
 export function dropTorch(S, hard){
   var p = S.p; if (p.torch < 0) return;
-  var t = S.torches[p.torch];
+  var t = findById(S.torches, p.torch);
   if (!t){ p.torch = -1; return; }
   t.held = false; t.ground = false;
   t.x = p.x + p.w/2 + p.facing*(hard?7:3); t.y = p.y + 15;
@@ -136,7 +137,7 @@ export function tryAction(S){
     if (d < bd){ bd = d; best = i; }
   }
   if (best < 0) return p.stick ? attack(S) : false;    // рядом нет факела — бьём палкой
-  S.torches[best].held = true; p.torch = best;
+  S.torches[best].held = true; p.torch = S.torches[best].id;
   p.events.push(S.torches[best].lit ? 'take' : 'takedark');
   return true;
 }

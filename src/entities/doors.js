@@ -1,6 +1,7 @@
 import { C } from '../core/constants.js';
 import { runtime } from '../core/runtime.js';
 import { inDark } from './dark.js';
+import { findById } from './ids.js';
 
 export function mkDoors(){
   var LV = runtime.LV;
@@ -28,7 +29,7 @@ export function tryDoor(S){
     if (Math.abs(d.x + 8 - cx) > 17 || Math.abs(d.y - 12 - cy) > 22) continue;
     if (d.locked && !S.keys){ p.events.push('locked'); return true; }
     if (d.locked){
-      var pr0 = S.doors[d.pair]; d.locked = false; if (pr0) pr0.locked = false;
+      var pr0 = findById(S.doors, d.pair); d.locked = false; if (pr0) pr0.locked = false;
       S.keys--; p.events.push('unlock');
     }
     p.state = 'warp'; p.vx = 0; p.vy = 0;
@@ -58,11 +59,14 @@ export function updateWarp(S, p, dt){
         }
       }
     }
-    var d = S.doors[w.to];
-    p.x = d.x + 8 - p.w/2; p.y = d.y - p.h;      // выходим ИЗ парной двери
-    p.onGround = true; p.apexY = p.y; p.ride = null; w.moved = true;
-    S.respawn.x = p.x; S.respawn.y = p.y;
-    p.events.push('doorout:' + d.tag);
+    var d = findById(S.doors, w.to);
+    if (d){
+      p.x = d.x + 8 - p.w/2; p.y = d.y - p.h;      // выходим ИЗ парной двери
+      p.onGround = true; p.apexY = p.y; p.ride = null;
+      S.respawn.x = p.x; S.respawn.y = p.y;
+      p.events.push('doorout:' + d.tag);
+    }
+    w.moved = true;
   }
   if (w.t >= C.WARP_T){
     S.fade = 0; p.warp = null; p.state = 'normal';
