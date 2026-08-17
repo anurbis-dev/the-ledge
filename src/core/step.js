@@ -4,7 +4,7 @@ import { tileAt, rectFree, isWaterV, waterSurfaceY, ladderTile } from './map.js'
 import {
   moveX, moveY, damage, updateBars, ease, updateClimb, updateHang, updateLadder,
   setStance, setH, groundAhead, slopeUnder, grounded, autoLadder, tryBars,
-  tryLadder, tryGrab, tryClimbOut, ladderTopUnder, attach, tryDescend, tryMantle
+  tryLadder, tryGrab, tryClimbOut, tryCrawlEdge, ladderTopUnder, attach, tryDescend, tryMantle
 } from './player.js';
 import { stepPlats, platUnder } from '../entities/plats.js';
 import { stepLifts, inLift, liftConstrain } from '../entities/lifts.js';
@@ -177,7 +177,11 @@ export function step(S, dt, inp){
       if (p.vx > lim) p.vx = lim;
       if (p.vx < -lim) p.vx = -lim;
       p.facing = ax > 0 ? 1 : -1;
-      if (p.stance > 0 && p.onGround && !groundAhead(S, p, p.facing)) p.vx = 0;
+      if (p.stance > 0 && p.onGround){
+        var edge = tryCrawlEdge(S, p, p.facing);
+        if (edge === 2){ crumbCheck(S, p); pickups(S, p); return; }  // в вис
+        if (edge === -1) p.vx = 0;                                   // упёрлись
+      }
       if (!rectFree(p.x + p.facing*2, p.y, p.w, p.h) && slopeUnder(p) === null){
         var wasVx = p.vx;
         p.vx = 0;                                 // упор в стену — не толкаемся (на склоне не мешаем)

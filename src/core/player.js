@@ -357,6 +357,20 @@ export function tryClimbOut(S, p, dir){
   return true;
 }
 
+function standFitsAt(p){
+  return rectFree(p.x + p.w / 2 - C.W / 2, p.y + p.h - C.H, C.W, C.H);
+}
+/* конец приседа/лаза: без потолка — встать на край; с потолком — в вис */
+export function tryCrawlEdge(S, p, dir){
+  if (!dir || p.stance <= 0 || !p.onGround) return 0;
+  if (groundAhead(S, p, dir)) return 0;
+  if (standFitsAt(p)){
+    setStance(S, p, 0);
+    return 1;
+  }
+  if (tryDescend(S, p, dir)) return 2;
+  return -1;
+}
 /* --- спуск спиной с края --- */
 export function tryDescend(S, p, want){
   var gy = Math.floor((p.y + p.h + 2) / T) * T;
@@ -373,7 +387,7 @@ export function tryDescend(S, p, want){
     if (col < 0 || !solidTile(col, Math.floor((gy + 2) / T))) continue;
     var cx = dir > 0 ? (col + 1) * T : col * T, f = -dir;
     var hb = hangBox(cx, gy, f, 'ledge');
-    if (!rectFree(hb.x, hb.y, p.w, p.h)) continue;
+    if (!rectFree(hb.x, hb.y, C.W, C.H)) continue;       // вис всегда в полный рост
     startClimb(p, -1, cx, gy, f, 'ledge');
     return true;
   }
@@ -410,7 +424,10 @@ export function startClimb(p, dir, cx, cy, facing, kind, land){
     else to = standBox(cx, cy, facing);
     ideal = hangBox(cx, cy, facing, 'ledge');
     if (st > 0){ p.stance = st; p.w = land.w; p.h = land.h; }
-  } else { to = hangBox(cx, cy, facing, 'ledge'); ideal = standBox(cx, cy, facing); }
+  } else {
+    to = hangBox(cx, cy, facing, 'ledge'); ideal = standBox(cx, cy, facing);
+    p.stance = 0; p.w = C.W; p.h = C.H;                 // с лаза в вис — полный рост
+  }
   dryOff(p);
   p.facing = facing; p.state = 'climb'; p.vx = 0; p.vy = 0; p.onGround = false;
   p.climb = { dir: dir, kind: kind, p: 0, dur: dir > 0 ? (kind === 'lad' ? C.TO_LAD : C.CLIMB_UP) : C.CLIMB_DN,
