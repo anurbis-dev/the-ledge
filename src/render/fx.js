@@ -22,7 +22,7 @@ function puff(x, y, vx, vy, life, col, sz, g, drag){
   });
 }
 function dustCols(){
-  return [TINT.rockL, TINT.rock, TINT.ruinC, P.crumL];
+  return ['#e8d8b4', '#cbb892', TINT.rockL, P.crumL];
 }
 /* мягкая пыль: n пылинок, spread — разлёт в стороны, lift — подброс */
 export function dust(x, y, n, spread, lift){
@@ -33,8 +33,8 @@ export function dust(x, y, n, spread, lift){
     var sp = (0.28 + Math.random()) * spread;
     puff(x + (Math.random() - 0.5) * 10, y - Math.random() * 2,
          dir * sp, -(5 + Math.random() * lift),
-         0.28 + Math.random() * 0.42, cols[i % cols.length],
-         Math.random() < 0.5 ? 2 : 1, 20 + Math.random() * 38, 3.6);
+         0.4 + Math.random() * 0.5, cols[i % cols.length],
+         Math.random() < 0.55 ? 2 : 1, 18 + Math.random() * 34, 3.8);
   }
 }
 export function landDust(p, fall){
@@ -48,7 +48,7 @@ export function landDust(p, fall){
   for (var i = 0; i < haze; i++)
     puff(x + (Math.random() - 0.5) * 14, y - 1,
          (Math.random() - 0.5) * (16 + f * 0.12), -(2 + Math.random() * 8),
-         0.34 + Math.random() * 0.28, TINT.rockL, 2, 14, 5.2);
+         0.5 + Math.random() * 0.35, TINT.rockL, 2, 12, 5.4);
 }
 export function bonkDust(p, spd){
   var x = p.x + p.w / 2, y = p.y + 1;
@@ -57,7 +57,7 @@ export function bonkDust(p, spd){
   for (var i = 0; i < n; i++)
     puff(x + (Math.random() - 0.5) * p.w, y + Math.random() * 2,
          (Math.random() - 0.5) * 52, 10 + Math.random() * 34,
-         0.22 + Math.random() * 0.34, cols[i % cols.length],
+         0.32 + Math.random() * 0.4, cols[i % cols.length],
          Math.random() < 0.4 ? 2 : 1, 76 + Math.random() * 40, 1.5);
   for (var j = 0; j < 3; j++)
     puff(x + (j - 1) * 5 + (Math.random() - 0.5) * 3, y,
@@ -372,7 +372,7 @@ export function drawParts(dt){
     }
     if (q.kind === 'dust'){
       var a = q.life ? q.t / q.life : Math.min(1, q.t * 2.4);
-      ctx.globalAlpha = a * 0.7;
+      ctx.globalAlpha = a * 0.88;
       rc(q.x - cam.x, q.y - cam.y, q.sz || 1, q.sz || 1, q.c);
       ctx.globalAlpha = 1;
     } else {
