@@ -1,4 +1,4 @@
-import { view } from '../render/index.js';
+import { view } from '../render/ctx.js';
 import { actx, getActx, resumeAudio } from './context.js';
 import { getFxVol } from '../ui/settings.js';
 

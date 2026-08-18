@@ -11,3 +11,7 @@ export { drawBubbles } from './bubbles.js';
 export { hero } from './hero.js';
 export { lightPass } from './light.js';
 export { hud, drawIntro, drawPaused, drawOutro, drawDead, hudHitsWeapon } from './hud.js';
+export {
+  isInvOpen, invInspecting, openInv, closeInv, toggleInv, stepInv,
+  drawInventory, handleInvPointer, handleInvKey, clientToGame, hitsHero
+} from './inventory.js';

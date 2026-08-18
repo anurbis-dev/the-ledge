@@ -6,7 +6,9 @@ import {
   hero, lightPass, drawWeeds, drawFish, drawParts, drawHearts,
   vignette, hud, drawIntro, drawPaused, drawOutro, drawDead, drawBubbles, hudHitsWeapon,
   applyPal, buildWater, stepWater, invalidateAll, fore, rc, getFish, spark, landDust, bonkDust, clampCam,
-  setViewScale, applyVolumes, drawCollideOverlay
+  setViewScale, applyVolumes, drawCollideOverlay,
+  isInvOpen, invInspecting, openInv, closeInv, toggleInv, stepInv, drawInventory, handleInvPointer, handleInvKey,
+  clientToGame, hitsHero
 } from '../render/index.js';
 import { blip, liftSound, hushLift, hushSounds, stepSounds } from '../audio/sfx.js';
 import { startMusic, hushMusic, resumeMusic, musicPlaying, getMix, setScore, listScores, playMusic, pauseMusic, seekMusic, getTransport, musicHeld, musicArmed } from '../audio/music.js';
@@ -208,9 +210,31 @@ function onEvent(ev){
 
 function toggleDbg(){ dbgOn = !dbgOn; dbgEl.style.display = dbgOn ? 'block' : 'none'; }
 
+function canPlayInv(){
+  return !!(S && !ED.on && !isMenu() && introT <= 0 && !gameOver && !outro && !S.dead);
+}
+
+function tryToggleInv(){
+  if (isInvOpen()){ closeInv(); return true; }
+  if (!canPlayInv()) return false;
+  openInv();
+  latch.j = latch.u = latch.d = latch.a = false;
+  return true;
+}
+
+function tryHeroInv(e){
+  if (!canPlayInv() || isInvOpen()) return false;
+  var g = clientToGame(e.clientX, e.clientY);
+  if (!g || !hitsHero(g.x, g.y, S)) return false;
+  openInv();
+  latch.j = latch.u = latch.d = latch.a = false;
+  return true;
+}
+
 function openGameMenu(){
   if (isMenu()) return;
   if (ED.on) edClose();
+  closeInv(true);
   paused = true;
   canResume = !!(S && !S.dead && !gameOver && !outro);
   gameOver = null;
@@ -251,6 +275,7 @@ function deleteLevelAt(idx, fromEditor){
 
 function dismissDead(){
   gameOver = null;
+  closeInv(true);
   canResume = false;
   showMenu();
 }
@@ -269,6 +294,7 @@ function advanceScreens(){
 
 function hardReset(){
   gameOver = null;
+  closeInv(true);
   clearHistory();
   setS(G.mkWorld(G.levelIndex()));
   parts.length = 0; view.flash = 0.6;
@@ -276,6 +302,7 @@ function hardReset(){
 }
 
 function startLevel(idx){
+  closeInv(true);
   clearHistory();
   setS(G.mkWorld(idx));
   introT = 1;                                  // плашка с названием, игра ждёт касания
@@ -395,10 +422,10 @@ function frame(now){
   setViewScale(1);
   if (S.done && !outro && S.p.warp && S.p.warp.exit && S.p.warp.moved){ finishLevel(); }
   if (S.dead && !gameOver) gameOver = { t: 0 };
-  if (introT > 0 || paused || outro || gameOver){
+  if (introT > 0 || paused || outro || gameOver || isInvOpen()){
     acc = 0;
     hushLift(); hushSounds();
-    if (paused || outro || gameOver) hushMusic();
+    if ((paused && !isInvOpen()) || outro || gameOver) hushMusic();
     else resumeMusic();
     ctx.clearRect(0, 0, VW, VH);
     sky(); tiles();
@@ -413,6 +440,7 @@ function frame(now){
     if (introT > 0) drawIntro();
     else if (outro){ outro.t += dt; drawOutro(); }
     else if (gameOver){ gameOver.t += dt; drawDead(gameOver); }
+    else if (isInvOpen()){ stepInv(dt); if (isInvOpen()) drawInventory(); }
     else drawPaused();
     requestAnimationFrame(frame);
     return;
@@ -549,7 +577,12 @@ export function start(){
   hydrateAll(G.LEVELS);
   setS(G.mkWorld());
   dbgEl = document.getElementById('dbg');
-  bindInput({ onReset: hardReset, onDbg: toggleDbg });
+  bindInput({
+    onReset: hardReset,
+    onDbg: toggleDbg,
+    blocked: function(){ return isInvOpen(); },
+    onHeroTap: function(e){ return tryHeroInv(e); }
+  });
   bindEditor({
     onOpen: function(){ paused = false; introT = 0; },
     onNewLevel: function(){
@@ -574,6 +607,15 @@ export function start(){
     var tag = (e.target && e.target.tagName) || '';
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
     if (gameOver){ if (gameOver.t > 0.5) dismissDead(); return; }
+    if (e.key !== 'Escape' && handleInvKey(e.key)){
+      if (e.key === 'i' || e.key === 'I') e.preventDefault();
+      return;
+    }
+    if (e.key === 'i' || e.key === 'I'){
+      e.preventDefault();
+      tryToggleInv();
+      return;
+    }
     if (e.key === 'r' || e.key === 'R'){ hardReset(); return; }
     if (e.key === 'h' || e.key === 'H'){ toggleDbg(); return; }
     if (e.key === 'q' || e.key === 'Q'){
@@ -586,11 +628,15 @@ export function start(){
   });
   cv.addEventListener('pointerdown', function(e){
     if (!S || ED.on || isMenu() || introT > 0 || gameOver || outro) return;
-    var r = cv.getBoundingClientRect();
-    if (!r.width || !r.height) return;
-    var mx = (e.clientX - r.left) / r.width * VW;
-    var my = (e.clientY - r.top) / r.height * VH;
-    if (hudHitsWeapon(mx, my) && tryCycleHand()){
+    var g = clientToGame(e.clientX, e.clientY);
+    if (!g) return;
+    if (isInvOpen()){
+      e.preventDefault();
+      handleInvPointer(g.x, g.y);
+      return;
+    }
+    if (tryHeroInv(e)){ e.preventDefault(); return; }
+    if (hudHitsWeapon(g.x, g.y) && tryCycleHand()){
       e.preventDefault();
       try { onEvent(S.p.events[S.p.events.length - 1]); } catch (_){}
     }
@@ -608,6 +654,7 @@ export function start(){
       var tag = (e.target && e.target.tagName) || '';
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       if (ED.on) return;
+      if (handleInvKey('Escape')){ e.preventDefault(); return; }
       e.preventDefault();
       if (isMenu()){
         if (menuScreen() !== 'home'){ showMenuHome(); return; }
@@ -648,7 +695,16 @@ export function start(){
     window.__start = startLevel;
     window.__menu = function(){ return isMenu(); };
     window.__skip = function(){ introT = 0; paused = false; gameOver = null; setOutro(null); };
-    window.__screens = function(){ return { intro: introT, paused: paused, outro: !!outro, dead: !!gameOver, resume: canResume }; };
+    window.__screens = function(){ return { intro: introT, paused: paused, outro: !!outro, dead: !!gameOver, resume: canResume, inv: isInvOpen() }; };
+    window.__inv = {
+      open: openInv, close: closeInv, toggle: toggleInv, isOpen: isInvOpen,
+      tap: handleInvPointer, inspecting: invInspecting, step: stepInv,
+      heroRect: function(){
+        if (!S || !S.p) return null;
+        var p = S.p, pad = 7;
+        return { x: p.x - cam.x - pad, y: p.y - cam.y - pad, w: p.w + pad * 2, h: p.h + pad * 2 };
+      }
+    };
     window.__game = G;
     window.__music = {
       start: startMusic, play: playMusic, pause: pauseMusic, hush: hushMusic, resume: resumeMusic,

@@ -63,6 +63,8 @@ export function bindInput(hooks){
   stEl.addEventListener('pointerdown', function(e){
     e.preventDefault();
     resumeAudio();
+    if (hooks.blocked && hooks.blocked()) return;
+    if (hooks.onHeroTap && hooks.onHeroTap(e)) return;
     if (stick.on) return;
     stick.on = true; stick.id = e.pointerId; stick.bx = e.clientX; stick.by = e.clientY;
     stick.dx = 0; stick.dy = 0;
@@ -84,13 +86,17 @@ export function bindInput(hooks){
   stEl.addEventListener('pointercancel', stickEnd);
 
   var bA = document.getElementById('bA');
-  bA.addEventListener('pointerdown', function(e){ e.preventDefault(); resumeAudio(); if(!held.a) latch.a = true; held.a = true; bA.classList.add('on');
+  bA.addEventListener('pointerdown', function(e){ e.preventDefault(); resumeAudio();
+    if (hooks.blocked && hooks.blocked()) return;
+    if(!held.a) latch.a = true; held.a = true; bA.classList.add('on');
     try{ bA.setPointerCapture(e.pointerId); }catch(_){} });
   function aUp(e){ e.preventDefault(); held.a = false; bA.classList.remove('on'); }
   bA.addEventListener('pointerup', aUp); bA.addEventListener('pointercancel', aUp);
 
   var bJ = document.getElementById('bJ');
-  bJ.addEventListener('pointerdown', function(e){ e.preventDefault(); resumeAudio(); if(!held.j) latch.j = true; held.j = true; bJ.classList.add('on');
+  bJ.addEventListener('pointerdown', function(e){ e.preventDefault(); resumeAudio();
+    if (hooks.blocked && hooks.blocked()) return;
+    if(!held.j) latch.j = true; held.j = true; bJ.classList.add('on');
     try{ bJ.setPointerCapture(e.pointerId); }catch(_){} });
   function jUp(e){ e.preventDefault(); held.j = false; bJ.classList.remove('on'); }
   bJ.addEventListener('pointerup', jUp); bJ.addEventListener('pointercancel', jUp);
