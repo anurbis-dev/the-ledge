@@ -14,6 +14,7 @@ export const P = {
   edge:'#e8b53a', edgeL:'#ffe08a', edgeD:'#9c7318',
   crum:'#96705a', crumD:'#5d4437', crumL:'#bb8f70',
   wood:'#bd8347', woodD:'#7d5029', woodL:'#e0ac68', string:'#eee6d4',
+  arrowTip:'#f2efe4', arrowFletch:'#d4402f',
   gem:'#6de8ff', gemD:'#2189ad', shroom:'#ff8f5e', shroomD:'#a8482c', stem:'#ffe9c9',
   coin:'#ffd75e', coinD:'#b98420', relic:'#e2c6ff', relicD:'#8a63c4',
   amb:'#b6aed6', torch:'#ffb060', hp:'#ff5b74', hpD:'#4a2036',
@@ -28,7 +29,7 @@ export const P = {
              wshield:['#a9743f','#6d4423'], ishield:['#b8c0cc','#6f7885'], gshield:['#e0b452','#96751f'],
              lhelm:['#a9743f','#6d4423'], ihelm:['#b8c4d8','#6f7d94'], ghelm:['#e6c357','#9a7c1e'],
              scuba:['#5a8fae','#365a70'], flippers:['#e0813f','#96521f'], harpoon:['#8a94a0','#586570'],
-             bow:['#bd8347','#7d5029'] }
+             bow:['#bd8347','#7d5029'], spear:['#c3bccf','#7d5029'] }
 };
 
 export const PALS = {

@@ -48,7 +48,8 @@ export function mkWorld(li){
     lights: mkLights(), sounds: mkSounds(), volumes: mkVolumes(),
     boulders: mkBoulders(), npcs: mkNpcs(), burnt: {}, plankT: {}, giveT: {},
     bubbles: [], talk: null, flags: {},
-    gone: {}, hp: 3, bag: { gem:0, shroom:0, coin:0, relic:0, tank:0 },
+    gone: {}, hp: 3, bag: { gem:0, shroom:0, coin:0, relic:0, tank:0, stone:0, idol:0 },
+    parts: [],
     respawn: { x: runtime.LV.spawn.x, y: runtime.LV.spawn.y }, t: 0, hitStop: 0, shake: 0, fx: [], done: false,
     dead: false
   };

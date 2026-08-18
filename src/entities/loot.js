@@ -1,7 +1,7 @@
 import { T } from '../core/constants.js';
 import { rectFree } from '../core/map.js';
 import { giveGear } from './gear.js';
-import { noteFirstItem } from '../speech/runtime.js';
+import { grantOne, takeItem } from './craft.js';
 
 var GEAR_TIERS = {
   helmet: ['lhelm', 'ihelm', 'ghelm'],
@@ -10,24 +10,42 @@ var GEAR_TIERS = {
 };
 
 /* выдаёт игроку одну запись лута (общая логика для сундуков и добычи с врагов) */
-export function grantLootKind(S, kind, qty, seed){
+export function grantLootKind(S, kind, qty, seed, extra){
   qty = Math.max(1, qty || 1);
+  extra = extra || {};
   var i;
-  if (kind === 'key'){ S.keys += qty; noteFirstItem(S, 'key'); }
-  else if (kind === 'coin'){ S.bag.coin += qty; noteFirstItem(S, 'coin'); }
-  else if (kind === 'gem'){ S.bag.gem += qty; noteFirstItem(S, 'gem'); }
-  else if (kind === 'shroom'){
-    for (i = 0; i < qty; i++) if (S.hp < 3) S.hp++;
-    S.bag.shroom += qty;
-    noteFirstItem(S, 'shroom');
-  } else if (GEAR_TIERS[kind] || kind === 'scuba' || kind === 'flippers' ||
-             kind === 'harpoon' || kind === 'bow'){
+  if (GEAR_TIERS[kind]){
     var tiers = GEAR_TIERS[kind];
-    for (i = 0; i < qty; i++) giveGear(S, tiers ? tiers[(seed + i) % tiers.length] : kind);
-  } else {
-    S.bag.coin += qty;
-    noteFirstItem(S, 'coin');
+    for (i = 0; i < qty; i++) giveGear(S, tiers[(seed + i) % tiers.length]);
+    return;
   }
+  for (i = 0; i < qty; i++) grantOne(S, kind, extra);
+}
+
+export function spawnDrop(S, kind, qty, extra){
+  extra = extra || {};
+  var p = S.p;
+  var face = p && p.facing ? p.facing : 1;
+  var x = p ? p.x + p.w / 2 + face * 10 : 0;
+  var y = p ? p.y + p.h / 2 : 0;
+  S.loot.push({
+    x: x, y: y, vx: face * 36 + (Math.random() - 0.5) * 16, vy: -90,
+    kind: kind, qty: qty || 1, t: 14, got: false, grace: 0.55,
+    bits: extra.bits, need: extra.need, set: extra.set, bit: extra.bit
+  });
+  if (p) p.events.push('drop:' + kind);
+}
+
+export function dropFromPack(S, entry){
+  if (!S || !entry) return false;
+  var qty = entry.qty || 1;
+  var extra = {
+    bits: entry.bits, need: entry.need, set: entry.set,
+    bit: entry.item && entry.item.bit
+  };
+  if (!takeItem(S, entry, qty)) return false;
+  spawnDrop(S, entry.type, qty, extra);
+  return true;
 }
 
 export function pickRandomLoot(list){
@@ -54,6 +72,14 @@ export function dropConfiguredLoot(S, x, y, loot, random){
   return true;
 }
 
+/* единая точка выпадения лута при удалении любого убиваемого объекта
+   (враг, птица, паук, щупальце, ...): свой loot/random, если задан автором
+   уровня, иначе случайный дроп с меткой tag */
+export function dropLootFor(S, obj, x, y, tag){
+  if (obj.loot && obj.loot.length) dropConfiguredLoot(S, x, y, obj.loot, obj.random);
+  else dropLoot(S, x, y, tag);
+}
+
 export function stepLoot(S, dt){
   var p = S.p;
   for (var i = S.loot.length - 1; i >= 0; i--){
@@ -75,8 +101,9 @@ export function stepLoot(S, dt){
       if (Math.abs(l.vx) < 3) l.vx = 0;
     }
     l.bob = (l.bob || 0) + dt;
+    if (l.grace){ l.grace -= dt; if (l.grace > 0) continue; }
     if (Math.abs(l.x - (p.x + p.w/2)) < 12 && Math.abs(l.y - (p.y + p.h/2)) < 14){
-      grantLootKind(S, l.kind, l.qty || 1, i);
+      grantLootKind(S, l.kind, l.qty || 1, i, l);
       S.loot.splice(i, 1);
       p.events.push('pickloot:' + l.kind);
     }

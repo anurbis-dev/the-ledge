@@ -6,6 +6,7 @@ export var HAND_SLOTS = { weapon: 1, harpoon: 1 };
 /* ---------------- снаряжение ---------------- */
 export var GEAR = {
   stick:  { slot:'weapon', uses:12, reach:1.0, name:'stick'  },
+  spear:  { slot:'weapon', uses:16, reach:1.3, name:'spear'  },
   sword:  { slot:'weapon', uses:20, reach:1.25, name:'sword'  },
   blade:  { slot:'weapon', uses:30, reach:1.45, name:'blade'  },
   bow:    { slot:'weapon', uses:5, reach:1.0, name:'bow'  },
@@ -72,7 +73,7 @@ export function isMeleeHand(p){
   return !isHarpoonHand(p) && !!p.stick && !isBowHand(p);
 }
 
-var HAND_RANK = { stick: 0, sword: 1, blade: 2, bow: 3, harpoon: 4 };
+var HAND_RANK = { stick: 0, spear: 1, sword: 2, blade: 3, bow: 4, harpoon: 5 };
 
 export function listHand(p){
   var out = [], i;

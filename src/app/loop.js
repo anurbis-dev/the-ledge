@@ -7,8 +7,8 @@ import {
   vignette, hud, drawIntro, drawPaused, drawOutro, drawDead, drawBubbles, hudHitsWeapon,
   applyPal, buildWater, stepWater, invalidateAll, fore, rc, getFish, spark, landDust, bonkDust, clampCam,
   setViewScale, applyVolumes, drawCollideOverlay,
-  isInvOpen, invInspecting, openInv, closeInv, toggleInv, stepInv, drawInventory, handleInvPointer, handleInvKey,
-  clientToGame, hitsHero
+  isInvOpen, invInspecting, openInv, closeInv, toggleInv, stepInv, drawInventory, handleInvPointer, handleInvWheel, handleInvKey,
+  clientToGame, hitsHero, giveInv
 } from '../render/index.js';
 import { blip, liftSound, hushLift, hushSounds, stepSounds } from '../audio/sfx.js';
 import { startMusic, hushMusic, resumeMusic, musicPlaying, getMix, setScore, listScores, playMusic, pauseMusic, seekMusic, getTransport, musicHeld, musicArmed } from '../audio/music.js';
@@ -626,13 +626,16 @@ export function start(){
       return;
     }
   });
+  var invPtr = false;
   cv.addEventListener('pointerdown', function(e){
     if (!S || ED.on || isMenu() || introT > 0 || gameOver || outro) return;
     var g = clientToGame(e.clientX, e.clientY);
     if (!g) return;
     if (isInvOpen()){
       e.preventDefault();
-      handleInvPointer(g.x, g.y);
+      invPtr = true;
+      handleInvPointer(g.x, g.y, 'down');
+      try { cv.setPointerCapture(e.pointerId); } catch (_){}
       return;
     }
     if (tryHeroInv(e)){ e.preventDefault(); return; }
@@ -641,6 +644,29 @@ export function start(){
       try { onEvent(S.p.events[S.p.events.length - 1]); } catch (_){}
     }
   });
+  cv.addEventListener('pointermove', function(e){
+    if (!invPtr || !isInvOpen()) return;
+    var g = clientToGame(e.clientX, e.clientY);
+    if (!g) return;
+    e.preventDefault();
+    handleInvPointer(g.x, g.y, 'move');
+  });
+  function invPtrEnd(e){
+    if (!invPtr) return;
+    invPtr = false;
+    if (!isInvOpen()) return;
+    var g = clientToGame(e.clientX, e.clientY);
+    if (!g) return;
+    handleInvPointer(g.x, g.y, 'up');
+  }
+  cv.addEventListener('pointerup', invPtrEnd);
+  cv.addEventListener('pointercancel', invPtrEnd);
+  cv.addEventListener('wheel', function(e){
+    if (!isInvOpen()) return;
+    var g = clientToGame(e.clientX, e.clientY);
+    if (!g) return;
+    if (handleInvWheel(g.x, g.y, e.deltaY)) e.preventDefault();
+  }, { passive: false });
   document.getElementById('bFS').addEventListener('click', toggleFS);
   document.getElementById('bMenu').addEventListener('click', function(){
     openGameMenu();
@@ -699,6 +725,7 @@ export function start(){
     window.__inv = {
       open: openInv, close: closeInv, toggle: toggleInv, isOpen: isInvOpen,
       tap: handleInvPointer, inspecting: invInspecting, step: stepInv,
+      give: giveInv,
       heroRect: function(){
         if (!S || !S.p) return null;
         var p = S.p, pad = 7;

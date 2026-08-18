@@ -1,6 +1,7 @@
 import { T } from '../core/constants.js';
 import { runtime } from '../core/runtime.js';
 import { noteFirstItem } from '../speech/runtime.js';
+import { grantLootKind } from './loot.js';
 
 export function mkItems(){
   var LV = runtime.LV;
@@ -18,8 +19,13 @@ export function pickups(S, p){
     var it = S.items[i];
     if (it.got) continue;
     if (Math.abs(it.x - (p.x + p.w/2)) < 11 && Math.abs(it.y - (p.y + p.h/2)) < 13){
-      it.got = true; S.bag[it.kind]++;
-      if (it.kind === 'shroom' && S.hp < 3) S.hp++;
+      it.got = true;
+      if (S.bag[it.kind] != null){
+        S.bag[it.kind]++;
+        if (it.kind === 'shroom' && S.hp < 3) S.hp++;
+      } else {
+        grantLootKind(S, it.kind, 1, it.id);
+      }
 
       S.hitStop = Math.max(S.hitStop, it.kind === 'relic' ? 0.25 : 0.03);
       noteFirstItem(S, it.kind);

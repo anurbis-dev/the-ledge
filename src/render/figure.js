@@ -116,14 +116,15 @@ export function figure(pt, facing, wag, frontal, rim, heldStick, backStick, gear
     var bx2 = hx2 - Math.cos(ang)*5, by2 = hy2 - Math.sin(ang)*5;
     var wt5 = heldStick.type || 'stick';
     var wc5 = P.gearCol[wt5] || [P.stickC, P.stickD];
-    lb([bx2,by2], [ex2,ey2], wt5 === 'stick' ? 2 : 3, wc5[1]);
+    var thin = wt5 === 'stick' || wt5 === 'spear';
+    lb([bx2,by2], [ex2,ey2], thin ? 2 : 3, wc5[1]);
     lb([bx2,by2], [ex2,ey2], 1, wc5[0]);
-    if (wt5 !== 'stick'){                            // гарда и навершие у клинков
+    if (!thin){                                      // гарда и навершие у клинков
       var gx5 = hx2 + Math.cos(ang)*3, gy5 = hy2 + Math.sin(ang)*3;
       lb([gx5 - Math.sin(ang)*4, gy5 + Math.cos(ang)*4],
          [gx5 + Math.sin(ang)*4, gy5 - Math.cos(ang)*4], 2, wc5[1]);
     }
-    rc(Math.round(ex2) - 1, Math.round(ey2) - 1, 2, 2, wc5[0]);
+    rc(Math.round(ex2) - 1, Math.round(ey2) - 1, wt5 === 'spear' ? 3 : 2, 2, wc5[0]);
   }
 }
 

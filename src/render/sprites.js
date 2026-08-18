@@ -1,6 +1,7 @@
 import GAME from '../core/game.js';
 import { ctx, cam, view, viewW, rc, lb, world, setFill } from './ctx.js';
 import { P } from './palette.js';
+import { drawItemIcon } from './icons.js';
 
 var G = GAME, T = G.T;
 
@@ -197,11 +198,13 @@ export function boulders(){
     var cx = x + 6, cy = y + 5;
     setFill('#302c46');
     ctx.beginPath(); ctx.arc(cx, cy + 1, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(b.rot || 0);
     setFill('#4a4460');
-    ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI * 2); ctx.fill();
-    setFill('#6e6892');
-    ctx.beginPath(); ctx.arc(cx - 1.5, cy - 1.5, 3, 0, Math.PI * 2); ctx.fill();
-    rc(cx - 2, cy + 1, 2, 2, '#847dab');
+    ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
+    rc(-2, 1, 2, 2, '#847dab');                      // метка на поверхности — крутится вместе с камнем
+    ctx.restore();
   }
 }
 export function caveExit(){
@@ -303,10 +306,6 @@ export function fliers(){
     var f = S.fliers[i];
     var x = Math.round(f.x - cam.x), y = Math.round(f.y - cam.y);
     if (x < -22 || x > viewW() + 22) continue;
-    if (f.dead){
-      if (f.hitT <= 0) continue;
-      rc(x + 2, y, f.w - 4, 4, P.foeB); continue;
-    }
     var wing = Math.sin(f.flap * (f.kind === 1 ? 20 : 12) + f.ph) * (f.kind === 2 ? 6 : 4);
     var fa = f.kind === 1 ? '#8f6d4a' : (f.kind === 2 ? '#4a6d8f' : (f.kind === 3 ? '#8f2f3a' : '#6d5a8f'));
     var fb = f.kind === 1 ? '#c9a06a' : (f.kind === 2 ? '#7fa8cc' : (f.kind === 3 ? '#e06a6a' : '#9b83c4'));
@@ -344,11 +343,19 @@ export function chests(){
         var g = Math.min(1, ch.t / 1.6);
         var iy = y - 18 - (1 - g) * 16;                      // предмет всплывает над сундуком
         ctx.globalAlpha = Math.min(1, g * 1.6);
+        var gc = P.gearCol[ch.kind] || ['#cfc6ff', '#8f88bb'];
         if (ch.kind === 'helmet'){ rc(x+5, iy, 10, 4, P.helmD); rc(x+4, iy+4, 12, 2, P.helm); }
         else if (ch.kind === 'shield'){ rc(x+6, iy-1, 8, 10, P.shld); rc(x+6, iy-1, 8, 1, '#e0b06a'); }
         else if (ch.kind === 'key'){ rc(x+8, iy, 5, 5, P.key); rc(x+9, iy+5, 3, 6, P.key); }
         else if (ch.kind === 'gem'){ rc(x+6, iy+1, 8, 3, P.gem); rc(x+7, iy+4, 6, 4, P.gemD); }
         else if (ch.kind === 'shroom'){ rc(x+9, iy+4, 2, 4, P.stem); rc(x+6, iy, 8, 4, P.shroom); }
+        else if (ch.kind === 'sword'){ rc(x+8, iy-2, 2, 10, gc[0]); rc(x+6, iy+7, 6, 2, gc[1]); rc(x+8, iy+9, 2, 2, gc[1]); }
+        else if (ch.kind === 'bow'){ rc(x+10, iy-2, 2, 12, gc[1]); rc(x+6, iy-1, 4, 1, gc[0]); rc(x+6, iy+9, 4, 1, gc[0]); rc(x+8, iy+3, 2, 4, P.string); }
+        else if (ch.kind === 'harpoon'){ rc(x+3, iy+2, 10, 2, gc[0]); rc(x+3, iy+4, 10, 1, gc[1]); rc(x+12, iy, 3, 3, gc[0]); }
+        else if (ch.kind === 'scuba'){ rc(x+6, iy-1, 6, 10, gc[0]); rc(x+11, iy+1, 3, 5, gc[1]); }
+        else if (ch.kind === 'flippers'){ rc(x+4, iy+3, 9, 3, gc[0]); rc(x+3, iy+5, 3, 3, gc[1]); rc(x+10, iy+5, 3, 3, gc[1]); }
+        else if (ch.kind === 'tank'){ rc(x+7, iy-2, 4, 9, '#8a94a0'); rc(x+8, iy-3, 2, 2, '#cfeaff'); rc(x+7, iy+1, 4, 5, '#5a6874'); }
+        else if (ch.kind === 'relic'){ rc(x+6, iy-1, 6, 10, P.relicD); rc(x+7, iy, 4, 8, P.relic); rc(x+8, iy+2, 2, 3, '#fff'); }
         else { rc(x+7, iy, 6, 8, P.coin); rc(x+6, iy+2, 8, 4, P.coin); }
         ctx.globalAlpha = 1;
       }
@@ -377,7 +384,8 @@ export function lootDrops(){
     if (l.kind === 'coin'){ rc(x-2, y-3, 4, 6, P.coin); rc(x-3, y-2, 6, 4, P.coin); }
     else if (l.kind === 'gem'){ rc(x-3, y-2, 6, 2, P.gem); rc(x-2, y, 4, 3, P.gemD); }
     else if (l.kind === 'key'){ rc(x-1, y-4, 4, 4, P.key); rc(x, y, 2, 5, P.key); }
-    else { rc(x-1, y, 2, 3, P.stem); rc(x-3, y-3, 6, 3, P.shroom); }
+    else if (l.kind === 'shroom'){ rc(x-1, y, 2, 3, P.stem); rc(x-3, y-3, 6, 3, P.shroom); }
+    else drawItemIcon(l.kind, x - 8, y - 8, 1);
   }
 }
 export function spiders(){
@@ -497,6 +505,9 @@ export function items(){
     } else if (it.kind === 'shroom'){
       rc(x-1,y,2,4,P.stem); rc(x-4,y-3,8,3,P.shroom); rc(x-3,y-5,6,2,P.shroom);
       rc(x-2,y-4,1,1,'#ffe9c9'); rc(x+1,y-3,1,1,'#ffe9c9'); rc(x-4,y,8,1,P.shroomD);
+    } else if (it.kind === 'tank'){
+      rc(x-2,y-6,4,10,'#8a94a0'); rc(x-1,y-8,2,2,'#8a94a0');
+      rc(x-1,y-9,2,1,'#cfeaff'); rc(x-1,y-4,2,6,'#5a6874');
     } else {
       rc(x-3,y-5,6,10,P.relicD); rc(x-2,y-4,4,8,P.relic); rc(x-1,y-2,2,4,'#fff');
       rc(x-4,y-6,8,1,P.relicD); rc(x-4,y+5,8,1,P.relicD);

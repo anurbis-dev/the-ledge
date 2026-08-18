@@ -43,8 +43,45 @@ export function drawItemIcon(type, ox, oy, sc){
     p(7, 1, 2, 1, '#cfeaff'); p(7, 5, 2, 6, '#5a6874');
     return;
   }
+  if (type === 'stone'){
+    p(5, 5, 7, 6, P.rock); p(4, 6, 9, 4, P.rockL);
+    p(6, 7, 3, 2, P.rockD); p(9, 8, 2, 2, '#fff6c9');
+    return;
+  }
   if (type === 'stick'){
     p(1, 7, 14, 2, a); p(1, 9, 14, 1, b); p(13, 6, 2, 4, b);
+    return;
+  }
+  if (type === 'spear'){
+    p(1, 7, 11, 2, P.wood); p(1, 9, 11, 1, P.woodD);
+    p(11, 5, 4, 5, P.rockL); p(13, 4, 2, 2, P.rock);
+    p(14, 6, 2, 3, P.rockD);
+    return;
+  }
+  if (type === 'shard_a'){
+    p(4, 4, 8, 3, P.relic); p(5, 7, 6, 3, P.relicD); p(7, 10, 3, 3, P.relic);
+    p(6, 5, 2, 2, '#fff');
+    return;
+  }
+  if (type === 'shard_b'){
+    p(6, 3, 4, 3, P.relic); p(4, 6, 8, 4, P.relicD); p(5, 10, 6, 2, P.relic);
+    p(7, 7, 2, 2, '#fff');
+    return;
+  }
+  if (type === 'shard_c'){
+    p(3, 8, 10, 4, P.relicD); p(5, 6, 6, 3, P.relic); p(7, 4, 2, 3, P.relic);
+    p(8, 9, 2, 1, '#fff');
+    return;
+  }
+  if (type === 'idol_kit'){
+    p(3, 5, 4, 6, P.relicD); p(9, 4, 4, 7, P.relic);
+    p(4, 6, 2, 2, '#fff'); p(10, 6, 1, 2, '#fff');
+    return;
+  }
+  if (type === 'idol'){
+    p(6, 2, 4, 3, P.relic); p(5, 5, 6, 7, P.relicD); p(4, 12, 8, 2, P.relic);
+    p(6, 6, 1, 1, '#1a1220'); p(9, 6, 1, 1, '#1a1220');
+    p(7, 8, 2, 1, '#fff');
     return;
   }
   if (type === 'sword'){
