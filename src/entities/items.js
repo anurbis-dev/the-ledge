@@ -1,7 +1,7 @@
 import { T } from '../core/constants.js';
 import { runtime } from '../core/runtime.js';
 import { noteFirstItem } from '../speech/runtime.js';
-import { grantLootKind } from './loot.js';
+import { grantLootKind, autoPick } from './loot.js';
 
 export function mkItems(){
   var LV = runtime.LV;
@@ -17,7 +17,7 @@ export function mkItems(){
 export function pickups(S, p){
   for (var i = 0; i < S.items.length; i++){
     var it = S.items[i];
-    if (it.got) continue;
+    if (it.got || !autoPick(it.kind)) continue;
     if (Math.abs(it.x - (p.x + p.w/2)) < 11 && Math.abs(it.y - (p.y + p.h/2)) < 13){
       it.got = true;
       if (S.bag[it.kind] != null){

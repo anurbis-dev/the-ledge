@@ -3,7 +3,7 @@ import { runtime } from '../core/runtime.js';
 import { rectFree, tileAt, isWaterV } from '../core/map.js';
 import { inDark } from './dark.js';
 import { ignitePlank } from './planks.js';
-import { dropLoot } from './loot.js';
+import { dropLoot, tryGroundPickup, takeGroundPend } from './loot.js';
 import { tryChest } from './chests.js';
 import { tryTalk } from './npcs.js';
 import { giveGear, isHarpoonHand, isBowHand, isMeleeHand } from './gear.js';
@@ -125,7 +125,9 @@ export function resolvePickup(S){
   var p = S.p, pend = p.pickPend;
   if (pend && p.pickT <= C.PICK_T * (1 - PICK_APEX)){
     p.pickPend = null;
-    if (pend.kind === 'torch'){
+    if (takeGroundPend(S, pend)){
+      /* лут / предмет с земли */
+    } else if (pend.kind === 'torch'){
       var t = findById(S.torches, pend.id);
       if (t && !t.held){ t.held = true; p.torch = t.id; p.events.push(t.lit ? 'take' : 'takedark'); }
     } else if (pend.kind === 'stick'){
@@ -176,6 +178,7 @@ export function tryAction(S, inp){
     if (hit) return attack(S);
   }
   if (p.pickT > 0) return isMeleeHand(p) ? attack(S) : false;   // уже приседаем за предметом
+  if (tryGroundPickup(S)) return true;
   var best = -1, bd = C.ACT_R*C.ACT_R, cx = p.x + p.w/2, cy = p.y + p.h/2;
   for (var i = 0; i < S.torches.length; i++){
     var t = S.torches[i]; if (t.held) continue;

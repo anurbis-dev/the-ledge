@@ -22,6 +22,7 @@ import { cycleHand } from '../entities/gear.js';
 import { entitiesShown } from '../core/layers.js';
 import { hydrateAll } from '../core/persist.js';
 import { speechBlocks } from '../speech/runtime.js';
+import { stepLoot } from '../entities/loot.js';
 
 import { clearHistory, undoOp, redoOp, canUndo, canRedo } from '../editor/history.js';
 
@@ -472,7 +473,11 @@ function frame(now){
     if (introT > 0) drawIntro();
     else if (outro){ outro.t += dt; drawOutro(); }
     else if (gameOver){ gameOver.t += dt; drawDead(gameOver); }
-    else if (isInvOpen()){ stepInv(dt); if (isInvOpen()) drawInventory(); }
+    else if (isInvOpen()){
+      if (S) stepLoot(S, dt, true);
+      stepInv(dt);
+      if (isInvOpen()) drawInventory();
+    }
     else drawPaused();
     requestAnimationFrame(frame);
     return;

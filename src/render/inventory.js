@@ -19,6 +19,8 @@ var lastFold = 0;
 var tab = 'all';
 var scroll = 0;
 var ptr = null;        // { mode, sl, x0, y0, x, y, scroll0 }
+var dropAsk = 1;       // сколько выбросить
+var askOn = false;     // модалка количества после DROP
 
 var AXIS_T = 0.15;
 var PW = Math.round(VW * 0.7);
@@ -119,6 +121,8 @@ export function invInspecting(){ return isReady() && inspect >= 0; }
 
 export function closeInv(instant){
   inspect = -1;
+  dropAsk = 1;
+  askOn = false;
   ptr = null;
   if (instant || fold <= 0){
     open = false; fold = 0; dir = 0; lastFold = 0;
@@ -138,6 +142,8 @@ export function openInv(){
   open = true;
   dir = 1;
   inspect = -1;
+  dropAsk = 1;
+  askOn = false;
   ptr = null;
   if (fold <= 0){ fold = 0.001; lastFold = 0; }
   syncInvClass();
@@ -159,7 +165,7 @@ export function stepInv(dt){
   } else {
     fold -= dt / AXIS_T;
     if (lastFold > 1 && fold <= 1) pingClose();
-    if (fold <= 0){ fold = 0; dir = 0; open = false; inspect = -1; ptr = null; }
+    if (fold <= 0){ fold = 0; dir = 0; open = false; inspect = -1; askOn = false; ptr = null; }
     syncInvClass();
   }
 }
@@ -186,13 +192,49 @@ function inspectBox(){
   return { x: 5, y: 12, w: PW - 10, h: PH - 18 };
 }
 
+function qtyMax(){
+  var sl = slots[inspect];
+  return sl && sl.entry ? Math.max(1, sl.entry.qty || 1) : 1;
+}
+
+function clampAsk(){
+  var max = qtyMax();
+  if (dropAsk < 1) dropAsk = 1;
+  if (dropAsk > max) dropAsk = max;
+  return max;
+}
+
 function dropRect(){
   var box = inspectBox();
-  var sl = slots[inspect];
-  var qty = sl && sl.entry ? (sl.entry.qty || 1) : 1;
-  var label = qty > 1 ? 'DROP ' + qty : 'DROP';
-  var w = label.length * 4 + 8;
-  return { x: box.x + 6, y: box.y + box.h - 16, w: w, h: 11, label: label };
+  return { x: box.x + 6, y: box.y + box.h - 16, w: 8 + 4 * 4, h: 11, label: 'DROP' };
+}
+
+function askBox(){
+  var w = 92, h = 52;
+  return { x: ((PW - w) / 2) | 0, y: ((PH - h) / 2) | 0, w: w, h: h };
+}
+
+function askCtrls(){
+  var box = askBox();
+  var max = clampAsk();
+  var mid = box.x + (box.w / 2) | 0;
+  var y = box.y + 22;
+  return {
+    box: box,
+    minus: { x: mid - 28, y: y, w: 11, h: 11 },
+    plus: { x: mid + 17, y: y, w: 11, h: 11 },
+    ok: { x: mid - 16, y: box.y + box.h - 16, w: 32, h: 11, label: 'DROP' },
+    close: { x: box.x + box.w - 13, y: box.y + 3, w: 10, h: 10 },
+    n: dropAsk, max: max
+  };
+}
+
+function drawChip(r, fill, rim){
+  rc(r.x, r.y, r.w, r.h, fill);
+  rc(r.x, r.y, r.w, 1, rim);
+  rc(r.x, r.y + r.h - 1, r.w, 1, rim);
+  rc(r.x, r.y, 1, r.h, rim);
+  rc(r.x + r.w - 1, r.y, 1, r.h, rim);
 }
 
 function rebuildSlots(S){
@@ -280,12 +322,26 @@ function drawInspect(entry){
     textPix(lines[i], box.x + 8, y + i * 8, '#8f88bb', 1);
   textPix('X', box.x + box.w - 12, box.y + 3, '#8f88bb', 1);
   var db = dropRect();
-  rc(db.x, db.y, db.w, db.h, '#3a2444');
-  rc(db.x, db.y, db.w, 1, '#c07080');
-  rc(db.x, db.y + db.h - 1, db.w, 1, '#c07080');
-  rc(db.x, db.y, 1, db.h, '#c07080');
-  rc(db.x + db.w - 1, db.y, 1, db.h, '#c07080');
+  drawChip(db, '#3a2444', '#c07080');
   textPix(db.label, db.x + 4, db.y + 3, '#ffcdb4', 1);
+}
+
+function drawAsk(){
+  var ctr = askCtrls(), box = ctr.box;
+  ctx.globalAlpha = 0.55;
+  rc(0, 0, PW, PH, '#07060f');
+  ctx.globalAlpha = 1;
+  fillPanel(box.x, box.y, box.w, box.h);
+  textPixC('HOW MANY?', box.x + (box.w / 2) | 0, box.y + 5, '#ffd9a0', 1);
+  textPix('X', ctr.close.x + 2, ctr.close.y + 2, '#8f88bb', 1);
+  drawChip(ctr.minus, '#241d3d', '#6a5fa8');
+  textPix('-', ctr.minus.x + 4, ctr.minus.y + 3, '#cfc6ff', 1);
+  drawChip(ctr.plus, '#241d3d', '#6a5fa8');
+  textPix('+', ctr.plus.x + 4, ctr.plus.y + 3, '#cfc6ff', 1);
+  var q = '' + ctr.n, qw = q.length * 4;
+  textPix(q, box.x + ((box.w - qw) / 2 | 0), ctr.minus.y + 3, '#ffd9a0', 1);
+  drawChip(ctr.ok, '#3a2444', '#c07080');
+  textPix(ctr.ok.label, ctr.ok.x + 4, ctr.ok.y + 3, '#ffcdb4', 1);
 }
 
 function drawTabs(){
@@ -334,6 +390,7 @@ function paintSheet(S){
     ctx.globalAlpha = 1;
   }
   if (inspect >= 0 && slots[inspect]) drawInspect(slots[inspect].entry);
+  if (askOn) drawAsk();
   setCtx(main);
 }
 
@@ -360,16 +417,44 @@ function setTab(id){
   tab = id;
   scroll = 0;
   inspect = -1;
+  dropAsk = 1;
+  askOn = false;
   pingTab();
 }
 
-function doDrop(){
+function openAsk(){
+  var max = qtyMax();
+  if (max <= 1){ doDrop(1); return; }
+  dropAsk = 1;
+  askOn = true;
+  pingItem();
+}
+
+function closeAsk(){
+  if (!askOn) return;
+  askOn = false;
+  dropAsk = 1;
+  pingItemOff();
+}
+
+function doDrop(n){
   var sl = slots[inspect];
   if (!sl) return;
-  if (!dropFromPack(G.W, sl.entry)){ pingFail(); return; }
+  var max = qtyMax();
+  n = Math.max(1, Math.min(max, n || 1));
+  var type = sl.entry.type;
+  if (!dropFromPack(G.W, sl.entry, n)){ pingFail(); return; }
   pingDrop();
-  inspect = -1;
+  askOn = false;
+  dropAsk = 1;
   rebuildSlots(G.W);
+  inspect = -1;
+  if (max > n){
+    var i;
+    for (i = 0; i < slots.length; i++){
+      if (slots[i].entry.type === type){ inspect = i; break; }
+    }
+  }
 }
 
 function doCombine(a, b){
@@ -392,11 +477,33 @@ function doCombine(a, b){
 
 function onDown(lx, ly){
   rebuildSlots(G.W);
+  if (askOn){
+    var ctr = askCtrls();
+    if (inRect(lx, ly, ctr.close) || !inRect(lx, ly, ctr.box)){
+      closeAsk();
+      return true;
+    }
+    if (inRect(lx, ly, ctr.minus)){
+      dropAsk = Math.max(1, dropAsk - 1);
+      pingTab();
+      return true;
+    }
+    if (inRect(lx, ly, ctr.plus)){
+      dropAsk = Math.min(ctr.max, dropAsk + 1);
+      pingTab();
+      return true;
+    }
+    if (inRect(lx, ly, ctr.ok)){
+      ptr = { mode: 'ask', sl: slots[inspect], x0: lx, y0: ly, x: lx, y: ly };
+      return true;
+    }
+    return true;
+  }
   if (inspect >= 0){
     var box = inspectBox();
     if (inRect(lx, ly, box)){
       if (lx >= box.x + box.w - 16 && ly <= box.y + 14){
-        inspect = -1; pingItemOff();
+        inspect = -1; dropAsk = 1; askOn = false; pingItemOff();
         return true;
       }
       if (inRect(lx, ly, dropRect())){
@@ -405,7 +512,7 @@ function onDown(lx, ly){
       }
       return true;
     }
-    inspect = -1; pingItemOff();
+    inspect = -1; dropAsk = 1; askOn = false; pingItemOff();
     return true;
   }
   if (inRect(lx, ly, CLOSE)){ closeInv(); return true; }
@@ -450,7 +557,12 @@ function onUp(lx, ly){
   var mode = ptr.mode, sl = ptr.sl;
   ptr.x = lx; ptr.y = ly;
   if (mode === 'drop'){
-    if (inRect(lx, ly, dropRect())) doDrop();
+    if (inRect(lx, ly, dropRect())) openAsk();
+    ptr = null;
+    return true;
+  }
+  if (mode === 'ask'){
+    if (inRect(lx, ly, askCtrls().ok)) doDrop(dropAsk);
     ptr = null;
     return true;
   }
@@ -465,6 +577,8 @@ function onUp(lx, ly){
   }
   if (!mode && sl && inRect(lx, ly, sl)){
     inspect = sl.i;
+    dropAsk = 1;
+    askOn = false;
     pingItem();
   }
   ptr = null;
@@ -508,7 +622,8 @@ export function handleInvKey(key){
   if (DEV_KITS[key]) return false;
   if (key === 'Escape'){
     if (ptr){ ptr = null; return true; }
-    if (inspect >= 0){ inspect = -1; pingItemOff(); }
+    if (askOn){ closeAsk(); return true; }
+    if (inspect >= 0){ inspect = -1; dropAsk = 1; askOn = false; pingItemOff(); }
     else closeInv();
     return true;
   }
