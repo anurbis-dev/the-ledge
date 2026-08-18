@@ -2,7 +2,7 @@ import GAME from '../core/game.js';
 import { ctx, cv, VW, VH, cam, rc, setCtx, getCtx } from './ctx.js';
 import { textPix, textPixC, num } from './hud.js';
 import { drawItemIcon } from './icons.js';
-import { TABS, listPack, itemInfo, itemStats } from '../entities/catalog.js';
+import { TABS, DEV_KITS, listPack, itemInfo, itemStats } from '../entities/catalog.js';
 import { canCombine, combineItems, pieceLabel, grantOne } from '../entities/craft.js';
 import { dropFromPack } from '../entities/loot.js';
 import { blip } from '../audio/sfx.js';
@@ -87,6 +87,11 @@ function pingFail(){ blip(140, 0.08, 'sawtooth', 0.03); }
 
 function isReady(){ return open && fold >= 2 && dir === 0; }
 
+function syncInvClass(){
+  if (typeof document === 'undefined' || !document.body) return;
+  document.body.classList.toggle('inv-open', open || fold > 0);
+}
+
 function clamp(v, a, b){ return v < a ? a : (v > b ? b : v); }
 
 function contentH(n){
@@ -117,11 +122,13 @@ export function closeInv(instant){
   ptr = null;
   if (instant || fold <= 0){
     open = false; fold = 0; dir = 0; lastFold = 0;
+    syncInvClass();
     return;
   }
   if (dir >= 0) pingCloseH();
   dir = -1;
   open = true;
+  syncInvClass();
 }
 
 export function openInv(){
@@ -133,6 +140,7 @@ export function openInv(){
   inspect = -1;
   ptr = null;
   if (fold <= 0){ fold = 0.001; lastFold = 0; }
+  syncInvClass();
 }
 
 export function toggleInv(){
@@ -152,6 +160,7 @@ export function stepInv(dt){
     fold -= dt / AXIS_T;
     if (lastFold > 1 && fold <= 1) pingClose();
     if (fold <= 0){ fold = 0; dir = 0; open = false; inspect = -1; ptr = null; }
+    syncInvClass();
   }
 }
 
@@ -390,7 +399,10 @@ function onDown(lx, ly){
         inspect = -1; pingItemOff();
         return true;
       }
-      if (inRect(lx, ly, dropRect())){ doDrop(); return true; }
+      if (inRect(lx, ly, dropRect())){
+        ptr = { mode: 'drop', sl: slots[inspect], x0: lx, y0: ly, x: lx, y: ly };
+        return true;
+      }
       return true;
     }
     inspect = -1; pingItemOff();
@@ -437,6 +449,11 @@ function onUp(lx, ly){
   if (!ptr) return true;
   var mode = ptr.mode, sl = ptr.sl;
   ptr.x = lx; ptr.y = ly;
+  if (mode === 'drop'){
+    if (inRect(lx, ly, dropRect())) doDrop();
+    ptr = null;
+    return true;
+  }
   if (mode === 'drag' && sl){
     var over = slotAt(lx, ly);
     if (over && over.i !== sl.i){
@@ -488,6 +505,7 @@ export function handleInvWheel(sx, sy, dy){
 
 export function handleInvKey(key){
   if (!isInvOpen()) return false;
+  if (DEV_KITS[key]) return false;
   if (key === 'Escape'){
     if (ptr){ ptr = null; return true; }
     if (inspect >= 0){ inspect = -1; pingItemOff(); }
@@ -502,4 +520,14 @@ export function giveInv(type, qty){
   var S = G.W, i, n = Math.max(1, qty || 1);
   if (!S) return;
   for (i = 0; i < n; i++) grantOne(S, type, null);
+  if (open) rebuildSlots(S);
+}
+
+export function giveInvKit(id){
+  var kit = DEV_KITS[id], i, n;
+  if (!kit || !G.W) return false;
+  n = Math.max(1, kit.qty || 1);
+  for (i = 0; i < kit.types.length; i++) giveInv(kit.types[i], n);
+  pingCraft();
+  return true;
 }

@@ -8,6 +8,15 @@ export var TABS = [
   { id: 'part', label: 'PART' }
 ];
 
+/* dev-хоткеи: клавиша → набор в пак */
+export var DEV_KITS = {
+  '1': { name: 'WEAPONS', types: ['stick', 'spear', 'sword', 'blade', 'bow', 'harpoon'], qty: 1 },
+  '2': { name: 'ITEMS',   types: ['coin', 'gem', 'relic', 'key', 'tank', 'stone', 'idol'], qty: 5 },
+  '3': { name: 'FOOD',    types: ['shroom'], qty: 6 },
+  '4': { name: 'ARMOR',   types: ['wshield', 'ishield', 'gshield', 'lhelm', 'ihelm', 'ghelm', 'scuba', 'flippers'], qty: 1 },
+  '5': { name: 'PARTS',   types: ['shard_a', 'shard_b', 'shard_c'], qty: 1 }
+};
+
 export var ITEMS = {
   coin:    { name:'COIN',         cat:'bag',  tab:'find', desc:'COPPER BIT. HEAVY IN THE POCKET. SPENT NOWHERE YET.' },
   gem:     { name:'CAVE GEM',     cat:'bag',  tab:'find', desc:'COLD LIGHT. THE LEDGE KEEPS THEM IN THE DARK.' },

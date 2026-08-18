@@ -18,6 +18,8 @@ function stickReset(){
   if (knobEl) knobEl.style.opacity = 0;
 }
 
+export function hushStick(){ stickReset(); }
+
 function stickCalc(){
   var dx = stick.dx, dy = stick.dy, m = Math.sqrt(dx*dx + dy*dy);
   if (m > MAXR){ dx *= MAXR/m; dy *= MAXR/m; m = MAXR; }

@@ -46,6 +46,7 @@ export function setMenu(v){
   inMenu = !!v;
   if (inMenu){
     menuEl.classList.remove('hide');
+    if (document.body) document.body.classList.add('hide-pad');
     startEmbers();
   } else {
     menuEl.classList.add('hide');

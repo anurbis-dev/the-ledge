@@ -13,5 +13,5 @@ export { lightPass } from './light.js';
 export { hud, drawIntro, drawPaused, drawOutro, drawDead, hudHitsWeapon } from './hud.js';
 export {
   isInvOpen, invInspecting, openInv, closeInv, toggleInv, stepInv,
-  drawInventory, handleInvPointer, handleInvWheel, handleInvKey, clientToGame, hitsHero, giveInv
+  drawInventory, handleInvPointer, handleInvWheel, handleInvKey, clientToGame, hitsHero, giveInv, giveInvKit
 } from './inventory.js';

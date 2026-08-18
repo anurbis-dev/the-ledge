@@ -25,6 +25,12 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;
 #sys{display:none!important}
 .mini{font-size:10px;color:#8f88bb;background:#160f28cc;border:1px solid #372c5e;border-radius:7px;padding:5px 8px}
 @media (pointer:fine){ #acts{opacity:.4} }
+#splash:not(.hide) ~ #stick,#splash:not(.hide) ~ #acts,
+#splash:not(.hide) ~ #ring,#splash:not(.hide) ~ #knob,
+#menu:not(.hide) ~ #stick,#menu:not(.hide) ~ #acts,
+#menu:not(.hide) ~ #ring,#menu:not(.hide) ~ #knob,
+body.hide-pad #stick,body.hide-pad #acts,
+body.hide-pad #ring,body.hide-pad #knob,
 body.edit-mode #stick,body.edit-mode #acts,
 body.edit-mode #ring,body.edit-mode #knob{display:none!important}
 #edbar{position:fixed;left:8px;right:8px;bottom:8px;z-index:12;display:none;
