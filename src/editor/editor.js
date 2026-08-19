@@ -9,13 +9,15 @@ import { findById } from '../entities/ids.js';
 import { BOULDER_DEF } from '../entities/boulders.js';
 import { isSlopeBrush, fitSlopeStroke } from './slopes.js';
 import { tileThumb, objThumb, paintObjIcon } from './thumbs.js';
+import { spriteThumb } from '../render/sprite-bake.js';
 import { renderParams, resetAllParams } from './params.js';
 import { getActiveLayer, getLayers, layerTile, layerVar, layerDeco, layerTileRaw, layerVarRaw, isTileLayer } from '../core/layers.js';
 import {
   customSpecs, addTile, loadImageFile, sliceSheet, guessOverlay, bindTileset, isCustomId,
   getTileDef, updateTile
 } from '../core/tileset.js';
-import { bindTileEdit, openTileEdit, closeTileEdit } from './tile-edit.js';
+import { bindTileEdit, openTileEdit, openSpriteEdit, closeTileEdit } from './tile-edit.js';
+import { listSpriteDefs, spriteDefForKind, bindSpriteset } from '../core/spriteset.js';
 import { clearThumbCache } from './thumbs.js';
 import { setEditorRooms, stepRooms } from '../core/rooms.js';
 import { showLayersPanel, bindLayersPanel } from './layers-panel.js';
@@ -270,6 +272,13 @@ bindTileset({
     edRefresh();
   }
 });
+bindSpriteset({
+  onChange: function(){
+    clearThumbCache();
+    scheduleBake();
+    edRefresh();
+  }
+});
 bindNpcTalk({ onChange: function(){ markLevelDirty(); } });
 bindBoulderSettings({ onChange: function(){ markLevelDirty(); } });
 bindAllFloats();
@@ -406,6 +415,11 @@ function startPaletteDrag(e, kind, pal, img){
     var over = ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom;
     if (over && ED.dragPal.moved){
       var dKind = ED.dragPal.kind, dPal = ED.dragPal.pal;
+      if (dKind === 'sprite'){
+        ED.dragPal = null;
+        if (ghost) ghost.hidden = true;
+        return;
+      }
       var ospec = dKind === 'obj' ? ED_OBJS[dPal] : null;
       if (ospec && LOOT_KINDS[ospec.kind]){
         var wcellD = edCell(ev.clientX, ev.clientY, true);
@@ -466,6 +480,25 @@ function fillPal(){
         });
       })(j);
     }
+    var spr = listSpriteDefs();
+    if (spr.length){
+      var slab = document.createElement('div');
+      slab.className = 'ed-pal-hint';
+      slab.textContent = 'Sprites — double-click a row of frames';
+      edPal.appendChild(slab);
+      var si;
+      for (si = 0; si < spr.length; si++){
+        (function(def){
+          var sw = swatch(edPal, spriteThumb(def, ED.icon), def.name, false, function(){
+            openSpriteEdit(def);
+          }, 'sprite', def.id);
+          sw.addEventListener('dblclick', function(e){
+            e.preventDefault(); e.stopPropagation();
+            openSpriteEdit(def, e.clientX, e.clientY);
+          });
+        })(spr[si]);
+      }
+    }
     var hint = document.createElement('div');
     hint.className = 'ed-pal-hint';
     hint.textContent = 'Drop PNG to add tiles · double-click to edit · Ctrl+drag selects a block';
@@ -476,6 +509,12 @@ function fillPal(){
         var spec = ED_OBJS[k];
         var sw = swatch(edPal, objThumb(spec.kind, ED.icon), spec.name, ED.pal === k, function(){ ED.pal = k; }, 'obj', k);
         if (LOOT_ONLY_KINDS[spec.kind]) sw.title = spec.name + ' — drag onto a chest, enemy or bird';
+        sw.addEventListener('dblclick', function(e){
+          var sd = spriteDefForKind(spec.kind);
+          if (!sd) return;
+          e.preventDefault(); e.stopPropagation();
+          openSpriteEdit(sd, e.clientX, e.clientY);
+        });
       })(m);
     }
   }
@@ -494,6 +533,9 @@ function fillExtra(){
       })(s);
     }
   }
+  if (spec && spec.id){
+    extraBtn(edExtra, 'Edit', false, function(){ openTileEdit(spec); });
+  }
   if (spec && spec.custom){
     extraBtn(edExtra, spec.overlay ? 'Overlay' : 'Main', !!spec.overlay, function(){
       var ts = getTileDef(spec.id);
@@ -503,7 +545,6 @@ function fillExtra(){
         collide: !ts.overlay ? 'none' : (ts.collide === 'none' ? 'full' : ts.collide)
       });
     });
-    extraBtn(edExtra, 'Edit', false, function(){ openTileEdit(spec); });
   }
 }
 

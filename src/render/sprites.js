@@ -2,6 +2,27 @@ import GAME from '../core/game.js';
 import { ctx, cam, view, viewW, rc, lb, world, setFill, pushEntA, popEntA, entA } from './ctx.js';
 import { P } from './palette.js';
 import { drawItemIcon } from './icons.js';
+import { spriteFrameImage, getSpriteDef } from '../core/spriteset.js';
+
+function blitEntSprite(id, anim, frame, wx, wy, dir){
+  var img = spriteFrameImage(id, anim, frame);
+  if (!img) return false;
+  var def = getSpriteDef(id);
+  if (!def) return false;
+  var x = Math.round(wx - (def.ox || 0) - cam.x);
+  var y = Math.round(wy - (def.oy || 0) - cam.y);
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  if (dir < 0){
+    ctx.translate(x + def.fw, y);
+    ctx.scale(-1, 1);
+    ctx.drawImage(img, 0, 0);
+  } else {
+    ctx.drawImage(img, x, y);
+  }
+  ctx.restore();
+  return true;
+}
 
 var G = GAME, T = G.T;
 
@@ -179,6 +200,8 @@ export function npcs(){
     if (x < -16 || x > viewW() + 16) continue;
     var f = n.facing >= 0 ? 1 : -1;
     var bob = n.st === 'flee' ? Math.round(Math.sin(time * 10 + n.ph)) : Math.round(Math.sin(time * 2.2 + n.ph) * 0.5);
+    var nKind = n.tree === 'wanderer' ? 'npc_wanderer' : 'npc_hermit';
+    if (blitEntSprite(nKind, 'idle', bob > 0 ? 1 : 0, n.x, n.y + bob, n.facing)) continue;
     var cloak = n.tree === 'wanderer' ? '#3a5a4a' : '#4a3a68';
     var cloakD = n.tree === 'wanderer' ? '#243830' : '#2e2446';
     var cx = x + 5;
@@ -299,6 +322,7 @@ export function enemies(){
       continue;
     }
     var hop = Math.round(Math.sin(time*(e.kind === 1 ? 9 : 6) + e.ph)*1.5);
+    if (blitEntSprite('enemy' + e.kind, 'idle', hop > 0 ? 1 : 0, e.x, e.y + hop, e.dir)) continue;
     var bodyA = e.kind === 1 ? '#b05f7a' : (e.kind === 2 ? '#5f7fb0' : P.foeA);
     var bodyB = e.kind === 1 ? '#7a3d52' : (e.kind === 2 ? '#3d537a' : P.foeB);
     if (e.hurt) bodyA = '#d0a0a0';
@@ -323,6 +347,7 @@ export function fliers(){
     var x = Math.round(f.x - cam.x), y = Math.round(f.y - cam.y);
     if (x < -22 || x > viewW() + 22) continue;
     var wing = Math.sin(f.flap * (f.kind === 1 ? 20 : 12) + f.ph) * (f.kind === 2 ? 6 : 4);
+    if (blitEntSprite('flier' + f.kind, 'flap', wing > 0 ? 1 : 0, f.x, f.y, f.dir)) continue;
     var fa = f.kind === 1 ? '#8f6d4a' : (f.kind === 2 ? '#4a6d8f' : (f.kind === 3 ? '#8f2f3a' : '#6d5a8f'));
     var fb = f.kind === 1 ? '#c9a06a' : (f.kind === 2 ? '#7fa8cc' : (f.kind === 3 ? '#e06a6a' : '#9b83c4'));
     rc(x + 2, y + 2, f.w - 4, f.h - 3, fa);
@@ -429,6 +454,7 @@ export function spiders(){
       ctx.globalAlpha = entA(sp);
     }
     var wig = Math.sin(time * (sp.state === 'flee' ? 14 : 8) + sp.ph);
+    if (blitEntSprite('spider' + sp.kind, 'idle', wig > 0 ? 1 : 0, sp.x - 3, sp.y - 2, sp.dir)) continue;
     for (var l = 0; l < 4; l++){                         // лапки
       var sgn = l < 2 ? -1 : 1, k2 = (l % 2);
       lb([x, y], [x + sgn*(4 + k2*2), y + 3 + Math.round(wig*(1 + k2))], 1, body);

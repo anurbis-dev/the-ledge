@@ -12,11 +12,95 @@ import {
 import { figure, drawBow } from './figure.js';
 import { torchPts } from './light.js';
 import { isBowHand, isHarpoonHand } from '../entities/gear.js';
+import { spriteFrameImage, getSpriteDef } from '../core/spriteset.js';
 
 var G = GAME, C = G.C;
 
 function stancePose(st){ return st === 2 ? PRONE0 : (st === 1 ? CROUCH : IDLE_A); }
 function isBow(p){ return isBowHand(p); }
+
+export function heroClip(p){
+  var animT = view.animT, runPh = view.runPh;
+  if (p.state === 'snare') return ['snare', 0];
+  if (p.inWater) return ['swim', Math.sin(animT * 7) > 0 ? 0 : 1];
+  if (p.state === 'bars') return ['bars', Math.sin(p.bars.ph * 2.4) > 0 ? 0 : 1];
+  if (p.gettingUp){
+    var gt = 1 - p.getupT / C.GETUP_T;
+    return ['getup', gt < 0.33 ? 0 : (gt < 0.66 ? 1 : 2)];
+  }
+  if (p.stanceT > 0) return [p.stance === 2 ? 'prone' : (p.stance === 1 ? 'crouch' : 'idle'), 0];
+  if (p.pickT > 0 && p.onGround) return ['pick', 0];
+  if (p.stance === 2) return ['prone', Math.abs(p.vx) > 4 && Math.sin(animT * 7) > 0 ? 1 : 0];
+  if (p.stance === 1) return [Math.abs(p.vx) > 4 ? 'crouchWalk' : 'crouch', 0];
+  if (p.grapple) return ['grapple', (p.grapple.up || (p.grapple.phase !== 'fly' && Math.abs(p.grapple.vx) < 20)) ? 1 : 0];
+  if (p.atkT > 0){
+    var t = 1 - p.atkT / C.ATK_T;
+    return ['attack', t < 0.32 ? 0 : (t < 0.66 ? 1 : 2)];
+  }
+  if (isBow(p) && p.bowT > 0){
+    var bt = 1 - p.bowT / C.BOW_ANIM_T;
+    return ['bow', bt < 0.6 ? 1 : (bt < 0.72 ? 2 : 0)];
+  }
+  if (p.state === 'stun') return ['stun', 0];
+  if (p.rollT > 0) return ['roll', 0];
+  if (p.throwT > 0) return ['throw', 0];
+  if (p.state === 'ladder'){
+    var moving = Math.abs(p.lad.ph - (p.lad.lastPh || 0)) > 0.0001;
+    var f = moving ? (Math.sin(p.lad.ph * 3.1) > 0 ? 1 : 0) : 0;
+    if (p.lad.v === G.LADF) return ['ladderF', f];
+    if (p.lad.v === G.LADR || p.lad.v === G.LADL) return ['ladderD', f];
+    return ['ladder', f];
+  }
+  if (p.state === 'hang' && p.hang.kind === 'lad') return ['hangLad', 0];
+  if (p.state === 'climb' && p.climb.kind === 'lad') return ['ladder', 0];
+  if (p.state === 'hang' && p.hang.kind === 'ledge') return ['hang', Math.sin(view.time * 2.2) > 0 ? 0 : 1];
+  if (p.state === 'climb' && p.climb.kind === 'ledge'){
+    var cp = p.climb.p;
+    return ['climb', cp < 0.2 ? 0 : (cp < 0.4 ? 1 : (cp < 0.6 ? 2 : (cp < 0.8 ? 3 : 4)))];
+  }
+  if (p.state === 'climb' && p.climb.kind === 'vault') return ['vault', 0];
+  if (!p.onGround){
+    if (p.sliding) return ['slide', 0];
+    return [p.vy < -40 ? 'jump' : (p.vy > 60 ? 'fall' : 'jump'), 0];
+  }
+  if (p.landT > 0) return ['land', 0];
+  if (p.pushWall) return ['wallPush', 0];
+  if (Math.abs(p.vx) > 8) return ['run', (runPh | 0) % 4];
+  if (isBow(p)) return ['bow', 0];
+  return ['idle', Math.sin(animT * 2.6) > 0 ? 0 : 1];
+}
+
+function blitHeroSprite(img, def, wx, wy, facing){
+  var fx = def.fx != null ? def.fx : 5;
+  var x = Math.round(wx - def.ox - cam.x);
+  var y = Math.round(wy - def.oy - cam.y);
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  if (facing < 0){
+    ctx.translate(x + def.ox + fx, y);
+    ctx.scale(-1, 1);
+    ctx.drawImage(img, -(def.ox + fx), 0);
+  } else {
+    ctx.drawImage(img, x, y);
+  }
+  ctx.restore();
+}
+
+function tryHeroSprite(p){
+  var clip = heroClip(p);
+  var img = spriteFrameImage('hero', clip[0], clip[1]);
+  if (!img) return false;
+  var def = getSpriteDef('hero');
+  if (!def) return false;
+  var facing = p.facing, wx = p.x, wy = p.y;
+  if (p.state === 'hang' && p.hang.kind === 'ledge'){
+    wx = p.hang.cx; wy = p.hang.cy; facing = p.facing;
+  } else if (p.state === 'climb' && p.climb.kind === 'ledge'){
+    wx = p.climb.cx; wy = p.climb.cy; facing = p.climb.facing;
+  }
+  blitHeroSprite(img, def, wx, wy, facing);
+  return true;
+}
 
 export function boxPose(p){
   var animT = view.animT, runPh = view.runPh;
@@ -74,6 +158,7 @@ export function hero(){
   var S = world(), time = view.time, tail = view.tail;
   var p = S.p, i, k, pt = {}, frontal = (p.state === 'ladder' && p.lad.v === G.LADF) ||
       (p.state === 'hang' && p.hang.kind === 'lad' && G.tileAt(p.hang.tc, p.hang.tr) === G.LADF);
+  if (tryHeroSprite(p)) return;
   var cxw = p.x + p.w/2, cyw = p.y + p.h/2;
   var ld = lightDirAt(cxw, cyw), rim = [Math.round(ld[0]), Math.round(ld[1])];
   if (rim[0] === 0 && rim[1] === 0) rim[1] = -1;

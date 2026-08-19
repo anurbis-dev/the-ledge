@@ -1,8 +1,13 @@
 import GAME from '../core/game.js';
 import {
-  getTileDef, updateTile, removeTile,
-  canvasToPng, loadImageFile, sliceSheet
+  getTileDef, updateTile, removeTile, getTileGfx, setTileGfx, clearTileGfx,
+  tileFrameCount, tileFrameSrc, canvasToPng, loadImageFile, sliceSheet
 } from '../core/tileset.js';
+import {
+  getSpriteDef, getSpriteFrameSrc, setSpriteFrame, clearSpriteFrame,
+  isSpriteFrameDirty
+} from '../core/spriteset.js';
+import { bakeSpriteFrameSrc, bakeBuiltinTileSrc } from '../render/sprite-bake.js';
 import { wipeTileId } from '../core/layers.js';
 import { raiseFloat, placeFloat, hasFloatPos } from './float.js';
 import { invalidateAll } from '../render/tiles.js';
@@ -12,6 +17,10 @@ var root = document.getElementById('edTileEdit');
 var titleEl = document.getElementById('edTileEditTitle');
 var body = document.getElementById('edTileEditBody');
 var current = null;
+var mode = 'tile';
+var fw = 16, fh = 16;
+var animId = '';
+var frameI = 0;
 var onChange = null;
 
 var TOOLS = [
@@ -47,6 +56,7 @@ var hitLab = null;
 var toolsEl = null;
 var swatchEl = null;
 var colorInp = null;
+var stripsEl = null;
 var painting = null;
 var boxDrag = null;
 var pendingBox = null;
@@ -60,17 +70,48 @@ export function closeTileEdit(){
   current = null;
   painting = null;
   boxDrag = null;
-  if (root) root.hidden = true;
+  mode = 'tile';
+  if (root){
+    root.hidden = true;
+    root.classList.remove('ed-sprite');
+  }
 }
+
+function isSprite(){ return mode === 'sprite'; }
+function isCustomTile(){ return mode === 'tile' && current && current.custom; }
+function canPaint(){ return isSprite() || isCustomTile() || (mode === 'tile' && current && current.id); }
 
 export function openTileEdit(spec, clientX, clientY){
   if (!root || !spec) return;
+  mode = 'tile';
+  fw = 16; fh = 16;
+  animId = '';
+  frameI = 0;
   current = spec;
+  root.classList.remove('ed-sprite');
   root.hidden = false;
-  if (titleEl) titleEl.textContent = spec.custom ? 'Tile' : 'Tile (built-in)';
-  fillBody(spec);
+  if (titleEl) titleEl.textContent = spec.custom ? 'Tile' : 'Tile (sprite)';
+  fillBody();
   if (!hasFloatPos(root))
     placeFloat(root, innerWidth - 320, 48);
+  raiseFloat(root);
+  void clientX; void clientY;
+}
+
+export function openSpriteEdit(def, clientX, clientY){
+  if (!root || !def) return;
+  mode = 'sprite';
+  current = def;
+  fw = def.fw || 16;
+  fh = def.fh || 16;
+  animId = def.anims && def.anims[0] ? def.anims[0].id : '';
+  frameI = 0;
+  root.classList.add('ed-sprite');
+  root.hidden = false;
+  if (titleEl) titleEl.textContent = def.name || 'Sprite';
+  fillBody();
+  if (!hasFloatPos(root))
+    placeFloat(root, innerWidth - 400, 40);
   raiseFloat(root);
   void clientX; void clientY;
 }
@@ -105,10 +146,27 @@ function field(label, el){
 
 function makeBuf(){
   var c = document.createElement('canvas');
-  c.width = 16; c.height = 16;
-  var cx = c.getContext('2d');
+  c.width = fw; c.height = fh;
+  var cx = c.getContext('2d', { willReadFrequently: true });
   cx.imageSmoothingEnabled = false;
   return c;
+}
+
+function currentSrc(){
+  if (isSprite()){
+    var saved = getSpriteFrameSrc(current.id, animId, frameI);
+    if (saved) return saved;
+    return bakeSpriteFrameSrc(current.id, animId, frameI);
+  }
+  if (isCustomTile()){
+    var def = getTileDef(current.id);
+    if (def && def.frames && def.frames.length) return def.frames[frameI] || def.src;
+    return (def && def.src) || current.src || '';
+  }
+  var g = getTileGfx(current.id);
+  if (g && g.frames && g.frames.length) return g.frames[frameI] || g.src;
+  if (g && g.src) return g.src;
+  return bakeBuiltinTileSrc(current);
 }
 
 function loadBuf(src, done){
@@ -120,8 +178,8 @@ function loadBuf(src, done){
     if (gen !== loadGen) return;
     var cx = buf.getContext('2d');
     cx.imageSmoothingEnabled = false;
-    cx.clearRect(0, 0, 16, 16);
-    cx.drawImage(img, 0, 0, 16, 16, 0, 0, 16, 16);
+    cx.clearRect(0, 0, fw, fh);
+    cx.drawImage(img, 0, 0, img.naturalWidth || fw, img.naturalHeight || fh, 0, 0, fw, fh);
     if (done) done();
   };
   img.onerror = function(){ if (gen !== loadGen) return; if (done) done(); };
@@ -143,19 +201,19 @@ function rgbToHex(r, g, b){
 
 function cellOf(e, can){
   var r = can.getBoundingClientRect();
-  var x = Math.floor((e.clientX - r.left) / r.width * 16);
-  var y = Math.floor((e.clientY - r.top) / r.height * 16);
-  if (x < 0) x = 0; if (x > 15) x = 15;
-  if (y < 0) y = 0; if (y > 15) y = 15;
+  var x = Math.floor((e.clientX - r.left) / r.width * fw);
+  var y = Math.floor((e.clientY - r.top) / r.height * fh);
+  if (x < 0) x = 0; if (x > fw - 1) x = fw - 1;
+  if (y < 0) y = 0; if (y > fh - 1) y = fh - 1;
   return { x: x, y: y };
 }
 
 function edgeOf(e, can){
   var r = can.getBoundingClientRect();
-  var x = Math.round((e.clientX - r.left) / r.width * 16);
-  var y = Math.round((e.clientY - r.top) / r.height * 16);
-  if (x < 0) x = 0; if (x > 16) x = 16;
-  if (y < 0) y = 0; if (y > 16) y = 16;
+  var x = Math.round((e.clientX - r.left) / r.width * fw);
+  var y = Math.round((e.clientY - r.top) / r.height * fh);
+  if (x < 0) x = 0; if (x > fw) x = fw;
+  if (y < 0) y = 0; if (y > fh) y = fh;
   return { x: x, y: y };
 }
 
@@ -199,17 +257,47 @@ function pickAt(e){
 }
 
 function commitSrc(){
-  if (!current || !current.custom || !buf) return;
+  if (!buf || !current) return;
   var src = canvasToPng(buf);
-  updateTile(current.id, { src: src });
-  current.src = src;
-  notify();
-  fillSwatches();
+  if (isSprite()){
+    setSpriteFrame(current.id, animId, frameI, src, true);
+    notify();
+    paintStrips();
+    return;
+  }
+  if (isCustomTile()){
+    var def = getTileDef(current.id);
+    if (def && def.frames && def.frames.length){
+      var fr = def.frames.slice();
+      fr[frameI] = src;
+      updateTile(current.id, { frames: fr, src: frameI === 0 ? src : def.src });
+    } else {
+      updateTile(current.id, { src: src });
+      current.src = src;
+    }
+    notify();
+    paintStrips();
+    fillSwatches();
+    return;
+  }
+  if (current.id){
+    var g = getTileGfx(current.id) || { src: '', frames: [] };
+    if (g.frames && g.frames.length){
+      var gf = g.frames.slice();
+      gf[frameI] = src;
+      setTileGfx(current.id, { frames: gf, src: frameI === 0 ? src : g.src });
+    } else {
+      setTileGfx(current.id, { src: src });
+    }
+    notify();
+    paintStrips();
+    fillSwatches();
+  }
 }
 
 function uniqueColors(){
   if (!buf) return [];
-  var data = buf.getContext('2d').getImageData(0, 0, 16, 16).data;
+  var data = buf.getContext('2d').getImageData(0, 0, fw, fh).data;
   var seen = {}, out = [], i, key;
   for (i = 0; i < data.length; i += 4){
     if (data[i + 3] < 8) continue;
@@ -247,8 +335,8 @@ function fillSwatches(){
 }
 
 function hitText(){
-  if (!current) return '';
-  var def = current.custom ? getTileDef(current.id) : null;
+  if (!current || isSprite()) return '';
+  var def = isCustomTile() ? getTileDef(current.id) : null;
   var col = pendingBox ? 'custom' : (def ? def.collide : builtinCollide(current));
   var box = pendingBox || (def && def.box);
   if (col === 'none') return 'No collision — hero walks through. Pixels are decoration.';
@@ -263,8 +351,8 @@ function hitText(){
 }
 
 function drawHitShape(cx, s, k, filled){
-  if (!current) return;
-  var def = current.custom ? getTileDef(current.id) : null;
+  if (!current || isSprite() || fw !== 16 || fh !== 16) return;
+  var def = isCustomTile() ? getTileDef(current.id) : null;
   var col = pendingBox ? 'custom' : (def ? def.collide : builtinCollide(current));
   var box = pendingBox || (def && def.box);
   if (col === 'none') return;
@@ -300,24 +388,28 @@ function paintCanvas(){
   if (!preview) return;
   var can = preview;
   var cx = can.getContext('2d');
-  var s = can.width, k = s / 16, i, j;
+  var sx = can.width / fw, sy = can.height / fh, i, j;
   cx.imageSmoothingEnabled = false;
-  for (j = 0; j < 16; j++){
-    for (i = 0; i < 16; i++){
+  for (j = 0; j < fh; j++){
+    for (i = 0; i < fw; i++){
       cx.fillStyle = ((i + j) & 1) ? '#2a2040' : '#1a1228';
-      cx.fillRect(i * k, j * k, k, k);
+      cx.fillRect(i * sx, j * sy, sx, sy);
     }
   }
-  if (buf) cx.drawImage(buf, 0, 0, 16, 16, 0, 0, s, s);
-  else if (current && !current.custom) paintTileIcon(cx, current, s);
+  if (buf) cx.drawImage(buf, 0, 0, fw, fh, 0, 0, can.width, can.height);
+  else if (current && mode === 'tile' && !current.custom) paintTileIcon(cx, current, can.width);
   cx.strokeStyle = '#3a346055';
   cx.lineWidth = 1;
-  for (i = 0; i <= 16; i++){
-    cx.beginPath(); cx.moveTo(i * k + 0.5, 0); cx.lineTo(i * k + 0.5, s); cx.stroke();
-    cx.beginPath(); cx.moveTo(0, i * k + 0.5); cx.lineTo(s, i * k + 0.5); cx.stroke();
+  for (i = 0; i <= fw; i++){
+    cx.beginPath(); cx.moveTo(i * sx + 0.5, 0); cx.lineTo(i * sx + 0.5, can.height); cx.stroke();
   }
-  drawHitShape(cx, s, k, tool === 'hitbox');
-  if (hitLab) hitLab.textContent = hitText();
+  for (j = 0; j <= fh; j++){
+    cx.beginPath(); cx.moveTo(0, j * sy + 0.5); cx.lineTo(can.width, j * sy + 0.5); cx.stroke();
+  }
+  drawHitShape(cx, can.width, sx, tool === 'hitbox');
+  if (hitLab) hitLab.textContent = isSprite()
+    ? 'Frame ' + (frameI + 1) + ' · ' + (current.anims.filter(function(a){ return a.id === animId; })[0] || { name: animId }).name
+    : hitText();
   if (preview){
     preview.classList.toggle('tool-erase', tool === 'eraser');
     preview.classList.toggle('tool-pick', tool === 'pick');
@@ -334,12 +426,14 @@ function syncTools(){
     for (i = 0; i < btns.length; i++)
       btns[i].classList.toggle('on', btns[i].getAttribute('data-tool') === tool);
   }
-  if (hintEl) hintEl.textContent = HINT[tool] || HINT.pencil;
+  if (hintEl) hintEl.textContent = isSprite()
+    ? (HINT[tool] === HINT.hitbox ? 'LMB paint · RMB erase. This frame is the picture the game can blit.' : (HINT[tool] || HINT.pencil))
+    : (HINT[tool] || HINT.pencil);
   paintCanvas();
 }
 
 function applyBox(x0, y0, x1, y1){
-  if (!current || !current.custom) return;
+  if (!isCustomTile()) return;
   var x = Math.min(x0, x1), y = Math.min(y0, y1);
   var w = Math.max(1, Math.abs(x1 - x0)), h = Math.max(1, Math.abs(y1 - y0));
   if (x + w > 16) w = 16 - x;
@@ -351,22 +445,22 @@ function applyBox(x0, y0, x1, y1){
 }
 
 function commitBox(){
-  if (!current || !current.custom || !pendingBox) return;
+  if (!isCustomTile() || !pendingBox) return;
   updateTile(current.id, { collide: 'custom', box: pendingBox });
   pendingBox = null;
   notify();
 }
 
-function bindPreview(can, spec){
+function bindPreview(can){
   can.addEventListener('contextmenu', function(e){ e.preventDefault(); e.stopPropagation(); });
   can.addEventListener('pointerdown', function(e){
-    if (!spec.custom) return;
+    if (!canPaint()) return;
     if (e.button !== 0 && e.button !== 2) return;
     e.preventDefault();
     e.stopPropagation();
     try { can.setPointerCapture(e.pointerId); } catch (_){}
     if (tool === 'hitbox'){
-      if (e.button !== 0) return;
+      if (e.button !== 0 || !isCustomTile()) return;
       var a = edgeOf(e, can);
       boxDrag = { x0: a.x, y0: a.y };
       applyBox(a.x, a.y, a.x, a.y);
@@ -410,20 +504,132 @@ function bindPreview(can, spec){
   can.addEventListener('pointercancel', end);
 }
 
+function selectFrame(nextAnim, nextI){
+  if (nextAnim === animId && nextI === frameI) return;
+  animId = nextAnim;
+  frameI = nextI;
+  loadBuf(currentSrc(), function(){
+    fillSwatches();
+    syncTools();
+    paintStrips();
+  });
+  paintCanvas();
+}
+
+function frameSrcAt(aId, i){
+  if (isSprite()){
+    var s = getSpriteFrameSrc(current.id, aId, i);
+    return s || bakeSpriteFrameSrc(current.id, aId, i);
+  }
+  return tileFrameSrc(current.id, i) || currentSrc();
+}
+
+function paintStrips(){
+  if (!stripsEl) return;
+  var rows = [];
+  if (isSprite()){
+    rows = current.anims.map(function(a){ return { id: a.id, name: a.name, n: a.n }; });
+  } else {
+    var n = tileFrameCount(current.id);
+    if (n > 1) rows = [{ id: '', name: 'Frames', n: n }];
+  }
+  if (!rows.length){
+    stripsEl.hidden = true;
+    stripsEl.textContent = '';
+    return;
+  }
+  stripsEl.hidden = false;
+  stripsEl.textContent = '';
+  var r;
+  for (r = 0; r < rows.length; r++){
+    (function(row){
+      var wrap = document.createElement('div');
+      wrap.className = 'ed-tile-anim';
+      var lab = document.createElement('div');
+      lab.className = 'ed-tile-anim-name';
+      lab.textContent = row.name;
+      wrap.appendChild(lab);
+      var bar = document.createElement('div');
+      bar.className = 'ed-tile-anim-frames';
+      var i;
+      for (i = 0; i < row.n; i++){
+        (function(ii){
+          var th = document.createElement('canvas');
+          th.width = fw;
+          th.height = fh;
+          th.className = 'ed-tile-frame' + (row.id === animId && ii === frameI ? ' on' : '');
+          if (isSprite() && isSpriteFrameDirty(current.id, row.id, ii))
+            th.classList.add('dirty');
+          th.title = row.name + ' ' + (ii + 1);
+          var cx = th.getContext('2d');
+          cx.imageSmoothingEnabled = false;
+          cx.fillStyle = '#1a1228';
+          cx.fillRect(0, 0, fw, fh);
+          var img = new Image();
+          img.onload = function(){
+            cx.imageSmoothingEnabled = false;
+            cx.clearRect(0, 0, fw, fh);
+            cx.drawImage(img, 0, 0, img.naturalWidth || fw, img.naturalHeight || fh, 0, 0, fw, fh);
+          };
+          img.src = frameSrcAt(row.id, ii);
+          th.addEventListener('click', function(){
+            selectFrame(row.id, ii);
+          });
+          bar.appendChild(th);
+        })(i);
+      }
+      wrap.appendChild(bar);
+      stripsEl.appendChild(wrap);
+    })(rows[r]);
+  }
+}
+
 function applyImportFile(file){
-  if (!current || !current.custom || !file) return;
+  if (!current || !file || !canPaint()) return;
   loadImageFile(file).then(function(img){
-    var slices = sliceSheet(img, file.name);
+    var slices = sliceSheet(img, file.name, fw, fh);
     if (!slices.length) return;
-    updateTile(current.id, { src: slices[0].src });
-    current.src = slices[0].src;
+    if (isSprite()){
+      var a = current.anims.filter(function(x){ return x.id === animId; })[0];
+      if (slices.length === 1){
+        setSpriteFrame(current.id, animId, frameI, slices[0].src, true);
+      } else if (a){
+        var i, n = Math.min(a.n, slices.length);
+        for (i = 0; i < n; i++) setSpriteFrame(current.id, animId, i, slices[i].src, true);
+      }
+      notify();
+      fillBody();
+      return;
+    }
+    if (slices.length > 1){
+      var srcs = slices.map(function(s){ return s.src; });
+      if (isCustomTile()){
+        updateTile(current.id, { src: srcs[0], frames: srcs });
+        current.src = srcs[0];
+      } else {
+        setTileGfx(current.id, { src: srcs[0], frames: srcs });
+      }
+    } else if (isCustomTile()){
+      updateTile(current.id, { src: slices[0].src });
+      current.src = slices[0].src;
+    } else {
+      setTileGfx(current.id, { src: slices[0].src });
+    }
     notify();
-    fillBody(current);
+    fillBody();
   }).catch(function(){});
 }
 
-function fillBody(spec){
-  if (!body) return;
+function scaleOf(){
+  var m = Math.max(fw, fh);
+  var s = Math.floor(192 / m);
+  if (s < 4) s = 4;
+  if (s > 10) s = 10;
+  return s;
+}
+
+function fillBody(){
+  if (!body || !current) return;
   body.textContent = '';
   preview = null;
   hintEl = null;
@@ -431,16 +637,24 @@ function fillBody(spec){
   toolsEl = null;
   swatchEl = null;
   colorInp = null;
+  stripsEl = null;
   painting = null;
   boxDrag = null;
   pendingBox = null;
-  var custom = !!spec.custom;
-  var def = custom ? getTileDef(spec.id) : null;
+  var custom = isCustomTile();
+  var def = custom ? getTileDef(current.id) : null;
+  var sprite = isSprite();
 
+  stripsEl = document.createElement('div');
+  stripsEl.className = 'ed-tile-strips';
+  body.appendChild(stripsEl);
+
+  var sc = scaleOf();
   var can = document.createElement('canvas');
-  can.width = 128;
-  can.height = 128;
+  can.width = fw * sc;
+  can.height = fh * sc;
   can.className = 'ed-tilegeo';
+  can.style.aspectRatio = fw + ' / ' + fh;
   body.appendChild(can);
   preview = can;
 
@@ -448,158 +662,161 @@ function fillBody(spec){
   hitLab.className = 'ed-tile-hitlab';
   body.appendChild(hitLab);
 
-  if (custom){
-    toolsEl = document.createElement('div');
-    toolsEl.className = 'ed-tile-tools';
-    var t;
-    for (t = 0; t < TOOLS.length; t++){
-      (function(specT){
-        var b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'edb';
-        b.setAttribute('data-tool', specT.id);
-        b.textContent = specT.name;
-        b.title = specT.title;
-        b.addEventListener('click', function(){
-          tool = specT.id;
-          syncTools();
-        });
-        toolsEl.appendChild(b);
-      })(TOOLS[t]);
-    }
-    body.appendChild(toolsEl);
+  toolsEl = document.createElement('div');
+  toolsEl.className = 'ed-tile-tools';
+  var t, list = sprite ? TOOLS.filter(function(x){ return x.id !== 'hitbox'; }) : TOOLS;
+  if (tool === 'hitbox' && sprite) tool = 'pencil';
+  for (t = 0; t < list.length; t++){
+    (function(specT){
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'edb';
+      b.setAttribute('data-tool', specT.id);
+      b.textContent = specT.name;
+      b.title = specT.title;
+      b.addEventListener('click', function(){
+        tool = specT.id;
+        syncTools();
+      });
+      toolsEl.appendChild(b);
+    })(list[t]);
+  }
+  body.appendChild(toolsEl);
 
-    hintEl = document.createElement('div');
-    hintEl.className = 'ed-tile-note';
-    body.appendChild(hintEl);
+  hintEl = document.createElement('div');
+  hintEl.className = 'ed-tile-note';
+  body.appendChild(hintEl);
 
-    colorInp = document.createElement('input');
-    colorInp.type = 'color';
-    colorInp.value = color;
-    colorInp.title = 'Paint color';
-    colorInp.addEventListener('input', function(){
-      color = colorInp.value;
-      tool = 'pencil';
-      syncTools();
-      fillSwatches();
+  colorInp = document.createElement('input');
+  colorInp.type = 'color';
+  colorInp.value = color;
+  colorInp.title = 'Paint color';
+  colorInp.addEventListener('input', function(){
+    color = colorInp.value;
+    tool = 'pencil';
+    syncTools();
+    fillSwatches();
+  });
+  field('Color', colorInp);
+
+  swatchEl = document.createElement('div');
+  swatchEl.className = 'ed-tile-swatches';
+  body.appendChild(swatchEl);
+
+  if (sprite){
+    var sNote = document.createElement('div');
+    sNote.className = 'ed-tile-note';
+    sNote.textContent = 'Each row is one animation. Click a frame to paint it. Unedited frames still use the old drawing in the game.';
+    body.appendChild(sNote);
+  } else {
+    var nameInp = document.createElement('input');
+    nameInp.type = 'text';
+    nameInp.value = current.name || '';
+    nameInp.maxLength = 24;
+    nameInp.disabled = !custom;
+    nameInp.addEventListener('keydown', function(e){ e.stopPropagation(); });
+    nameInp.addEventListener('change', function(){
+      if (!def) return;
+      updateTile(def.id, { name: nameInp.value.trim() || def.name });
+      current.name = nameInp.value.trim() || current.name;
+      notify();
     });
-    field('Color', colorInp);
+    field('Name', nameInp);
 
-    swatchEl = document.createElement('div');
-    swatchEl.className = 'ed-tile-swatches';
-    body.appendChild(swatchEl);
-  }
+    var over = document.createElement('input');
+    over.type = 'checkbox';
+    over.checked = !!(def ? def.overlay : false);
+    over.disabled = !custom;
+    over.addEventListener('change', function(){
+      if (!def) return;
+      updateTile(def.id, { overlay: over.checked, collide: over.checked ? 'none' : (def.collide === 'none' ? 'full' : def.collide) });
+      current.overlay = over.checked;
+      notify();
+      fillBody();
+    });
+    var overRow = document.createElement('label');
+    overRow.className = 'ed-check';
+    overRow.appendChild(over);
+    overRow.appendChild(document.createTextNode(' Overlay — decoration on top of the main tile (no collision)'));
+    body.appendChild(overRow);
 
-  var nameInp = document.createElement('input');
-  nameInp.type = 'text';
-  nameInp.value = spec.name || '';
-  nameInp.maxLength = 24;
-  nameInp.disabled = !custom;
-  nameInp.addEventListener('keydown', function(e){ e.stopPropagation(); });
-  nameInp.addEventListener('change', function(){
-    if (!def) return;
-    updateTile(def.id, { name: nameInp.value.trim() || def.name });
-    spec.name = nameInp.value.trim() || spec.name;
-    notify();
-  });
-  field('Name', nameInp);
+    var front = document.createElement('input');
+    front.type = 'checkbox';
+    front.checked = !!(def && def.front);
+    front.disabled = !custom;
+    front.addEventListener('change', function(){
+      if (!def) return;
+      updateTile(def.id, { front: front.checked });
+      notify();
+    });
+    var frontRow = document.createElement('label');
+    frontRow.className = 'ed-check';
+    frontRow.appendChild(front);
+    frontRow.appendChild(document.createTextNode(' Draw in front of the hero'));
+    body.appendChild(frontRow);
 
-  var over = document.createElement('input');
-  over.type = 'checkbox';
-  over.checked = !!(def ? def.overlay : false);
-  over.disabled = !custom;
-  over.addEventListener('change', function(){
-    if (!def) return;
-    updateTile(def.id, { overlay: over.checked, collide: over.checked ? 'none' : (def.collide === 'none' ? 'full' : def.collide) });
-    spec.overlay = over.checked;
-    current = spec;
-    notify();
-    fillBody(spec);
-  });
-  var overRow = document.createElement('label');
-  overRow.className = 'ed-check';
-  overRow.appendChild(over);
-  overRow.appendChild(document.createTextNode(' Overlay — decoration on top of the main tile (no collision)'));
-  body.appendChild(overRow);
+    var climb = document.createElement('input');
+    climb.type = 'checkbox';
+    climb.checked = !!(def && def.climb);
+    climb.disabled = !custom;
+    climb.addEventListener('change', function(){
+      if (!def) return;
+      updateTile(def.id, { climb: climb.checked });
+      notify();
+      paintCanvas();
+    });
+    var climbRow = document.createElement('label');
+    climbRow.className = 'ed-check';
+    climbRow.appendChild(climb);
+    climbRow.appendChild(document.createTextNode(' Climbable (ladder)'));
+    body.appendChild(climbRow);
 
-  var front = document.createElement('input');
-  front.type = 'checkbox';
-  front.checked = !!(def && def.front);
-  front.disabled = !custom;
-  front.addEventListener('change', function(){
-    if (!def) return;
-    updateTile(def.id, { front: front.checked });
-    notify();
-  });
-  var frontRow = document.createElement('label');
-  frontRow.className = 'ed-check';
-  frontRow.appendChild(front);
-  frontRow.appendChild(document.createTextNode(' Draw in front of the hero'));
-  body.appendChild(frontRow);
+    var oneWay = document.createElement('input');
+    oneWay.type = 'checkbox';
+    oneWay.checked = !!(def && def.oneWay);
+    oneWay.disabled = !custom;
+    oneWay.addEventListener('change', function(){
+      if (!def) return;
+      updateTile(def.id, { oneWay: oneWay.checked });
+      notify();
+    });
+    var owRow = document.createElement('label');
+    owRow.className = 'ed-check';
+    owRow.appendChild(oneWay);
+    owRow.appendChild(document.createTextNode(' One-way — stand from above, pass from below'));
+    body.appendChild(owRow);
 
-  var climb = document.createElement('input');
-  climb.type = 'checkbox';
-  climb.checked = !!(def && def.climb);
-  climb.disabled = !custom;
-  climb.addEventListener('change', function(){
-    if (!def) return;
-    updateTile(def.id, { climb: climb.checked });
-    notify();
-    paintCanvas();
-  });
-  var climbRow = document.createElement('label');
-  climbRow.className = 'ed-check';
-  climbRow.appendChild(climb);
-  climbRow.appendChild(document.createTextNode(' Climbable (ladder)'));
-  body.appendChild(climbRow);
+    var sel = document.createElement('select');
+    var curCol = def ? def.collide : builtinCollide(current);
+    var i;
+    for (i = 0; i < COLLIDE.length; i++){
+      var o = document.createElement('option');
+      o.value = COLLIDE[i].id;
+      o.textContent = COLLIDE[i].name;
+      if (COLLIDE[i].id === curCol) o.selected = true;
+      sel.appendChild(o);
+    }
+    sel.disabled = !custom;
+    sel.addEventListener('change', function(){
+      if (!def) return;
+      var box = def.box;
+      if (sel.value === 'half') box = { x: 0, y: 0, w: 16, h: 8 };
+      if (sel.value === 'bar') box = { x: 0, y: 0, w: 16, h: 3 };
+      if (sel.value === 'full') box = { x: 0, y: 0, w: 16, h: 16 };
+      if (sel.value === 'none') tool = tool === 'hitbox' ? 'pencil' : tool;
+      if (sel.value === 'custom') tool = 'hitbox';
+      updateTile(def.id, { collide: sel.value, box: box });
+      notify();
+      fillBody();
+    });
+    field('Collision', sel);
 
-  var oneWay = document.createElement('input');
-  oneWay.type = 'checkbox';
-  oneWay.checked = !!(def && def.oneWay);
-  oneWay.disabled = !custom;
-  oneWay.addEventListener('change', function(){
-    if (!def) return;
-    updateTile(def.id, { oneWay: oneWay.checked });
-    notify();
-  });
-  var owRow = document.createElement('label');
-  owRow.className = 'ed-check';
-  owRow.appendChild(oneWay);
-  owRow.appendChild(document.createTextNode(' One-way — stand from above, pass from below'));
-  body.appendChild(owRow);
-
-  var sel = document.createElement('select');
-  var curCol = def ? def.collide : builtinCollide(spec);
-  var i;
-  for (i = 0; i < COLLIDE.length; i++){
-    var o = document.createElement('option');
-    o.value = COLLIDE[i].id;
-    o.textContent = COLLIDE[i].name;
-    if (COLLIDE[i].id === curCol) o.selected = true;
-    sel.appendChild(o);
-  }
-  sel.disabled = !custom;
-  sel.addEventListener('change', function(){
-    if (!def) return;
-    var box = def.box;
-    if (sel.value === 'half') box = { x: 0, y: 0, w: 16, h: 8 };
-    if (sel.value === 'bar') box = { x: 0, y: 0, w: 16, h: 3 };
-    if (sel.value === 'full') box = { x: 0, y: 0, w: 16, h: 16 };
-    if (sel.value === 'none') tool = tool === 'hitbox' ? 'pencil' : tool;
-    if (sel.value === 'custom') tool = 'hitbox';
-    updateTile(def.id, { collide: sel.value, box: box });
-    notify();
-    fillBody(spec);
-  });
-  field('Collision', sel);
-
-  if (!custom){
-    var note = document.createElement('div');
-    note.className = 'ed-tile-note';
-    note.textContent = 'Built-in tiles keep their game collision. Drop a PNG to make an editable tile.';
-    body.appendChild(note);
-    paintCanvas();
-    return;
+    if (!custom){
+      var bNote = document.createElement('div');
+      bNote.className = 'ed-tile-note';
+      bNote.textContent = 'Paint replaces the picture with a sprite. Built-in collision stays. Reset picture goes back to the old drawing.';
+      body.appendChild(bNote);
+    }
   }
 
   var actions = document.createElement('div');
@@ -620,35 +837,67 @@ function fillBody(spec){
   reimp.type = 'button';
   reimp.className = 'edb wide';
   reimp.textContent = 'Re-import PNG';
-  reimp.title = 'Replace this tile’s picture. A sheet uses the first 16×16 cell. Flags stay.';
+  reimp.title = sprite
+    ? 'Replace this frame, or a whole row if the sheet is a strip of frames.'
+    : 'Replace this tile’s picture. A sheet becomes animation frames. Flags stay.';
   reimp.addEventListener('click', function(){ fileInp.click(); });
   actions.appendChild(reimp);
 
-  var del = document.createElement('button');
-  del.type = 'button';
-  del.className = 'edb';
-  del.textContent = 'Delete';
-  del.addEventListener('click', function(){
-    if (!def) return;
-    wipeTileId(def.id);
-    removeTile(def.id);
-    notify();
-    closeTileEdit();
-  });
-  actions.appendChild(del);
+  if (sprite){
+    var rst = document.createElement('button');
+    rst.type = 'button';
+    rst.className = 'edb';
+    rst.textContent = 'Reset frame';
+    rst.title = 'Forget the painted frame; the game uses the old drawing again.';
+    rst.addEventListener('click', function(){
+      clearSpriteFrame(current.id, animId, frameI);
+      notify();
+      loadBuf(currentSrc(), function(){
+        fillSwatches();
+        syncTools();
+        paintStrips();
+      });
+    });
+    actions.appendChild(rst);
+  } else if (custom){
+    var del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'edb';
+    del.textContent = 'Delete';
+    del.addEventListener('click', function(){
+      if (!def) return;
+      wipeTileId(def.id);
+      removeTile(def.id);
+      notify();
+      closeTileEdit();
+    });
+    actions.appendChild(del);
+  } else {
+    var rstT = document.createElement('button');
+    rstT.type = 'button';
+    rstT.className = 'edb';
+    rstT.textContent = 'Reset picture';
+    rstT.addEventListener('click', function(){
+      clearTileGfx(current.id);
+      notify();
+      fillBody();
+    });
+    actions.appendChild(rstT);
+  }
   body.appendChild(actions);
 
-  loadBuf(def && def.src || spec.src, function(){
+  paintStrips();
+  loadBuf(currentSrc(), function(){
     fillSwatches();
     syncTools();
   });
-  bindPreview(can, spec);
+  bindPreview(can);
   syncTools();
 }
 
 if (root){
   root.addEventListener('dragover', function(e){
-    if (!current || !current.custom) return;
+    if (!current || !canPaint()) return;
     var dt = e.dataTransfer;
     if (!dt) return;
     e.preventDefault();
@@ -656,7 +905,7 @@ if (root){
     dt.dropEffect = 'copy';
   });
   root.addEventListener('drop', function(e){
-    if (!current || !current.custom) return;
+    if (!current || !canPaint()) return;
     var files = e.dataTransfer && e.dataTransfer.files;
     if (!files || !files.length) return;
     e.preventDefault();

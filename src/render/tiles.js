@@ -2,7 +2,7 @@ import GAME from '../core/game.js';
 import { hooks } from '../core/runtime.js';
 import { COVER_AIR, coverRaw, coverVarRaw, roomCoverA, rebuildRooms } from '../core/rooms.js';
 import { getLayers, layerShown, lastCollideIndex, layerTileRaw, layerVarRaw, layerDeco, isTileLayer, wrapSize, layerCssFilter } from '../core/layers.js';
-import { getTileDef, tileImage, isCustomId } from '../core/tileset.js';
+import { getTileDef, tileImage, tileFrameImage, tileFrameCount } from '../core/tileset.js';
 import { buildWater } from './fx.js';
 import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH, viewScale } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
@@ -42,9 +42,13 @@ function isFrontId(v){
   return !!(d && d.front);
 }
 function paintCustom(v, x, y){
-  if (!isCustomId(v)) return false;
-  var img = tileImage(v);
-  if (img) ctx.drawImage(img, 0, 0, 16, 16, Math.round(x), Math.round(y), T, T);
+  var n = tileFrameCount(v);
+  var img = n > 1
+    ? tileFrameImage(v, ((view.time * 8) | 0) % n)
+    : tileImage(v);
+  if (!img) return false;
+  ctx.drawImage(img, 0, 0, img.naturalWidth || 16, img.naturalHeight || 16,
+    Math.round(x), Math.round(y), T, T);
   return true;
 }
 function sAt(c, r){

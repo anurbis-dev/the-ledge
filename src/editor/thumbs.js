@@ -1,4 +1,5 @@
 import { P } from '../render/palette.js';
+import { getTileGfx } from '../core/tileset.js';
 
 function px(c, x, y, w, h, col){
   c.fillStyle = col;
@@ -8,7 +9,9 @@ function px(c, x, y, w, h, col){
 export function paintTileIcon(c, spec, s){
   c.clearRect(0, 0, s, s);
   var id = spec.id, k = s / 16;
-  if (spec.custom && spec.src){
+  var gfx = spec.src ? spec : (id ? getTileGfx(id) : null);
+  if (spec.custom && spec.src) gfx = spec;
+  if (gfx && gfx.src){
     c.fillStyle = spec.color || '#4a4069';
     c.fillRect(2, 2, s - 4, s - 4);
     return;
@@ -243,21 +246,23 @@ export function paintObjIcon(c, kind, s){
 var tileCache = {}, objCache = {};
 
 export function tileThumb(spec, size){
-  var key = spec.id + ':' + (spec.slope || '') + ':' + size + ':' + (spec.src ? spec.src.length : 0) + ':' + (spec.name || '');
+  var gfx = spec.src ? spec : (spec.id ? getTileGfx(spec.id) : null);
+  var src = (spec.src) || (gfx && gfx.src) || '';
+  var key = spec.id + ':' + (spec.slope || '') + ':' + size + ':' + src.length + ':' + (spec.name || '');
   if (tileCache[key]) return tileCache[key];
   var cv = document.createElement('canvas');
   cv.width = size; cv.height = size;
   var ctx = cv.getContext('2d');
   ctx.imageSmoothingEnabled = false;
   paintTileIcon(ctx, spec, size);
-  if (spec.custom && spec.src){
+  if (src){
     var img = new Image();
     img.onload = function(){
       ctx.clearRect(0, 0, size, size);
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(img, 0, 0, 16, 16, 0, 0, size, size);
+      ctx.drawImage(img, 0, 0, img.naturalWidth || 16, img.naturalHeight || 16, 0, 0, size, size);
     };
-    img.src = spec.src;
+    img.src = src;
     if (img.complete && img.naturalWidth) img.onload();
   }
   tileCache[key] = cv;

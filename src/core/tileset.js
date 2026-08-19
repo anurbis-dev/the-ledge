@@ -9,6 +9,7 @@ var KEY = 'ledge.dev.tiles';
 var tiles = [];
 var byId = {};
 var imgs = {};
+var gfx = {};
 var onChange = null;
 
 function cloneBox(b){
@@ -32,7 +33,8 @@ export function normalizeTile(t){
     box: cloneBox(t.box),
     oneWay: !!t.oneWay,
     climb: !!t.climb,
-    front: !!t.front
+    front: !!t.front,
+    frames: Array.isArray(t.frames) ? t.frames.filter(Boolean) : []
   };
 }
 
@@ -45,19 +47,43 @@ function rebuild(){
   }
 }
 
-function loadImg(t){
-  if (!t || !t.src) return;
-  if (imgs[t.id] && imgs[t.id]._src === t.src) return;
+function loadSrc(key, src){
+  if (!src) return;
+  if (imgs[key] && imgs[key]._src === src) return;
   var img = new Image();
-  img._src = t.src;
+  img._src = src;
   img.onload = function(){ if (onChange) onChange('img'); };
-  img.src = t.src;
-  imgs[t.id] = img;
+  img.src = src;
+  imgs[key] = img;
+}
+
+function loadImg(t){
+  if (!t) return;
+  if (t.frames && t.frames.length){
+    var i;
+    for (i = 0; i < t.frames.length; i++) loadSrc(t.id + ':' + i, t.frames[i]);
+    loadSrc(t.id, t.frames[0]);
+    return;
+  }
+  if (t.src) loadSrc(t.id, t.src);
+}
+
+function loadGfx(id){
+  var g = gfx[id];
+  if (!g) return;
+  if (g.frames && g.frames.length){
+    var i;
+    for (i = 0; i < g.frames.length; i++) loadSrc(id + ':' + i, g.frames[i]);
+    loadSrc(id, g.frames[0] || g.src);
+    return;
+  }
+  if (g.src) loadSrc(id, g.src);
 }
 
 function loadAllImgs(){
-  var i;
+  var i, id;
   for (i = 0; i < tiles.length; i++) loadImg(tiles[i]);
+  for (id in gfx) if (Object.prototype.hasOwnProperty.call(gfx, id)) loadGfx(id | 0);
 }
 
 function readLocal(){
@@ -65,21 +91,38 @@ function readLocal(){
     var raw = localStorage.getItem(KEY);
     if (!raw) return null;
     var o = JSON.parse(raw);
-    if (Array.isArray(o)) return o;
-    if (o && Array.isArray(o.tiles)) return o.tiles;
+    if (Array.isArray(o)) return { tiles: o, gfx: {} };
+    if (o && Array.isArray(o.tiles)) return { tiles: o.tiles, gfx: o.gfx || {} };
     return null;
   } catch (_){ return null; }
 }
 
 function writeLocal(){
-  try { localStorage.setItem(KEY, JSON.stringify({ tiles: tiles })); } catch (_){}
+  try { localStorage.setItem(KEY, JSON.stringify({ tiles: tiles, gfx: gfx })); } catch (_){}
+}
+
+function cloneGfx(src){
+  var out = {}, id, g;
+  if (!src) return out;
+  for (id in src){
+    if (!Object.prototype.hasOwnProperty.call(src, id)) continue;
+    g = src[id];
+    if (!g) continue;
+    out[id] = {
+      src: g.src || '',
+      frames: Array.isArray(g.frames) ? g.frames.filter(Boolean) : []
+    };
+  }
+  return out;
 }
 
 function boot(){
   var local = readLocal();
   var baked = (BAKED && BAKED.tiles) || [];
-  if (local && local.length) tiles = local.map(normalizeTile).filter(Boolean);
+  if (local && local.tiles && local.tiles.length) tiles = local.tiles.map(normalizeTile).filter(Boolean);
   else tiles = baked.map(normalizeTile).filter(Boolean);
+  if (local && local.gfx && Object.keys(local.gfx).length) gfx = cloneGfx(local.gfx);
+  else gfx = cloneGfx((BAKED && BAKED.tileGfx) || {});
   rebuild();
   loadAllImgs();
 }
@@ -96,9 +139,76 @@ export function getTileDef(id){ return byId[id] || null; }
 
 export function isCustomId(id){ return (id | 0) >= CUSTOM_BASE; }
 
-export function tileImage(id){
-  var img = imgs[id];
+function readyImg(key){
+  var img = imgs[key];
   return (img && img.complete && img.naturalWidth) ? img : null;
+}
+
+export function tileImage(id){
+  return readyImg(id);
+}
+
+export function tileFrameImage(id, i){
+  return readyImg(id + ':' + (i | 0)) || readyImg(id);
+}
+
+export function getTileGfx(id){
+  return gfx[id] || null;
+}
+
+export function tileFrameCount(id){
+  var t = byId[id];
+  if (t && t.frames && t.frames.length) return t.frames.length;
+  var g = gfx[id];
+  if (g && g.frames && g.frames.length) return g.frames.length;
+  if ((t && t.src) || (g && g.src)) return 1;
+  return 0;
+}
+
+export function tileFrameSrc(id, i){
+  var t = byId[id];
+  if (t && t.frames && t.frames.length)
+    return t.frames[(i | 0) % t.frames.length];
+  var g = gfx[id];
+  if (g && g.frames && g.frames.length)
+    return g.frames[(i | 0) % g.frames.length];
+  if (t && t.src) return t.src;
+  if (g && g.src) return g.src;
+  return '';
+}
+
+export function setTileGfx(id, patch){
+  id = id | 0;
+  if (id <= 0) return null;
+  var cur = gfx[id] || { src: '', frames: [] };
+  var next = {
+    src: patch && patch.src != null ? patch.src : cur.src,
+    frames: patch && patch.frames ? patch.frames.filter(Boolean) : cur.frames
+  };
+  if (next.frames && next.frames.length && !next.src) next.src = next.frames[0];
+  if (!next.src && !(next.frames && next.frames.length)){
+    delete gfx[id];
+    delete imgs[id];
+    emit('gfx');
+    return null;
+  }
+  gfx[id] = next;
+  loadGfx(id);
+  emit('gfx');
+  return next;
+}
+
+export function clearTileGfx(id){
+  id = id | 0;
+  if (!gfx[id]) return false;
+  delete gfx[id];
+  delete imgs[id];
+  emit('gfx');
+  return true;
+}
+
+export function snapshotGfx(){
+  return cloneGfx(gfx);
 }
 
 export function customSpecs(){
@@ -146,7 +256,8 @@ export function addTile(partial){
     box: partial && partial.box,
     oneWay: partial && partial.oneWay,
     climb: partial && partial.climb,
-    front: partial && partial.front
+    front: partial && partial.front,
+    frames: partial && partial.frames
   });
   tiles.push(t);
   rebuild();
@@ -192,32 +303,35 @@ export function canvasToPng(can){
   return can.toDataURL('image/png');
 }
 
-export function sliceSheet(img, name){
+export function sliceSheet(img, name, cellW, cellH){
+  cellW = cellW || 16;
+  cellH = cellH || 16;
   var w = img.naturalWidth || img.width;
   var h = img.naturalHeight || img.height;
-  var cols = Math.max(1, Math.floor(w / 16));
-  var rows = Math.max(1, Math.floor(h / 16));
-  if (w < 16 || h < 16){
+  var cols = Math.max(1, Math.floor(w / cellW));
+  var rows = Math.max(1, Math.floor(h / cellH));
+  if (w < cellW || h < cellH){
     cols = 1; rows = 1;
   }
-  var out = [], r, c, can, cx, sx, sy, dw, dh;
+  var out = [], r, c, can, cx, sx, sy;
   var base = (name || 'tile').replace(/\.[a-z0-9]+$/i, '');
   for (r = 0; r < rows; r++){
     for (c = 0; c < cols; c++){
       can = document.createElement('canvas');
-      can.width = 16; can.height = 16;
+      can.width = cellW; can.height = cellH;
       cx = can.getContext('2d');
       cx.imageSmoothingEnabled = false;
-      if (w < 16 || h < 16){
-        dw = w; dh = h;
-        cx.drawImage(img, 0, 0, w, h, 0, 0, 16, 16);
+      if (w < cellW || h < cellH){
+        cx.drawImage(img, 0, 0, w, h, 0, 0, cellW, cellH);
       } else {
-        sx = c * 16; sy = r * 16;
-        cx.drawImage(img, sx, sy, 16, 16, 0, 0, 16, 16);
+        sx = c * cellW; sy = r * cellH;
+        cx.drawImage(img, sx, sy, cellW, cellH, 0, 0, cellW, cellH);
       }
       out.push({
         name: cols * rows === 1 ? base : (base + ' ' + (r * cols + c + 1)),
-        src: canvasToPng(can)
+        src: canvasToPng(can),
+        col: c,
+        row: r
       });
     }
   }

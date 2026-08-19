@@ -107,7 +107,7 @@ function ensureGrip(root){
 }
 
 function isChrome(t){
-  return !!(t && t.closest && t.closest('button, .edb, input, textarea, select, .eye, .bn-field, a, canvas, .ed-tilegeo, .ed-tile-chip'));
+  return !!(t && t.closest && t.closest('button, .edb, input, textarea, select, .eye, .bn-field, a, canvas, .ed-tilegeo, .ed-tile-chip, .ed-tile-frame, .ed-tile-strips'));
 }
 
 export function bindFloat(root){
