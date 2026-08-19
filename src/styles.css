@@ -257,10 +257,10 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
 #menu,#menu *{font-family:'Press Start 2P','Courier New',monospace;-webkit-font-smoothing:none;font-smooth:never}
 #menu{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:12px;background:#07060f;padding:18px 12px;
-  text-align:center;opacity:1;transition:opacity .4s ease, transform .4s ease}
+  text-align:center;opacity:1;transition:opacity .42s ease, transform .42s ease}
 #menu.hide{display:none}
-#menu.from-splash{opacity:0;transform:translateY(18px)}
-#menu.from-splash-show{opacity:1;transform:none}
+#menu.from-splash{opacity:0;transform:translateY(24px)}
+#menu.from-splash-show{opacity:1;transform:translateY(0);transition-delay:.15s}
 .m-embers{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
 .m-fg{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;
   width:min(320px,84vw);gap:10px;padding:12px 10px 10px;background:#120c20}
@@ -309,11 +309,11 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
 #splash.hide{display:none}
 #splash.out{opacity:0;pointer-events:none}
 #splashCv{position:absolute;inset:0;width:100%;height:100%;display:block;opacity:0;pointer-events:none}
-.splash-title{position:absolute;left:50%;top:50%;transform:translate(-50%, -50%) translateY(18px);opacity:0;
+.splash-title{position:absolute;left:50%;top:50%;transform:translate(-50%, -50%);opacity:0;
   color:#ffd9a0;text-transform:uppercase;font-size:clamp(28px,7vw,60px);letter-spacing:.22em;line-height:1;
-  text-shadow:0 3px 0 #5a3323,0 0 0 2px #0d0a18;transition:opacity .75s ease, transform .7s ease}
-#splash.ready .splash-title{opacity:1;transform:translate(-50%, -50%) translateY(0)}
-#splash.advance .splash-title{opacity:.45;transform:translate(-50%, -50%) translateY(-42px) scale(.97)}
+  text-shadow:0 3px 0 #5a3323,0 0 0 2px #0d0a18;transition:opacity .2s ease, transform .5s ease}
+#splash.ready .splash-title{opacity:1}
+#splash.advance .splash-title{opacity:1;transform:translate(-50%, -50%) translateY(-32px)}
 .splash-title .the{font-size:.42em;font-weight:500;letter-spacing:.14em;opacity:.8;margin-right:.22em}
 .shint{position:absolute;left:0;right:0;bottom:14%;text-align:center;
   font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#6a628f;

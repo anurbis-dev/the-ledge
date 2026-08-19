@@ -31,7 +31,7 @@ export function showSplash(onDone){
     if (menu){
       menu.classList.remove('hide');
       menu.classList.add('from-splash');
-      requestAnimationFrame(function(){ menu.classList.add('from-splash-show'); });
+      setTimeout(function(){ menu.classList.add('from-splash-show'); }, 150);
     }
 
     root.classList.add('advance');
