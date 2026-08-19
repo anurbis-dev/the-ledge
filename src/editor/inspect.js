@@ -2,10 +2,11 @@ import { VOLUME_MASKS } from '../entities/volumes.js';
 import { initSliders, bindResetHover } from './slider.js';
 import { touchOp } from './history.js';
 import { raiseFloat, placeFloat, hasFloatPos } from './float.js';
+import { listSpriteDefs } from '../core/spriteset.js';
 
 var DEF = {
   sound: { mode: 'falloff', vol: 0.4, radius: 96, freq: 220, type: 'sine' },
-  light: { color: '#ffbe74', intensity: 1, radius: 82 },
+  light: { color: '#ffbe74', intensity: 1, radius: 82, sprite: 'lantern' },
   volume: { mode: 'color', mask: 'circle', hue: 0, sat: 1, bright: 0, contrast: 1, tint: '#88a0ff', tintAmt: 0.15 }
 };
 
@@ -122,9 +123,17 @@ function fillBody(sel){
     ], o.type || ds.type, function(v){ o.type = v; }, ds.type);
   } else if (sel.type === 'light'){
     var dl = DEF.light;
+    var sprOpts = [{ id: 'none', name: 'None' }];
+    var defs = listSpriteDefs(), di;
+    for (di = 0; di < defs.length; di++)
+      sprOpts.push({ id: defs[di].id, name: defs[di].name });
     color(body, 'Color', o.color, function(v){ o.color = v; }, dl.color);
     slider(body, 'Intensity', 0, 2, 0.05, o.intensity != null ? o.intensity : dl.intensity, function(v){ o.intensity = v; }, dl.intensity);
     slider(body, 'Radius', 8, 200, 1, o.radius || dl.radius, function(v){ o.radius = v; }, dl.radius);
+    select(body, 'Sprite', sprOpts, o.sprite || dl.sprite, function(v){
+      o.sprite = v;
+      o.lantern = v !== 'none';
+    }, dl.sprite);
   } else if (sel.type === 'volume'){
     var dv = DEF.volume;
     select(body, 'Mode', [{ id: 'color', name: 'Color correct' }], o.mode || dv.mode, function(v){ o.mode = v; }, dv.mode);

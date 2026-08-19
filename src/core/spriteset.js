@@ -64,6 +64,8 @@ export var SPRITE_DEFS = [
   { id: 'npc_hermit', name: 'Hermit', fw: 16, fh: 16, ox: 3, oy: 0, kind: 'npc_hermit',
     anims: [{ id: 'idle', name: 'Idle', n: 2 }] },
   { id: 'npc_wanderer', name: 'Wanderer', fw: 16, fh: 16, ox: 3, oy: 0, kind: 'npc_wanderer',
+    anims: [{ id: 'idle', name: 'Idle', n: 2 }] },
+  { id: 'lantern', name: 'Lantern', fw: 16, fh: 16, ox: 8, oy: 8, kind: 'light',
     anims: [{ id: 'idle', name: 'Idle', n: 2 }] }
 ];
 

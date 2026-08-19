@@ -290,9 +290,10 @@ function writeObjects(lv, S){
   });
   lv.items = function(){ return items.map(function(a){ return a.slice(); }); };
   lv.lights = (S.lights || []).map(function(L){
+    var sprite = L.sprite || (L.lantern === false ? 'none' : 'lantern');
     return {
       x: L.x, y: L.y, color: L.color, intensity: L.intensity,
-      radius: L.radius, lantern: L.lantern, id: L.id
+      radius: L.radius, lantern: sprite !== 'none', sprite: sprite, id: L.id
     };
   });
   lv.sounds = (S.sounds || []).map(function(s){

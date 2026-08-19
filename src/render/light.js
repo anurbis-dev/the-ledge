@@ -1,6 +1,7 @@
 import GAME from '../core/game.js';
 import { ctx, cam, view, VW, VH, lc, lx, rc, world, entA, pushEntA, popEntA } from './ctx.js';
 import { P } from './palette.js';
+import { spriteFrameImage, getSpriteDef, getFrameAnchor } from '../core/spriteset.js';
 
 var G = GAME, T = G.T;
 
@@ -23,6 +24,30 @@ function lightXY(L){
   if (L && L.x != null) return [L.x, L.y];
   if (Array.isArray(L)) return [L[0]*T+8, L[1]*T+8];
   return [0, 0];
+}
+
+function lightSpriteId(L){
+  if (L && L.sprite) return L.sprite;
+  if (L && L.lantern === false) return 'none';
+  return 'lantern';
+}
+
+function blitLightSprite(id, wx, wy, time, i){
+  var def = getSpriteDef(id);
+  if (!def) return false;
+  var anim = def.anims && def.anims[0] ? def.anims[0].id : 'idle';
+  var n = def.anims && def.anims[0] && def.anims[0].n ? def.anims[0].n : 1;
+  var fr = n > 1 && Math.sin(time * 9 + i) > 0 ? 1 : 0;
+  var img = spriteFrameImage(id, anim, fr) || spriteFrameImage(id, anim, 0);
+  if (!img) return false;
+  var origin = getFrameAnchor(id, anim, fr, 'origin');
+  var ox = origin ? origin.x : (def.ox || 0);
+  var oy = origin ? origin.y : (def.oy || 0);
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(img, Math.round(wx - ox), Math.round(wy - oy));
+  ctx.restore();
+  return true;
 }
 
 var _tp = null, _tpT = NaN;
@@ -80,12 +105,15 @@ export function lightPass(){
   }
   for (i = 0; i < LIGHTS.length; i++){
     L = LIGHTS[i];
-    if (L && (L.lantern === false || !pushEntA(L))) continue;
+    var sid = lightSpriteId(L);
+    if (sid === 'none' || !pushEntA(L)) continue;
     xy = lightXY(L);
     var wx2 = xy[0] - cam.x, wy2 = xy[1] - cam.y;
-    rc(wx2-1, wy2-6, 2, 8, P.woodD);
-    rc(wx2-2, wy2-9, 4, 4, L && L.color ? L.color : '#ffcf7a');
-    rc(wx2-1, wy2-11+Math.round(Math.sin(time*9+i)*1), 2, 3, '#fff3c4');
+    if (!blitLightSprite(sid, wx2, wy2, time, i)){
+      rc(wx2-1, wy2-6, 2, 8, P.woodD);
+      rc(wx2-2, wy2-9, 4, 4, L && L.color ? L.color : '#ffcf7a');
+      rc(wx2-1, wy2-11+Math.round(Math.sin(time*9+i)*1), 2, 3, '#fff3c4');
+    }
   }
   popEntA();
   for (i = 0; i < S.items.length; i++){

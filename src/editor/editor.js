@@ -338,13 +338,24 @@ function objPalForKind(kind){
 }
 function selectSpriteBrush(def){
   var pal = def ? objPalForKind(def.kind) : -1;
-  if (pal < 0){
-    if (def) openSpriteEdit(def);
-    return false;
-  }
+  if (pal < 0) return false;
   ED.tool = 'obj';
   ED.pal = pal;
   return true;
+}
+function spriteDefForHit(hit){
+  if (!hit || !hit.obj) return null;
+  var o = hit.obj, sid;
+  if (hit.type === 'light'){
+    sid = o.sprite;
+    if (!sid || sid === 'none') sid = 'lantern';
+    return getSpriteDef(sid) || spriteDefForKind('light');
+  }
+  if (hit.type === 'enemy') return spriteDefForKind('enemy' + o.kind);
+  if (hit.type === 'flier') return spriteDefForKind('flier' + o.kind);
+  if (hit.type === 'spider') return spriteDefForKind('spider' + o.kind);
+  if (hit.type === 'npc') return spriteDefForKind('npc_' + (o.tree || 'hermit'));
+  return spriteDefForKind(hit.type);
 }
 
 function setTab(tab){
@@ -507,7 +518,7 @@ function fillPal(){
     if (spr.length){
       var slab = document.createElement('div');
       slab.className = 'ed-pal-hint';
-      slab.textContent = 'Sprites — click foe/bird/spider/NPC to stamp; double-click to edit';
+      slab.textContent = 'Sprites — click to stamp; double-click to edit frames';
       edPal.appendChild(slab);
       var si;
       for (si = 0; si < spr.length; si++){
@@ -515,11 +526,9 @@ function fillPal(){
           var stamp = objPalForKind(def.kind) >= 0;
           var on = ED.tool === 'obj' && ED_OBJS[ED.pal] && ED_OBJS[ED.pal].kind === def.kind;
           var sw = swatch(edPal, spriteThumb(def, ED.icon), def.name, on, function(){
-            if (stamp) selectSpriteBrush(def);
-            else openSpriteEdit(def);
+            selectSpriteBrush(def);
           }, 'sprite', def.id);
-          if (stamp) sw.title = def.name + ' — drag onto canvas';
-          else sw.title = def.name + ' — double-click to edit frames';
+          sw.title = def.name + (stamp ? ' — click/drag to stamp · double-click to edit' : ' — double-click to edit frames');
           sw.addEventListener('dblclick', function(e){
             e.preventDefault(); e.stopPropagation();
             openSpriteEdit(def, e.clientX, e.clientY);
@@ -1176,9 +1185,11 @@ export function edExportText(){
     return '[' + e[0] + ',' + e[1] + ',' + e[2] + ']';
   }).join(',') + '],');
   out.push('lights: [' + (S.lights || []).map(function(L){
+    var lspr = L.sprite || (L.lantern === false ? 'none' : 'lantern');
     return '{x:' + Math.round(L.x) + ',y:' + Math.round(L.y) +
       ",color:'" + (L.color || '#ffbe74') + "',intensity:" + (L.intensity != null ? L.intensity : 1) +
-      ',radius:' + (L.radius || 82) + ',lantern:' + (L.lantern !== false) + '}';
+      ',radius:' + (L.radius || 82) + ',lantern:' + (lspr !== 'none') +
+      ",sprite:'" + lspr + "'}";
   }).join(',') + '],');
   out.push('sounds: [' + (S.sounds || []).map(function(s){
     return '{x:' + Math.round(s.x) + ',y:' + Math.round(s.y) +
@@ -1714,7 +1725,15 @@ function edUp(e){
 cv.addEventListener('pointerup', edUp);
 cv.addEventListener('pointercancel', edUp);
 cv.addEventListener('dblclick', function(e){
-  if (!ED.on || ED.tool !== 'tile') return;
+  if (!ED.on) return;
+  var wcell = edCell(e.clientX, e.clientY, true);
+  var sd = spriteDefForHit(findObjectAt(wcell.x, wcell.y));
+  if (sd){
+    e.preventDefault();
+    openSpriteEdit(sd, e.clientX, e.clientY);
+    return;
+  }
+  if (ED.tool !== 'tile') return;
   var cell = edCell(e.clientX, e.clientY);
   var deco = brushDeco(cell.c, cell.r);
   var v = deco || brushTile(cell.c, cell.r);
