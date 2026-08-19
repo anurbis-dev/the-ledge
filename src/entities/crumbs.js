@@ -20,18 +20,19 @@ export function stepCrumbs(S, dt){
     if (S.crumbT[k] <= 0){
       S.gone[k] = 1;                  // осыпался — навсегда, назад не восстанавливается
       delete S.crumbT[k];
-      S.shake = Math.max(S.shake, 3); S.p.events.push('crumble:' + k);
+      S.p.events.push('crumble:' + k);
     }
   }
 }
 export function crumbCheck(S, p){
-  var c, r;
+  var r;
   if (p.state === 'hang' && p.hang && tileAt(p.hang.tc, p.hang.tr) === CRUMB){
     touchCrumb(S, p.hang.tc, p.hang.tr);
     if (!solidTile(p.hang.tc, p.hang.tr)) releaseHang(p, 0);
   }
   if (p.onGround){
     r = Math.floor((p.y + p.h + 2) / T);
-    for (c = Math.floor(p.x / T); c <= Math.floor((p.x + p.w - 1) / T); c++) touchCrumb(S, c, r);
+    // опора = центр текущей коробки (поза / ящик), не край AABB
+    touchCrumb(S, Math.floor((p.x + p.w / 2) / T), r);
   }
 }

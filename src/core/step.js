@@ -3,8 +3,9 @@ import { runtime, setWorld } from './runtime.js';
 import { tileAt, rectFree, isWaterV, waterSurfaceY, ladderTile } from './map.js';
 import {
   moveX, moveY, damage, updateBars, ease, updateClimb, updateHang, updateLadder,
-  setStance, setH, slopeUnder, slopeGradeUnder, grounded, autoLadder, tryBars,
+  setStance, setH, slopeUnder, slopeUnderAt, slopeGradeUnder, grounded, autoLadder, tryBars,
   tryLadder, tryGrab, tryClimbOut, tryCrawlEdge, ladderTopUnder, attach, tryDescend,
+  footCenterX,
   markGap, canDescend, awayFromEdge, startFallRecover, finishFallRecover,
   finishGetup, stanceFitsAt, stanceH, applyHeroBox, applyRollBox
 } from './player.js';
@@ -451,7 +452,7 @@ export function step(S, dt, inp){
   var wasAir = !p.onGround, prevBottom = p.y + p.h, preX = p.x, preY = p.y;
   var slPre = null;
   if (!wasAir){                                  // встаём на склон ДО шага, иначе упрёмся в ступень
-    slPre = slopeUnder(p);
+    slPre = slopeUnderAt(p, footCenterX(p));
     if (slPre !== null) p.y = slPre - p.h;
   }
   if (!wasAir) pushBoulders(S, p, dt, inp);
@@ -477,7 +478,7 @@ export function step(S, dt, inp){
     if (slY !== null && !p.ride){
       p.y = slY - p.h;                   // держимся ровно на поверхности склона
     } else if (!p.ride){
-      var pq = platUnder(S, p, p.y + p.h + 1);
+      var pq = platUnder(S, { x: footCenterX(p) - 1, y: p.y, w: 2, h: p.h }, p.y + p.h + 1);
       if (pq && rectFree(p.x, pq.y - p.h, p.w, p.h)){ p.ride = pq; p.y = pq.y - p.h; }
       else p.y = Math.floor((p.y + p.h) / T) * T - p.h;
     } else if (p.ride && rectFree(p.x, p.ride.y - p.h, p.w, p.h)){

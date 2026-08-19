@@ -49,14 +49,43 @@ export function resetPlayer(S){
   S.p = np;
 }
 
+export function footCenterX(p){ return p.x + p.w * 0.5; }
+
+/* опора = центр текущей коробки (поза / ящик из редактора), не край AABB */
+function footSupported(p){
+  var cx = footCenterX(p);
+  return solidAt(cx, p.y + p.h) || solidAt(cx, p.y + p.h + 1);
+}
+
+/* свес: центр уже в воздухе — плитки ряда ступней не держат и не толкают назад */
+function rectFreeExceptFootLip(x, y, w, h, cx){
+  var c0 = Math.floor(x / T), c1 = Math.floor((x + w - 1) / T);
+  var r0 = Math.floor(y / T), r1 = Math.floor((y + h - 1) / T);
+  var footRow = Math.floor((y + h - 1) / T);
+  var centerOn = solidAt(cx, y + h - 1) || solidAt(cx, y + h);
+  var r, c;
+  for (r = r0; r <= r1; r++){
+    for (c = c0; c <= c1; c++){
+      if (!tileBlocks(c, r, y, h, x, w)) continue;
+      if (!centerOn && r === footRow) continue;
+      return false;
+    }
+  }
+  return true;
+}
+
 export function moveX(S, p, dx){
-  var oy = p.y;
+  var oy = p.y, cx, k;
   p.x += dx;
   if (!rectFree(p.x, p.y, p.w, p.h)){
-    // ступенька в 1-3px (стыки склонов): подсаживаем, а не блокируем
-    for (var k = 1; k <= 3; k++){
-      if (rectFree(p.x, p.y - k, p.w, p.h)){ p.y -= k; return; }
+    cx = footCenterX(p);
+    if (footSupported(p) || slopeUnderAt(p, cx) !== null){
+      for (k = 1; k <= 3; k++){
+        if (rectFree(p.x, p.y - k, p.w, p.h)){ p.y -= k; return; }
+      }
     }
+    if (rectFreeExceptFootLip(p.x, p.y, p.w, p.h, cx)) return;
+    if (!footSupported(p) && slopeUnderAt(p, cx) === null && rectFree(cx - 1, p.y, 2, p.h)) return;
     p.y = oy;
     if (dx > 0) p.x = Math.floor((p.x + p.w) / T) * T - p.w;
     else        p.x = Math.floor(p.x / T) * T + T;
@@ -66,20 +95,27 @@ export function moveX(S, p, dx){
 export function moveY(S, p, dy){
   var oldB = p.y + p.h;
   var prevVy = p.vy;
+  var cx, snapY, savedY, i, q;
   p.y += dy;
   if (!rectFree(p.x, p.y, p.w, p.h)){
-    if (dy > 0){ p.y = Math.floor((p.y + p.h) / T) * T - p.h; p.onGround = true; }
-    else {
-      p.y = Math.floor(p.y / T) * T + T;
-      if (prevVy < -36) p.events.push('bonk:' + Math.round(-prevVy));
+    if (dy > 0){
+      snapY = Math.floor((p.y + p.h) / T) * T - p.h;
+      savedY = p.y;
+      p.y = snapY;
+      if (grounded(S, p)){ p.onGround = true; p.vy = 0; p.ride = null; return; }
+      p.y = savedY;
+      return;
     }
+    p.y = Math.floor(p.y / T) * T + T;
+    if (prevVy < -36) p.events.push('bonk:' + Math.round(-prevVy));
     p.vy = 0; p.ride = null;
     return;
   }
   if (dy > 0){                                  // односторонние движущиеся платформы
-    for (var i = 0; i < S.plats.length; i++){
-      var q = S.plats[i];
-      if (p.x + p.w > q.x + 1 && p.x < q.x + q.w - 1 && oldB <= q.y + 1 && p.y + p.h >= q.y){
+    cx = footCenterX(p);
+    for (i = 0; i < S.plats.length; i++){
+      q = S.plats[i];
+      if (cx > q.x && cx < q.x + q.w && oldB <= q.y + 1 && p.y + p.h >= q.y){
         p.y = q.y - p.h; p.vy = 0; p.onGround = true; p.ride = q; return;
       }
     }
@@ -92,31 +128,35 @@ export function groundAhead(S, p, dir){
   return !!platUnder(S, probe, py);
 }
 export function ladderTopUnder(p, probeY){
-  var c0 = Math.floor((p.x + 1)/T), c1 = Math.floor((p.x + p.w - 2)/T);
-  for (var c = c0; c <= c1; c++){
-    var r = Math.floor(probeY / T);
-    if (ladderTop(c, r) && probeY >= r*T - 1 && probeY <= r*T + 7) return r*T;
-  }
+  var c = Math.floor(footCenterX(p) / T);
+  var r = Math.floor(probeY / T);
+  if (ladderTop(c, r) && probeY >= r*T - 1 && probeY <= r*T + 7) return r*T;
   return null;
 }
+export function slopeUnderAt(p, px){
+  var c = Math.floor(px / T), r = Math.floor((p.y + p.h + 1) / T);
+  var k, v, sy, best = null;
+  for (k = -1; k <= 1; k++){
+    v = tileAt(c, r + k);
+    if (!isSlopeV(v)) continue;
+    sy = (r + k)*T + slopeTop(v, c, px);
+    if (p.y + p.h >= sy - 12 && p.y + p.h <= sy + 20)
+      if (best === null || sy < best) best = sy;
+  }
+  return best;
+}
 export function slopeUnder(p){
-  // поверхность берём под центром — иначе на лесенке из скосов дёргает вверх
-  var best = null, px;
-  for (var i = 0; i <= 2; i++){
+  // 3 пробы — шаг по лесенке скосов; падение с края смотрит только центр коробки
+  var best = null, i, sy, px;
+  for (i = 0; i <= 2; i++){
     px = p.x + 1 + (p.w - 2) * (i / 2);
-    var c = Math.floor(px / T), r = Math.floor((p.y + p.h + 1) / T);
-    for (var k = -1; k <= 1; k++){
-      var v = tileAt(c, r + k);
-      if (!isSlopeV(v)) continue;
-      var sy = (r + k)*T + slopeTop(v, c, px);
-      if (p.y + p.h >= sy - 12 && p.y + p.h <= sy + 20)   // допускаем шаг вверх по склону
-        if (best === null || sy < best) best = sy;
-    }
+    sy = slopeUnderAt(p, px);
+    if (sy !== null && (best === null || sy < best)) best = sy;
   }
   return best;
 }
 export function slopeGradeUnder(p){
-  var px = p.x + p.w / 2;
+  var px = footCenterX(p);
   var c = Math.floor(px / T), r = Math.floor((p.y + p.h + 1) / T);
   for (var k = -1; k <= 1; k++){
     var v = tileAt(c, r + k);
@@ -128,11 +168,10 @@ export function slopeGradeUnder(p){
   return 0;
 }
 export function grounded(S, p, noLadTop){
-  if (slopeUnder(p) !== null) return true;
-  var midW = Math.max(2, Math.min(6, Math.ceil(p.w * 0.25)));
-  var midX = p.x + p.w / 2 - midW / 2;
-  if (!rectFree(midX, p.y + p.h, midW, 1)) return true;
-  if (platUnder(S, { x: midX, y: p.y, w: midW, h: p.h }, p.y + p.h + 1)) return true;
+  var cx = footCenterX(p);
+  if (slopeUnderAt(p, cx) !== null) return true;
+  if (footSupported(p)) return true;
+  if (platUnder(S, { x: cx - 1, y: p.y, w: 2, h: p.h }, p.y + p.h + 1)) return true;
   if (noLadTop) return false;
   return ladderTopUnder(p, p.y + p.h + 1) !== null;
 }
