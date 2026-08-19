@@ -232,7 +232,7 @@ export function bindFloat(root){
 }
 
 export function bindAllFloats(){
-  var ids = ['edLayers', 'edInspect', 'edChestList', 'edNpcTalk'];
+  var ids = ['edLayers', 'edInspect', 'edChestList', 'edNpcTalk', 'edBoulderSettings', 'edTileEdit'];
   for (var i = 0; i < ids.length; i++){
     var el = document.getElementById(ids[i]);
     if (el) bindFloat(el);

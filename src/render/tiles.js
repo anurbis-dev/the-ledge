@@ -1,6 +1,7 @@
 import GAME from '../core/game.js';
 import { hooks } from '../core/runtime.js';
-import { getLayers, layerShown, lastCollideIndex, layerTile, layerVar, isTileLayer, wrapSize, layerCssFilter } from '../core/layers.js';
+import { getLayers, layerShown, lastCollideIndex, layerTile, layerVar, layerDeco, isTileLayer, wrapSize, layerCssFilter } from '../core/layers.js';
+import { getTileDef, tileImage, isCustomId } from '../core/tileset.js';
 import { buildWater } from './fx.js';
 import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH, viewScale } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
@@ -11,6 +12,17 @@ var _L = null;
 
 function tAt(c, r){ return _L ? layerTile(_L, c, r) : G.tileAt(c, r); }
 function vAt(c, r){ return _L ? layerVar(_L, c, r) : G.varAt(c, r); }
+function dAt(c, r){ return _L ? layerDeco(_L, c, r) : (G.decoAt ? G.decoAt(c, r) : 0); }
+function isFrontId(v){
+  var d = getTileDef(v);
+  return !!(d && d.front);
+}
+function paintCustom(v, x, y){
+  if (!isCustomId(v)) return false;
+  var img = tileImage(v);
+  if (img) ctx.drawImage(img, 0, 0, 16, 16, Math.round(x), Math.round(y), T, T);
+  return true;
+}
 function sAt(c, r){
   if (!_L) return G.solidTile(c, r);
   var v = tAt(c, r);
@@ -157,6 +169,13 @@ function blitWaves(c, x, y, deep){
 }
 export function drawTile(c, r, x, y, dyn){
   var v = tAt(c, r);
+  if (!isFrontId(v)) paintTileId(v, c, r, x, y, dyn);
+  var d = dAt(c, r);
+  if (d && !isFrontId(d)) paintTileId(d, c, r, x, y, dyn);
+}
+function paintTileId(v, c, r, x, y, dyn){
+  if (!v) return;
+  if (paintCustom(v, x, y)) return;
   var time = view.time;
   var S = world();
   if (G.isLadV(v)){ drawLadder(c, r, v, x, y); return; }
@@ -532,7 +551,45 @@ export function tiles(){
   for (var i = 0; i <= end; i++) tilesLayer(ls[i]);
 }
 
+function drawFrontDecos(){
+  var ls = getLayers();
+  if (!ls.length){ drawFrontOn(null); return; }
+  var i;
+  for (i = 0; i < ls.length; i++){
+    if (!layerShown(ls[i], view.edit) || !isTileLayer(ls[i])) continue;
+    drawFrontOn(ls[i]);
+  }
+}
+function drawFrontOn(L){
+  var prev = _L;
+  _L = L || null;
+  var px = L && L.px != null ? L.px : 1;
+  var py = L && L.py != null ? L.py : 1;
+  var camx = cam.x * px, camy = cam.y * py;
+  var c0 = Math.max(G.mapMinC(), Math.floor(camx / T) - 1);
+  var c1 = Math.min(G.mapMaxC() - 1, Math.floor((camx + viewW()) / T) + 1);
+  var r0 = Math.max(G.mapMinR(), Math.floor(camy / T) - 1);
+  var r1 = Math.min(G.mapMaxR() - 1, Math.floor((camy + viewH()) / T) + 1);
+  var c, r, v, d;
+  var filt = layerCssFilter(L);
+  if (filt) ctx.filter = filt;
+  try {
+    for (r = r0; r <= r1; r++){
+      for (c = c0; c <= c1; c++){
+        v = tAt(c, r);
+        if (v && isFrontId(v)) paintTileId(v, c, r, c * T - camx, r * T - camy, true);
+        d = dAt(c, r);
+        if (d && isFrontId(d)) paintTileId(d, c, r, c * T - camx, r * T - camy, true);
+      }
+    }
+  } finally {
+    if (filt) ctx.filter = 'none';
+    _L = prev;
+  }
+}
+
 export function tilesFront(){
+  drawFrontDecos();
   var ls = getLayers();
   var last = lastCollideIndex();
   if (last < 0) return;

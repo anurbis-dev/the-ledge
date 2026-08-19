@@ -8,6 +8,11 @@ function px(c, x, y, w, h, col){
 export function paintTileIcon(c, spec, s){
   c.clearRect(0, 0, s, s);
   var id = spec.id, k = s / 16;
+  if (spec.custom && spec.src){
+    c.fillStyle = spec.color || '#4a4069';
+    c.fillRect(2, 2, s - 4, s - 4);
+    return;
+  }
   function r(x, y, w, h, col){ px(c, x * k, y * k, Math.max(1, w * k), Math.max(1, h * k), col); }
   if (id === 0){
     r(0, 0, 16, 16, '#1a1228');
@@ -140,6 +145,12 @@ export function paintObjIcon(c, kind, s){
   } else if (kind === 'flier0'){
     r(4, 6, 8, 5, '#6d5a8f'); r(5, 7, 6, 2, '#9b83c4'); r(10, 7, 2, 2, P.foeEye);
     r(2, 5, 3, 2, '#6d5a8f'); r(11, 5, 3, 2, '#6d5a8f'); r(12, 8, 2, 2, '#ffb060');
+  } else if (kind === 'flier1'){
+    r(4, 6, 8, 5, '#8f6d4a'); r(5, 7, 6, 2, '#c9a06a'); r(10, 7, 2, 2, P.foeEye);
+    r(2, 5, 3, 2, '#8f6d4a'); r(11, 5, 3, 2, '#8f6d4a'); r(12, 8, 2, 2, '#ffb060');
+  } else if (kind === 'flier2'){
+    r(4, 6, 8, 5, '#4a6d8f'); r(5, 7, 6, 2, '#7fa8cc'); r(10, 7, 2, 2, P.foeEye);
+    r(2, 5, 3, 2, '#4a6d8f'); r(11, 5, 3, 2, '#4a6d8f'); r(12, 8, 2, 2, '#ffb060');
   } else if (kind === 'flier3'){
     r(4, 6, 8, 5, '#8f2f3a'); r(5, 7, 6, 2, '#e06a6a'); r(10, 7, 2, 2, P.foeEye);
     r(1, 5, 4, 2, '#8f2f3a'); r(11, 4, 4, 2, '#8f2f3a'); r(12, 8, 2, 2, '#ffb060');
@@ -147,6 +158,16 @@ export function paintObjIcon(c, kind, s){
     r(6, 7, 4, 4, '#3b2f4a'); r(7, 8, 2, 2, '#c9a0ff');
     r(3, 7, 3, 1, '#3b2f4a'); r(10, 7, 3, 1, '#3b2f4a');
     r(4, 10, 2, 2, '#3b2f4a'); r(10, 10, 2, 2, '#3b2f4a');
+    r(7, 2, 1, 5, '#d0dce8');
+  } else if (kind === 'spider1'){
+    r(6, 7, 4, 4, '#6b2f3a'); r(7, 8, 2, 2, '#ff9a7a');
+    r(3, 7, 3, 1, '#6b2f3a'); r(10, 7, 3, 1, '#6b2f3a');
+    r(4, 10, 2, 2, '#6b2f3a'); r(10, 10, 2, 2, '#6b2f3a');
+    r(7, 2, 1, 5, '#d0dce8');
+  } else if (kind === 'spider2'){
+    r(6, 7, 4, 4, '#2f4a3b'); r(7, 8, 2, 2, '#9fe0a0');
+    r(3, 7, 3, 1, '#2f4a3b'); r(10, 7, 3, 1, '#2f4a3b');
+    r(4, 10, 2, 2, '#2f4a3b'); r(10, 10, 2, 2, '#2f4a3b');
     r(7, 2, 1, 5, '#d0dce8');
   } else if (kind === 'tendril0'){
     r(7, 12, 2, 3, '#1c5a32'); r(6, 8, 3, 5, '#2f8a4a'); r(7, 3, 2, 6, '#d4de6a'); r(7, 2, 1, 2, '#f2f0a8');
@@ -188,11 +209,32 @@ export function paintObjIcon(c, kind, s){
   } else if (kind === 'key'){
     r(6, 3, 5, 5, '#160f26'); r(7, 4, 3, 3, P.key);
     r(8, 8, 2, 6, P.key); r(9, 10, 3, 1, P.keyD); r(9, 12, 2, 1, P.keyD);
+  } else if (kind === 'relic'){
+    r(4, 2, 8, 12, P.relicD); r(5, 3, 6, 10, P.relic); r(6, 6, 4, 4, '#fff');
+  } else if (kind === 'tank'){
+    r(6, 3, 4, 10, '#8a94a0'); r(7, 2, 2, 2, '#8a94a0');
+    r(7, 1, 2, 1, '#cfeaff'); r(7, 5, 2, 6, '#5a6874');
   } else if (kind === 'helmet' || kind === 'shield' || kind === 'sword' ||
              kind === 'scuba' || kind === 'flippers' || kind === 'harpoon' || kind === 'bow'){
     var gk = kind === 'helmet' ? 'ihelm' : kind === 'shield' ? 'ishield' : kind;
     var gc = P.gearCol[gk] || ['#cfc6ff', '#8f88bb'];
-    r(3, 3, 10, 10, gc[1]); r(4, 4, 8, 8, gc[0]);
+    if (kind === 'helmet'){
+      r(4, 3, 8, 5, gc[1]); r(3, 8, 10, 3, gc[0]); r(5, 4, 2, 2, '#1a1220'); r(9, 4, 2, 2, '#1a1220');
+    } else if (kind === 'shield'){
+      r(4, 2, 8, 12, gc[0]); r(5, 3, 6, 10, gc[1]); r(4, 2, 8, 2, '#ffe9a8'); r(7, 6, 2, 4, gc[0]);
+    } else if (kind === 'sword'){
+      r(7, 1, 2, 10, gc[0]); r(7, 11, 2, 1, gc[1]); r(5, 12, 6, 2, gc[1]); r(7, 14, 2, 1, gc[1]);
+      r(8, 2, 1, 8, '#ffffff');
+    } else if (kind === 'scuba'){
+      r(5, 2, 6, 11, gc[0]); r(11, 5, 3, 5, gc[1]); r(7, 1, 2, 2, gc[1]);
+    } else if (kind === 'flippers'){
+      r(3, 6, 10, 4, gc[0]); r(2, 9, 4, 4, gc[1]); r(10, 9, 4, 4, gc[1]);
+    } else if (kind === 'harpoon'){
+      r(1, 7, 12, 2, gc[0]); r(1, 9, 12, 1, gc[1]); r(12, 5, 3, 3, gc[0]); r(13, 4, 2, 2, '#c9d4dc');
+    } else {
+      r(8, 2, 2, 12, gc[1]); r(5, 3, 3, 1, gc[0]); r(10, 3, 3, 1, gc[0]);
+      r(4, 12, 4, 1, gc[0]); r(10, 12, 4, 1, gc[0]); r(7, 7, 2, 2, P.string);
+    }
   } else {
     r(4, 4, 8, 8, '#cfc6ff');
   }
@@ -201,13 +243,23 @@ export function paintObjIcon(c, kind, s){
 var tileCache = {}, objCache = {};
 
 export function tileThumb(spec, size){
-  var key = spec.id + ':' + (spec.slope || '') + ':' + size;
+  var key = spec.id + ':' + (spec.slope || '') + ':' + size + ':' + (spec.src ? spec.src.length : 0) + ':' + (spec.name || '');
   if (tileCache[key]) return tileCache[key];
   var cv = document.createElement('canvas');
   cv.width = size; cv.height = size;
   var ctx = cv.getContext('2d');
   ctx.imageSmoothingEnabled = false;
   paintTileIcon(ctx, spec, size);
+  if (spec.custom && spec.src){
+    var img = new Image();
+    img.onload = function(){
+      ctx.clearRect(0, 0, size, size);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(img, 0, 0, 16, 16, 0, 0, size, size);
+    };
+    img.src = spec.src;
+    if (img.complete && img.naturalWidth) img.onload();
+  }
   tileCache[key] = cv;
   return cv;
 }

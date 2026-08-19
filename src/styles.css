@@ -190,6 +190,18 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
 .ed-field select,.ed-field input[type=color]{background:#150f26;color:#e9e4ff;border:1px solid #3a3460;
   border-radius:4px;font:inherit;font-size:11px;height:22px}
 #edInspectBody{padding:6px;display:flex;flex-direction:column;gap:5px}
+.ed-tileedit{width:260px;max-height:calc(100vh - 200px)}
+#edTileEditBody{padding:6px;display:flex;flex-direction:column;gap:6px}
+.ed-tilegeo{width:100%;height:auto;aspect-ratio:1;image-rendering:pixelated;image-rendering:crisp-edges;
+  background:#1a1228;border:1px solid #3a3460;border-radius:4px;cursor:crosshair;touch-action:none}
+.ed-tile-note{font-size:10px;color:#6a628f;line-height:1.35}
+.ed-swatch.deco{box-shadow:inset 0 -2px 0 #7fc47f}
+.ed-swatch.deco::after{content:"";position:absolute;right:2px;top:2px;width:5px;height:5px;
+  border-radius:50%;background:#7fc47f;box-shadow:0 0 0 1px #0d0a18}
+.ed-swatch{position:relative}
+.ed-pal-hint{flex:0 0 100%;font-size:10px;color:#6a628f;padding:2px 0 0}
+.ed-field input[type=text]{background:#150f26;color:#e9e4ff;border:1px solid #3a3460;
+  border-radius:4px;font:inherit;font-size:11px;height:22px;width:120px;padding:0 6px}
 #edGhost{position:fixed;z-index:30;pointer-events:none;opacity:.9}
 #edGhost canvas{image-rendering:pixelated;image-rendering:crisp-edges;
   box-shadow:0 4px 12px #000a;border:1px solid #ffd9a0}
@@ -238,9 +250,9 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
 .mrow.done .mnum{background:#3f7a4a;color:#d8ffd8}
 .mrow .map-ic{margin-left:auto;width:9px;height:9px;color:#8f88bb}
 .mfoot{margin-top:8px;font-size:8px;letter-spacing:.14em;color:#6a628f}
-.mset{display:flex;flex-direction:column;gap:12px;width:100%;text-align:left}
-.mset-row{display:flex;flex-direction:column;gap:4px}
-.mset-top{display:flex;align-items:center;gap:8px;font-size:12px;color:#cfc6ff}
+.mset{display:flex;flex-direction:column;gap:7px;width:100%;text-align:left}
+.mset-row{flex-direction:column;align-items:stretch;gap:8px;cursor:default}
+.mset-top{display:flex;align-items:center;gap:8px;font-size:13px;color:#e9e4ff;letter-spacing:.08em}
 .mset-top .val{margin-left:auto;color:#ffd9a0;font-size:11px}
 .mset-row input[type=range]{width:100%;accent-color:#e0563c}
 .mcred{display:flex;flex-direction:column;gap:8px;padding:10px 4px;

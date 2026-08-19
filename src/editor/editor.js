@@ -835,12 +835,6 @@ export function edApply(cell, isClick){
     var spec = palSpec();
     if (!spec) return;
     if (spec.overlay && !ED.cover){
-      if (isClick && ED.clickCell === key && ED.clickBrush === ED.pal &&
-          brushDeco(cell.c, cell.r) === spec.id){
-        G.setDeco(cell.c, cell.r, 0);
-        markLevelDirty();
-        return;
-      }
       G.setDeco(cell.c, cell.r, spec.id);
       markLevelDirty();
       return;
@@ -1443,8 +1437,23 @@ cv.addEventListener('pointerdown', function(e){
   closeNpcTalk();
   closeBoulderSettings();
   if (e.ctrlKey || e.metaKey){
-    eyedrop(e, cell, wcell);
+    if (ED.tool !== 'tile' || ED.cover){
+      eyedrop(e, cell, wcell);
+      return;
+    }
+    ED.ctrlGest = { x: e.clientX, y: e.clientY, cell: cell, wcell: wcell };
+    ED.boxing = null;
+    try { cv.setPointerCapture(e.pointerId); } catch(_){}
     return;
+  }
+  if (ED.selTiles && ED.tool === 'tile' && !ED.cover && inSelTiles(cell.c, cell.r)){
+    beginOp();
+    beginMoveSel(cell);
+    try { cv.setPointerCapture(e.pointerId); } catch(_){}
+    return;
+  }
+  if (ED.selTiles){
+    ED.selTiles = null;
   }
   ED.stampCover = !!e.altKey;
   var S0 = world();
@@ -1496,6 +1505,17 @@ cv.addEventListener('pointermove', function(e){
   var cell = edCell(e.clientX, e.clientY, ED.tool === 'obj');
   var wcell = edCell(e.clientX, e.clientY, true);
   ED.hover = cell;
+  if (ED.ctrlGest){
+    if (Math.abs(e.clientX - ED.ctrlGest.x) > 4 || Math.abs(e.clientY - ED.ctrlGest.y) > 4){
+      var a = ED.ctrlGest.cell;
+      ED.boxing = { c0: a.c, r0: a.r, c1: cell.c, r1: cell.r };
+    }
+    return;
+  }
+  if (ED.moving){
+    applyMoveSel(cell);
+    return;
+  }
   if (ED.pendHit){
     if (Math.abs(e.clientX - ED.pendHit.x) > 4 || Math.abs(e.clientY - ED.pendHit.y) > 4){
       var ph = ED.pendHit;
@@ -1539,6 +1559,17 @@ cv.addEventListener('pointermove', function(e){
 });
 function edUp(e){
   if (e && e.pointerId === ED.panId) ED.panId = -1;
+  if (ED.ctrlGest){
+    if (ED.boxing) ED.selTiles = normBox(ED.boxing);
+    else if (e && e.type === 'pointerup') eyedrop(e, ED.ctrlGest.cell, ED.ctrlGest.wcell);
+    ED.ctrlGest = null;
+    ED.boxing = null;
+  }
+  if (ED.moving){
+    if (world()) G.buildGates(world());
+    buildWater();
+    ED.moving = null;
+  }
   if (e && e.type === 'pointerup' && ED.pendHit){
     var ph = ED.pendHit.hit;
     if (ph && (ph.type === 'chest' || ph.type === 'enemy' || ph.type === 'flier') && ED.pendHit.single)
@@ -1560,6 +1591,19 @@ function edUp(e){
 }
 cv.addEventListener('pointerup', edUp);
 cv.addEventListener('pointercancel', edUp);
+cv.addEventListener('dblclick', function(e){
+  if (!ED.on || ED.tool !== 'tile') return;
+  var cell = edCell(e.clientX, e.clientY);
+  var deco = brushDeco(cell.c, cell.r);
+  var v = deco || brushTile(cell.c, cell.r);
+  var pal = findTilePal(v);
+  var spec = palTiles()[pal];
+  if (spec && spec.id){
+    ED.pal = pal;
+    openTileEdit(spec, e.clientX, e.clientY);
+    edRefresh();
+  }
+});
 cv.addEventListener('contextmenu', function(e){ if (ED.on) e.preventDefault(); });
 cv.addEventListener('auxclick', function(e){ if (ED.on) e.preventDefault(); });
 cv.addEventListener('wheel', function(e){
@@ -1662,6 +1706,15 @@ addEventListener('keydown', function(e){
     e.preventDefault();
     toggleGeo();
   }
+  if (ED.on && (e.key === 'Delete' || e.key === 'Backspace') && ED.selTiles && ED.tool === 'tile'){
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    e.preventDefault();
+    beginOp();
+    eraseSelTiles();
+    ED.selTiles = null;
+    endOp();
+    return;
+  }
   if (ED.on && e.key === 'Delete' && ED.sel && ED.sel.obj){
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
     e.preventDefault();
@@ -1683,6 +1736,78 @@ var bRedo = document.getElementById('edRedo');
 if (bUndo) bUndo.addEventListener('click', function(){ undoOp(); });
 if (bRedo) bRedo.addEventListener('click', function(){ redoOp(); });
 syncUndoBtns();
+
+function isImageFile(f){
+  return !!(f && (f.type && f.type.indexOf('image/') === 0 || /\.(png|gif|webp|jpe?g)$/i.test(f.name || '')));
+}
+function importImageFiles(files){
+  var list = [], i;
+  for (i = 0; i < files.length; i++) if (isImageFile(files[i])) list.push(files[i]);
+  if (!list.length) return Promise.resolve();
+  setTab('tile');
+  var chain = Promise.resolve(), added = [];
+  list.forEach(function(file){
+    chain = chain.then(function(){
+      return loadImageFile(file).then(function(img){
+        var slices = sliceSheet(img, file.name);
+        var j, jobs = [];
+        for (j = 0; j < slices.length; j++){
+          jobs.push((function(sl){
+            return guessOverlay(sl.src).then(function(ov){
+              var t = addTile({
+                name: sl.name,
+                src: sl.src,
+                overlay: ov,
+                collide: ov ? 'none' : 'full'
+              });
+              if (t) added.push(t);
+            });
+          })(slices[j]));
+        }
+        return Promise.all(jobs);
+      });
+    });
+  });
+  return chain.then(function(){
+    if (!added.length) return;
+    var tiles = palTiles();
+    ED.pal = Math.max(0, tiles.length - added.length);
+    ED.tool = 'tile';
+    clearThumbCache();
+    invalidateAll();
+    edRefresh();
+    if (added[0]) openTileEdit({
+      name: added[0].name, id: added[0].id, custom: true,
+      overlay: added[0].overlay, src: added[0].src
+    });
+  }).catch(function(){});
+}
+function onEditorDragOver(e){
+  if (!ED.on) return;
+  var dt = e.dataTransfer;
+  if (!dt) return;
+  var has = false, i;
+  if (dt.types){
+    for (i = 0; i < dt.types.length; i++)
+      if (dt.types[i] === 'Files') has = true;
+  }
+  if (!has) return;
+  e.preventDefault();
+  dt.dropEffect = 'copy';
+}
+function onEditorDrop(e){
+  if (!ED.on) return;
+  var files = e.dataTransfer && e.dataTransfer.files;
+  if (!files || !files.length) return;
+  var any = false, i;
+  for (i = 0; i < files.length; i++) if (isImageFile(files[i])) any = true;
+  if (!any) return;
+  e.preventDefault();
+  e.stopPropagation();
+  importImageFiles(files);
+}
+window.addEventListener('dragover', onEditorDragOver);
+window.addEventListener('drop', onEditorDrop);
 
 function deleteSelected(){
   var S = world();

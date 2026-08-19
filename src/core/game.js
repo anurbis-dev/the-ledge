@@ -5,7 +5,7 @@ import {
   SLL4A, SLL4B, SLL4C, SLL4D, SLRCA, SLRCB, SLLCB, SLLCA, PLANK, GIVE
 } from './constants.js';
 import { runtime, setWorld, hooks, ensureMap, mapIx, inMap, mapMinC, mapMaxC, mapMinR, mapMaxR } from './runtime.js';
-import { getActiveLayer, getLayers, isTileLayer, wrapIndex, ensureStamp } from './layers.js';
+import { getActiveLayer, getLayers, isTileLayer, wrapIndex, ensureStamp, ensureDeco } from './layers.js';
 import { COVER_AIR, ensureCover, coverRaw, coverVarRaw } from './rooms.js';
 import {
   isHalfV, isBarV, ladderTop, isSlopeV, isWaterV, isFlowV, isWetV, slopeSurfaceY,
@@ -100,6 +100,36 @@ function setVar(c, r, v){
   return true;
 }
 
+function setDeco(c, r, v){
+  var L = getActiveLayer();
+  if (L && L.locked) return false;
+  if (L && !isTileLayer(L)) return false;
+  if (L && L.wrap){
+    ensureStamp(L);
+    if (!L.stampDeco) L.stampDeco = new Uint8Array(L.stamp.length);
+    L.stampDeco[wrapIndex(L, c, r)] = v;
+    L._stampCan = null;
+    if (hooks.onSetTile) hooks.onSetTile(c, r);
+    return true;
+  }
+  if (!inMap(c, r) && !v) return false;
+  ensureMap(c, r);
+  if (!inMap(c, r)) return false;
+  ensureDeco(L);
+  var buf = L && L.deco ? L.deco : null;
+  if (!buf) return false;
+  buf[mapIx(c, r)] = v;
+  if (hooks.onSetTile) hooks.onSetTile(c, r);
+  return true;
+}
+function decoAt(c, r){
+  var L = getActiveLayer();
+  if (!L) return 0;
+  if (L.wrap && L.stampDeco) return L.stampDeco[wrapIndex(L, c, r)] || 0;
+  if (!L.deco || !inMap(c, r)) return 0;
+  return L.deco[mapIx(c, r)] || 0;
+}
+
 function setCover(c, r, v){
   var L = getActiveLayer();
   if (L && L.locked) return false;
@@ -173,6 +203,7 @@ export const GAME = {
   tileAt, isSolidV, isLadV,
   solidTile, ladderTile, solidAt, ladderAt,
   setTile, varAt, setVar, varR,
+  setDeco, decoAt,
   COVER_AIR, setCover, setCoverVar, coverRaw, coverVarRaw,
   buildGates: function(S){ buildGates(S); },
   mkItemAt, mkEnemyAt, mkFlierAt, mkSpiderAt, mkTorchAt, mkChestAt, mkTendrilAt,
