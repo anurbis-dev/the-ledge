@@ -535,7 +535,7 @@ function frame(now){
       }
       else if (gameOver){ gameOver.t += dt; drawDead(gameOver); }
       else if (isInvOpen()) drawInventory();
-      else drawPaused();
+      else if (paused) drawPaused();
     });
     popCamRender(ovPrev);
     requestAnimationFrame(frame);

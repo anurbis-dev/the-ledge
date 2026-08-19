@@ -1,4 +1,4 @@
-import { ctx, VW, VH, cam } from './ctx.js';
+import { ctx, VW, VH, cam, rc } from './ctx.js';
 
 export var FOLD_AXIS = 0.15;
 
@@ -26,8 +26,14 @@ export function foldBlit(src, pw, ph, ox, oy, px, py, fold){
   if (sc.sx <= 0 || sc.sy <= 0) return;
   var dw = Math.max(1, Math.round(pw * sc.sx));
   var dh = Math.max(1, Math.round(ph * sc.sy));
+  if (dw < 2 || dh < 2) return;
   var dx = Math.round(ox + (px - ox) * sc.sx);
   var dy = Math.round(oy + (py - oy) * sc.sy);
+  // узкий nearest-neighbor блит панели — шум; рисуем складку
+  if (dw < 8){
+    rc(dx, dy, dw, dh, '#6a5fa8');
+    return;
+  }
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(src, 0, 0, pw, ph, dx, dy, dw, dh);
 }
