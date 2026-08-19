@@ -1,3 +1,7 @@
+## 0.1.2-dev.13
+
+- Публичная сборка на GitHub Pages: `https://anurbis-dev.github.io/the-ledge/` (`pages.yml` → `dist/`).
+
 ## 0.1.2-dev.12
 
 - Перекат всегда берёт позу `roll`/`ROLLP`: присед, лёжа и lerp стойки больше не крутятся вместо клубка.
