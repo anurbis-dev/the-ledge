@@ -46,6 +46,16 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
   background:#0d0a18f2;border:2px solid #3a3460;border-radius:8px;
   box-shadow:0 10px 40px #000a;overflow:hidden}
 #edbar.on{display:flex}
+.ed-float,
+.ed-float *,
+#edbar,
+#edbar *,
+#edout,
+#edout *{
+  font-family:Segoe UI,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  font-smooth:auto;
+}
 .ed-resize{flex:0 0 8px;cursor:ns-resize;background:#241d3d}
 .ed-resize:hover,.ed-resize:active{background:#4d3f86}
 .ed-head{display:flex;align-items:center;gap:8px;padding:4px 6px;
