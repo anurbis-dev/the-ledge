@@ -4,9 +4,9 @@ import { tileAt, rectFree, isWaterV, waterSurfaceY, ladderTile } from './map.js'
 import {
   moveX, moveY, damage, updateBars, ease, updateClimb, updateHang, updateLadder,
   setStance, setH, slopeUnder, slopeGradeUnder, grounded, autoLadder, tryBars,
-  tryLadder, tryGrab, tryClimbOut, tryCrawlEdge, ladderTopUnder, attach, tryDescend, tryMantle,
-  tryEnterGap, markGap, canDescend, awayFromEdge, startFallRecover, finishFallRecover,
-  finishGetup, stanceFitsAt, groundAhead
+  tryLadder, tryGrab, tryClimbOut, tryCrawlEdge, ladderTopUnder, attach, tryDescend,
+  markGap, canDescend, awayFromEdge, startFallRecover, finishFallRecover,
+  finishGetup, stanceFitsAt
 } from './player.js';
 import { stepPlats, platUnder } from '../entities/plats.js';
 import { stepLifts, inLift, liftConstrain } from '../entities/lifts.js';
@@ -201,8 +201,10 @@ export function step(S, dt, inp){
   var onLadTop = ladderTopUnder(p, p.y + p.h + 1) !== null;
   var stanceBefore = p.stance;
   var onEdge = p.onGround && !inCab && !onLadTop && !p.inWater && canDescend(p, inp.x);
+  var crouchMove = p.stance === 1 && (inp.x !== 0 || Math.abs(p.vx) > 8);
+  var crouchRoll = crouchMove && (inp.downHeld || inp.downPressed);
   if (!talking && !rolling && p.onGround && !inCab && !onLadTop && !p.inWater && p.stanceT <= 0 && p.pickT <= 0){
-    if (inp.downPressed && p.stance < 2 && Math.abs(p.vx) <= 58) setStance(S, p, p.stance + 1);
+    if (inp.downPressed && p.stance < 2 && Math.abs(p.vx) <= 58 && !crouchRoll) setStance(S, p, p.stance + 1);
     else if (!onEdge && inp.downHeld && p.stance === 0 && Math.abs(p.vx) <= 58) setStance(S, p, 1);
     if ((inp.upPressed || inp.upHeld || inp.jumpPressed) && p.stance > 0){
       if (setStance(S, p, p.stance - 1)) { p.buf = 0; }   // удержание ↑ — шаг стойки после анимации
@@ -232,6 +234,14 @@ export function step(S, dt, inp){
   markGap(p);
 
   if (rolling && p.inWater){ p.rollT = 0; setStance(S, p, 0); rolling = false; }
+  // присед + ход + вниз — катимся (не ложимся и не слезаем с края)
+  if (!rolling && !talking && p.onGround && !inCab && !onLadTop && !p.inWater && p.rollCd <= 0 &&
+      stanceBefore === 1 && p.stance === 1 && crouchRoll){
+    if (inp.x !== 0) p.facing = inp.x > 0 ? 1 : -1;
+    else if (p.vx !== 0) p.facing = p.vx > 0 ? 1 : -1;
+    p.rollT = C.ROLL_T; setH(p, C.RH); p.events.push('roll');
+    rolling = true;
+  }
   if (rolling){
     p.rollT -= dt;
     if (inp.x !== 0){ p.facing = inp.x > 0 ? 1 : -1; }
@@ -269,19 +279,8 @@ export function step(S, dt, inp){
         if (edge === -1) p.vx = 0;                                   // упёрлись
       }
       var blocked = !rectFree(p.x + p.facing*2, p.y, p.w, p.h) && slopeUnder(p) === null;
-      var wasVx = p.vx;
       if (blocked) p.vx = 0;                      // упор в стену — не толкаемся (на склоне не мешаем)
-      // паркур на ступень +1 тайл всегда; через пропасть в 1 тайл со схода с обрыва — только с разбега
-      var wantParkour = stanceBefore === 0 && p.stance === 0 &&
-        (blocked || (p.onGround && !groundAhead(S, p, p.facing) && Math.abs(wasVx) > C.RUN * 0.75));
-      if (wantParkour && tryMantle(S, p, p.facing, wasVx)){
-        crumbCheck(S, p); pickups(S, p);
-        return;
-      }
-      if (wantParkour && tryEnterGap(S, p, p.facing, wasVx)){
-        if (p.state === 'climb'){ crumbCheck(S, p); pickups(S, p); return; }
-      }
-      if (blocked && stanceBefore === 0 && p.stance === 0) wallBlocked = true;  // паркур не взял — упёрлись руками в стену
+      if (blocked && stanceBefore === 0 && p.stance === 0) wallBlocked = true;
 
     } else {
       var f = C.FRIC * dt;

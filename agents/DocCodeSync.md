@@ -43,4 +43,4 @@ You are **DocCodeSync** for **the LEDGE**. Docs must match code; code is source 
 - Follow-up validation
 
 ## Terminology to preserve
-`GAME`, `runtime`, `LV` / `W`, `base`, `cover`, `tryMantle`, bake/`defaults.js`, wing `the_ledge`, canon `tmp/ledge-v19.html`
+`GAME`, `runtime`, `LV` / `W`, `base`, `cover`, bake/`defaults.js`, wing `the_ledge`, canon `tmp/ledge-v19.html`
