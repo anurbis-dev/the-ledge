@@ -7,7 +7,7 @@ import { settingsSnapshot } from '../ui/settings.js';
 import { mixSnapshot, scoreSnapshot } from '../audio/music.js';
 import { talkSnapshot } from '../audio/talk.js';
 import { snapshotTiles, snapshotGfx } from './tileset.js';
-import { snapshotSprites } from './spriteset.js';
+import { snapshotSpriteAnchors } from './spriteset.js';
 import { runtime } from './runtime.js';
 
 var bakeT = null;
@@ -20,7 +20,7 @@ export function collectAuto(){
     levels: levelsStoreSnapshot(),
     tiles: snapshotTiles(),
     tileGfx: snapshotGfx(),
-    sprites: snapshotSprites(),
+    sprites: snapshotSpriteAnchors(),
     savedAt: localSavedAt()
   };
   var params = paramsSnapshot();

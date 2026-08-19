@@ -159,6 +159,20 @@ export function fitHeroBox(p, w, h){
   }
   return false;
 }
+function forceHeroBox(p, w, h){
+  var btm, cx, nx;
+  if (!p) return;
+  if (p.w === w && p.h === h) return;
+  if (fitHeroBox(p, w, h)) return;
+  btm = p.y + p.h;
+  cx = p.x + p.w / 2;
+  p.h = h;
+  p.y = btm - h;
+  if (p.w === w) return;
+  nx = cx - w / 2;
+  if (rectFree(nx, p.y, w, p.h)){ p.x = nx; p.w = w; }
+  else if (rectFree(p.x, p.y, w, p.h)) p.w = w;
+}
 export function applyHeroBox(p){
   var b, st;
   if (!p) return;
@@ -166,11 +180,13 @@ export function applyHeroBox(p){
   if (st === 'hang' || st === 'climb' || st === 'ladder' || st === 'bars') return;
   if (p.warp) return;
   b = getAnimBox('hero', heroBoxAnim(p));
-  fitHeroBox(p, b.w, b.h);
+  if (p.rollT > 0) forceHeroBox(p, b.w, b.h);
+  else fitHeroBox(p, b.w, b.h);
 }
 export function applyRollBox(p){
   var b = getAnimBox('hero', 'roll');
-  fitHeroBox(p, b.w, b.h);
+  p.rollAng = 0;
+  forceHeroBox(p, b.w, b.h);
 }
 export function setStance(S, p, st){
   if (p.stance === st) return true;

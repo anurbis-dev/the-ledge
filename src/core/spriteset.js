@@ -1,5 +1,5 @@
 /* Каталог спрайтов персонажей: строки анимаций, кадры — PNG.
-   Черновик — ledge.dev.sprites; в игру уезжает через Bake → BAKED.sprites.
+   Черновик — ledge.dev.sprites (кадры + якоря). Bake пишет origin/grab/box в BAKED.sprites.
    Пустой кадр = рисуем по-старому (скелет / rc). */
 import { BAKED } from './defaults.js';
 import { C } from './constants.js';
@@ -173,31 +173,37 @@ export function setAnimBox(id, anim, w, h){
   return getAnimBox(id, anim);
 }
 
-function cloneSaved(src){
-  var out = {}, id, anim, rec, m;
-  if (!src) return out;
+function overlaySprites(dst, src){
+  var id, anim, rec, drec, m;
+  if (!src) return;
   for (id in src){
     if (!Object.prototype.hasOwnProperty.call(src, id)) continue;
-    out[id] = {};
+    if (!dst[id]) dst[id] = {};
     m = src[id] && src[id]._meta;
-    if (m && typeof m === 'object') out[id]._meta = {
+    if (m && typeof m === 'object') dst[id]._meta = {
       fw: m.fw, fh: m.fh, ox: m.ox, oy: m.oy, fx: m.fx
     };
     for (anim in src[id]){
-      if (!Object.prototype.hasOwnProperty.call(src[id], anim)) continue;
-      if (anim === '_meta') continue;
+      if (!Object.prototype.hasOwnProperty.call(src[id], anim) || anim === '_meta') continue;
       rec = src[id][anim];
-      if (!rec) continue;
-      out[id][anim] = {
-        frames: (rec.frames || []).slice(),
-        dirty: (rec.dirty || []).slice(),
-        origin: cloneOrigin(rec.origin),
-        grab: cloneOrigin(rec.grab),
-        weapon: clonePts(rec.weapon),
-        box: cloneBox(rec.box)
-      };
+      if (!rec || typeof rec !== 'object') continue;
+      if (!dst[id][anim]) dst[id][anim] = { frames: [], dirty: [] };
+      drec = dst[id][anim];
+      if (rec.frames && rec.frames.length){
+        drec.frames = rec.frames.slice();
+        drec.dirty = (rec.dirty || []).slice();
+      }
+      if ('origin' in rec) drec.origin = cloneOrigin(rec.origin);
+      if ('grab' in rec) drec.grab = cloneOrigin(rec.grab);
+      if ('weapon' in rec) drec.weapon = clonePts(rec.weapon);
+      if ('box' in rec) drec.box = cloneBox(rec.box);
     }
   }
+}
+
+function cloneSaved(src){
+  var out = {};
+  overlaySprites(out, src);
   return out;
 }
 
@@ -216,10 +222,9 @@ function writeLocal(){
 }
 
 function boot(){
-  var local = readLocal();
-  if (local && typeof local === 'object' && Object.keys(local).length)
-    saved = cloneSaved(local);
-  else saved = cloneSaved((BAKED && BAKED.sprites) || {});
+  saved = {};
+  overlaySprites(saved, (BAKED && BAKED.sprites) || {});
+  overlaySprites(saved, readLocal());
   loadAll();
 }
 
@@ -451,4 +456,29 @@ export function clearSpriteFrame(id, anim, i){
 
 export function snapshotSprites(){
   return cloneSaved(saved);
+}
+
+export function snapshotSpriteAnchors(){
+  var out = {}, id, anim, rec, m, a, packed;
+  for (id in saved){
+    if (!Object.prototype.hasOwnProperty.call(saved, id)) continue;
+    packed = {};
+    m = saved[id] && saved[id]._meta;
+    if (m && typeof m === 'object') packed._meta = {
+      fw: m.fw, fh: m.fh, ox: m.ox, oy: m.oy, fx: m.fx
+    };
+    for (anim in saved[id]){
+      if (!Object.prototype.hasOwnProperty.call(saved[id], anim) || anim === '_meta') continue;
+      rec = saved[id][anim];
+      if (!rec) continue;
+      a = {};
+      if (rec.origin) a.origin = cloneOrigin(rec.origin);
+      if (rec.grab) a.grab = cloneOrigin(rec.grab);
+      if (rec.weapon && rec.weapon.length) a.weapon = clonePts(rec.weapon);
+      if (rec.box) a.box = cloneBox(rec.box);
+      if (a.origin || a.grab || a.weapon || a.box) packed[anim] = a;
+    }
+    if (Object.keys(packed).length) out[id] = packed;
+  }
+  return out;
 }
