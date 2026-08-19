@@ -122,6 +122,13 @@ function clonePts(arr){
   return out;
 }
 
+function cloneOrigin(o){
+  if (!o) return null;
+  if (Array.isArray(o)) return clonePts(o);
+  if (typeof o === 'object' && o.x != null) return { x: o.x | 0, y: o.y | 0 };
+  return null;
+}
+
 function cloneSaved(src){
   var out = {}, id, anim, rec, m;
   if (!src) return out;
@@ -140,7 +147,8 @@ function cloneSaved(src){
       out[id][anim] = {
         frames: (rec.frames || []).slice(),
         dirty: (rec.dirty || []).slice(),
-        origin: clonePts(rec.origin),
+        origin: cloneOrigin(rec.origin),
+        grab: cloneOrigin(rec.grab),
         weapon: clonePts(rec.weapon)
       };
     }
@@ -236,31 +244,72 @@ function ensureRec(id, anim){
   return saved[id][anim];
 }
 
+function originFromRec(rec){
+  var o, j, p;
+  if (!rec || rec.origin == null) return null;
+  o = rec.origin;
+  if (!Array.isArray(o))
+    return (o && o.x != null) ? { x: o.x | 0, y: o.y | 0 } : null;
+  for (j = 0; j < o.length; j++){
+    p = o[j];
+    if (p) return { x: p.x | 0, y: p.y | 0 };
+  }
+  return null;
+}
+
 export function getFrameAnchor(id, anim, i, kind){
   var rec = recOf(id, anim), arr, p;
-  if (kind !== 'origin' && kind !== 'weapon') return null;
-  arr = rec && rec[kind];
+  if (kind === 'origin') return originFromRec(rec);
+  if (kind === 'grab'){
+    if (rec && rec.grab && rec.grab.x != null) return { x: rec.grab.x | 0, y: rec.grab.y | 0 };
+    return null;
+  }
+  if (kind !== 'weapon') return null;
+  arr = rec && rec.weapon;
   p = arr && arr[i | 0];
   return p ? { x: p.x | 0, y: p.y | 0 } : null;
 }
 
 export function setFrameAnchor(id, anim, i, kind, x, y){
-  var rec, meta;
-  if (kind !== 'origin' && kind !== 'weapon') return null;
+  var rec, meta, pt;
+  if (kind !== 'origin' && kind !== 'weapon' && kind !== 'grab') return null;
   rec = ensureRec(id, anim);
   if (!rec) return null;
   meta = getSpriteMeta(id);
+  pt = clampPt({ x: x, y: y }, meta.fw, meta.fh);
+  if (kind === 'origin'){
+    rec.origin = pt;
+    emit('anchor');
+    return pt;
+  }
+  if (kind === 'grab'){
+    rec.grab = pt;
+    emit('anchor');
+    return pt;
+  }
   i = i | 0;
-  if (!rec[kind]) rec[kind] = [];
-  rec[kind][i] = clampPt({ x: x, y: y }, meta.fw, meta.fh);
+  if (!rec.weapon) rec.weapon = [];
+  rec.weapon[i] = pt;
   emit('anchor');
-  return rec[kind][i];
+  return pt;
 }
 
 export function clearFrameAnchor(id, anim, i, kind){
   var rec = recOf(id, anim);
-  if (!rec || (kind !== 'origin' && kind !== 'weapon') || !rec[kind]) return;
-  rec[kind][i | 0] = null;
+  if (!rec) return;
+  if (kind === 'origin') rec.origin = null;
+  else if (kind === 'grab') rec.grab = null;
+  else if (kind === 'weapon' && rec.weapon) rec.weapon[i | 0] = null;
+  else return;
+  emit('anchor');
+}
+
+export function clearAnimAnchors(id, anim){
+  var rec = recOf(id, anim);
+  if (!rec) return;
+  rec.origin = null;
+  rec.grab = null;
+  rec.weapon = [];
   emit('anchor');
 }
 
@@ -280,9 +329,16 @@ export function setSpriteSize(id, fw, fh){
     if (!Object.prototype.hasOwnProperty.call(saved[id], anim) || anim === '_meta') continue;
     rec = saved[id][anim];
     if (!rec) continue;
-    for (i = 0; i < 64; i++){
-      if (rec.origin && rec.origin[i]) rec.origin[i] = clampPt(rec.origin[i], fw, fh);
-      if (rec.weapon && rec.weapon[i]) rec.weapon[i] = clampPt(rec.weapon[i], fw, fh);
+    if (rec.origin){
+      if (Array.isArray(rec.origin)){
+        for (i = 0; i < rec.origin.length; i++)
+          if (rec.origin[i]) rec.origin[i] = clampPt(rec.origin[i], fw, fh);
+      } else rec.origin = clampPt(rec.origin, fw, fh);
+    }
+    if (rec.grab) rec.grab = clampPt(rec.grab, fw, fh);
+    if (rec.weapon){
+      for (i = 0; i < rec.weapon.length; i++)
+        if (rec.weapon[i]) rec.weapon[i] = clampPt(rec.weapon[i], fw, fh);
     }
     void p;
   }

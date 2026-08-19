@@ -1,5 +1,6 @@
-/* Якоря кадра спрайта: origin (привязка к миру) и weapon (кисть). */
+/* Якоря кадра спрайта: origin (мир), grab (поиск кромки), weapon (кисть). */
 import { getSpriteDef } from '../core/spriteset.js';
+import { defaultGrabOff } from '../core/sprite-grab.js';
 import {
   IDLE_A, IDLE_B, RUN, JUMPP, FALLP, LANDP, SLIDEP, STUNP, SNAREP, ROLLP,
   LADP0, LADP1, LADF0, LADF1, ATK0, ATK1, ATK2, CROUCH, CROUCH_W,
@@ -51,6 +52,8 @@ export function defaultFrameAnchors(id, animId, frameI){
   var ox = def ? def.ox : 0, oy = def ? def.oy : 0;
   var fw = def ? def.fw : 16, fh = def ? def.fh : 16;
   var origin = clipPt(ox, oy, fw, fh);
+  var off = defaultGrabOff();
+  var grab = clipPt(origin.x + off.x, origin.y + off.y, fw, fh);
   var weapon = clipPt(ox + 6, oy + 8, fw, fh);
   var poses, pose;
   if (id === 'hero'){
@@ -58,6 +61,8 @@ export function defaultFrameAnchors(id, animId, frameI){
     pose = poses && poses[frameI | 0];
     if (pose && pose.hF)
       weapon = clipPt(pose.hF[0] + ox, pose.hF[1] + oy, fw, fh);
+  } else {
+    grab = clipPt(origin.x + 6, origin.y + 2, fw, fh);
   }
-  return { origin: origin, weapon: weapon };
+  return { origin: origin, grab: grab, weapon: weapon };
 }

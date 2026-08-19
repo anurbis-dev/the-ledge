@@ -7,6 +7,7 @@ import {
 import { dropTorch } from '../entities/torches.js';
 import { platUnder } from '../entities/plats.js';
 import { breakTalk } from '../speech/runtime.js';
+import { heroGrabOffset, heroGrabWorld, heroHandY } from './sprite-grab.js';
 
 /* ---------------- игрок ---------------- */
 export function mkPlayer(){
@@ -146,9 +147,15 @@ export function setStance(S, p, st){
   return true;
 }
 
-export function hangBox(cx, cy, facing, kind){
-  if (kind === 'lad') return { x: cx - C.W/2, y: cy - C.HAND };
-  return { x: facing > 0 ? cx - C.W : cx, y: cy - C.HAND };
+function handOffY(p){
+  var y = p ? heroGrabOffset(p).y : C.HAND;
+  return y > 0 ? y : C.HAND;
+}
+
+export function hangBox(cx, cy, facing, kind, p){
+  var hy = handOffY(p);
+  if (kind === 'lad') return { x: cx - C.W/2, y: cy - hy };
+  return { x: facing > 0 ? cx - C.W : cx, y: cy - hy };
 }
 export function standBox(cx, cy, facing){ return { x: cx + facing*C.STAND_OFF - C.W/2, y: cy - C.H }; }
 export function ladBox(cx, cy){ return { x: cx - C.W/2, y: cy - C.H }; }
@@ -180,8 +187,9 @@ function pixSolid(px, py){
   return tileBlocks(Math.floor(px / T), Math.floor(py / T), py, 1, px, 1);
 }
 function findLedge(p, dir, extraUp){
-  var handY = p.y + C.HAND;
-  var hx = dir > 0 ? p.x + p.w + 2 : p.x - 2;
+  var g = heroGrabWorld(p);
+  var handY = g.y;
+  var hx = g.x;
   var lo = -C.TOL_DN - (extraUp || 0);                    // extraUp — выше рук (берег)
   var hi = C.TOL_UP;
   var best = null, bestD = 1e9;
@@ -250,14 +258,14 @@ export function finishGetup(S, p){
 export function barAt(px, py){ return isBarV(tileAt(Math.floor(px/T), Math.floor(py/T))); }
 export function tryBars(S, p){
   if (p.state !== 'normal' || p.onGround || p.vy < -40 || p.grabCd > 0) return false;
-  var cx = p.x + p.w/2, handY = p.y + C.HAND;
+  var cx = p.x + p.w/2, handY = heroHandY(p);
   for (var dy = -8; dy <= 10; dy++){
     var py = handY + dy, r = Math.floor(py / T), c = Math.floor(cx / T);
     var vv = tileAt(c, r);
     if (vv === LADR || vv === LADL){                 // диагональ снизу — как перекладины
       var dgY = (r + 1) * T;
       if (Math.abs(dgY - handY) > 10) continue;
-      var dny = dgY - C.HAND;
+      var dny = dgY - handOffY(p);
       if (!rectFree(p.x, dny, p.w, p.h)) continue;
       p.y = dny; p.vx = 0; p.vy = 0; p.onGround = false;
       p.state = 'bars';
@@ -270,7 +278,7 @@ export function tryBars(S, p){
     if (!isBarV(vv)) continue;
     var barY = (r + 1) * T;                       // низ перекладины — где висят руки
     if (Math.abs(barY - handY) > 9) continue;
-    var ny = barY - C.HAND;
+    var ny = barY - handOffY(p);
     if (!rectFree(p.x, ny, p.w, p.h)) continue;
     p.y = ny; p.vx = 0; p.vy = 0; p.onGround = false;
     p.state = 'bars'; p.bars = { row: r, ph: 0 };
@@ -298,7 +306,7 @@ export function updateBars(S, p, dt, inp){
     // строго по прямой наклона: y считается от якоря, без привязки к сетке
     ny2 = B.ay - B.diag * (nx2 - B.ax);
     var cc2 = Math.floor((nx2 + p.w/2) / T);
-    var rr2 = Math.floor((ny2 + C.HAND - 4) / T);
+    var rr2 = Math.floor((ny2 + handOffY(p) - 4) / T);
     var okTile = false;
     for (var rq = rr2 - 1; rq <= rr2 + 1; rq++){
       var vq = tileAt(cc2, rq);
@@ -372,11 +380,11 @@ export function tryGrab(S, p){
   if (p.inWater) return false;                              // под водой кромки не берём
   if (p.grabCd > 0 || p.onGround || p.state !== 'normal' || p.rollT > 0) return false;
   if (p.vy < C.GRAB_VY) return false;
-  var handY = p.y + C.HAND, dir = p.facing, dy;
+  var handY = heroHandY(p), dir = p.facing, dy;
 
   var led = findLedge(p, dir, 0);                           // кромка уступа
   if (led){
-    var hb = hangBox(led.cx, led.top, dir, 'ledge');
+    var hb = hangBox(led.cx, led.top, dir, 'ledge', p);
     if (rectFree(hb.x, hb.y, p.w, p.h)){
       grabTo(p, led.cx, led.top, dir, 'ledge', led.wc, led.tr);
       return true;
@@ -390,7 +398,7 @@ export function tryGrab(S, p){
     var cxq = side > 0 ? q.x + q.w : q.x;
     if (Math.abs((dir > 0 ? p.x + p.w : p.x) - cxq) > 12) continue;
     if (Math.abs(handY - q.y) > 9) continue;
-    var hbq = hangBox(cxq, q.y, dir, 'ledge');
+    var hbq = hangBox(cxq, q.y, dir, 'ledge', p);
     if (!rectFree(hbq.x, hbq.y, p.w, p.h)) continue;
     grabTo(p, cxq, q.y, dir, 'ledge', -1, -1);
     p.hang.plat = q;
@@ -405,7 +413,7 @@ export function tryGrab(S, p){
       var bot = (r + 1) * T;
       if (Math.abs(bot - handY) > C.LAD_TOL) continue;
       var lx = c * T + T/2;
-      var lb = hangBox(lx, bot, dir, 'lad');
+      var lb = hangBox(lx, bot, dir, 'lad', p);
       if (!rectFree(lb.x, lb.y, p.w, p.h)) continue;
       var f = solidTile(c + 1, r) ? 1 : (solidTile(c - 1, r) ? -1 : p.facing);
       grabTo(p, lx, bot, f, 'lad', c, r);
@@ -419,7 +427,7 @@ export function grabTo(p, cx, cy, facing, kind, tc, tr){
   if (p.stance !== 0 && runtime.W) setStance(runtime.W, p, 0);
   p.lastWall = 0;
   dryOff(p);
-  var b = hangBox(cx, cy, facing, kind === 'lad' ? 'lad' : 'ledge');
+  var b = hangBox(cx, cy, facing, kind === 'lad' ? 'lad' : 'ledge', p);
   p.x = b.x; p.y = b.y; p.vx = 0; p.vy = 0; p.facing = facing;
   p.state = 'hang'; p.onGround = false;
   p.hang = { cx: cx, cy: cy, kind: kind, tc: tc, tr: tr, lt: tileAt(tc, tr) };
@@ -442,7 +450,7 @@ export function tryClimbOut(S, p, dir){
     startClimb(p, 1, led.cx, led.top, dir, 'ledge', land);
     return true;
   }
-  var hb = hangBox(led.cx, led.top, dir, 'ledge');
+  var hb = hangBox(led.cx, led.top, dir, 'ledge', p);
   if (!rectFree(hb.x, hb.y, p.w, p.h)) return false;
   grabTo(p, led.cx, led.top, dir, 'ledge', led.wc, led.tr);
   return true;
@@ -523,7 +531,7 @@ function findDescend(p, want){
     }
     if (col < 0 || !solidTile(col, Math.floor((gy + 2) / T))) continue;
     var cx = dir > 0 ? (col + 1) * T : col * T, f = -dir;
-    var hb = hangBox(cx, gy, f, 'ledge');
+    var hb = hangBox(cx, gy, f, 'ledge', p);
     if (!rectFree(hb.x, hb.y, C.W, C.H)) continue;       // вис всегда в полный рост
     return { cx: cx, gy: gy, facing: f, drop: dir };
   }
@@ -548,15 +556,15 @@ export function tryDescend(S, p, want){
 }
 export function startClimb(p, dir, cx, cy, facing, kind, land){
   var from = { x: p.x, y: p.y }, to, ideal, st = 0;
-  if (dir > 0 && kind === 'lad'){ to = ladBox(cx, cy); ideal = hangBox(cx, cy, facing, 'lad'); }
+  if (dir > 0 && kind === 'lad'){ to = ladBox(cx, cy); ideal = hangBox(cx, cy, facing, 'lad', p); }
   else if (dir > 0){
     if (!land) land = bestLand(cx, cy, facing);
     if (land){ to = { x: land.x, y: land.y }; st = land.stance; }
     else to = standBox(cx, cy, facing);
-    ideal = hangBox(cx, cy, facing, 'ledge');
+    ideal = hangBox(cx, cy, facing, 'ledge', p);
     // стойку жмём в конце анимации — иначе поза щёлкает сразу
   } else {
-    to = hangBox(cx, cy, facing, 'ledge'); ideal = standBox(cx, cy, facing);
+    to = hangBox(cx, cy, facing, 'ledge', p); ideal = standBox(cx, cy, facing);
     p.stance = 0; p.w = C.W; p.h = C.H;                 // с лаза в вис — полный рост
   }
   dryOff(p);
@@ -579,7 +587,7 @@ export function updateHang(S, p, dt, inp){
   if (p.hang.plat){                       // едем вместе с платформой
     var q = p.hang.plat;
     p.hang.cx += q.dx; p.hang.cy = q.y;
-    p.x += q.dx; p.y = q.y - C.HAND;
+    p.x += q.dx; p.y = q.y - handOffY(p);
   }
   var ax = Math.abs(inp.x) > 0.35 ? (inp.x > 0 ? 1 : -1) : 0;
   if (p.hang.keepAx){

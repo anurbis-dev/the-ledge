@@ -5,7 +5,8 @@ import {
 } from '../core/tileset.js';
 import {
   getSpriteDef, getSpriteFrameSrc, setSpriteFrame, clearSpriteFrame,
-  isSpriteFrameDirty, getFrameAnchor, setFrameAnchor, setSpriteSize
+  isSpriteFrameDirty, getFrameAnchor, setFrameAnchor, setSpriteSize,
+  clearAnimAnchors
 } from '../core/spriteset.js';
 import { bakeSpriteFrameSrc, bakeBuiltinTileSrc, clearBakeCache } from '../render/sprite-bake.js';
 import { defaultFrameAnchors } from '../render/sprite-anchors.js';
@@ -44,7 +45,7 @@ var HINT = {
   pencil: 'LMB paint · RMB erase · Alt pick. Pixels are only a picture.',
   pick: 'LMB take color from a pixel. Pipette cursor while Pick is on.',
   hitbox: 'Drag the red frame. That box is collision — the picture does not change it.',
-  sprite: 'Cyan circle = origin (world attach). Magenta square = weapon hand. Drag a mark or type X Y. Size is the frame canvas.'
+  sprite: 'Cyan origin = world attach. Gold diamond = hands that find a ledge. Magenta = weapon. Drag or type.'
 };
 
 var STRIP_KEY = 'ledge.ed.tileStripH';
@@ -52,6 +53,7 @@ var CHECK_A = '#76767c';
 var CHECK_B = '#6e6e74';
 var ORIGIN_COL = '#6ec8ff';
 var WEAPON_COL = '#ff7eb6';
+var GRAB_COL = '#ffcc66';
 var SIZE_MIN = 8, SIZE_MAX = 128;
 
 var tool = 'pencil';
@@ -73,6 +75,7 @@ var stripH = 0;
 var altPick = false;
 var pendingAnchor = null;
 var originXEl = null, originYEl = null, weaponXEl = null, weaponYEl = null;
+var grabXEl = null, grabYEl = null;
 
 try {
   var savedStrip = parseInt(localStorage.getItem(STRIP_KEY), 10);
@@ -410,16 +413,18 @@ function fillChecker(cx, cols, rows, tw, th){
 }
 
 function liveAnchors(){
-  var d, o, w;
+  var d, o, w, g;
   if (!isSprite() || !current) return null;
   d = defaultFrameAnchors(current.id, animId, frameI);
   o = getFrameAnchor(current.id, animId, frameI, 'origin') || d.origin;
   w = getFrameAnchor(current.id, animId, frameI, 'weapon') || d.weapon;
+  g = getFrameAnchor(current.id, animId, frameI, 'grab') || d.grab;
   if (pendingAnchor){
     if (pendingAnchor.kind === 'origin') o = { x: pendingAnchor.x, y: pendingAnchor.y };
-    else w = { x: pendingAnchor.x, y: pendingAnchor.y };
+    else if (pendingAnchor.kind === 'weapon') w = { x: pendingAnchor.x, y: pendingAnchor.y };
+    else if (pendingAnchor.kind === 'grab') g = { x: pendingAnchor.x, y: pendingAnchor.y };
   }
-  return { origin: o, weapon: w };
+  return { origin: o, weapon: w, grab: g };
 }
 
 function drawMark(cx, pt, k, col, kind){
@@ -434,6 +439,12 @@ function drawMark(cx, pt, k, col, kind){
   cx.stroke();
   if (kind === 'weapon'){
     cx.strokeRect(x - 4, y - 4, 8, 8);
+  } else if (kind === 'grab'){
+    cx.beginPath();
+    cx.moveTo(x, y - 5); cx.lineTo(x + 5, y);
+    cx.lineTo(x, y + 5); cx.lineTo(x - 5, y);
+    cx.closePath();
+    cx.stroke();
   } else {
     cx.beginPath();
     cx.arc(x, y, 4, 0, Math.PI * 2);
@@ -443,14 +454,41 @@ function drawMark(cx, pt, k, col, kind){
 }
 
 function drawAnchors(cx, k){
-  var a = liveAnchors();
+  var a = liveAnchors(), ox, oy;
   if (!a) return;
+  ox = (a.origin.x + 0.5) * k;
+  oy = (a.origin.y + 0.5) * k;
+  cx.save();
+  cx.strokeStyle = ORIGIN_COL;
+  cx.globalAlpha = 0.4;
+  cx.lineWidth = 1;
+  cx.beginPath();
+  cx.moveTo(0, oy); cx.lineTo(cx.canvas.width, oy);
+  cx.moveTo(ox, 0); cx.lineTo(ox, cx.canvas.height);
+  cx.stroke();
+  cx.restore();
   drawMark(cx, a.origin, k, ORIGIN_COL, 'origin');
+  drawMark(cx, a.grab, k, GRAB_COL, 'grab');
   drawMark(cx, a.weapon, k, WEAPON_COL, 'weapon');
 }
 
+function drawThumbAnchors(cx, aId, ii){
+  var d, o, w, g;
+  if (!isSprite() || !current) return;
+  d = defaultFrameAnchors(current.id, aId, ii);
+  o = getFrameAnchor(current.id, aId, ii, 'origin') || d.origin;
+  w = getFrameAnchor(current.id, aId, ii, 'weapon') || d.weapon;
+  g = getFrameAnchor(current.id, aId, ii, 'grab') || d.grab;
+  cx.fillStyle = ORIGIN_COL;
+  cx.fillRect(o.x, o.y, 1, 1);
+  cx.fillStyle = GRAB_COL;
+  cx.fillRect(g.x, g.y, 1, 1);
+  cx.fillStyle = WEAPON_COL;
+  cx.fillRect(w.x, w.y, 1, 1);
+}
+
 function hitAnchor(e, can){
-  var a = liveAnchors(), r, k, dO, dW, rad;
+  var a = liveAnchors(), r, k, rad, best, bestD, kinds, i, d;
   if (!a || !can) return null;
   r = can.getBoundingClientRect();
   k = r.width / fw;
@@ -460,11 +498,13 @@ function hitAnchor(e, can){
     return dx * dx + dy * dy;
   }
   rad = 14 * 14;
-  dO = dist(a.origin);
-  dW = dist(a.weapon);
-  if (dW <= rad && dW <= dO) return 'weapon';
-  if (dO <= rad) return 'origin';
-  return null;
+  best = null; bestD = rad;
+  kinds = ['weapon', 'grab', 'origin'];
+  for (i = 0; i < kinds.length; i++){
+    d = dist(a[kinds[i]]);
+    if (d <= bestD){ bestD = d; best = kinds[i]; }
+  }
+  return best;
 }
 
 function syncAnchorFields(){
@@ -472,6 +512,8 @@ function syncAnchorFields(){
   if (!a) return;
   if (originXEl) originXEl.value = String(a.origin.x);
   if (originYEl) originYEl.value = String(a.origin.y);
+  if (grabXEl) grabXEl.value = String(a.grab.x);
+  if (grabYEl) grabYEl.value = String(a.grab.y);
   if (weaponXEl) weaponXEl.value = String(a.weapon.x);
   if (weaponYEl) weaponYEl.value = String(a.weapon.y);
 }
@@ -489,6 +531,7 @@ function commitAnchor(kind, x, y){
   notify();
   syncAnchorFields();
   paintCanvas();
+  paintStrips();
 }
 
 function numInp(val, min, max){
@@ -528,8 +571,7 @@ function bindAnchorInp(el, kind, axis){
     n = parseInt(el.value, 10);
     if (isNaN(n)) { syncAnchorFields(); return; }
     n = clampCell(n, axis === 'x' ? fw - 1 : fh - 1);
-    x = kind === 'origin' ? a.origin.x : a.weapon.x;
-    y = kind === 'origin' ? a.origin.y : a.weapon.y;
+    x = a[kind].x; y = a[kind].y;
     if (axis === 'x') x = n; else y = n;
     commitAnchor(kind, x, y);
   });
@@ -610,7 +652,9 @@ function paintCanvas(){
       animName = (current.anims.filter(function(an){ return an.id === animId; })[0] || { name: animId }).name;
       a = liveAnchors();
       hitLab.textContent = 'Frame ' + (frameI + 1) + ' · ' + animName +
-        (a ? ' · origin ' + a.origin.x + ',' + a.origin.y + ' · weapon ' + a.weapon.x + ',' + a.weapon.y : '');
+        (a ? ' · origin ' + a.origin.x + ',' + a.origin.y +
+          ' · hands ' + a.grab.x + ',' + a.grab.y +
+          ' · weapon ' + a.weapon.x + ',' + a.weapon.y : '');
     } else hitLab.textContent = hitText();
   }
   syncAnchorFields();
@@ -852,8 +896,10 @@ function paintStrips(){
             cx.imageSmoothingEnabled = false;
             fillChecker(cx, fw, fh, 1, 1);
             cx.drawImage(img, 0, 0, img.naturalWidth || fw, img.naturalHeight || fh, 0, 0, fw, fh);
+            drawThumbAnchors(cx, row.id, ii);
           };
           img.src = frameSrcAt(row.id, ii);
+          if (isSprite()) drawThumbAnchors(cx, row.id, ii);
           th.addEventListener('click', function(){
             selectFrame(row.id, ii);
           });
@@ -926,7 +972,7 @@ function fillBody(){
   boxDrag = null;
   pendingBox = null;
   pendingAnchor = null;
-  originXEl = originYEl = weaponXEl = weaponYEl = null;
+  originXEl = originYEl = weaponXEl = weaponYEl = grabXEl = grabYEl = null;
   var custom = isCustomTile();
   var def = custom ? getTileDef(current.id) : null;
   var sprite = isSprite();
@@ -969,10 +1015,22 @@ function fillBody(){
     originYEl = numInp(0, 0, fh - 1);
     bindAnchorInp(originXEl, 'origin', 'x');
     bindAnchorInp(originYEl, 'origin', 'y');
+    originXEl.title = 'World attach for this action (every frame in the row)';
+    originYEl.title = originXEl.title;
     xyRow('Origin', 'ed-anchor-o', originXEl, originYEl, ',');
+
+    grabXEl = numInp(0, 0, fw - 1);
+    grabYEl = numInp(0, 0, fh - 1);
+    grabXEl.title = 'Hands that search for a ledge (this action)';
+    grabYEl.title = grabXEl.title;
+    bindAnchorInp(grabXEl, 'grab', 'x');
+    bindAnchorInp(grabYEl, 'grab', 'y');
+    xyRow('Hands', 'ed-anchor-g', grabXEl, grabYEl, ',');
 
     weaponXEl = numInp(0, 0, fw - 1);
     weaponYEl = numInp(0, 0, fh - 1);
+    weaponXEl.title = 'Weapon hand on this frame';
+    weaponYEl.title = weaponXEl.title;
     bindAnchorInp(weaponXEl, 'weapon', 'x');
     bindAnchorInp(weaponYEl, 'weapon', 'y');
     xyRow('Weapon', 'ed-anchor-w', weaponXEl, weaponYEl, ',');
@@ -1022,7 +1080,7 @@ function fillBody(){
   if (sprite){
     var sNote = document.createElement('div');
     sNote.className = 'ed-tile-note';
-    sNote.textContent = 'Each animation is one row of frames. Cyan circle = origin, magenta square = weapon hand — drag or type. Size is the frame canvas. Unedited frames still use the old drawing in the game.';
+    sNote.textContent = 'Cyan origin and gold hands are per action. Magenta weapon is this frame. Hands = ledge search (C.HAND). Unedited frames still use the old drawing.';
     body.appendChild(sNote);
   } else {
     var nameInp = document.createElement('input');
@@ -1175,6 +1233,18 @@ function fillBody(){
       });
     });
     actions.appendChild(rst);
+    var rstA = document.createElement('button');
+    rstA.type = 'button';
+    rstA.className = 'edb';
+    rstA.textContent = 'Reset anchors';
+    rstA.title = 'Forget origin, hands and weapon points for this action.';
+    rstA.addEventListener('click', function(){
+      clearAnimAnchors(current.id, animId);
+      notify();
+      paintCanvas();
+      paintStrips();
+    });
+    actions.appendChild(rstA);
   } else if (custom){
     var del = document.createElement('button');
     del.type = 'button';
