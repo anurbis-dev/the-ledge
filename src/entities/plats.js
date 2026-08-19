@@ -3,7 +3,7 @@ import { rectFree } from '../core/map.js';
 
 export function mkPlats(){
   var LV = runtime.LV;
-  return LV.plats.map(function(a){
+  return (LV.plats || []).map(function(a){
     return { x:a.x, y:a.y, w:a.w, h:a.h,
              x0:a.x0 !== undefined ? a.x0 : a.x, x1:a.x1 !== undefined ? a.x1 : a.x,
              y0:a.y0 !== undefined ? a.y0 : a.y, y1:a.y1 !== undefined ? a.y1 : a.y,

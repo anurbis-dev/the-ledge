@@ -173,6 +173,7 @@ export function addLayer(name){
     hue: 0, sat: 1, bright: 0,
     base: new Uint8Array(runtime.MAP_W * runtime.MAP_H),
     vary: new Uint8Array(runtime.MAP_W * runtime.MAP_H),
+    deco: new Uint8Array(runtime.MAP_W * runtime.MAP_H),
     cover: null, coverVary: null
   };
   var ix = (runtime.activeLayer | 0) + 1;
@@ -263,6 +264,7 @@ export function ensureStamp(L){
   if (L.stamp && L.stamp.length === n){
     L._stampW = s.w; L._stampH = s.h;
     if (!L.stampVar || L.stampVar.length !== n) L.stampVar = new Uint8Array(n);
+    if (!L.stampDeco || L.stampDeco.length !== n) L.stampDeco = new Uint8Array(n);
     return;
   }
   var ow = L._stampW || 0;
@@ -358,6 +360,23 @@ export function layerVar(L, c, r){
   return liveVarOf(L, c, r, layerVarRaw(L, c, r));
 }
 
+export function layerDeco(L, c, r){
+  if (!L) return 0;
+  if (L.wrap && L.stampDeco) return L.stampDeco[wrapIndex(L, c, r)] || 0;
+  if (!L.deco || !inRange(c, r)) return 0;
+  return L.deco[(r - runtime.originR) * runtime.MAP_W + (c - runtime.originC)];
+}
+
+export function ensureDeco(L){
+  if (!L || !isTileLayer(L)) return;
+  var n = runtime.MAP_W * runtime.MAP_H;
+  if (!L.deco || L.deco.length !== n){
+    var old = L.deco;
+    L.deco = new Uint8Array(n);
+    if (old && old.length) L.deco.set(old.subarray(0, Math.min(old.length, n)));
+  }
+}
+
 function copyBuf(src){
   return src ? new Uint8Array(src) : null;
 }
@@ -371,9 +390,9 @@ function dumpLayer(L){
     wrap: !!L.wrap, wrapW: L.wrapW || 8, wrapH: L.wrapH || 8,
     amp: L.amp, y0: L.y0, color: L.color,
     period: L.period, hmin: L.hmin, hmax: L.hmax, col: L.col, colD: L.colD, seed: L.seed,
-    base: copyBuf(L.base), vary: copyBuf(L.vary),
+    base: copyBuf(L.base), vary: copyBuf(L.vary), deco: copyBuf(L.deco),
     cover: copyBuf(L.cover), coverVary: copyBuf(L.coverVary),
-    stamp: copyBuf(L.stamp), stampVar: copyBuf(L.stampVar),
+    stamp: copyBuf(L.stamp), stampVar: copyBuf(L.stampVar), stampDeco: copyBuf(L.stampDeco),
     _stampW: L._stampW || 0, _stampH: L._stampH || 0
   };
 }
@@ -387,9 +406,9 @@ function loadLayer(L){
     wrap: !!L.wrap, wrapW: L.wrapW || 8, wrapH: L.wrapH || 8,
     amp: L.amp, y0: L.y0, color: L.color,
     period: L.period, hmin: L.hmin, hmax: L.hmax, col: L.col, colD: L.colD, seed: L.seed,
-    base: copyBuf(L.base), vary: copyBuf(L.vary),
+    base: copyBuf(L.base), vary: copyBuf(L.vary), deco: copyBuf(L.deco),
     cover: copyBuf(L.cover), coverVary: copyBuf(L.coverVary),
-    stamp: copyBuf(L.stamp), stampVar: copyBuf(L.stampVar),
+    stamp: copyBuf(L.stamp), stampVar: copyBuf(L.stampVar), stampDeco: copyBuf(L.stampDeco),
     _stampW: L._stampW || 0, _stampH: L._stampH || 0,
     _roomsDirty: true
   };

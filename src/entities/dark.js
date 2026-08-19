@@ -2,7 +2,7 @@ import { runtime } from '../core/runtime.js';
 
 export function mkDark(){
   var LV = runtime.LV;
-  return LV.dark.map(function(d){
+  return (LV.dark || []).map(function(d){
     return { x0:d.x0, y0:d.y0, x1:d.x1, y1:d.y1, doorId:d.doorId, lit:d.lit };
   });
 }

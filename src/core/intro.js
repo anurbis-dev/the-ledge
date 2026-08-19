@@ -1,3 +1,6 @@
+import { BAKED } from './defaults.js';
+import { preferLocal, notifyDraftChange } from './persist.js';
+
 var KEY = 'ledge.dev.intro';
 
 export var INTRO_DEFAULTS = [
@@ -49,6 +52,9 @@ function clean(s){
 
 function load(){
   lines = INTRO_DEFAULTS.slice();
+  if (BAKED.intro && Array.isArray(BAKED.intro.lines))
+    lines = BAKED.intro.lines.map(clean);
+  if (!preferLocal()) return;
   try {
     var raw = localStorage.getItem(KEY);
     if (!raw) return;
@@ -60,6 +66,14 @@ function load(){
 
 function save(){
   try { localStorage.setItem(KEY, JSON.stringify({ lines: lines })); } catch (_){}
+  notifyDraftChange();
+}
+
+export function introSnapshot(){
+  try {
+    var raw = localStorage.getItem(KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_){ return null; }
 }
 
 function ensure(){
@@ -95,6 +109,7 @@ export function removeIntroLine(i){
 export function resetIntroLines(){
   lines = INTRO_DEFAULTS.slice();
   try { localStorage.removeItem(KEY); } catch (_){}
+  notifyDraftChange();
 }
 
 function pool(){

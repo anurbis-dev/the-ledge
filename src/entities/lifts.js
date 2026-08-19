@@ -4,8 +4,8 @@ import { tileAt, isSolidV } from '../core/map.js';
 
 export function mkLifts(){
   var LV = runtime.LV;
-  return LV.lifts.map(function(a, i){
-    return { id:i, x:a.x, w:a.w, hh:a.hh, y:a.y, floors:a.floors.slice(), idx:0,
+  return (LV.lifts || []).map(function(a, i){
+    return { id:i, x:a.x, w:a.w, hh:a.hh, y:a.y, floors:(a.floors || []).slice(), idx:0,
              st:'dwell', t:C.LIFT_DWELL, dy:0, want:0 };
   });
 }

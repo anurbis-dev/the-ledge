@@ -1,10 +1,25 @@
 import { C } from '../core/constants.js';
 import GAME from '../core/game.js';
 import { initSliders } from './slider.js';
+import { BAKED } from '../core/defaults.js';
+import { preferLocal, notifyDraftChange } from '../core/persist.js';
 
 var PKEY = 'ledge.dev.C';
+if (BAKED.params){
+  for (var _bk in BAKED.params){
+    if (Object.prototype.hasOwnProperty.call(C, _bk) && typeof BAKED.params[_bk] === 'number' && Number.isFinite(BAKED.params[_bk]))
+      C[_bk] = BAKED.params[_bk];
+  }
+}
 export var C0 = {};
 for (var _k in C) if (Object.prototype.hasOwnProperty.call(C, _k)) C0[_k] = C[_k];
+
+export function paramsSnapshot(){
+  try {
+    var raw = localStorage.getItem(PKEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_){ return null; }
+}
 
 export var PARAM_GROUPS = [
   { id: 'hitbox', name: 'Hitbox', items: [
@@ -114,6 +129,7 @@ export var PARAM_GROUPS = [
 ];
 
 export function loadParams(){
+  if (!preferLocal()) return;
   try {
     var raw = localStorage.getItem(PKEY);
     if (!raw) return;
@@ -132,6 +148,7 @@ export function saveParams(){
     for (var k in C) if (Object.prototype.hasOwnProperty.call(C, k) && C[k] !== C0[k]) o[k] = C[k];
     localStorage.setItem(PKEY, JSON.stringify(o));
   } catch (_){}
+  notifyDraftChange();
 }
 
 export function applyParam(key, val){
@@ -155,6 +172,7 @@ export function applyParam(key, val){
 export function resetAllParams(){
   for (var k in C0) C[k] = C0[k];
   try { localStorage.removeItem(PKEY); } catch (_){}
+  notifyDraftChange();
   var S = GAME.W, p = S && S.p;
   if (p){
     if (p.stance === 2){ p.w = C.PRW; p.h = C.PRH; }

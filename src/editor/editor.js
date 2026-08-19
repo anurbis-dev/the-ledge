@@ -10,7 +10,12 @@ import { BOULDER_DEF } from '../entities/boulders.js';
 import { isSlopeBrush, fitSlopeStroke } from './slopes.js';
 import { tileThumb, objThumb, paintObjIcon } from './thumbs.js';
 import { renderParams, resetAllParams } from './params.js';
-import { getActiveLayer, getLayers, layerTile, layerVar, layerTileRaw, layerVarRaw, isTileLayer } from '../core/layers.js';
+import { getActiveLayer, getLayers, layerTile, layerVar, layerDeco, layerTileRaw, layerVarRaw, isTileLayer } from '../core/layers.js';
+import {
+  customSpecs, addTile, loadImageFile, sliceSheet, guessOverlay, bindTileset, isCustomId
+} from '../core/tileset.js';
+import { bindTileEdit, openTileEdit, closeTileEdit } from './tile-edit.js';
+import { clearThumbCache } from './thumbs.js';
 import { setEditorRooms, stepRooms } from '../core/rooms.js';
 import { showLayersPanel, bindLayersPanel } from './layers-panel.js';
 import { bindIntroPanel, renderIntroPanel } from './intro-panel.js';
@@ -50,7 +55,8 @@ export var ED = {
   holdT: null, holdErased: false, holdX: 0, holdY: 0,
   dragObj: null, showGeo: false, cover: false, stampCover: false,
   sel: null, dragPal: null, giz: false,
-  hitObj: null, pendHit: null
+  hitObj: null, pendHit: null,
+  selTiles: null, boxing: null, moving: null, ctrlGest: null
 };
 
 /* varN — сколько ручных узоров держит тайл; повторный клик по уже стоящему тайлу того же брашка
@@ -249,6 +255,20 @@ bindIntroPanel();
 bindGearPanel();
 bindMixPanel();
 bindInspect({ onChange: function(){ markLevelDirty(); }, onClose: function(){ ED.sel = null; } });
+bindTileEdit({
+  onChange: function(){
+    scheduleBake();
+    edRefresh();
+  }
+});
+bindTileset({
+  onChange: function(){
+    clearThumbCache();
+    invalidateAll();
+    scheduleBake();
+    edRefresh();
+  }
+});
 bindNpcTalk({ onChange: function(){ markLevelDirty(); } });
 bindBoulderSettings({ onChange: function(){ markLevelDirty(); } });
 bindAllFloats();
@@ -340,6 +360,7 @@ function swatch(parent, canvas, label, active, onPick, kind, pal){
   b.appendChild(img);
   b.addEventListener('pointerdown', function(e){
     if (e.button !== 0) return;
+    if (e.detail === 2) return;
     e.stopPropagation(); e.preventDefault();
     onPick();
     startPaletteDrag(e, kind, pal, img);
@@ -427,12 +448,24 @@ function fillPal(){
   edPal.style.setProperty('--ed-icon', ED.icon + 'px');
   if (ED.tab === 'tile' || (ED.tab === 'params' && ED.tool === 'tile')){
     if (ED.tab !== 'tile') return;
-    for (var j = 0; j < ED_TILES.length; j++){
+    var tiles = palTiles();
+    for (var j = 0; j < tiles.length; j++){
       (function(k){
-        var spec = ED_TILES[k];
-        swatch(edPal, tileThumb(spec, ED.icon), spec.name, ED.pal === k, function(){ ED.pal = k; }, 'tile', k);
+        var spec = tiles[k];
+        var sw = swatch(edPal, tileThumb(spec, ED.icon), spec.name + (spec.overlay ? ' (overlay)' : ''), ED.pal === k, function(){ ED.pal = k; }, 'tile', k);
+        if (spec.overlay) sw.classList.add('deco');
+        sw.addEventListener('dblclick', function(e){
+          e.preventDefault(); e.stopPropagation();
+          ED.pal = k;
+          openTileEdit(spec, e.clientX, e.clientY);
+          edRefresh();
+        });
       })(j);
     }
+    var hint = document.createElement('div');
+    hint.className = 'ed-pal-hint';
+    hint.textContent = 'Drop PNG to add tiles · double-click to edit · Ctrl+drag selects a block';
+    edPal.appendChild(hint);
   } else if (ED.tab === 'obj'){
     for (var m = 0; m < ED_OBJS.length; m++){
       (function(k){
@@ -448,7 +481,7 @@ function fillExtra(){
   if (!edExtra) return;
   edExtra.textContent = '';
   if (ED.tab !== 'tile') return;
-  var spec = ED_TILES[ED.pal];
+  var spec = palSpec();
   if (spec && spec.id === G.WATER){
     for (var s = 0; s < WATER_SHADE_PRESETS.length; s++){
       (function(k){
@@ -516,7 +549,9 @@ export function edClose(){
   showInspect(null);
   closeNpcTalk();
   closeBoulderSettings();
+  closeTileEdit();
   ED.sel = null;
+  ED.selTiles = null;
   endGizmo();
   closeVarMenu();
   closeChestAdd();
@@ -567,6 +602,11 @@ function brushVar(c, r){
   if (ED.cover && ED.tool === 'tile') return G.coverVarRaw(L, c, r);
   return L ? layerVar(L, c, r) : G.varAt(c, r);
 }
+function brushDeco(c, r){
+  var L = getActiveLayer();
+  if (!L || !isTileLayer(L)) return 0;
+  return layerDeco(L, c, r) || 0;
+}
 
 function selectSpecial(sel){
   ED.sel = sel;
@@ -577,7 +617,12 @@ function isSpecialKind(kind){
   return kind === 'sound' || kind === 'light' || kind === 'volume';
 }
 
+function palTiles(){ return ED_TILES.concat(customSpecs()); }
+function palSpec(){ return palTiles()[ED.pal] || ED_TILES[0]; }
+
 function tileMatchesBrush(spec, v){
+  if (!spec) return false;
+  if (spec.custom || isCustomId(spec.id)) return v === spec.id;
   return spec.slope ? G.isSlopeV(v) : v === spec.id;
 }
 function findVarSpec(v){
@@ -787,7 +832,19 @@ export function edApply(cell, isClick){
   if (ED.tool === 'tile'){
     var act = getActiveLayer();
     if (act && !isTileLayer(act)) return;
-    var spec = ED_TILES[ED.pal];
+    var spec = palSpec();
+    if (!spec) return;
+    if (spec.overlay && !ED.cover){
+      if (isClick && ED.clickCell === key && ED.clickBrush === ED.pal &&
+          brushDeco(cell.c, cell.r) === spec.id){
+        G.setDeco(cell.c, cell.r, 0);
+        markLevelDirty();
+        return;
+      }
+      G.setDeco(cell.c, cell.r, spec.id);
+      markLevelDirty();
+      return;
+    }
     if (ED.cover){
       if (!coverLayerOk(act)) return;
       if (ED.stampCover){
@@ -850,6 +907,11 @@ function edErase(cell, wcell){
     return;
   }
   var actE = getActiveLayer();
+  if (actE && isTileLayer(actE) && brushDeco(cell.c, cell.r)){
+    G.setDeco(cell.c, cell.r, 0);
+    markLevelDirty();
+    return;
+  }
   var oldE = (actE && isTileLayer(actE)) ? brushTile(cell.c, cell.r) : G.tileAt(cell.c, cell.r);
   if (!actE || isTileLayer(actE)) G.setTile(cell.c, cell.r, 0);
   edEraseObjects(wcell || cell);
@@ -1104,7 +1166,19 @@ export function edDrawOverlay(){
     }
     ctx.globalAlpha = 1;
   }
-  if (ED.hover){
+  var box = ED.boxing || ED.selTiles;
+  if (box){
+    var bc0 = Math.min(box.c0, box.c1), br0 = Math.min(box.r0, box.r1);
+    var bc1 = Math.max(box.c0, box.c1), br1 = Math.max(box.r0, box.r1);
+    var bx = bc0 * T - camx, by = br0 * T - camy;
+    var bw = (bc1 - bc0 + 1) * T, bh = (br1 - br0 + 1) * T;
+    ctx.globalAlpha = 0.12;
+    rc(bx, by, bw, bh, '#ffd9a0');
+    ctx.globalAlpha = 1;
+    rc(bx, by, bw, 1, '#ffd9a0'); rc(bx, by + bh - 1, bw, 1, '#ffd9a0');
+    rc(bx, by, 1, bh, '#ffd9a0'); rc(bx + bw - 1, by, 1, bh, '#ffd9a0');
+  }
+  if (ED.hover && !box){
     var hx = ED.hover.c*T - camx, hy = ED.hover.r*T - camy;
     rc(hx, hy, T, 2, '#ffd9a0'); rc(hx, hy + T - 2, T, 2, '#ffd9a0');
     rc(hx, hy, 2, T, '#ffd9a0'); rc(hx + T - 2, hy, 2, T, '#ffd9a0');
@@ -1113,7 +1187,7 @@ export function edDrawOverlay(){
   if (S) drawGizmos(S, ED.sel);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   rc(0, 0, VW, 9, '#0d0a18cc');
-  var spec = ED.tool === 'tile' ? ED_TILES[ED.pal] : ED_OBJS[ED.pal];
+  var spec = ED.tool === 'tile' ? palSpec() : ED_OBJS[ED.pal];
   var label = spec ? spec.name : ED.tool;
   var L = getActiveLayer();
   if (L) label = L.name + (L.wrap ? ' ▦' : '') + ' · ' + label;
@@ -1123,6 +1197,10 @@ export function edDrawOverlay(){
     label = (coverLayerOk(L) ? 'Cover' : 'Cover · collide') + ' · ' + label;
     if (ED.stampCover) label = 'Stamp · ' + label;
   }
+  if (spec && spec.overlay) label += ' · overlay';
+  if (ED.selTiles && !ED.boxing) label = 'Select · move / Del';
+  if (ED.boxing) label = 'Select';
+  if (ED.moving) label = 'Move tiles';
   if (ED.erasing) label = ED.cover ? 'Cover erase' : 'Erase';
   if (ED.dragObj) label = ED.dragObj.copied ? 'Copy · ' + ED.dragObj.entry.type : 'Move · ' + ED.dragObj.entry.type;
   if (ED.hover && G.isWaterV(brushTile(ED.hover.c, ED.hover.r)))
@@ -1141,6 +1219,99 @@ function clearHold(){
   ED.holdErased = false;
 }
 
+function normBox(b){
+  return {
+    c0: Math.min(b.c0, b.c1), r0: Math.min(b.r0, b.r1),
+    c1: Math.max(b.c0, b.c1), r1: Math.max(b.r0, b.r1)
+  };
+}
+function inSelTiles(c, r){
+  var b = ED.selTiles;
+  if (!b) return false;
+  var n = normBox(b);
+  return c >= n.c0 && c <= n.c1 && r >= n.r0 && r <= n.r1;
+}
+function readCells(c0, r0, c1, r1){
+  var L = getActiveLayer(), out = [], c, r;
+  for (r = r0; r <= r1; r++)
+    for (c = c0; c <= c1; c++)
+      out.push({
+        dc: c - c0, dr: r - r0,
+        v: L ? layerTileRaw(L, c, r) : G.tileAt(c, r),
+        va: L ? layerVarRaw(L, c, r) : G.varAt(c, r),
+        d: brushDeco(c, r)
+      });
+  return out;
+}
+function writeCell(c, r, v, va, d){
+  G.setTile(c, r, v || 0);
+  if (va) G.setVar(c, r, va);
+  G.setDeco(c, r, d || 0);
+}
+function eraseSelTiles(){
+  if (!ED.selTiles) return;
+  var b = normBox(ED.selTiles), c, r;
+  for (r = b.r0; r <= b.r1; r++)
+    for (c = b.c0; c <= b.c1; c++){
+      G.setDeco(c, r, 0);
+      G.setTile(c, r, 0);
+    }
+  G.buildGates(world());
+  buildWater();
+  markLevelDirty();
+}
+function beginMoveSel(cell){
+  var b = normBox(ED.selTiles);
+  ED.moving = {
+    cells: readCells(b.c0, b.r0, b.c1, b.r1),
+    w: b.c1 - b.c0, h: b.r1 - b.r0,
+    grabC: cell.c, grabR: cell.r,
+    fromC: b.c0, fromR: b.r0,
+    posC: b.c0, posR: b.r0,
+    under: null
+  };
+}
+function snapshotCell(c, r){
+  var L = getActiveLayer();
+  return {
+    c: c, r: r,
+    v: L ? layerTileRaw(L, c, r) : G.tileAt(c, r),
+    va: L ? layerVarRaw(L, c, r) : G.varAt(c, r),
+    d: brushDeco(c, r)
+  };
+}
+function applyMoveSel(cell){
+  var m = ED.moving;
+  if (!m) return;
+  var nc = m.fromC + (cell.c - m.grabC);
+  var nr = m.fromR + (cell.r - m.grabR);
+  if (nc === m.posC && nr === m.posR && m.under) return;
+  var i, p, u;
+  if (m.under){
+    for (i = 0; i < m.under.length; i++){
+      u = m.under[i];
+      writeCell(u.c, u.r, u.v, u.va, u.d);
+    }
+  } else {
+    for (i = 0; i < m.cells.length; i++){
+      p = m.cells[i];
+      writeCell(m.fromC + p.dc, m.fromR + p.dr, 0, 0, 0);
+    }
+  }
+  m.under = [];
+  for (i = 0; i < m.cells.length; i++){
+    p = m.cells[i];
+    m.under.push(snapshotCell(nc + p.dc, nr + p.dr));
+  }
+  for (i = 0; i < m.cells.length; i++){
+    p = m.cells[i];
+    writeCell(nc + p.dc, nr + p.dr, p.v, p.va, p.d);
+  }
+  m.posC = nc; m.posR = nr;
+  ED.selTiles = { c0: nc, r0: nr, c1: nc + m.w, r1: nr + m.h };
+  markLevelDirty();
+}
+
 function startHold(cell, wcell){
   clearHold();
   ED.holdT = setTimeout(function(){
@@ -1155,8 +1326,9 @@ function startHold(cell, wcell){
 
 function findTilePal(v){
   if (!v) return 0;
-  for (var i = 1; i < ED_TILES.length; i++)
-    if (tileMatchesBrush(ED_TILES[i], v)) return i;
+  var tiles = palTiles(), i;
+  for (i = 1; i < tiles.length; i++)
+    if (tileMatchesBrush(tiles[i], v)) return i;
   return 0;
 }
 function findObjPal(type, obj){
@@ -1187,11 +1359,12 @@ function eyedrop(e, cell, wcell){
     edRefresh();
     return true;
   }
-  var v = brushTile(cell.c, cell.r);
+  var deco = brushDeco(cell.c, cell.r);
+  var v = deco || brushTile(cell.c, cell.r);
   var pal = findTilePal(v);
   setTab('tile');
   ED.pal = pal;
-  var spec = ED_TILES[pal];
+  var spec = palTiles()[pal];
   if (spec && spec.varN && tileMatchesBrush(spec, v))
     openVarMenu(cell, spec, e.clientX, e.clientY);
   edRefresh();

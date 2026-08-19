@@ -6,7 +6,7 @@ import { mutterHero } from '../speech/runtime.js';
 
 export function mkDoors(){
   var LV = runtime.LV;
-  return LV.doors.map(function(d){
+  return (LV.doors || []).map(function(d){
     return { id:d.id, x:d.x, y:d.y, locked:d.locked, pair:d.pair, tag:d.tag };
   });
 }
