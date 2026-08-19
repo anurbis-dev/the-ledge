@@ -30,6 +30,11 @@ import { stepSpeech } from '../speech/runtime.js';
 import { noteFirstItem } from '../speech/runtime.js';
 import { stepNpcs } from '../entities/npcs.js';
 
+export function decayShake(S, dt){
+  if (!S || S.shake <= 0) return;
+  S.shake = Math.max(0, S.shake - dt * 18);
+}
+
 /* --- основной шаг --- */
 export function step(S, dt, inp){
   setWorld(S);
@@ -38,7 +43,7 @@ export function step(S, dt, inp){
   S.p.events.length = 0;
   if (S.hitStop > 0){ S.hitStop -= dt; if (S.hitStop > 0) return; }
   S.t += dt;
-  if (S.shake > 0) S.shake = Math.max(0, S.shake - dt * 18);
+  decayShake(S, dt);
   stepPlats(S, dt);
   stepLifts(S, dt);
   stepCrumbs(S, dt);

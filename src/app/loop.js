@@ -30,6 +30,7 @@ import { speechBlocks } from '../speech/runtime.js';
 import { stepLoot } from '../entities/loot.js';
 
 import { clearHistory, undoOp, redoOp, canUndo, canRedo } from '../editor/history.js';
+import { decayShake } from '../core/step.js';
 
 var G = GAME;
 hooks.onGrowMap = function(){ invalidateAll(); buildWater(); };
@@ -445,6 +446,7 @@ function frame(now){
   acc += dt;
   if (!ED.on && !isMenu()){ view.time += dt; view.animT += dt; }
   if (view.flash > 0) view.flash = Math.max(0, view.flash - dt*2.2);
+  if (S) decayShake(S, dt);
 
   if (isMenu()){
     acc = 0; hushLift(); hushSounds(); hushMusic();
