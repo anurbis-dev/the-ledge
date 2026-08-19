@@ -37,6 +37,13 @@ npm run build    # → dist/index.html (один файл)
 
 SemVer в `package.json`. Перед коммитом: `npm run bump:dev` (WIP) / `bump:patch` / `bump:minor`.
 
+## Play
+
+https://anurbis-dev.github.io/the-ledge/
+
+Сборка `dist/` уходит на GitHub Pages через `.github/workflows/pages.yml` (push в `master` или ручной `workflow_dispatch`).
+
 ## Links
 
 - Repo: https://github.com/anurbis-dev/the-ledge
+- Play: https://anurbis-dev.github.io/the-ledge/

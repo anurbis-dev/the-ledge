@@ -1,6 +1,6 @@
 {
   "name": "the-ledge",
-  "version": "0.1.2-dev.12",
+  "version": "0.1.2-dev.13",
   "description": "the LEDGE — caves and ledges",
   "type": "module",
   "scripts": {
@@ -36,7 +36,7 @@
   "bugs": {
     "url": "https://github.com/anurbis-dev/the-ledge/issues"
   },
-  "homepage": "https://github.com/anurbis-dev/the-ledge#readme",
+  "homepage": "https://anurbis-dev.github.io/the-ledge/",
   "devDependencies": {
     "vite": "8.1.5",
     "vite-plugin-singlefile": "^2.3.3"

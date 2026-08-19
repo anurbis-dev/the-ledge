@@ -1,3 +1,3 @@
 # Changelog (unreleased)
 
-- Перекат всегда берёт позу `roll`/`ROLLP`: присед, лёжа и lerp стойки больше не крутятся вместо клубка.
+- Публичная сборка на GitHub Pages: `https://anurbis-dev.github.io/the-ledge/` (`pages.yml` → `dist/`).
