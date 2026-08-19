@@ -29,7 +29,10 @@ export function heroClip(p){
     return ['getup', gt < 0.33 ? 0 : (gt < 0.66 ? 1 : 2)];
   }
   if (p.stanceT > 0) return [p.stance === 2 ? 'prone' : (p.stance === 1 ? 'crouch' : 'idle'), 0];
-  if (p.pickT > 0 && p.onGround) return ['pick', 0];
+  if (p.pickT > 0 && p.onGround){
+    var pickAnim = p.stance === 2 ? 'pickProne' : (p.stance === 1 ? 'pickCrouch' : 'pick');
+    return [pickAnim, 0];
+  }
   if (p.stance === 2) return ['prone', Math.abs(p.vx) > 4 && Math.sin(animT * 7) > 0 ? 1 : 0];
   if (p.stance === 1) return [Math.abs(p.vx) > 4 ? 'crouchWalk' : 'crouch', 0];
   if (p.grapple) return ['grapple', (p.grapple.up || (p.grapple.phase !== 'fly' && Math.abs(p.grapple.vx) < 20)) ? 1 : 0];

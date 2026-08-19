@@ -23,6 +23,8 @@ export var SPRITE_DEFS = [
       { id: 'wallPush', name: 'Wall push', n: 1 },
       { id: 'vault', name: 'Vault', n: 1 },
       { id: 'pick', name: 'Pick', n: 1 },
+      { id: 'pickCrouch', name: 'Pick crouch', n: 1 },
+      { id: 'pickProne', name: 'Pick prone', n: 1 },
       { id: 'throw', name: 'Throw', n: 1 },
       { id: 'attack', name: 'Attack', n: 3 },
       { id: 'roll', name: 'Roll', n: 1 },
@@ -140,8 +142,8 @@ function cloneBox(b){
 
 export function defaultAnimBox(id, anim){
   if (id === 'hero'){
-    if (anim === 'crouch' || anim === 'crouchWalk') return { w: C.W, h: C.CRH };
-    if (anim === 'prone') return { w: C.PRW, h: C.PRH };
+    if (anim === 'crouch' || anim === 'crouchWalk' || anim === 'pickCrouch') return { w: C.W, h: C.CRH };
+    if (anim === 'prone' || anim === 'pickProne') return { w: C.PRW, h: C.PRH };
     if (anim === 'roll') return { w: C.W, h: C.RH };
     return { w: C.W, h: C.H };
   }

@@ -12,7 +12,7 @@ export function heroBoxAnim(p){
   if (p.state === 'snare') return 'snare';
   if (p.inWater) return 'swim';
   if (p.state === 'bars') return 'bars';
-  if (p.pickT > 0 && p.onGround) return 'pick';
+  if (p.pickT > 0 && p.onGround) return p.stance === 2 ? 'pickProne' : (p.stance === 1 ? 'pickCrouch' : 'pick');
   if (p.stance === 2) return 'prone';
   if (p.stance === 1) return Math.abs(p.vx) > 4 ? 'crouchWalk' : 'crouch';
   if (p.grapple) return 'grapple';
