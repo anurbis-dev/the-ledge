@@ -6,7 +6,7 @@ import {
 } from './constants.js';
 import { runtime, setWorld, hooks, ensureMap, mapIx, inMap, mapMinC, mapMaxC, mapMinR, mapMaxR } from './runtime.js';
 import { getActiveLayer, getLayers, isTileLayer, wrapIndex, ensureStamp, ensureDeco } from './layers.js';
-import { COVER_AIR, ensureCover, coverRaw, coverVarRaw } from './rooms.js';
+import { COVER_AIR, ensureCover, coverRaw, coverVarRaw, stepRooms } from './rooms.js';
 import {
   isHalfV, isBarV, ladderTop, isSlopeV, isWaterV, isFlowV, isWetV, slopeSurfaceY,
   slopeTop, slopeSpec, slopeFamily, slopeRiseRight, SLOPE_SEQ,
@@ -55,6 +55,7 @@ export function mkWorld(li){
     dead: false
   };
   buildGates(w);
+  stepRooms(w);
   return w;
 }
 

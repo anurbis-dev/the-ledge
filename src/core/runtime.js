@@ -8,6 +8,7 @@ let soloLayer = 0;
 let LV = null, LVI = 0;
 let W = null;                     // активный мир (для solid-запросов)
 let roomsOn = null;               // null = не подменять cover (редактор); {}/map = активные комнаты
+let roomsVis = {};                // key → 0..1 визуал (1 = комната проявлена)
 var GROW = 16;
 
 export const runtime = {
@@ -36,7 +37,9 @@ export const runtime = {
   get W(){ return W; },
   set W(v){ W = v; },
   get roomsOn(){ return roomsOn; },
-  set roomsOn(v){ roomsOn = v; }
+  set roomsOn(v){ roomsOn = v; },
+  get roomsVis(){ return roomsVis; },
+  set roomsVis(v){ roomsVis = v || {}; }
 };
 
 export function getMAP_W(){ return runtime.MAP_W; }

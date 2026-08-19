@@ -32,5 +32,6 @@ export const C = {
   SAFE: 46, HURT: 104, HITSTOP: 0.055,
   FALL_CROUCH_T: 0.55, FALL_PRONE_T: 1.2, GETUP_T: 0.5,
   CRUMB_T: 1.05,
-  PLANK_BURN: 1.6
+  PLANK_BURN: 1.6,
+  ROOM_FADE: 0.55
 };

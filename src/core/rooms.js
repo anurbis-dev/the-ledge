@@ -1,4 +1,4 @@
-import { T } from './constants.js';
+import { T, C } from './constants.js';
 import { runtime, hooks, inMap, mapIx } from './runtime.js';
 
 export const COVER_AIR = 255;
@@ -55,6 +55,8 @@ export function rebuildRooms(L){
       if (lr + 1 < h) stack.push(ix + w);
     }
   }
+  L._roomMax = id;
+  L._coverCans = null;
   L._roomsDirty = false;
 }
 
@@ -95,11 +97,54 @@ function sameOn(a, b){
   return true;
 }
 
-export function stepRooms(S){
+function visEase(t){
+  if (t <= 0) return 0;
+  if (t >= 1) return 1;
+  return t * t * (3 - 2 * t);
+}
+
+function visRaw(key){
+  var vis = runtime.roomsVis;
+  if (vis && vis[key] != null) return vis[key];
+  return runtime.roomsOn && runtime.roomsOn[key] ? 1 : 0;
+}
+
+export function roomCoverA(key){
+  if (runtime.roomsOn == null) return 0;
+  return 1 - visEase(visRaw(key));
+}
+
+function snapVis(on){
+  var vis = {}, k;
+  if (on) for (k in on) vis[k] = 1;
+  runtime.roomsVis = vis;
+}
+
+function lerpVis(dt){
+  if (runtime.roomsOn == null){ runtime.roomsVis = {}; return; }
+  var vis = runtime.roomsVis || (runtime.roomsVis = {});
+  var want = {}, k, cur, fade, step;
+  for (k in vis) want[k] = 0;
+  for (k in runtime.roomsOn) want[k] = 1;
+  fade = C.ROOM_FADE;
+  if (!(fade > 0.04)) fade = 0.04;
+  step = dt / fade;
+  for (k in want){
+    cur = vis[k];
+    if (cur == null) cur = want[k] ? 0 : 1;
+    if (want[k]) cur = Math.min(1, cur + step);
+    else cur = Math.max(0, cur - step);
+    if (cur <= 0 && !want[k]) delete vis[k];
+    else vis[k] = cur;
+  }
+}
+
+export function stepRooms(S, dt){
   var p = S && S.p;
   var next = {};
   var ls = runtime.layers || [];
   var i, L, c, r, ix;
+  var prev = runtime.roomsOn;
   if (p){
     c = Math.floor((p.x + p.w * 0.5) / T);
     r = Math.floor((p.y + p.h - 1) / T);
@@ -113,10 +158,12 @@ export function stepRooms(S){
       next[roomKey(L, ix)] = 1;
     }
   }
-  var changed = !sameOn(runtime.roomsOn, next);
+  var changed = !sameOn(prev, next);
   runtime.roomsOn = next;
   if (S) S.roomsOn = next;
   if (changed && hooks.onRoomsChange) hooks.onRoomsChange();
+  if (dt == null || prev == null || (S && S.t === 0)) snapVis(next);
+  else lerpVis(dt);
 }
 
 export function roomHides(x, y){
@@ -136,13 +183,37 @@ export function roomHides(x, y){
   return false;
 }
 
+export function roomVisAt(x, y){
+  if (runtime.roomsOn == null) return 1;
+  var c = Math.floor(x / T), r = Math.floor(y / T);
+  if (!inMap(c, r)) return 1;
+  var ls = runtime.layers || [];
+  var i, L, ix, v = 1, rv;
+  for (i = 0; i < ls.length; i++){
+    L = ls[i];
+    if (!L.collide || !L.cover || L.wrap) continue;
+    if (L._roomsDirty) rebuildRooms(L);
+    ix = mapIx(c, r);
+    if (!L.cover[ix]) continue;
+    rv = visRaw(roomKey(L, ix));
+    if (rv < v) v = rv;
+  }
+  return visEase(v);
+}
+
+function markOne(e, p){
+  if (!e) return;
+  if (!p){ e.roomHide = false; e.roomA = 1; return; }
+  e.roomHide = roomHides(p.x, p.y);
+  e.roomA = roomVisAt(p.x, p.y);
+}
+
 function markList(arr, xy){
   if (!arr) return;
-  var i, e, p;
+  var i, e;
   for (i = 0; i < arr.length; i++){
     e = arr[i];
-    p = xy ? xy(e) : e;
-    e.roomHide = !!(p && roomHides(p.x, p.y));
+    markOne(e, xy ? xy(e) : e);
   }
 }
 
@@ -167,12 +238,13 @@ export function markRoomHidden(S){
   markList(S.arrows);
   markList(S.drops);
   if (S.pick){
-    if (S.pick.stick) S.pick.stick.roomHide = roomHides(S.pick.stick.x, S.pick.stick.y);
-    if (S.pick.key) S.pick.key.roomHide = roomHides(S.pick.key.x, S.pick.key.y);
+    if (S.pick.stick) markOne(S.pick.stick, S.pick.stick);
+    if (S.pick.key) markOne(S.pick.key, S.pick.key);
   }
 }
 
 export function setEditorRooms(coverOn){
   runtime.roomsOn = coverOn ? {} : null;
+  runtime.roomsVis = {};
   if (hooks.onRoomsChange) hooks.onRoomsChange();
 }

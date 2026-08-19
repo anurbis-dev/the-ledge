@@ -1,7 +1,7 @@
 import GAME from '../core/game.js';
 import { damage } from '../core/player.js';
 import { getLayers, layerShown, layerCssFilter } from '../core/layers.js';
-import { roomHides } from '../core/rooms.js';
+import { roomVisAt } from '../core/rooms.js';
 import { ctx, cam, view, VW, VH, rc, lb, setFill, world } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
 
@@ -500,9 +500,11 @@ export function drawFish(){
     var f = FISH[i];
     var x = Math.round(f.x - cam.x), y = Math.round(f.y - cam.y);
     if (x < -20 || x > VW + 20 || y < -16 || y > VH + 16) continue;
-    if (roomHides(f.x, f.y)) continue;
+    var ra = roomVisAt(f.x, f.y);
+    if (ra <= 0.01) continue;
     var dim = waterTintAt(f.x, f.y);
-    if (dim > 0.04) ctx.globalAlpha = 1 - dim * 0.7;
+    if (dim > 0.04) ctx.globalAlpha = ra * (1 - dim * 0.7);
+    else if (ra < 0.995) ctx.globalAlpha = ra;
     var body = f.kind === 0 ? '#e0a04a' : (f.kind === 1 ? '#5fb0d0' : '#b05f7a');
     var fin  = f.kind === 0 ? '#ffd08a' : (f.kind === 1 ? '#9fd8ef' : '#e09fb0');
     var d = f.dir;
@@ -514,7 +516,7 @@ export function drawFish(){
     rc(tx, y - f.h/2 - tw + 2, 3, 2, fin);
     rc(x + (d > 0 ? f.w/2 - 3 : -f.w/2 + 1), y - 1, 2, 2, '#101018');
     if (f.big) rc(x + (d > 0 ? f.w/2 - 1 : -f.w/2 - 1), y, 2, 1, '#fff');
-    if (dim > 0.04) ctx.globalAlpha = 1;
+    if (dim > 0.04 || ra < 0.995) ctx.globalAlpha = 1;
   }
 }
 

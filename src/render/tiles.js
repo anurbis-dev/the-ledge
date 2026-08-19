@@ -1,6 +1,7 @@
 import GAME from '../core/game.js';
 import { hooks } from '../core/runtime.js';
-import { getLayers, layerShown, lastCollideIndex, layerTile, layerVar, layerDeco, isTileLayer, wrapSize, layerCssFilter } from '../core/layers.js';
+import { COVER_AIR, coverRaw, coverVarRaw, roomCoverA, rebuildRooms } from '../core/rooms.js';
+import { getLayers, layerShown, lastCollideIndex, layerTileRaw, layerVarRaw, layerDeco, isTileLayer, wrapSize, layerCssFilter } from '../core/layers.js';
 import { getTileDef, tileImage, isCustomId } from '../core/tileset.js';
 import { buildWater } from './fx.js';
 import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH, viewScale } from './ctx.js';
@@ -9,10 +10,33 @@ import { waterDepthK, dust } from './fx.js';
 
 var G = GAME, T = G.T;
 var _L = null;
+var _paintCover = false;
 
-function tAt(c, r){ return _L ? layerTile(_L, c, r) : G.tileAt(c, r); }
-function vAt(c, r){ return _L ? layerVar(_L, c, r) : G.varAt(c, r); }
+function tAt(c, r){
+  if (_paintCover && _L && _L.cover){
+    var cov = coverRaw(_L, c, r);
+    if (cov) return cov === COVER_AIR ? 0 : cov;
+  }
+  if (_L) return layerTileRaw(_L, c, r);
+  return G.tileAt(c, r);
+}
+function vAt(c, r){
+  if (_paintCover && _L && _L.cover){
+    var cv = coverRaw(_L, c, r);
+    if (cv) return cv === COVER_AIR ? 0 : coverVarRaw(_L, c, r);
+  }
+  if (_L) return layerVarRaw(_L, c, r);
+  return G.varAt(c, r);
+}
 function dAt(c, r){ return _L ? layerDeco(_L, c, r) : (G.decoAt ? G.decoAt(c, r) : 0); }
+function cellCoverA(c, r){
+  if (!_L || !_L.cover || !_L.collide || _L.wrap) return 0;
+  if (!G.inMap(c, r)) return 0;
+  var ix = G.mapIx(c, r);
+  if (!_L.cover[ix]) return 0;
+  if (_L._roomsDirty) rebuildRooms(_L);
+  return roomCoverA(_L.id + ':' + _L.roomOf[ix]);
+}
 function isFrontId(v){
   var d = getTileDef(v);
   return !!(d && d.front);
@@ -396,7 +420,7 @@ function syncPal(){
   if (cacheRev !== palRev){
     chunkCache = {};
     var ls = getLayers(), i;
-    for (i = 0; i < ls.length; i++){ ls[i]._chunks = {}; ls[i]._stampCan = null; }
+    for (i = 0; i < ls.length; i++){ ls[i]._chunks = {}; ls[i]._stampCan = null; ls[i]._coverCans = null; }
     cacheRev = palRev;
   }
 }
@@ -413,17 +437,97 @@ export function invalidateChunk(c, r){
   for (i = 0; i < ls.length; i++){
     wipeChunk(ls[i]._chunks, c, r);
     if (ls[i].wrap) ls[i]._stampCan = null;
+    ls[i]._coverCans = null;
   }
 }
 hooks.onSetTile = invalidateChunk;
 hooks.onRoomsChange = function(){
-  invalidateAll();
   buildWater();
 };
 export function invalidateAll(){
   chunkCache = {};
   var ls = getLayers(), i;
-  for (i = 0; i < ls.length; i++){ ls[i]._chunks = {}; ls[i]._stampCan = null; }
+  for (i = 0; i < ls.length; i++){
+    ls[i]._chunks = {};
+    ls[i]._stampCan = null;
+    ls[i]._coverCans = null;
+  }
+}
+
+function paintAny(c, r, x, y){
+  var v = tAt(c, r);
+  if (v) paintTileId(v, c, r, x, y, true);
+  if (_paintCover) return;
+  var d = dAt(c, r);
+  if (d) paintTileId(d, c, r, x, y, true);
+}
+
+function coverCanOf(L, rid){
+  if (!L || !L.cover || !L.roomOf) return null;
+  var cans = L._coverCans || (L._coverCans = {});
+  if (cans[rid]) return cans[rid];
+  var w = G.MAP_W, h = G.MAP_H, oc = G.mapMinC(), or_ = G.mapMinR();
+  var roomOf = L.roomOf, cov = L.cover, n = w * h;
+  var minC = w, minR = h, maxC = -1, maxR = -1, i, lc, lr, hasTile = false;
+  for (i = 0; i < n; i++){
+    if (roomOf[i] !== rid) continue;
+    lc = i % w; lr = (i / w) | 0;
+    if (lc < minC) minC = lc;
+    if (lr < minR) minR = lr;
+    if (lc > maxC) maxC = lc;
+    if (lr > maxR) maxR = lr;
+    if (cov[i] && cov[i] !== COVER_AIR) hasTile = true;
+  }
+  if (maxC < 0){ cans[rid] = null; return null; }
+  minC += oc; minR += or_; maxC += oc; maxR += or_;
+  var cw = (maxC - minC + 1) * T + PAD * 2;
+  var ch = (maxR - minR + 1) * T + PAD * 2;
+  var can = document.createElement('canvas');
+  can.width = cw; can.height = ch;
+  var g = can.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  if (hasTile){
+    var saved = getCtx();
+    var prevL = _L, prevP = _paintCover;
+    _L = L; _paintCover = true;
+    setCtx(g);
+    try {
+      for (lr = minR; lr <= maxR; lr++){
+        for (lc = minC; lc <= maxC; lc++){
+          if (!G.inMap(lc, lr)) continue;
+          if (L.roomOf[G.mapIx(lc, lr)] !== rid) continue;
+          if (coverRaw(L, lc, lr) === COVER_AIR) continue;
+          paintAny(lc, lr, (lc - minC) * T + PAD, (lr - minR) * T + PAD);
+        }
+      }
+    } finally {
+      setCtx(saved);
+      _L = prevL;
+      _paintCover = prevP;
+    }
+  }
+  var out = { can: can, x: minC * T - PAD, y: minR * T - PAD };
+  cans[rid] = out;
+  return out;
+}
+
+function blitCover(camx, camy){
+  var L = _L;
+  if (!L || !L.cover || !L.collide || L.wrap) return;
+  if (L._roomsDirty || !L.roomOf) rebuildRooms(L);
+  var max = L._roomMax | 0, rid, a, g, dx, dy, z;
+  for (rid = 1; rid <= max; rid++){
+    a = roomCoverA(L.id + ':' + rid);
+    if (a <= 0.02) continue;
+    g = coverCanOf(L, rid);
+    if (!g) continue;
+    dx = g.x - camx; dy = g.y - camy;
+    z = viewScale;
+    if (z !== 1){ dx = Math.round(dx * z) / z; dy = Math.round(dy * z) / z; }
+    ctx.globalAlpha = a;
+    ctx.drawImage(g.can, dx, dy);
+    ctx.globalAlpha = 1;
+  }
 }
 
 export function chunkOf(cx, cy){
@@ -518,6 +622,7 @@ function blitLayer(camx, camy){
         drawTile(c, r, c*T - camx, r*T - camy, true);
     }
   }
+  blitCover(camx, camy);
 }
 
 export function tilesLayer(L){
@@ -576,10 +681,14 @@ function drawFrontOn(L){
   try {
     for (r = r0; r <= r1; r++){
       for (c = c0; c <= c1; c++){
+        var ca = cellCoverA(c, r);
+        if (ca > 0.98) continue;
+        if (ca > 0.02) ctx.globalAlpha = 1 - ca;
         v = tAt(c, r);
         if (v && isFrontId(v)) paintTileId(v, c, r, c * T - camx, r * T - camy, true);
         d = dAt(c, r);
         if (d && isFrontId(d)) paintTileId(d, c, r, c * T - camx, r * T - camy, true);
+        if (ca > 0.02) ctx.globalAlpha = 1;
       }
     }
   } finally {

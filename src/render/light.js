@@ -1,5 +1,5 @@
 import GAME from '../core/game.js';
-import { ctx, cam, view, VW, VH, lc, lx, rc, world } from './ctx.js';
+import { ctx, cam, view, VW, VH, lc, lx, rc, world, entA, pushEntA, popEntA } from './ctx.js';
 import { P } from './palette.js';
 
 var G = GAME, T = G.T;
@@ -31,13 +31,13 @@ export function torchPts(){
   var S = world(), LIGHTS = getLights();
   var a = [], i, xy;
   for (i = 0; i < LIGHTS.length; i++){
-    if (LIGHTS[i].roomHide) continue;
+    if (entA(LIGHTS[i]) <= 0.01) continue;
     xy = lightXY(LIGHTS[i]);
     a.push([xy[0], xy[1], LIGHTS[i]]);
   }
   for (i = 0; i < S.torches.length; i++)
-    if (S.torches[i].lit && !S.torches[i].roomHide)
-      a.push([S.torches[i].x, S.torches[i].y - 9, null]);
+    if (S.torches[i].lit && entA(S.torches[i]) > 0.01)
+      a.push([S.torches[i].x, S.torches[i].y - 9, S.torches[i]]);
   _tp = a; _tpT = view.time;
   return a;
 }
@@ -76,24 +76,26 @@ export function lightPass(){
     rad = L && L.radius != null ? L.radius : 82;
     inten = L && L.intensity != null ? L.intensity : 1;
     col = L && L.color ? hexRgba(L.color, 0.95) : 'rgba(255,190,116,0.95)';
-    add(fx, fy, rad, col, 0.95 * fl * inten);
+    add(fx, fy, rad, col, 0.95 * fl * inten * entA(L));
   }
   for (i = 0; i < LIGHTS.length; i++){
     L = LIGHTS[i];
-    if (L && (L.lantern === false || L.roomHide)) continue;
+    if (L && (L.lantern === false || !pushEntA(L))) continue;
     xy = lightXY(L);
     var wx2 = xy[0] - cam.x, wy2 = xy[1] - cam.y;
     rc(wx2-1, wy2-6, 2, 8, P.woodD);
     rc(wx2-2, wy2-9, 4, 4, L && L.color ? L.color : '#ffcf7a');
     rc(wx2-1, wy2-11+Math.round(Math.sin(time*9+i)*1), 2, 3, '#fff3c4');
   }
+  popEntA();
   for (i = 0; i < S.items.length; i++){
-    var it = S.items[i]; if (it.got || it.roomHide) continue;
+    var it = S.items[i]; if (it.got || entA(it) <= 0.01) continue;
     var ix = it.x - cam.x, iy = it.y - cam.y;
-    if (it.kind === 'gem') add(ix, iy, 26, 'rgba(120,230,255,0.85)', 0.8);
-    else if (it.kind === 'shroom') add(ix, iy, 22, 'rgba(255,150,90,0.8)', 0.7);
-    else if (it.kind === 'relic') add(ix, iy, 44, 'rgba(220,190,255,0.95)', 0.95);
-    else add(ix, iy, 15, 'rgba(255,215,110,0.7)', 0.6);
+    var ia = entA(it);
+    if (it.kind === 'gem') add(ix, iy, 26, 'rgba(120,230,255,0.85)', 0.8 * ia);
+    else if (it.kind === 'shroom') add(ix, iy, 22, 'rgba(255,150,90,0.8)', 0.7 * ia);
+    else if (it.kind === 'relic') add(ix, iy, 44, 'rgba(220,190,255,0.95)', 0.95 * ia);
+    else add(ix, iy, 15, 'rgba(255,215,110,0.7)', 0.6 * ia);
   }
   var inDk = G.inDark(S, S.p.x + S.p.w/2, S.p.y + S.p.h/2);
   if (!inDk) add(S.p.x + 5 - cam.x, S.p.y + 10 - cam.y, 46, 'rgba(190,190,255,0.55)', 0.55);

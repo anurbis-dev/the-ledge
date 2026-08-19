@@ -33,7 +33,7 @@ import { stepNpcs } from '../entities/npcs.js';
 /* --- основной шаг --- */
 export function step(S, dt, inp){
   setWorld(S);
-  stepRooms(S);
+  stepRooms(S, dt);
   markRoomHidden(S);
   S.p.events.length = 0;
   if (S.hitStop > 0){ S.hitStop -= dt; if (S.hitStop > 0) return; }

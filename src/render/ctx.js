@@ -31,6 +31,27 @@ export function getCtx(){ return ctx; }
 
 export function world(){ return GAME.W; }
 
+export function entA(e){
+  if (!e) return 1;
+  if (typeof e.roomA === 'number') return e.roomA;
+  return e.roomHide ? 0 : 1;
+}
+var _ra = 1, _rp = false;
+export function pushEntA(e){
+  popEntA();
+  var a = entA(e);
+  if (a <= 0.01) return false;
+  if (a < 0.995){
+    _ra = ctx.globalAlpha;
+    ctx.globalAlpha = _ra * a;
+    _rp = true;
+  }
+  return true;
+}
+export function popEntA(){
+  if (_rp){ ctx.globalAlpha = _ra; _rp = false; }
+}
+
 export function rc(x, y, w, h, col){
   setFill(col);
   ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
