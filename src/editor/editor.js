@@ -343,20 +343,6 @@ function selectSpriteBrush(def){
   ED.pal = pal;
   return true;
 }
-function spriteDefForHit(hit){
-  if (!hit || !hit.obj) return null;
-  var o = hit.obj, sid;
-  if (hit.type === 'light'){
-    sid = o.sprite;
-    if (!sid || sid === 'none') sid = 'lantern';
-    return getSpriteDef(sid) || spriteDefForKind('light');
-  }
-  if (hit.type === 'enemy') return spriteDefForKind('enemy' + o.kind);
-  if (hit.type === 'flier') return spriteDefForKind('flier' + o.kind);
-  if (hit.type === 'spider') return spriteDefForKind('spider' + o.kind);
-  if (hit.type === 'npc') return spriteDefForKind('npc_' + (o.tree || 'hermit'));
-  return spriteDefForKind(hit.type);
-}
 
 function setTab(tab){
   ED.tab = tab;
@@ -398,11 +384,12 @@ function swatch(parent, canvas, label, active, onPick, kind, pal){
   b.appendChild(img);
   b.addEventListener('pointerdown', function(e){
     if (e.button !== 0) return;
-    if (e.detail === 2) return;
+    if (e.detail >= 2) return;
     e.stopPropagation();
     onPick();
     startPaletteDrag(e, kind, pal, img);
-    edRefresh();
+    markActiveSwatch(b);
+    fillExtra();
   });
   parent.appendChild(b);
   return b;
@@ -483,6 +470,12 @@ function startPaletteDrag(e, kind, pal, img){
   window.addEventListener('pointermove', move);
   window.addEventListener('pointerup', up);
   window.addEventListener('pointercancel', up);
+}
+
+function markActiveSwatch(btn){
+  if (!edPal) return;
+  var list = edPal.querySelectorAll('.ed-swatch'), i;
+  for (i = 0; i < list.length; i++) list[i].classList.toggle('on', list[i] === btn);
 }
 
 function extraBtn(parent, label, active, onClick){
@@ -1534,13 +1527,56 @@ function resetZoom(){
   setZoom(1, sx, sy);
 }
 
-function bumpIcon(dir){
-  var n = Math.round(ED.icon + dir * 4);
-  n = Math.max(ICON_MIN, Math.min(ICON_MAX, n));
-  if (n === ED.icon) return;
+function clampIcon(n){
+  n = Math.round(n);
+  return Math.max(ICON_MIN, Math.min(ICON_MAX, n));
+}
+function applyIconCss(n){
   ED.icon = n;
-  try { localStorage.setItem(IKEY, String(n)); } catch (_){}
+  if (edPal){
+    edPal.style.setProperty('--ed-icon', n + 'px');
+    var sw = edPal.querySelectorAll('.ed-swatch'), i;
+    for (i = 0; i < sw.length; i++){
+      sw[i].style.width = (n + 6) + 'px';
+      sw[i].style.height = (n + 6) + 'px';
+    }
+    var imgs = edPal.querySelectorAll('.ed-swatch-img');
+    for (i = 0; i < imgs.length; i++){
+      imgs[i].style.width = n + 'px';
+      imgs[i].style.height = n + 'px';
+    }
+  }
+}
+function commitIcon(){
+  try { localStorage.setItem(IKEY, String(ED.icon)); } catch (_){}
   if (ED.tab === 'tile' || ED.tab === 'obj') fillPal();
+}
+function bumpIcon(dir){
+  var n = clampIcon(ED.icon + dir * 4);
+  if (n === ED.icon) return;
+  applyIconCss(n);
+  commitIcon();
+}
+var iconDrag = null;
+function startIconScale(e){
+  iconDrag = { y: e.clientY, icon: ED.icon, pointerId: e.pointerId };
+  function move(ev){
+    if (!iconDrag || ev.pointerId !== iconDrag.pointerId) return;
+    ev.preventDefault();
+    var n = clampIcon(iconDrag.icon + (iconDrag.y - ev.clientY) / 3);
+    if (n !== ED.icon) applyIconCss(n);
+  }
+  function up(ev){
+    if (!iconDrag || ev.pointerId !== iconDrag.pointerId) return;
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', up);
+    iconDrag = null;
+    commitIcon();
+  }
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', up);
 }
 
 cv.addEventListener('pointerdown', function(e){
@@ -1556,6 +1592,10 @@ cv.addEventListener('pointerdown', function(e){
     return;
   }
   if (e.button === 2){
+    if ((e.ctrlKey || e.metaKey) && ED.tab === 'obj'){
+      startIconScale(e);
+      return;
+    }
     closeVarMenu();
     beginOp();
     ED.erasing = true; ED.painting = true; ED.last = null; ED.stroke = null; ED.strokeOrig = null;
@@ -1725,15 +1765,7 @@ function edUp(e){
 cv.addEventListener('pointerup', edUp);
 cv.addEventListener('pointercancel', edUp);
 cv.addEventListener('dblclick', function(e){
-  if (!ED.on) return;
-  var wcell = edCell(e.clientX, e.clientY, true);
-  var sd = spriteDefForHit(findObjectAt(wcell.x, wcell.y));
-  if (sd){
-    e.preventDefault();
-    openSpriteEdit(sd, e.clientX, e.clientY);
-    return;
-  }
-  if (ED.tool !== 'tile') return;
+  if (!ED.on || ED.tool !== 'tile') return;
   var cell = edCell(e.clientX, e.clientY);
   var deco = brushDeco(cell.c, cell.r);
   var v = deco || brushTile(cell.c, cell.r);
@@ -1766,6 +1798,17 @@ if (edBar){
       bumpIcon(e.deltaY < 0 ? 1 : -1);
     }
   }, { passive: false });
+  edBar.addEventListener('contextmenu', function(e){
+    if (e.ctrlKey || e.metaKey) e.preventDefault();
+  });
+  edBar.addEventListener('pointerdown', function(e){
+    if (!ED.on) return;
+    if ((e.ctrlKey || e.metaKey) && e.button === 2 && (ED.tab === 'obj' || ED.tab === 'tile')){
+      e.preventDefault();
+      e.stopPropagation();
+      startIconScale(e);
+    }
+  });
   var tabRow = edBar.querySelector('.ed-tabs');
   if (tabRow){
     tabRow.addEventListener('click', function(e){

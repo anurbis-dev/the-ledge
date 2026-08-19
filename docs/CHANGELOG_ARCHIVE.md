@@ -1,5 +1,9 @@
 # Changelog archive
 
+## 0.1.0-dev.78
+
+- Спрайт-редактор: красная коробка на кадре = хитбокс действия (origin = верх-лево, низ = земля). Поля Box / Hit-drag; `saved[id][anim].box`; физика берёт `getAnimBox` (стойка idle/crouch/prone, кувырок, текущий clip).
+
 ## 0.1.0-dev.77
 
 - Камера: follow в `render/camera.js` (`followCam` / `resetCam` / `pushCamRender`); резина `kk=1-exp(-CAM_FOLLOW*dt)`, `CAM_SNAP` 1px липнет к цели (без дёрганья на стопе); blit по-прежнему `Math.round(cam+shake)`. `resetCam` обнуляет lead/look.
