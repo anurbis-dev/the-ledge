@@ -2,7 +2,7 @@
 // Shipped snapshot: levels, params, sprite anchors/boxes, optional settings/mix/talk/intro.
 // Per-browser localStorage is a draft overlay; newer savedAt wins (see persist.preferLocal).
 export var BAKED = {
-  "savedAt": 1787171299256,
+  "savedAt": 1787170763172,
   "levels": {
     "1": {
       "id": 1,
