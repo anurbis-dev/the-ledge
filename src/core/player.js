@@ -74,6 +74,25 @@ function rectFreeExceptFootLip(x, y, w, h, cx){
   return true;
 }
 
+/* стена для слайда: 2px сбоку или нахлёст после свеса (центр уже в воздухе) */
+export function wallSlideDir(p){
+  if (rectFree(p.x, p.y, p.w, p.h)){
+    if (!rectFree(p.x + 2, p.y, p.w, p.h)) return 1;
+    if (!rectFree(p.x - 2, p.y, p.w, p.h)) return -1;
+    return 0;
+  }
+  var right = !rectFree(p.x + p.w - 2, p.y, 2, p.h);
+  var left = !rectFree(p.x, p.y, 2, p.h);
+  if (right && !left) return 1;
+  if (left && !right) return -1;
+  return 0;
+}
+export function unstickFromWall(p, sd){
+  if (!sd || rectFree(p.x, p.y, p.w, p.h)) return;
+  if (sd > 0) p.x = Math.floor((p.x + p.w) / T) * T - p.w;
+  else p.x = Math.floor(p.x / T) * T + T;
+}
+
 export function snapFeet(p){
   var cx = footCenterX(p), feet = p.y + p.h, gy;
   gy = groundYAt(cx, feet);
@@ -92,7 +111,6 @@ export function moveX(S, p, dx){
       }
     }
     if (rectFreeExceptFootLip(p.x, p.y, p.w, p.h, cx)) return;
-    if (!footSupported(p) && slopeUnderAt(p, cx) === null && rectFree(cx - 1, p.y, 2, p.h)) return;
     p.y = oy;
     if (dx > 0) p.x = Math.floor((p.x + p.w) / T) * T - p.w;
     else        p.x = Math.floor(p.x / T) * T + T;

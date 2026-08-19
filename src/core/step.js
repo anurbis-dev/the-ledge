@@ -5,7 +5,7 @@ import {
   moveX, moveY, damage, updateBars, ease, updateClimb, updateHang, updateLadder,
   setStance, setH, slopeUnder, slopeUnderAt, slopeGradeUnder, grounded, autoLadder, tryBars,
   tryLadder, tryGrab, tryClimbOut, tryCrawlEdge, ladderTopUnder, attach, tryDescend,
-  footCenterX, snapFeet,
+  footCenterX, snapFeet, wallSlideDir, unstickFromWall,
   markGap, canDescend, awayFromEdge, startFallRecover, finishFallRecover,
   finishGetup, stanceFitsAt, stanceH, applyHeroBox, applyRollBox
 } from './player.js';
@@ -435,15 +435,16 @@ export function step(S, dt, inp){
   /* слайд по стене */
   p.sliding = 0;
   if (!p.onGround && p.vy > 0 && !rolling && (p.lock <= 0 || p.lock >= 9)){
-    var sd = 0;                                    // стена рядом — этого достаточно
-    if (!rectFree(p.x + 2, p.y, p.w, p.h)) sd = 1;
-    else if (!rectFree(p.x - 2, p.y, p.w, p.h)) sd = -1;
-    if (sd !== 0 && rectFree(p.x, p.y, p.w, p.h)){
-      p.sliding = sd; p.facing = sd; p.lock = 0;
-      p.apexY = Math.max(p.apexY, p.y - C.SAFE + 6);   // медленный спуск по стене не травмирует
-      if (p.vy > C.SLIDE_V) p.vy = C.SLIDE_V;
-      p.apexY = Math.min(p.apexY, p.y - 1);
-      if (Math.random() < 0.3) p.events.push('spark');
+    var sd = wallSlideDir(p);
+    if (sd !== 0){
+      unstickFromWall(p, sd);                      // нахлёст с губы — выталкиваем на грань
+      if (rectFree(p.x, p.y, p.w, p.h)){
+        p.sliding = sd; p.facing = sd; p.lock = 0;
+        p.apexY = Math.max(p.apexY, p.y - C.SAFE + 6);   // медленный спуск по стене не травмирует
+        if (p.vy > C.SLIDE_V) p.vy = C.SLIDE_V;
+        p.apexY = Math.min(p.apexY, p.y - 1);
+        if (Math.random() < 0.3) p.events.push('spark');
+      }
     }
   }
 
@@ -463,6 +464,19 @@ export function step(S, dt, inp){
   moveX(S, p, dx);
   moveY(S, p, p.vy * dt);
   if (!p.onGround && grounded(S, p) && p.vy >= 0){ p.onGround = true; p.vy = 0; }
+
+  if (!p.onGround && p.state === 'normal' && !rolling){
+    var usd = wallSlideDir(p);
+    if (usd){
+      unstickFromWall(p, usd);                     // не лететь, пересекая губу
+      if (p.vy > 0 && (p.lock <= 0 || p.lock >= 9) && rectFree(p.x, p.y, p.w, p.h)){
+        p.sliding = usd; p.facing = usd; p.lock = 0;
+        p.apexY = Math.max(p.apexY, p.y - C.SAFE + 6);
+        if (p.vy > C.SLIDE_V) p.vy = C.SLIDE_V;
+        p.apexY = Math.min(p.apexY, p.y - 1);
+      }
+    }
+  }
 
   if (!p.onGround){
     if (p.y < p.apexY) p.apexY = p.y;
