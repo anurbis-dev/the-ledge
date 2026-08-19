@@ -1,6 +1,7 @@
 import GAME from '../core/game.js';
 import { damage } from '../core/player.js';
 import { getLayers, layerShown, layerCssFilter } from '../core/layers.js';
+import { roomHides } from '../core/rooms.js';
 import { ctx, cam, view, VW, VH, rc, lb, setFill, world } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
 
@@ -499,6 +500,7 @@ export function drawFish(){
     var f = FISH[i];
     var x = Math.round(f.x - cam.x), y = Math.round(f.y - cam.y);
     if (x < -20 || x > VW + 20 || y < -16 || y > VH + 16) continue;
+    if (roomHides(f.x, f.y)) continue;
     var dim = waterTintAt(f.x, f.y);
     if (dim > 0.04) ctx.globalAlpha = 1 - dim * 0.7;
     var body = f.kind === 0 ? '#e0a04a' : (f.kind === 1 ? '#5fb0d0' : '#b05f7a');

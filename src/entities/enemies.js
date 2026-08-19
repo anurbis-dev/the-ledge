@@ -2,7 +2,7 @@ import { C } from '../core/constants.js';
 import { runtime } from '../core/runtime.js';
 import { rectFree, solidAt } from '../core/map.js';
 import { damage, slopeUnder } from '../core/player.js';
-import { dropLoot, dropConfiguredLoot } from './loot.js';
+import { dropLootFor } from './loot.js';
 import { GEAR, wearGear } from './gear.js';
 
 export function mkEnemies(){
@@ -20,14 +20,11 @@ export function mkEnemies(){
              loot: loot, random: !!a[7] };
   });
 }
-function dropForEnemy(S, e, x, y, tag){
-  if (e.loot && e.loot.length) dropConfiguredLoot(S, x, y, e.loot, e.random);
-  else dropLoot(S, x, y, tag);
-}
 export function stepEnemies(S, dt){
   var p = S.p;
   for (var i = 0; i < S.enemies.length; i++){
     var e = S.enemies[i];
+    if (e.roomHide) continue;
     if (e.dead){ e.hitT -= dt; continue; }
     if (e.hitT > 0){ e.hitT -= dt; }
     if (e.hopCd === undefined){ e.hopCd = 0.5 + Math.random(); e.baseY = e.y; e.vy = 0; }
@@ -47,7 +44,7 @@ export function stepEnemies(S, dt){
         p.x + p.w > e.x + 1 && p.x < e.x + e.w - 1 &&
         p.y + p.h > e.y - 2 && p.y + p.h < e.y + e.h * 0.7){
       e.dead = true; e.hitT = 0.6;
-      dropForEnemy(S, e, e.x + e.w/2, e.y + e.h/2, 's');
+      dropLootFor(S, e, e.x + e.w/2, e.y + e.h/2, 's');
       p.vy = -190; p.onGround = false; p.apexY = p.y;
       S.hitStop = Math.max(S.hitStop, 0.05); S.shake = Math.max(S.shake, 3);
       p.events.push('stomp:' + e.id);
@@ -96,7 +93,7 @@ export function attack(S){
   var reach = p.gear.weapon ? (GEAR[p.gear.weapon.type].reach || 1) : 1;
   var ax = p.x + p.w/2 + p.facing*(C.ATK_R*0.55*reach), ay = p.y + p.h/2;
   for (var i = 0; i < S.enemies.length; i++){
-    var e = S.enemies[i]; if (e.dead) continue;
+    var e = S.enemies[i]; if (e.dead || e.roomHide) continue;
     var ex = e.x + e.w/2, ey = e.y + e.h/2;
     if (Math.abs(ex - ax) < C.ATK_R*0.75*reach && Math.abs(ey - ay) < 18 &&
         (ex - (p.x + p.w/2)) * p.facing > -4){
@@ -104,20 +101,20 @@ export function attack(S){
         S.hitStop = Math.max(S.hitStop, 0.04); p.events.push('clank'); continue; }
       e.dead = true; e.hitT = 0.6; e.vy = -90;
       S.hitStop = Math.max(S.hitStop, 0.06); S.shake = Math.max(S.shake, 3);
-      dropForEnemy(S, e, e.x + e.w/2, e.y + e.h/2, 'e');
+      dropLootFor(S, e, e.x + e.w/2, e.y + e.h/2, 'e');
       wearGear(S, 'weapon');
       p.events.push('kill:' + e.id);
     }
   }
   for (var fj = 0; fj < S.fliers.length; fj++){
-    var fl = S.fliers[fj]; if (fl.dead) continue;
+    var fl = S.fliers[fj]; if (fl.roomHide) continue;
     var fx = fl.x + fl.w/2, fy = fl.y + fl.h/2;
     if (Math.abs(fx - ax) < C.ATK_R*0.8 && Math.abs(fy - ay) < 20 &&
         (fx - (p.x + p.w/2)) * p.facing > -4){
-      fl.dead = true; fl.hitT = 0.6;
       S.hitStop = Math.max(S.hitStop, 0.06);
-      dropLoot(S, fl.x + fl.w/2, fl.y + fl.h/2, 'f');
-      p.events.push('kill:f' + fl.id);
+      dropLootFor(S, fl, fx, fy, 'f');
+      p.events.push('kill:f' + fl.id + ':' + Math.round(fx) + ':' + Math.round(fy));
+      S.fliers.splice(fj, 1); fj--;
     }
   }
   return true;

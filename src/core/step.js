@@ -25,6 +25,7 @@ import { stepLoot } from '../entities/loot.js';
 import { tryDoor, updateWarp, tryExit } from '../entities/doors.js';
 import { pickups } from '../entities/items.js';
 import { stepDark } from '../entities/dark.js';
+import { stepRooms, markRoomHidden } from './rooms.js';
 import { stepSpeech } from '../speech/runtime.js';
 import { noteFirstItem } from '../speech/runtime.js';
 import { stepNpcs } from '../entities/npcs.js';
@@ -32,6 +33,8 @@ import { stepNpcs } from '../entities/npcs.js';
 /* --- основной шаг --- */
 export function step(S, dt, inp){
   setWorld(S);
+  stepRooms(S);
+  markRoomHidden(S);
   S.p.events.length = 0;
   if (S.hitStop > 0){ S.hitStop -= dt; if (S.hitStop > 0) return; }
   S.t += dt;
@@ -60,10 +63,10 @@ export function step(S, dt, inp){
   if (S.p.atkCd > 0) S.p.atkCd -= dt;
   if (S.p.pickT > 0) S.p.pickT -= dt;
   if (S.p.throwT > 0) S.p.throwT -= dt;
-  if (S.p.bowT > 0) S.p.bowT -= dt;
+  if (S.p.bowT > 0){ S.p.bowT -= dt; if (S.p.bowT <= 0) S.p.bowReady = true; }
   resolvePickup(S);
   var pk = S.pick;
-  if (!pk.key.taken && Math.abs(pk.key.x - (S.p.x + S.p.w/2)) < 12 &&
+  if (!pk.key.taken && !pk.key.roomHide && Math.abs(pk.key.x - (S.p.x + S.p.w/2)) < 12 &&
       Math.abs(pk.key.y - (S.p.y + S.p.h/2)) < 14){
     pk.key.taken = true; S.keys++; noteFirstItem(S, 'key'); S.p.events.push('getkey');
   }
@@ -189,6 +192,7 @@ export function step(S, dt, inp){
   /* --- normal / roll --- */
   var rolling = p.rollT > 0;
   p.walking = false;
+  var wallBlocked = false;
 
   // ↓ переключает стойку: стоя -> присед -> лёжа; ↑ или прыжок поднимают
   var inCab = false;
@@ -197,7 +201,7 @@ export function step(S, dt, inp){
   var onLadTop = ladderTopUnder(p, p.y + p.h + 1) !== null;
   var stanceBefore = p.stance;
   var onEdge = p.onGround && !inCab && !onLadTop && !p.inWater && canDescend(p, inp.x);
-  if (!talking && !rolling && p.onGround && !inCab && !onLadTop && !p.inWater && p.stanceT <= 0){
+  if (!talking && !rolling && p.onGround && !inCab && !onLadTop && !p.inWater && p.stanceT <= 0 && p.pickT <= 0){
     if (inp.downPressed && p.stance < 2 && Math.abs(p.vx) <= 58) setStance(S, p, p.stance + 1);
     else if (!onEdge && inp.downHeld && p.stance === 0 && Math.abs(p.vx) <= 58) setStance(S, p, 1);
     if ((inp.upPressed || inp.upHeld || inp.jumpPressed) && p.stance > 0){
@@ -243,8 +247,10 @@ export function step(S, dt, inp){
       else p.rollT = 0.1;
     }
   } else {
-    var ax = p.lock > 0 ? 0 : inp.x;
-    if (p.lock > 0){
+    var ax = (p.lock > 0 || p.pickT > 0) ? 0 : inp.x;
+    if (p.pickT > 0){
+      p.vx = 0;                                 // подбор предмета — только анимация, без смещения
+    } else if (p.lock > 0){
       // после отпрыга ввод в стену игнорируется, трение не тормозит полёт
     } else if (ax !== 0){
       var slow = p.stance > 0;
@@ -265,9 +271,9 @@ export function step(S, dt, inp){
       var blocked = !rectFree(p.x + p.facing*2, p.y, p.w, p.h) && slopeUnder(p) === null;
       var wasVx = p.vx;
       if (blocked) p.vx = 0;                      // упор в стену — не толкаемся (на склоне не мешаем)
-      // паркур только на ступень +1 тайл (не лаз через пропасть)
+      // паркур на ступень +1 тайл всегда; через пропасть в 1 тайл со схода с обрыва — только с разбега
       var wantParkour = stanceBefore === 0 && p.stance === 0 &&
-        (blocked || (p.onGround && !groundAhead(S, p, p.facing)));
+        (blocked || (p.onGround && !groundAhead(S, p, p.facing) && Math.abs(wasVx) > C.RUN * 0.75));
       if (wantParkour && tryMantle(S, p, p.facing, wasVx)){
         crumbCheck(S, p); pickups(S, p);
         return;
@@ -275,6 +281,7 @@ export function step(S, dt, inp){
       if (wantParkour && tryEnterGap(S, p, p.facing, wasVx)){
         if (p.state === 'climb'){ crumbCheck(S, p); pickups(S, p); return; }
       }
+      if (blocked && stanceBefore === 0 && p.stance === 0) wallBlocked = true;  // паркур не взял — упёрлись руками в стену
 
     } else {
       var f = C.FRIC * dt;
@@ -441,6 +448,7 @@ export function step(S, dt, inp){
     if (slPre !== null) p.y = slPre - p.h;
   }
   if (!wasAir) pushBoulders(S, p, dt, inp);
+  if (wallBlocked) p.pushWall = true;             // упёрлись в стену на бегу — руки в стену, как при камне
   p.onGround = false;
   var dx = p.vx * dt;
   if (slPre !== null) dx *= C.SLOPE_ALONG / Math.hypot(1, slopeGradeUnder(p));

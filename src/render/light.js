@@ -31,10 +31,13 @@ export function torchPts(){
   var S = world(), LIGHTS = getLights();
   var a = [], i, xy;
   for (i = 0; i < LIGHTS.length; i++){
+    if (LIGHTS[i].roomHide) continue;
     xy = lightXY(LIGHTS[i]);
     a.push([xy[0], xy[1], LIGHTS[i]]);
   }
-  for (i = 0; i < S.torches.length; i++) if (S.torches[i].lit) a.push([S.torches[i].x, S.torches[i].y - 9, null]);
+  for (i = 0; i < S.torches.length; i++)
+    if (S.torches[i].lit && !S.torches[i].roomHide)
+      a.push([S.torches[i].x, S.torches[i].y - 9, null]);
   _tp = a; _tpT = view.time;
   return a;
 }
@@ -77,7 +80,7 @@ export function lightPass(){
   }
   for (i = 0; i < LIGHTS.length; i++){
     L = LIGHTS[i];
-    if (L && L.lantern === false) continue;
+    if (L && (L.lantern === false || L.roomHide)) continue;
     xy = lightXY(L);
     var wx2 = xy[0] - cam.x, wy2 = xy[1] - cam.y;
     rc(wx2-1, wy2-6, 2, 8, P.woodD);
@@ -85,7 +88,7 @@ export function lightPass(){
     rc(wx2-1, wy2-11+Math.round(Math.sin(time*9+i)*1), 2, 3, '#fff3c4');
   }
   for (i = 0; i < S.items.length; i++){
-    var it = S.items[i]; if (it.got) continue;
+    var it = S.items[i]; if (it.got || it.roomHide) continue;
     var ix = it.x - cam.x, iy = it.y - cam.y;
     if (it.kind === 'gem') add(ix, iy, 26, 'rgba(120,230,255,0.85)', 0.8);
     else if (it.kind === 'shroom') add(ix, iy, 22, 'rgba(255,150,90,0.8)', 0.7);

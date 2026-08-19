@@ -64,6 +64,7 @@ export function stepSounds(S, previewId){
   var want = {}, i, s, g, dx, dy, d, r;
   for (i = 0; i < list.length; i++){
     s = list[i];
+    if (s.roomHide) continue;
     want[s.id] = true;
     g = s.vol != null ? s.vol : 0.4;
     if (s.mode !== 'flat'){

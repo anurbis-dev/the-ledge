@@ -4,7 +4,12 @@ import { rectFree, isSlopeV, slopeGrade, slopeRiseRight, slopeTop, tileAt } from
 import { damage } from '../core/player.js';
 import { allocId } from './ids.js';
 
-export var BW = 12, BH = 11;
+export var BW = 12, BH = 11, BR = 6;
+/* дефолтные физические настройки камня — переопределяются per-instance из редактора (клик по камню) */
+export var BOULDER_DEF = { pushV: 14, friction: 90, rollMax: 70 };
+export function bPushV(b){ return b.pushV != null ? b.pushV : BOULDER_DEF.pushV; }
+export function bFriction(b){ return b.friction != null ? b.friction : BOULDER_DEF.friction; }
+export function bRollMax(b){ return b.rollMax != null ? b.rollMax : BOULDER_DEF.rollMax; }
 
 function initialResting(x, y){ return !rectFree(x + 1, y + BH, BW - 2, 1); }
 
@@ -14,12 +19,16 @@ export function mkBoulders(){
   return (LV.boulders || []).map(function(a, i){
     var floorY = (a[1] + 1) * T, cx = a[0]*T + 8;
     var x = cx - BW/2, y = floorY - BH;
-    return { id: i, x: x, y: y, vx: 0, vy: 0, resting: initialResting(x, y) };
+    var o = { id: i, x: x, y: y, vx: 0, vy: 0, rot: 0, resting: initialResting(x, y) };
+    if (a[2] != null) o.pushV = a[2];
+    if (a[3] != null) o.friction = a[3];
+    if (a[4] != null) o.rollMax = a[4];
+    return o;
   });
 }
 export function mkBoulderAt(S, cx, floorY){
   var x = cx - BW/2, y = floorY - BH;
-  S.boulders.push({ id: allocId(S.boulders), x: x, y: y, vx: 0, vy: 0, resting: initialResting(x, y) });
+  S.boulders.push({ id: allocId(S.boulders), x: x, y: y, vx: 0, vy: 0, rot: 0, resting: initialResting(x, y) });
 }
 function boulderFree(S, skip, x, y){
   if (!rectFree(x, y, BW, BH)) return false;
@@ -49,24 +58,30 @@ export function stepBoulders(S, dt){
   var p = S.p;
   for (var i = 0; i < S.boulders.length; i++){
     var b = S.boulders[i];
+    if (b.roomHide) continue;
     var slope = slopeSurfaceUnder(b.x, b.y);
     var supported = slope !== null || !rectFree(b.x + 1, b.y + BH, BW - 2, 1);
     if (supported){
-      if (!b.resting){ b.resting = true; S.shake = Math.max(S.shake, 2); S.p.events.push('bouldland:' + Math.round(b.x)); }
+      if (!b.resting){                             // приземление — тряска пропорциональна скорости падения
+        b.resting = true;
+        S.shake = Math.max(S.shake, Math.min(8, 1 + b.vy / 45));
+        S.p.events.push('bouldland:' + Math.round(b.x));
+      }
       b.vy = 0;
+      var rollMax = bRollMax(b);
       if (slope){
         b.y = slope.y - BH;                       // держимся ровно на поверхности склона
         var dir = slopeRiseRight(slope.v) ? -1 : 1;
         var grade = slopeGrade(slope.v, slope.c, b.x + BW/2);
         b.vx += dir * (50 + grade * 80) * dt;
-        if (b.vx > 70) b.vx = 70; if (b.vx < -70) b.vx = -70;
-      } else {                                    // на ровном — трение гасит накат
-        var fr = 90 * dt;
+        if (b.vx > rollMax) b.vx = rollMax; if (b.vx < -rollMax) b.vx = -rollMax;
+      } else {                                    // на ровном — трение гасит накат (инерция после толчка)
+        var fr = bFriction(b) * dt;
         b.vx = Math.abs(b.vx) <= fr ? 0 : b.vx - (b.vx > 0 ? fr : -fr);
       }
       if (b.vx){
         var nx = b.x + b.vx * dt;
-        if (boulderFree(S, b, nx, b.y) || slopeSurfaceUnder(nx, b.y)) b.x = nx; else b.vx = 0;
+        if (boulderFree(S, b, nx, b.y) || slopeSurfaceUnder(nx, b.y)){ b.rot += (nx - b.x) / BR; b.x = nx; } else b.vx = 0;
       }
       continue;
     }
@@ -77,7 +92,7 @@ export function stepBoulders(S, dt){
     else b.y = ny;
     if (b.vx){
       var nx2 = b.x + b.vx * dt;
-      if (rectFree(nx2, b.y, BW, BH)) b.x = nx2; else b.vx = 0;
+      if (rectFree(nx2, b.y, BW, BH)){ b.rot += (nx2 - b.x) / BR; b.x = nx2; } else b.vx = 0;
     }
     if (p.hurtCd <= 0 && p.state !== 'stun' && b.vy > 40 && overlapsPlayer(b, p)){
       p.hurtCd = C.HURT_CD;
@@ -107,9 +122,12 @@ export function pushBoulders(S, p, dt, inp){
   if (!b){ p.pushWall = false; return; }
   var pressing = p.stance === 0 && Math.abs(inp.x) > 0.35 && (inp.x > 0) === (dir > 0);
   if (pressing){
-    var nx = b.x + dir * C.PUSH_V * dt;
-    if (boulderFree(S, b, nx, b.y)){ b.x = nx; p.vx = dir * C.PUSH_V; }
-    else p.vx = 0;
+    var pv = bPushV(b);
+    var nx = b.x + dir * pv * dt;
+    /* позицию камня двигает только stepBoulders (через b.vx) — здесь лишь задаём скорость,
+       после отпускания она сама гасится трением там же, давая накат вместо мгновенной остановки */
+    if (boulderFree(S, b, nx, b.y)){ b.vx = dir * pv; p.vx = dir * pv; }
+    else { b.vx = 0; p.vx = 0; }
   } else {
     p.vx = 0;
   }

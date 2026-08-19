@@ -2,7 +2,7 @@ import { T, C } from '../core/constants.js';
 import { runtime } from '../core/runtime.js';
 import { solidTile } from '../core/map.js';
 import { damage } from '../core/player.js';
-import { dropLoot } from './loot.js';
+import { dropLootFor } from './loot.js';
 
 export function mkSpiders(){
   var LV = runtime.LV;
@@ -51,7 +51,7 @@ function startFall(S, sp, why){
 function killSpider(S, sp){
   if (sp.dead) return;
   sp.dead = true; sp.hitT = 0.5;
-  dropLoot(S, sp.x, sp.y, 'sp');
+  dropLootFor(S, sp, sp.x, sp.y, 'sp');
   S.p.events.push('kill:s' + sp.id);
 }
 
@@ -101,6 +101,7 @@ export function stepSpiders(S, dt){
   var p = S.p, MAP_H = runtime.MAP_H;
   for (var i = 0; i < S.spiders.length; i++){
     var sp = S.spiders[i];
+    if (sp.roomHide) continue;
     if (sp.dead){ sp.hitT -= dt; continue; }
 
     if (sp.state !== 'fall' && sp.state !== 'flee' && ceilingGone(sp))

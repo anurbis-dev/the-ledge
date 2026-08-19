@@ -7,6 +7,7 @@ let activeLayer = 0;
 let soloLayer = 0;
 let LV = null, LVI = 0;
 let W = null;                     // активный мир (для solid-запросов)
+let roomsOn = null;               // null = не подменять cover (редактор); {}/map = активные комнаты
 var GROW = 16;
 
 export const runtime = {
@@ -33,7 +34,9 @@ export const runtime = {
   get LVI(){ return LVI; },
   set LVI(v){ LVI = v; },
   get W(){ return W; },
-  set W(v){ W = v; }
+  set W(v){ W = v; },
+  get roomsOn(){ return roomsOn; },
+  set roomsOn(v){ roomsOn = v; }
 };
 
 export function getMAP_W(){ return runtime.MAP_W; }
@@ -96,6 +99,10 @@ export function ensureMap(c, r){
       if (!layers[i].base) continue;
       layers[i].base = growBuf(layers[i].base);
       layers[i].vary = growBuf(layers[i].vary || new Uint8Array(ow * oh));
+      if (layers[i].cover) layers[i].cover = growBuf(layers[i].cover);
+      if (layers[i].coverVary) layers[i].coverVary = growBuf(layers[i].coverVary);
+      layers[i].roomOf = null;
+      layers[i]._roomsDirty = true;
       layers[i]._chunks = {};
     }
     var main = null;
@@ -120,4 +127,4 @@ export function ensureMap(c, r){
 
 export function setWorld(S){ W = S; }
 
-export const hooks = { gateClosed: (c, r) => false, onSetTile: null, onGrowMap: null };
+export const hooks = { gateClosed: (c, r) => false, onSetTile: null, onGrowMap: null, onRoomsChange: null };

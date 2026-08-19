@@ -7,56 +7,21 @@ import { wearGear } from './gear.js';
 export function mkFliers(){
   var LV = runtime.LV;
   return (LV.fliers || []).map(function(a, i){
-    var kind = a[5] !== undefined ? a[5] : (i % 3);
-    if (i % 4 === 3) kind = 3;                        // пикировщик
+    var kind = a[5] !== undefined ? a[5] : (i % 4 === 3 ? 3 : (i % 3));
+    var loot = Array.isArray(a[6])
+      ? a[6].map(function(e){ return { kind: e[0], qty: Math.max(1, e[1] | 0 || 1) }; })
+      : [];
     return { id:i, x:a[0], y:a[1], w: kind === 2 ? 16 : 13, h: kind === 2 ? 11 : 9,
              x0:a[2], x1:a[3], v: a[4] * (kind === 1 ? 1.35 : (kind === 2 ? 0.8 : 1)),
-             kind: kind, dir: i%2 ? -1 : 1, dead:false, hitT:0, ph:i*1.9,
-             cd: (kind === 1 ? 0.9 : 1.4) + i*0.3, flap:0 };
+             kind: kind, dir: i%2 ? -1 : 1, ph:i*1.9,
+             cd: (kind === 1 ? 0.9 : 1.4) + i*0.3, flap:0,
+             loot: loot, random: !!a[7] };
   });
 }
 export function stepFliers(S, dt){
   var p = S.p, MAP_H = runtime.MAP_H;
   for (var i = 0; i < S.fliers.length; i++){
-    var f = S.fliers[i];
-    if (f.dead){
-      f.phase = f.phase || 'fall';
-      if (f.phase === 'fall'){
-        f.spin = (f.spin || 0) + dt * 9;             // плавное вращение
-        f.vy = Math.min((f.vy || 0) + 420*dt, 190);  // и мягкое падение
-        var stepF = f.vy * dt;
-        while (stepF > 0){                            // без телепорта: шагами
-          var d2 = Math.min(2, stepF); stepF -= d2;
-          if (!rectFree(f.x, f.y + d2, f.w, f.h)){
-            f.y = Math.floor((f.y + f.h + d2)/T)*T - f.h;
-            f.phase = 'stuck'; f.rest = 4.5; f.vy = 0;
-            f.spin = Math.PI/2;                       // воткнулась клювом
-            S.p.events.push('thud:' + f.id);
-            break;
-          }
-          f.y += d2;
-        }
-      } else if (f.phase === 'stuck'){
-        f.rest -= dt;
-        if (f.rest <= 0){ f.phase = 'pull'; f.rest = 1.1; }
-      } else if (f.phase === 'pull'){                 // выбирается на том же месте
-        f.rest -= dt;
-        f.y -= 8 * dt;
-        if (f.rest <= 0){ f.phase = 'stand'; f.rest = 1.6; f.spin = 0; }
-      } else if (f.phase === 'stand'){
-        f.rest -= dt;
-        if (f.rest <= 0){ f.phase = 'takeoff'; f.rest = 1.4; }
-      } else if (f.phase === 'takeoff'){              // плавно набирает высоту
-        f.rest -= dt;
-        f.y -= 34 * dt;
-        if (f.rest <= 0){
-          f.dead = false; f.phase = null; f.hurt = false;
-          f.vy = 0; f.tgt = f.y; f.hCd = 0;           // и возвращается к патрулю
-          S.p.events.push('revive');
-        }
-      }
-      continue;
-    }
+    var f = S.fliers[i]; if (f.roomHide) continue;
     f.flap += dt;
     f.x += f.v * f.dir * dt;
     if (f.x < f.x0){ f.x = f.x0; f.dir = 1; }

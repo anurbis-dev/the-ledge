@@ -60,7 +60,6 @@ function threatNear(S, n, r){
   }
   for (i = 0; i < (S.fliers || []).length; i++){
     e = S.fliers[i];
-    if (e.dead) continue;
     if (dist2(nx, ny, e.x + e.w / 2, e.y + e.h / 2) < rr) return true;
   }
   for (i = 0; i < (S.spiders || []).length; i++){
@@ -118,6 +117,7 @@ export function stepNpcs(S, dt){
   var list = S.npcs || [], i, n, scare, safe, tx, dx, step, ox, sl;
   for (i = 0; i < list.length; i++){
     n = list[i];
+    if (n.roomHide) continue;
     if (n.hx == null){ n.hx = n.x; n.hy = n.y; }
     scare = threatNear(S, n, SCARE_R);
     safe = !threatNear(S, n, SAFE_R);
@@ -150,7 +150,7 @@ export function tryTalk(S){
   var best = null, bd = 22 * 22, i, n, dx, dy, d;
   for (i = 0; i < (S.npcs || []).length; i++){
     n = S.npcs[i];
-    if (n.inside || n.st === 'flee' || n.st === 'hide') continue;
+    if (n.inside || n.roomHide || n.st === 'flee' || n.st === 'hide') continue;
     dx = (n.x + n.w / 2) - cx;
     dy = (n.y + n.h / 2) - cy;
     d = dx * dx + dy * dy;

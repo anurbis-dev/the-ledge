@@ -1,11 +1,11 @@
 {
   "name": "the-ledge",
-  "version": "0.1.0-dev.58",
+  "version": "0.1.0-dev.59",
   "description": "the LEDGE — caves and ledges",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/build.mjs",
     "preview": "vite preview",
     "bump:patch": "node scripts/bump-version.mjs patch",
     "bump:minor": "node scripts/bump-version.mjs minor",
@@ -16,7 +16,8 @@
     "bump:rc": "node scripts/bump-version.mjs rc",
     "bump:release": "node scripts/bump-version.mjs release",
     "music:score": "node scripts/track-to-score.mjs",
-    "music:compose": "node scripts/compose-scores.mjs"
+    "music:compose": "node scripts/compose-scores.mjs",
+    "bake": "node scripts/bake-defaults.mjs"
   },
   "repository": {
     "type": "git",
@@ -34,7 +35,7 @@
   },
   "homepage": "https://github.com/anurbis-dev/the-ledge#readme",
   "devDependencies": {
-    "vite": "^8.1.4",
+    "vite": "8.1.5",
     "vite-plugin-singlefile": "^2.3.3"
   }
 }

@@ -1,6 +1,7 @@
 import GAME from '../core/game.js';
 import { hooks } from '../core/runtime.js';
 import { getLayers, layerShown, lastCollideIndex, layerTile, layerVar, isTileLayer, wrapSize, layerCssFilter } from '../core/layers.js';
+import { buildWater } from './fx.js';
 import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH, viewScale } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
 import { waterDepthK, dust } from './fx.js';
@@ -396,6 +397,10 @@ export function invalidateChunk(c, r){
   }
 }
 hooks.onSetTile = invalidateChunk;
+hooks.onRoomsChange = function(){
+  invalidateAll();
+  buildWater();
+};
 export function invalidateAll(){
   chunkCache = {};
   var ls = getLayers(), i;

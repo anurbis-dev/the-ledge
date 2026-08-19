@@ -3,7 +3,7 @@ import { runtime } from '../core/runtime.js';
 import { rectFree, tileAt, isWaterV } from '../core/map.js';
 import { inDark } from './dark.js';
 import { ignitePlank } from './planks.js';
-import { dropLoot, tryGroundPickup, takeGroundPend } from './loot.js';
+import { dropLootFor, tryGroundPickup, takeGroundPend } from './loot.js';
 import { tryChest } from './chests.js';
 import { tryTalk } from './npcs.js';
 import { giveGear, isHarpoonHand, isBowHand, isMeleeHand } from './gear.js';
@@ -11,6 +11,7 @@ import { attack } from './enemies.js';
 import { findById } from './ids.js';
 import { fireHarpoon, fireGrapple, tryHarpoonPickup } from './harpoons.js';
 import { fireArrow, tryArrowPickup } from './arrows.js';
+import { grantOne } from './craft.js';
 
 export function mkTorches(){
   var LV = runtime.LV;
@@ -24,10 +25,16 @@ export function stepTorches(S, dt){
   var p = S.p;
   for (var i = 0; i < S.torches.length; i++){
     var t = S.torches[i];
+    if (t.roomHide) continue;
     if (t.held){
       // атач случился на нижней точке приседа — от неё и доводим руку до обычной высоты
       var reachK = p.pickT > 0 ? Math.min(1, p.pickT / (C.PICK_T * (1 - PICK_APEX))) : 0;
-      t.x = p.x + p.w/2 + p.facing*7; t.y = p.y + 15 + reachK*7; t.vx = 0; t.vy = 0;
+      if (p.stance === 2){                        // лёжа: рука вытянута дальше вперёд, факел выше головы
+        t.x = p.x + p.w/2 + p.facing*9; t.y = p.y + 6 + reachK*3;
+      } else {
+        t.x = p.x + p.w/2 + p.facing*7; t.y = p.y + 15 + reachK*7;
+      }
+      t.vx = 0; t.vy = 0;
       if (!t.lit){                                        // поджигаем от чужого огня
         for (var oi = 0; oi < S.torches.length; oi++){
           var o = S.torches[oi];
@@ -81,6 +88,7 @@ export function stepTorches(S, dt){
           en.dead = true; en.hitT = 0.6;
           t.vx *= -0.3; t.vy = -60;
           S.hitStop = Math.max(S.hitStop, 0.06); S.shake = Math.max(S.shake, 3);
+          dropLootFor(S, en, en.x + en.w/2, en.y + en.h/2, 'e');
           p.events.push('burn:' + en.id + ':' + Math.round(t.x) + ':' + Math.round(t.y));
         }
       }
@@ -89,19 +97,21 @@ export function stepTorches(S, dt){
         if (spg.dead) continue;
         if (t.x > spg.x - 8 && t.x < spg.x + 8 && t.y > spg.y - 10 && t.y - 15 < spg.y + 6){
           spg.dead = true; spg.hitT = 0.5;
-          dropLoot(S, spg.x, spg.y, 'sp');
+          dropLootFor(S, spg, spg.x, spg.y, 'sp');
           t.vy = -50;
           p.events.push('burn:s' + spg.id + ':' + Math.round(t.x) + ':' + Math.round(t.y));
         }
       }
       for (var fi2 = 0; fi2 < S.fliers.length; fi2++){
         var fl2 = S.fliers[fi2];
-        if (fl2.dead) continue;
         if (t.x > fl2.x - 4 && t.x < fl2.x + fl2.w + 4 &&
             t.y > fl2.y - 2 && t.y - 15 < fl2.y + fl2.h){
-          fl2.dead = true; fl2.hitT = 0.6; t.vy = -60;
+          var flcx = fl2.x + fl2.w/2, flcy = fl2.y + fl2.h/2;
+          t.vy = -60;
           S.hitStop = Math.max(S.hitStop, 0.06);
-          p.events.push('burn:f' + fl2.id);
+          dropLootFor(S, fl2, flcx, flcy, 'f');
+          p.events.push('burn:f' + fl2.id + ':' + Math.round(flcx) + ':' + Math.round(flcy));
+          S.fliers.splice(fi2, 1); fi2--;
         }
       }
     }
@@ -112,7 +122,9 @@ export function dropTorch(S, hard){
   var t = findById(S.torches, p.torch);
   if (!t){ p.torch = -1; return; }
   t.held = false; t.ground = false;
-  t.x = p.x + p.w/2 + p.facing*(hard?7:3); t.y = p.y + 15;
+  // высота руки над стопами не меняется от стойки — иначе присед/лёжа роняют факел под пол
+  // и первый же кадр физики гасит бросок об «землю» на месте старта
+  t.x = p.x + p.w/2 + p.facing*(hard?7:3); t.y = p.y + p.h - 7;
   t.vx = hard ? p.facing*C.THROW_X : p.facing*25;
   t.vy = hard ? C.THROW_Y : -30;
   t.spin = p.facing * (hard ? 15 : 7); t.wasAir = true; t.thrown = hard;
@@ -133,6 +145,15 @@ export function resolvePickup(S){
     } else if (pend.kind === 'stick'){
       if (p.torch >= 0) dropTorch(S, false);
       if (!S.pick.stick.taken){ S.pick.stick.taken = true; giveGear(S, 'stick'); p.events.push('getstick'); }
+    } else if (pend.kind === 'arrow'){
+      for (var ai = 0; ai < S.arrows.length; ai++){
+        if (S.arrows[ai].id === pend.id){
+          S.arrows.splice(ai, 1);
+          grantOne(S, 'arrow');
+          p.events.push('arrow:pick');
+          break;
+        }
+      }
     }
   }
   if (p.throwPend && p.throwT <= C.THROW_T * (1 - THROW_REL)){
@@ -142,6 +163,32 @@ export function resolvePickup(S){
 }
 export function tryAction(S, inp){
   var p = S.p;
+  // подбор предмета — всегда в приоритете, даже если рядом сундук или NPC
+  if (p.torch < 0){
+    var pk = S.pick;
+    if (!pk.stick.taken && !pk.stick.roomHide && p.state === 'normal' && p.pickT <= 0 &&
+        Math.abs(pk.stick.x - (p.x + p.w/2)) < C.ACT_R && Math.abs(pk.stick.y - (p.y + p.h/2)) < 22 &&
+        (pk.stick.x - (p.x + p.w/2)) * p.facing > -2){   // предмет за спиной — не тянемся
+      p.pickT = C.PICK_T; p.pickPend = { kind: 'stick' }; p.pickWall = false;
+      return true;
+    }
+    if (tryArrowPickup(S)) return true;                   // стрелу подбираем любым оружием в руке
+    if (isHarpoonHand(p) && tryHarpoonPickup(S)) return true;
+    if (p.state === 'normal' && p.pickT <= 0){
+      var best = -1, bd = C.ACT_R*C.ACT_R, cx = p.x + p.w/2, cy = p.y + p.h/2;
+      for (var i = 0; i < S.torches.length; i++){
+        var t = S.torches[i]; if (t.held || t.roomHide) continue;
+        var dx = t.x - cx, dy = (t.y - 6) - cy, d = dx*dx + dy*dy;
+        if (dx * p.facing < -2) continue;                 // факел за спиной — не подбираем
+        if (d < bd){ bd = d; best = i; }
+      }
+      if (best >= 0){
+        p.pickT = C.PICK_T; p.pickPend = { kind: 'torch', id: S.torches[best].id }; p.pickWall = false;
+        return true;
+      }
+    }
+    if (tryGroundPickup(S)) return true;
+  }
   if (tryTalk(S)) return true;
   if (tryChest(S)) return true;                          // сундук открываем не выпуская факел
   if (p.torch >= 0){
@@ -149,19 +196,12 @@ export function tryAction(S, inp){
     return true;
   }
   if (p.state === 'snare' && isMeleeHand(p)) return attack(S);
-  var pk = S.pick;
-  if (!pk.stick.taken && p.state === 'normal' && p.pickT <= 0 &&
-      Math.abs(pk.stick.x - (p.x + p.w/2)) < C.ACT_R && Math.abs(pk.stick.y - (p.y + p.h/2)) < 22){
-    p.pickT = C.PICK_T; p.pickPend = { kind: 'stick' };
-    return true;
-  }
   if (isHarpoonHand(p)){
-    if (tryHarpoonPickup(S)) return true;
     if (p.inWater) return fireHarpoon(S);                // в воде — болт, без подтяга
     return fireGrapple(S, inp);
   }
   if (isBowHand(p)){
-    if (tryArrowPickup(S)) return true;
+    if (p.pickT > 0) return true;                        // уже подбираем стрелу
     if (fireArrow(S)) return true;
   }
   if (p.state !== 'normal' && p.state !== 'ladder') return false;
@@ -172,20 +212,10 @@ export function tryAction(S, inp){
       if (Math.abs(q.x + q.w/2 - ax0) < C.ATK_R*0.9 && Math.abs(q.y + q.h/2 - ay0) < 22) hit = true;
     }
     for (var fi3 = 0; fi3 < S.fliers.length; fi3++){
-      q = S.fliers[fi3]; if (q.dead) continue;
+      q = S.fliers[fi3];
       if (Math.abs(q.x + q.w/2 - ax0) < C.ATK_R*0.9 && Math.abs(q.y + q.h/2 - ay0) < 24) hit = true;
     }
     if (hit) return attack(S);
   }
-  if (p.pickT > 0) return isMeleeHand(p) ? attack(S) : false;   // уже приседаем за предметом
-  if (tryGroundPickup(S)) return true;
-  var best = -1, bd = C.ACT_R*C.ACT_R, cx = p.x + p.w/2, cy = p.y + p.h/2;
-  for (var i = 0; i < S.torches.length; i++){
-    var t = S.torches[i]; if (t.held) continue;
-    var dx = t.x - cx, dy = (t.y - 6) - cy, d = dx*dx + dy*dy;
-    if (d < bd){ bd = d; best = i; }
-  }
-  if (best < 0) return isMeleeHand(p) ? attack(S) : false;    // рядом нет факела — бьём палкой
-  p.pickT = C.PICK_T; p.pickPend = { kind: 'torch', id: S.torches[best].id };
-  return true;
+  return isMeleeHand(p) ? attack(S) : false;             // уже приседаем за предметом / рядом нет факела
 }

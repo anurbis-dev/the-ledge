@@ -1,14 +1,58 @@
 import { T } from './constants.js';
 import { runtime } from './runtime.js';
 import { stashLayers } from './layers.js';
+import { BAKED } from './defaults.js';
+import { BOULDER_DEF } from '../entities/boulders.js';
 
 var KEY = 'ledge.dev.levels';
+var SAVED_KEY = 'ledge.dev.savedAt';
 var dirty = false;
 var saveT = null;
 var waterFn = null;
+var afterFlush = null;
 
 export function bindPersist(hooks){
   waterFn = hooks && hooks.water;
+  afterFlush = hooks && hooks.onFlush;
+}
+
+export function notifyDraftChange(){
+  touchSavedAt();
+  if (afterFlush) afterFlush();
+}
+
+export function touchSavedAt(){
+  var t = Date.now();
+  try { localStorage.setItem(SAVED_KEY, String(t)); } catch (_){}
+  return t;
+}
+
+export function localSavedAt(){
+  try { return +localStorage.getItem(SAVED_KEY) || 0; } catch (_){ return 0; }
+}
+
+export function bakedSavedAt(){
+  return +BAKED.savedAt || 0;
+}
+
+/* localStorage — черновик этого origin. BAKED — то, что уедет в dist.
+   file:// без метки времени = старый overlay, его игнорируем (иначе dist
+   расходится с vite). С меткой — новее побеждает. */
+export function preferLocal(){
+  var localT = localSavedAt();
+  var bakedT = bakedSavedAt();
+  if (!localT){
+    var store = readStore();
+    var has = false, k;
+    if (store){
+      for (k in store) if (k !== '_gone'){ has = true; break; }
+    }
+    if (!has) return false;
+    try { if (location.protocol === 'file:') return false; } catch (_){}
+    return true;
+  }
+  if (!bakedT) return true;
+  return localT >= bakedT;
 }
 
 function keyOf(lv){
@@ -43,8 +87,9 @@ function packStash(s){
     layers: (s.layers || []).map(function(L){
       var o = {};
       for (var k in L){
-        if (k === 'base' || k === 'vary' || k === 'stamp' || k === 'stampVar')
+        if (k === 'base' || k === 'vary' || k === 'cover' || k === 'coverVary' || k === 'stamp' || k === 'stampVar')
           o[k] = packU8(L[k]);
+        else if (k === 'roomOf') continue;
         else if (k.charAt(0) !== '_' || k === '_stampW' || k === '_stampH')
           o[k] = L[k];
       }
@@ -60,7 +105,7 @@ function unpackStash(s){
     layers: (s.layers || []).map(function(L){
       var o = {};
       for (var k in L){
-        if (k === 'base' || k === 'vary' || k === 'stamp' || k === 'stampVar')
+        if (k === 'base' || k === 'vary' || k === 'cover' || k === 'coverVary' || k === 'stamp' || k === 'stampVar')
           o[k] = unpackU8(L[k]);
         else o[k] = L[k];
       }
@@ -79,6 +124,7 @@ function packLevel(lv){
   return {
     id: lv.id, name: lv.name, pal: lv.pal, blank: !!lv.blank,
     intro: lv.intro || '',
+    gearDurability: lv.gearDurability || {},
     w: lv.w, h: lv.h,
     spawn: lv.spawn, exit: lv.exit,
     enemies: lv.enemies || [],
@@ -93,6 +139,13 @@ function packLevel(lv){
     sounds: lv.sounds || [],
     volumes: lv.volumes || [],
     water: lv.water || [],
+    doors: lv.doors || [],
+    lifts: lv.lifts || [],
+    plats: lv.plats || [],
+    dark: lv.dark || [],
+    boulders: lv.boulders || [],
+    stick: lv.stick || null,
+    key: lv.key || null,
     stash: packStash(lv._stash)
   };
 }
@@ -117,6 +170,18 @@ function applyRecord(lv, rec){
   if (rec.spawn) lv.spawn = rec.spawn;
   if (rec.exit) lv.exit = rec.exit;
   if (rec.intro != null) lv.intro = rec.intro;
+  if (rec.gearDurability) lv.gearDurability = rec.gearDurability;
+  if (rec.w) lv.w = rec.w;
+  if (rec.h) lv.h = rec.h;
+  if (rec.name) lv.name = rec.name;
+  if (rec.pal) lv.pal = rec.pal;
+  if (rec.doors) lv.doors = rec.doors;
+  if (rec.lifts) lv.lifts = rec.lifts;
+  if (rec.plats) lv.plats = rec.plats;
+  if (rec.dark) lv.dark = rec.dark;
+  if (rec.boulders) lv.boulders = rec.boulders;
+  if (rec.stick) lv.stick = rec.stick;
+  if (rec.key) lv.key = rec.key;
   if (rec.stash) lv._stash = unpackStash(rec.stash);
 }
 
@@ -126,6 +191,7 @@ function makeBlank(rec){
     id: rec.id, name: rec.name || 'LEVEL', pal: rec.pal || 'stone',
     w: rec.w || 16, h: rec.h || 16, blank: true,
     intro: rec.intro || '',
+    gearDurability: rec.gearDurability || {},
     spawn: rec.spawn || { x: 16, y: 6 * T - 22 },
     exit: rec.exit || { x: 12 * T, y: 8 * T },
     lights: rec.lights || [], sounds: rec.sounds || [], volumes: rec.volumes || [],
@@ -133,10 +199,11 @@ function makeBlank(rec){
     enemies: rec.enemies || [], fliers: rec.fliers || [],
     spiders: rec.spiders || [], tendrils: rec.tendrils || [],
     torches: rec.torches || [], chests: rec.chests || [], npcs: rec.npcs || [],
-    doors: [], lifts: [], plats: [], dark: [],
+    doors: rec.doors || [], lifts: rec.lifts || [], plats: rec.plats || [], dark: rec.dark || [],
+    boulders: rec.boulders || [],
     water: rec.water || [],
-    stick: { x: 40, y: 8 * T - 6 },
-    key: { x: 56, y: 8 * T - 6 },
+    stick: rec.stick || { x: 40, y: 8 * T - 6 },
+    key: rec.key || { x: 56, y: 8 * T - 6 },
     build: function(){},
     _stash: rec.stash ? unpackStash(rec.stash) : null
   };
@@ -148,6 +215,23 @@ function readStore(){
     if (!raw) return null;
     return JSON.parse(raw);
   } catch (_){ return null; }
+}
+
+export function levelsStoreSnapshot(){
+  return readStore();
+}
+
+function mergedStore(){
+  var baked = BAKED.levels, local = readStore();
+  if (!baked) return local;
+  if (!local) return baked;
+  var out = {}, k, gone = {};
+  for (k in baked) if (k !== '_gone') out[k] = baked[k];
+  for (k in local) if (k !== '_gone') out[k] = local[k];
+  (baked._gone || []).forEach(function(id){ gone[id] = 1; });
+  (local._gone || []).forEach(function(id){ gone[id] = 1; });
+  out._gone = Object.keys(gone);
+  return out;
 }
 
 function writeStore(store){
@@ -165,9 +249,14 @@ function writeObjects(lv, S){
     }
     return t;
   });
-  lv.fliers = (S.fliers || []).filter(function(f){ return !f.dead; }).map(function(f){
-    return [Math.round(f.x), Math.round(f.y), Math.round(f.x0), Math.round(f.x1),
-            Math.round(f.v), f.kind];
+  lv.fliers = (S.fliers || []).map(function(f){
+    var t = [Math.round(f.x), Math.round(f.y), Math.round(f.x0), Math.round(f.x1),
+             Math.round(f.v), f.kind];
+    if (f.loot && f.loot.length){
+      t.push(f.loot.map(function(x){ return [x.kind, x.qty]; }));
+      t.push(!!f.random);
+    }
+    return t;
   });
   lv.spiders = (S.spiders || []).filter(function(s){ return !s.dead; }).map(function(s){
     return [Math.floor(s.hx / T), Math.floor(s.hy / T) - 1, s.kind];
@@ -219,6 +308,40 @@ function writeObjects(lv, S){
       tint: v.tint, tintAmt: v.tintAmt, id: v.id
     };
   });
+  lv.doors = (S.doors || []).map(function(d){
+    return { id: d.id, x: d.x, y: d.y, locked: !!d.locked, pair: d.pair, tag: d.tag };
+  });
+  lv.lifts = (S.lifts || []).map(function(L){
+    var floors = (L.floors || []).slice();
+    return {
+      x: L.x, w: L.w, hh: L.hh,
+      y: floors.length ? floors[0] : L.y,
+      floors: floors
+    };
+  });
+  lv.plats = (S.plats || []).map(function(q){
+    return {
+      x: q.vert ? q.x : (q.x0 != null ? q.x0 : q.x),
+      y: q.vert ? (q.y0 != null ? q.y0 : q.y) : q.y,
+      w: q.w, h: q.h,
+      x0: q.x0, x1: q.x1, y0: q.y0, y1: q.y1,
+      v: q.v, dir: q.dir, vert: !!q.vert
+    };
+  });
+  lv.dark = (S.dark || []).map(function(d){
+    return { x0: d.x0, y0: d.y0, x1: d.x1, y1: d.y1, doorId: d.doorId, lit: d.lit };
+  });
+  lv.boulders = (S.boulders || []).map(function(b){
+    var row = [Math.floor((b.x + 6) / T), Math.floor((b.y + 11) / T) - 1];
+    if (b.pushV != null || b.friction != null || b.rollMax != null){
+      row.push(b.pushV != null ? b.pushV : BOULDER_DEF.pushV);
+      row.push(b.friction != null ? b.friction : BOULDER_DEF.friction);
+      row.push(b.rollMax != null ? b.rollMax : BOULDER_DEF.rollMax);
+    }
+    return row;
+  });
+  if (S.pick && S.pick.stick) lv.stick = { x: S.pick.stick.x, y: S.pick.stick.y };
+  if (S.pick && S.pick.key) lv.key = { x: S.pick.key.x, y: S.pick.key.y };
 }
 
 export function markLevelDirty(){
@@ -239,7 +362,12 @@ export function flushLevel(S){
   var store = readStore() || {};
   store[keyOf(runtime.LV)] = packLevel(runtime.LV);
   writeStore(store);
+  var wasDirty = dirty;
   dirty = false;
+  if (wasDirty){
+    touchSavedAt();
+    if (afterFlush) afterFlush();
+  }
 }
 
 export function forgetLevel(lv){
@@ -256,7 +384,7 @@ export function forgetLevel(lv){
 
 export function hydrateAll(levels){
   if (!levels) return;
-  var store = readStore();
+  var store = preferLocal() ? mergedStore() : (BAKED.levels || null);
   if (!store) return;
   var gone = {}, seen = {}, i, k, rec;
   (store._gone || []).forEach(function(id){ gone[id] = 1; });

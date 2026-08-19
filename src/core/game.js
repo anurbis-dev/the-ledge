@@ -6,6 +6,7 @@ import {
 } from './constants.js';
 import { runtime, setWorld, hooks, ensureMap, mapIx, inMap, mapMinC, mapMaxC, mapMinR, mapMaxR } from './runtime.js';
 import { getActiveLayer, getLayers, isTileLayer, wrapIndex, ensureStamp } from './layers.js';
+import { COVER_AIR, ensureCover, coverRaw, coverVarRaw } from './rooms.js';
 import {
   isHalfV, isBarV, ladderTop, isSlopeV, isWaterV, isFlowV, isWetV, slopeSurfaceY,
   slopeTop, slopeSpec, slopeFamily, slopeRiseRight, SLOPE_SEQ,
@@ -99,6 +100,33 @@ function setVar(c, r, v){
   return true;
 }
 
+function setCover(c, r, v){
+  var L = getActiveLayer();
+  if (L && L.locked) return false;
+  if (!L || !isTileLayer(L) || L.wrap || !L.collide) return false;
+  if (!inMap(c, r) && !v) return false;
+  ensureMap(c, r);
+  if (!inMap(c, r)) return false;
+  ensureCover(L);
+  var ix = mapIx(c, r);
+  if (L.cover[ix] !== v) L.coverVary[ix] = 0;
+  L.cover[ix] = v;
+  if (!v) L.coverVary[ix] = 0;
+  L._roomsDirty = true;
+  if (hooks.onSetTile) hooks.onSetTile(c, r);
+  return true;
+}
+function setCoverVar(c, r, v){
+  var L = getActiveLayer();
+  if (L && L.locked) return false;
+  if (!L || !isTileLayer(L) || L.wrap || !L.collide) return false;
+  if (!inMap(c, r)) return false;
+  ensureCover(L);
+  L.coverVary[mapIx(c, r)] = v;
+  if (hooks.onSetTile) hooks.onSetTile(c, r);
+  return true;
+}
+
 function mkItemAt(S, cx, cy, kind){
   S.items.push({ id:allocId(S.items), x:cx, y:cy, kind:kind, got:false, ph:Math.random()*6.28 });
 }
@@ -109,10 +137,12 @@ function mkEnemyAt(S, x, y, kind, loot, random){
                    loot: (loot && loot.length) ? loot.map(function(e){ return { kind:e.kind, qty:e.qty }; }) : [],
                    random: !!random });
 }
-function mkFlierAt(S, x, y, kind){
+function mkFlierAt(S, x, y, kind, loot, random){
   S.fliers.push({ id:allocId(S.fliers), x:x, y:y, w: kind===2?16:13, h: kind===2?11:9,
-                  x0:x-80, x1:x+80, v:28, kind:kind, dir:1, dead:false, hitT:0,
-                  ph:0, cd:1.2, flap:0 });
+                  x0:x-80, x1:x+80, v:28, kind:kind, dir:1,
+                  ph:0, cd:1.2, flap:0,
+                  loot: (loot && loot.length) ? loot.map(function(e){ return { kind:e.kind, qty:e.qty }; }) : [],
+                  random: !!random });
 }
 function mkSpiderAt(S, x, y, kind){
   S.spiders.push({ id:allocId(S.spiders), hx:x, hy:y, x:x, y:y, kind:kind,
@@ -143,6 +173,7 @@ export const GAME = {
   tileAt, isSolidV, isLadV,
   solidTile, ladderTile, solidAt, ladderAt,
   setTile, varAt, setVar, varR,
+  COVER_AIR, setCover, setCoverVar, coverRaw, coverVarRaw,
   buildGates: function(S){ buildGates(S); },
   mkItemAt, mkEnemyAt, mkFlierAt, mkSpiderAt, mkTorchAt, mkChestAt, mkTendrilAt,
   mkLightAt, mkSoundAt, mkVolumeAt, mkBoulderAt, mkNpcAt, getLayers, getActiveLayer,

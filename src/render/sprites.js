@@ -8,7 +8,8 @@ var G = GAME, T = G.T;
 export function drawTorches(){
   var S = world(), time = view.time;
   for (var i = 0; i < S.torches.length; i++){
-    var t = S.torches[i], x = Math.round(t.x - cam.x), y = Math.round(t.y - cam.y);
+    var t = S.torches[i]; if (t.roomHide) continue;
+    var x = Math.round(t.x - cam.x), y = Math.round(t.y - cam.y);
     if (x < -14 || x > viewW()+14) continue;
     var a = t.held ? -Math.PI/2 : t.ang;
     var hx3 = x, hy3 = y;                                  // рукоять
@@ -30,7 +31,8 @@ export function drawTorches(){
 export function drawHarpoons(){
   var S = world();
   for (var i = 0; i < S.harpoons.length; i++){
-    var b = S.harpoons[i], x = Math.round(b.x - cam.x), y = Math.round(b.y - cam.y);
+    var b = S.harpoons[i]; if (b.roomHide) continue;
+    var x = Math.round(b.x - cam.x), y = Math.round(b.y - cam.y);
     if (x < -14 || x > viewW()+14) continue;
     var d = b.vx >= 0 ? 1 : -1;
     lb([x - d*7, y], [x + d*7, y], 2, P.stickD);
@@ -52,7 +54,8 @@ export function drawHarpoons(){
 export function drawArrows(){
   var S = world();
   for (var i = 0; i < S.arrows.length; i++){
-    var b = S.arrows[i], x = Math.round(b.x - cam.x), y = Math.round(b.y - cam.y);
+    var b = S.arrows[i]; if (b.roomHide) continue;
+    var x = Math.round(b.x - cam.x), y = Math.round(b.y - cam.y);
     if (x < -14 || x > viewW()+14) continue;
     var a = b.ang || 0, cs = Math.cos(a), sn = Math.sin(a);
     var tip = [x + cs*7, y + sn*7], tail = [x - cs*7, y - sn*7];
@@ -66,7 +69,7 @@ export function drawArrows(){
 export function liftButtons(){
   var S = world(), time = view.time;
   for (var i = 0; i < S.lifts.length; i++){
-    var L = S.lifts[i];
+    var L = S.lifts[i]; if (L.roomHide) continue;
     var c0 = Math.floor(L.x / T) - 1, c1 = Math.floor((L.x + L.w - 1) / T) + 1;
     for (var f = 0; f < L.floors.length; f++){
       var R = Math.floor(L.floors[f] / T);
@@ -113,7 +116,7 @@ export function lifts(){
   shaftGates();
   liftButtons();
   for (var i = 0; i < S.lifts.length; i++){
-    var L = S.lifts[i];
+    var L = S.lifts[i]; if (L.roomHide) continue;
     var x = Math.round(L.x - cam.x), y = Math.round(L.y - cam.y), hh2 = L.hh;
     if (x < -70 || x > viewW() + 70) continue;
     // трос до верха шахты
@@ -143,7 +146,8 @@ export function lifts(){
 export function plats(){
   var S = world(), time = view.time;
   for (var i = 0; i < S.plats.length; i++){
-    var q = S.plats[i], x = q.x - cam.x, y = q.y - cam.y;
+    var q = S.plats[i]; if (q.roomHide) continue;
+    var x = q.x - cam.x, y = q.y - cam.y;
     if (q.vert){
       rc(x + q.w/2 - 1, y - (q.y - q.y0) - 200, 2, 200 + (q.y - q.y0), '#2a2444');  // трос
       rc(x, y, q.w, q.h, P.liftB);
@@ -164,7 +168,7 @@ export function npcs(){
   var list = S.npcs || [];
   for (var i = 0; i < list.length; i++){
     var n = list[i];
-    if (n.inside) continue;
+    if (n.inside || n.roomHide) continue;
     var x = Math.round(n.x - cam.x), y = Math.round(n.y - cam.y);
     if (x < -16 || x > viewW() + 16) continue;
     var f = n.facing >= 0 ? 1 : -1;
@@ -193,7 +197,8 @@ export function npcs(){
 export function boulders(){
   var S = world();
   for (var i = 0; i < S.boulders.length; i++){
-    var b = S.boulders[i], x = Math.round(b.x - cam.x), y = Math.round(b.y - cam.y);
+    var b = S.boulders[i]; if (b.roomHide) continue;
+    var x = Math.round(b.x - cam.x), y = Math.round(b.y - cam.y);
     if (x < -20 || x > viewW() + 20) continue;
     var cx = x + 6, cy = y + 5;
     setFill('#302c46');
@@ -243,7 +248,8 @@ export function caveExit(){
 export function doors(){
   var S = world(), time = view.time;
   for (var i = 0; i < S.doors.length; i++){
-    var d = S.doors[i], x = Math.round(d.x - cam.x), y = Math.round(d.y - cam.y);
+    var d = S.doors[i]; if (d.roomHide) continue;
+    var x = Math.round(d.x - cam.x), y = Math.round(d.y - cam.y);
     if (x < -30 || x > viewW()+30) continue;
     rc(x-1, y-27, 18, 27, '#241a30');
     rc(x, y-25, 16, 25, P.doorD);
@@ -274,7 +280,7 @@ export function doors(){
 export function enemies(){
   var S = world(), time = view.time;
   for (var i = 0; i < S.enemies.length; i++){
-    var e = S.enemies[i];
+    var e = S.enemies[i]; if (e.roomHide) continue;
     var x = Math.round(e.x - cam.x), y = Math.round(e.y - cam.y);
     if (x < -20 || x > viewW()+20) continue;
     if (e.dead){
@@ -303,7 +309,7 @@ export function enemies(){
 export function fliers(){
   var S = world();
   for (var i = 0; i < S.fliers.length; i++){
-    var f = S.fliers[i];
+    var f = S.fliers[i]; if (f.roomHide) continue;
     var x = Math.round(f.x - cam.x), y = Math.round(f.y - cam.y);
     if (x < -22 || x > viewW() + 22) continue;
     var wing = Math.sin(f.flap * (f.kind === 1 ? 20 : 12) + f.ph) * (f.kind === 2 ? 6 : 4);
@@ -319,7 +325,7 @@ export function fliers(){
     lb([x + f.w - 3, y + 3], [x + f.w + 3, y + 3 - wing], 2, fa);
   }
   for (var d = 0; d < S.drops.length; d++){
-    var q = S.drops[d];
+    var q = S.drops[d]; if (q.roomHide) continue;
     var dx2 = Math.round(q.x - cam.x), dy2 = Math.round(q.y - cam.y);
     rc(dx2 - 1, dy2 - 2, 3, 4, '#d9d3b0'); rc(dx2 - 1, dy2 - 2, 2, 2, '#f2eed2');
   }
@@ -327,7 +333,7 @@ export function fliers(){
 export function chests(){
   var S = world(), time = view.time;
   for (var i = 0; i < S.chests.length; i++){
-    var ch = S.chests[i];
+    var ch = S.chests[i]; if (ch.roomHide) continue;
     var x = Math.round(ch.x - cam.x), y = Math.round(ch.y - cam.y);
     if (x < -30 || x > viewW() + 30) continue;
     if (ch.t > 0) ch.t -= 1/60;
@@ -376,7 +382,7 @@ export function chests(){
 export function lootDrops(){
   var S = world(), time = view.time;
   for (var i = 0; i < S.loot.length; i++){
-    var l = S.loot[i];
+    var l = S.loot[i]; if (l.roomHide) continue;
     var bob = Math.sin(time*2.4 + (l.ph || 0))*2;            // как S.items
     var x = Math.round(l.x - cam.x), y = Math.round(l.y - cam.y + bob);
     if (x < -10 || x > viewW() + 10) continue;
@@ -393,7 +399,7 @@ export function spiders(){
   var S = world(), time = view.time;
   for (var i = 0; i < S.spiders.length; i++){
     var sp = S.spiders[i];
-    if (sp.dead && sp.hitT <= 0) continue;
+    if (sp.roomHide || (sp.dead && sp.hitT <= 0)) continue;
     var x = Math.round(sp.x - cam.x), y = Math.round(sp.y - cam.y);
     var hy = Math.round(sp.hy - cam.y);
     if (x < -16 || x > viewW() + 16) continue;
@@ -424,7 +430,7 @@ export function tendrils(){
   var list = S.tendrils || [];
   for (var i = 0; i < list.length; i++){
     var w = list[i];
-    if (w.dead && w.hitT <= 0) continue;
+    if (w.roomHide || (w.dead && w.hitT <= 0)) continue;
     var bx = Math.round(w.bx - cam.x), by = Math.round(w.by - cam.y);
     var tx = Math.round(w.tx - cam.x), ty = Math.round(w.ty - cam.y);
     if (bx < -30 && tx < -30) continue;
@@ -480,12 +486,12 @@ export function tendrils(){
 export function pickables(){
   var S = world(), time = view.time;
   var pk = S.pick;
-  if (!pk.stick.taken){
+  if (!pk.stick.taken && !pk.stick.roomHide){
     var sx2 = Math.round(pk.stick.x - cam.x), sy = Math.round(pk.stick.y - cam.y + Math.sin(time*2)*2);
     rc(sx2-10, sy, 20, 2, P.stickC); rc(sx2-10, sy+2, 20, 1, P.stickD);
     rc(sx2+8, sy-1, 3, 4, P.stickD);
   }
-  if (!pk.key.taken){
+  if (!pk.key.taken && !pk.key.roomHide){
     var kx = Math.round(pk.key.x - cam.x), ky = Math.round(pk.key.y - cam.y + Math.sin(time*2.6)*2);
     rc(kx-1, ky-4, 4, 4, P.key); rc(kx, ky-3, 2, 2, P.keyD);
     rc(kx, ky, 2, 6, P.key); rc(kx+2, ky+3, 2, 1, P.key); rc(kx+2, ky+5, 2, 1, P.key);
@@ -494,7 +500,7 @@ export function pickables(){
 export function items(){
   var S = world(), time = view.time;
   for (var i = 0; i < S.items.length; i++){
-    var it = S.items[i]; if (it.got) continue;
+    var it = S.items[i]; if (it.got || it.roomHide) continue;
     var bob = Math.sin(time*2.4 + it.ph)*2;
     var x = Math.round(it.x - cam.x), y = Math.round(it.y - cam.y + bob);
     if (x < -12 || x > viewW()+12) continue;

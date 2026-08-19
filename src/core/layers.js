@@ -1,4 +1,5 @@
 import { runtime } from './runtime.js';
+import { liveTileOf, liveVarOf } from './rooms.js';
 
 export function getLayers(){
   return runtime.layers || [];
@@ -136,7 +137,8 @@ export function initDefaultLayers(){
     px: 1, py: 1, visible: true, locked: false, collide: true,
     wrap: false, wrapW: 8, wrapH: 8,
     hue: 0, sat: 1, bright: 0,
-    base: runtime.base, vary: runtime.vary
+    base: runtime.base, vary: runtime.vary,
+    deco: new Uint8Array(runtime.MAP_W * runtime.MAP_H)
   });
   var front = takeIds(defaultFront());
   for (i = 0; i < front.length; i++) runtime.layers.push(front[i]);
@@ -170,7 +172,8 @@ export function addLayer(name){
     wrap: false, wrapW: 8, wrapH: 8,
     hue: 0, sat: 1, bright: 0,
     base: new Uint8Array(runtime.MAP_W * runtime.MAP_H),
-    vary: new Uint8Array(runtime.MAP_W * runtime.MAP_H)
+    vary: new Uint8Array(runtime.MAP_W * runtime.MAP_H),
+    cover: null, coverVary: null
   };
   var ix = (runtime.activeLayer | 0) + 1;
   runtime.layers.splice(ix, 0, L);
@@ -229,6 +232,7 @@ export function setLayerCollide(L, on){
     if (!L.base){
       L.base = new Uint8Array(runtime.MAP_W * runtime.MAP_H);
       L.vary = new Uint8Array(runtime.MAP_W * runtime.MAP_H);
+      L.deco = new Uint8Array(runtime.MAP_W * runtime.MAP_H);
     }
   }
   L.collide = !!on;
@@ -267,7 +271,7 @@ export function ensureStamp(L){
     ow = L.wrapW || s.w;
     oh = (L.stamp.length / ow) | 0;
   }
-  var ns = new Uint8Array(n), nv = new Uint8Array(n);
+  var ns = new Uint8Array(n), nv = new Uint8Array(n), nd = new Uint8Array(n);
   var c, r, ix;
   if (L.stamp && ow && oh){
     for (r = 0; r < Math.min(oh, s.h); r++)
@@ -275,6 +279,7 @@ export function ensureStamp(L){
         ix = r * ow + c;
         ns[r * s.w + c] = L.stamp[ix] || 0;
         if (L.stampVar) nv[r * s.w + c] = L.stampVar[ix] || 0;
+        if (L.stampDeco) nd[r * s.w + c] = L.stampDeco[ix] || 0;
       }
   } else if (L.base){
     for (r = 0; r < s.h; r++)
@@ -283,10 +288,12 @@ export function ensureStamp(L){
         ix = r * runtime.MAP_W + c;
         ns[r * s.w + c] = L.base[ix] || 0;
         if (L.vary) nv[r * s.w + c] = L.vary[ix] || 0;
+        if (L.deco) nd[r * s.w + c] = L.deco[ix] || 0;
       }
   }
   L.stamp = ns;
   L.stampVar = nv;
+  L.stampDeco = nd;
   L._stampW = s.w;
   L._stampH = s.h;
   L._stampCan = null;
@@ -308,6 +315,7 @@ export function setLayerWrap(L, on){
   if (!L.base){
     L.base = new Uint8Array(runtime.MAP_W * runtime.MAP_H);
     L.vary = new Uint8Array(runtime.MAP_W * runtime.MAP_H);
+    L.deco = new Uint8Array(runtime.MAP_W * runtime.MAP_H);
   }
   return true;
 }
@@ -328,18 +336,26 @@ function inRange(c, r){
   return lc >= 0 && lr >= 0 && lc < runtime.MAP_W && lr < runtime.MAP_H;
 }
 
-export function layerTile(L, c, r){
+export function layerTileRaw(L, c, r){
   if (!L) return 0;
   if (L.wrap && L.stamp) return L.stamp[wrapIndex(L, c, r)] || 0;
   if (!L.base || !inRange(c, r)) return 0;
   return L.base[(r - runtime.originR) * runtime.MAP_W + (c - runtime.originC)];
 }
 
-export function layerVar(L, c, r){
+export function layerVarRaw(L, c, r){
   if (!L) return 0;
   if (L.wrap && L.stampVar) return L.stampVar[wrapIndex(L, c, r)] || 0;
   if (!L.vary || !inRange(c, r)) return 0;
   return L.vary[(r - runtime.originR) * runtime.MAP_W + (c - runtime.originC)];
+}
+
+export function layerTile(L, c, r){
+  return liveTileOf(L, c, r, layerTileRaw(L, c, r));
+}
+
+export function layerVar(L, c, r){
+  return liveVarOf(L, c, r, layerVarRaw(L, c, r));
 }
 
 function copyBuf(src){
@@ -356,6 +372,7 @@ function dumpLayer(L){
     amp: L.amp, y0: L.y0, color: L.color,
     period: L.period, hmin: L.hmin, hmax: L.hmax, col: L.col, colD: L.colD, seed: L.seed,
     base: copyBuf(L.base), vary: copyBuf(L.vary),
+    cover: copyBuf(L.cover), coverVary: copyBuf(L.coverVary),
     stamp: copyBuf(L.stamp), stampVar: copyBuf(L.stampVar),
     _stampW: L._stampW || 0, _stampH: L._stampH || 0
   };
@@ -371,8 +388,10 @@ function loadLayer(L){
     amp: L.amp, y0: L.y0, color: L.color,
     period: L.period, hmin: L.hmin, hmax: L.hmax, col: L.col, colD: L.colD, seed: L.seed,
     base: copyBuf(L.base), vary: copyBuf(L.vary),
+    cover: copyBuf(L.cover), coverVary: copyBuf(L.coverVary),
     stamp: copyBuf(L.stamp), stampVar: copyBuf(L.stampVar),
-    _stampW: L._stampW || 0, _stampH: L._stampH || 0
+    _stampW: L._stampW || 0, _stampH: L._stampH || 0,
+    _roomsDirty: true
   };
   if (o.wrap) ensureStamp(o);
   return o;

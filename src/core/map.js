@@ -4,6 +4,7 @@ import {
   SLRCA, SLRCB, SLLCB, SLLCA, PLANK, GIVE
 } from './constants.js';
 import { runtime, hooks, inMap, mapIx } from './runtime.js';
+import { liveTileOf, liveVarOf } from './rooms.js';
 
 function spec(y0, y1, ease){ return { y0: y0, y1: y1, ease: ease || 0 }; }
 
@@ -79,11 +80,12 @@ export function tileAt(c, r){
   if (!inMap(c, r)) return E;
   var ls = runtime.layers, ix = mapIx(c, r);
   if (!ls || !ls.length) return runtime.base[ix];
-  var i, v, found = false;
+  var i, v, found = false, L;
   for (i = ls.length - 1; i >= 0; i--){
-    if (!ls[i].collide || !ls[i].base) continue;
+    L = ls[i];
+    if (!L.collide || !L.base) continue;
     found = true;
-    v = ls[i].base[ix];
+    v = liveTileOf(L, c, r, L.base[ix]);
     if (v) return v;
   }
   return found ? E : runtime.base[ix];
@@ -93,10 +95,12 @@ export function varAt(c, r){
   if (!inMap(c, r)) return 0;
   var ls = runtime.layers, ix = mapIx(c, r);
   if (!ls || !ls.length) return runtime.vary[ix];
-  var i;
+  var i, L, v;
   for (i = ls.length - 1; i >= 0; i--){
-    if (!ls[i].collide || !ls[i].base) continue;
-    if (ls[i].base[ix]) return ls[i].vary ? ls[i].vary[ix] : 0;
+    L = ls[i];
+    if (!L.collide || !L.base) continue;
+    v = liveTileOf(L, c, r, L.base[ix]);
+    if (v) return liveVarOf(L, c, r, L.vary ? L.vary[ix] : 0);
   }
   return runtime.vary[ix];
 }

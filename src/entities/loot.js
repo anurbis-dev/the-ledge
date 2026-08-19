@@ -154,7 +154,7 @@ export function tryGroundPickup(S){
   var best = null, bd = C.ACT_R * C.ACT_R, i, dx, dy, d, it, l;
   for (i = 0; i < S.loot.length; i++){
     l = S.loot[i];
-    if (l.got || autoPick(l.kind)) continue;
+    if (l.got || l.roomHide || autoPick(l.kind)) continue;
     if (l.grace > 0) continue;
     dx = l.x - cx; dy = l.y - cy;
     if (dx * p.facing < -2) continue;
@@ -163,7 +163,7 @@ export function tryGroundPickup(S){
   }
   for (i = 0; i < (S.items || []).length; i++){
     it = S.items[i];
-    if (it.got || autoPick(it.kind)) continue;
+    if (it.got || it.roomHide || autoPick(it.kind)) continue;
     dx = it.x - cx; dy = it.y - cy;
     if (dx * p.facing < -2) continue;
     d = dx * dx + dy * dy;

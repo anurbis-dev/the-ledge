@@ -6,18 +6,23 @@ import {
 import { isMenu } from '../ui/menu.js';
 import { hushLift } from '../audio/sfx.js';
 import { findById } from '../entities/ids.js';
+import { BOULDER_DEF } from '../entities/boulders.js';
 import { isSlopeBrush, fitSlopeStroke } from './slopes.js';
 import { tileThumb, objThumb, paintObjIcon } from './thumbs.js';
 import { renderParams, resetAllParams } from './params.js';
-import { getActiveLayer, getLayers, layerTile, layerVar, isTileLayer } from '../core/layers.js';
+import { getActiveLayer, getLayers, layerTile, layerVar, layerTileRaw, layerVarRaw, isTileLayer } from '../core/layers.js';
+import { setEditorRooms, stepRooms } from '../core/rooms.js';
 import { showLayersPanel, bindLayersPanel } from './layers-panel.js';
 import { bindIntroPanel, renderIntroPanel } from './intro-panel.js';
 import { bindMixPanel, renderMixPanel } from './mix-panel.js';
+import { bindGearPanel, renderGearPanel } from './gear-settings.js';
 import { showInspect, bindInspect } from './inspect.js';
 import { bindNpcTalk, openNpcTalk, closeNpcTalk } from './npc-talk.js';
+import { bindBoulderSettings, openBoulderSettings, closeBoulderSettings } from './boulder-settings.js';
 import { bindAllFloats, placeFloat, hasFloatPos } from './float.js';
 import { pickSpecial, pickAllSpecial, hitGizmo, beginGizmo, moveGizmo, endGizmo, gizmoActive, drawGizmos } from './gizmos.js';
 import { markLevelDirty as persistDirty, flushLevel, bindPersist } from '../core/persist.js';
+import { scheduleBake, pushBake, collectFull } from '../core/bake-client.js';
 import { beginOp, endOp, noteOp, undoOp, redoOp, canUndo, canRedo, bindHistory, clearHistory } from './history.js';
 import { invalidateAll } from '../render/tiles.js';
 import { renderLayersPanel } from './layers-panel.js';
@@ -43,7 +48,8 @@ export var ED = {
   zoom: 1, icon: 28, hover: null,
   clickCell: null, clickBrush: -1,
   holdT: null, holdErased: false, holdX: 0, holdY: 0,
-  dragObj: null, showGeo: false, sel: null, dragPal: null, giz: false,
+  dragObj: null, showGeo: false, cover: false, stampCover: false,
+  sel: null, dragPal: null, giz: false,
   hitObj: null, pendHit: null
 };
 
@@ -77,8 +83,12 @@ export var ED_OBJS = [
   { name: 'Foe 2',   kind: 'enemy1' },
   { name: 'Foe 3',   kind: 'enemy2' },
   { name: 'Bird',    kind: 'flier0' },
+  { name: 'Bird 2',  kind: 'flier1' },
+  { name: 'Bird 3',  kind: 'flier2' },
   { name: 'Diver',   kind: 'flier3' },
   { name: 'Spider',  kind: 'spider0' },
+  { name: 'Spider 2',kind: 'spider1' },
+  { name: 'Spider 3',kind: 'spider2' },
   { name: 'Sting',   kind: 'tendril0' },
   { name: 'Grabber', kind: 'tendril1' },
   { name: 'Torch',   kind: 'torch' },
@@ -87,6 +97,8 @@ export var ED_OBJS = [
   { name: 'Coin',    kind: 'coin' },
   { name: 'Gem',     kind: 'gem' },
   { name: 'Shroom',  kind: 'shroom' },
+  { name: 'Relic',   kind: 'relic' },
+  { name: 'Air tank',kind: 'tank' },
   { name: 'Key',      kind: 'key' },
   { name: 'Helmet',   kind: 'helmet' },
   { name: 'Shield',   kind: 'shield' },
@@ -116,7 +128,7 @@ var LOOT_NAMES = { key:'Key', coin:'Coin', gem:'Gem', shroom:'Shroom', helmet:'H
 function findLootTargetAt(wx, wy){
   var hits = findAllAt(wx, wy);
   for (var i = 0; i < hits.length; i++)
-    if (hits[i].type === 'chest' || hits[i].type === 'enemy') return hits[i];
+    if (hits[i].type === 'chest' || hits[i].type === 'enemy' || hits[i].type === 'flier') return hits[i];
   return null;
 }
 function addLoot(target, kind, qty){
@@ -191,7 +203,7 @@ function respawnObjectAt(entry, cell){
   var S = world(), T = G.T;
   var cx = cell.c*T + 8, cy = cell.r*T + 8, floorY = (cell.r + 1)*T, o = entry.obj;
   if (entry.type === 'enemy') G.mkEnemyAt(S, cx - 5, floorY, o.kind, o.loot, o.random);
-  else if (entry.type === 'flier') G.mkFlierAt(S, cx - 6, cy - 4, o.kind);
+  else if (entry.type === 'flier') G.mkFlierAt(S, cx - 6, cy - 4, o.kind, o.loot, o.random);
   else if (entry.type === 'spider') G.mkSpiderAt(S, cx, floorY, o.kind);
   else if (entry.type === 'tendril') G.mkTendrilAt(S, cx, cy, o.kind);
   else if (entry.type === 'torch') G.mkTorchAt(S, cx, floorY);
@@ -234,11 +246,13 @@ try {
 
 bindLayersPanel({ onChange: function(){ markLevelDirty(); } });
 bindIntroPanel();
+bindGearPanel();
 bindMixPanel();
 bindInspect({ onChange: function(){ markLevelDirty(); }, onClose: function(){ ED.sel = null; } });
 bindNpcTalk({ onChange: function(){ markLevelDirty(); } });
+bindBoulderSettings({ onChange: function(){ markLevelDirty(); } });
 bindAllFloats();
-bindPersist({ water: waterExport });
+bindPersist({ water: waterExport, onFlush: scheduleBake });
 bindHistory({
   onChange: function(why){
     if (why === 'restore'){
@@ -300,7 +314,7 @@ function syncTabs(){
   for (var i = 0; i < tabs.length; i++){
     tabs[i].classList.toggle('on', tabs[i].getAttribute('data-tab') === ED.tab);
   }
-  var hidePal = ED.tab === 'params' || ED.tab === 'intro' || ED.tab === 'mix';
+  var hidePal = ED.tab === 'params' || ED.tab === 'intro' || ED.tab === 'mix' || ED.tab === 'gear';
   if (edPal) edPal.hidden = hidePal;
   if (edExtra) edExtra.hidden = hidePal;
   if (edParams) edParams.hidden = ED.tab !== 'params';
@@ -308,6 +322,8 @@ function syncTabs(){
   if (edIntro) edIntro.hidden = ED.tab !== 'intro';
   var edMix = document.getElementById('edMix');
   if (edMix) edMix.hidden = ED.tab !== 'mix';
+  var edGear = document.getElementById('edGear');
+  if (edGear) edGear.hidden = ED.tab !== 'gear';
 }
 
 function swatch(parent, canvas, label, active, onPick, kind, pal){
@@ -422,7 +438,7 @@ function fillPal(){
       (function(k){
         var spec = ED_OBJS[k];
         var sw = swatch(edPal, objThumb(spec.kind, ED.icon), spec.name, ED.pal === k, function(){ ED.pal = k; }, 'obj', k);
-        if (LOOT_ONLY_KINDS[spec.kind]) sw.title = spec.name + ' — drag onto a chest or enemy';
+        if (LOOT_ONLY_KINDS[spec.kind]) sw.title = spec.name + ' — drag onto a chest, enemy or bird';
       })(m);
     }
   }
@@ -458,6 +474,8 @@ function edRefresh(){
     renderIntroPanel();
   } else if (ED.tab === 'mix'){
     renderMixPanel();
+  } else if (ED.tab === 'gear'){
+    renderGearPanel();
   } else {
     fillPal();
     fillExtra();
@@ -471,24 +489,33 @@ export function edOpen(){
   ED.camX = cam.x; ED.camY = cam.y;
   setViewScale(ED.zoom);
   view.edit = true;
+  setEditorRooms(ED.cover);
   document.body.classList.add('edit-mode');
   edBar.classList.add('on');
   restoreHeight();
   edRefresh();
   showLayersPanel(true);
   syncGeoBtn();
+  syncCoverBtn();
   dispatchEvent(new Event('resize'));
+  flushLevel(world());
+  pushBake({ silent: true }).catch(function(){});
 }
 export function edClose(){
   flushLevel(world());
+  pushBake({ silent: true }).catch(function(){});
   ED.on = false;
   view.edit = false;
+  var Sclose = world();
+  if (Sclose) stepRooms(Sclose);
+  else setEditorRooms(false);
   setViewScale(1);
   document.body.classList.remove('edit-mode');
   edBar.classList.remove('on');
   showLayersPanel(false);
   showInspect(null);
   closeNpcTalk();
+  closeBoulderSettings();
   ED.sel = null;
   endGizmo();
   closeVarMenu();
@@ -518,12 +545,26 @@ function edCell(clientX, clientY, worldSpace){
   return { c: Math.floor(wx / T), r: Math.floor(wy / T), x: wx, y: wy, sx: sx, sy: sy };
 }
 
+function coverLayerOk(L){
+  return !!(L && isTileLayer(L) && L.collide && !L.wrap && !L.locked);
+}
+function inCoverPaint(){
+  return ED.cover && ED.tool === 'tile' && coverLayerOk(getActiveLayer());
+}
+function coverBrushId(spec){
+  return spec && spec.id ? spec.id : G.COVER_AIR;
+}
 function brushTile(c, r){
   var L = getActiveLayer();
+  if (ED.cover && ED.tool === 'tile'){
+    var cv = G.coverRaw(L, c, r);
+    return cv === G.COVER_AIR ? 0 : cv;
+  }
   return L ? layerTile(L, c, r) : G.tileAt(c, r);
 }
 function brushVar(c, r){
   var L = getActiveLayer();
+  if (ED.cover && ED.tool === 'tile') return G.coverVarRaw(L, c, r);
   return L ? layerVar(L, c, r) : G.varAt(c, r);
 }
 
@@ -568,7 +609,8 @@ function openVarMenu(cell, spec, clientX, clientY){
     b.addEventListener('click', function(e){
       e.stopPropagation();
       beginOp();
-      G.setVar(cell.c, cell.r, val);
+      if (inCoverPaint()) G.setCoverVar(cell.c, cell.r, val);
+      else G.setVar(cell.c, cell.r, val);
       markLevelDirty();
       endOp();
       closeVarMenu();
@@ -724,7 +766,7 @@ function openChestList(target, type, clientX, clientY){
   closeChestAdd();
   chestListTarget = target;
   if (edChestListTitle){
-    var label = type === 'enemy' ? 'Enemy' : 'Chest';
+    var label = type === 'enemy' ? 'Enemy' : (type === 'flier' ? 'Bird' : 'Chest');
     edChestListTitle.textContent = label + (target.locked ? ' (locked)' : '');
   }
   renderChestList();
@@ -746,6 +788,25 @@ export function edApply(cell, isClick){
     var act = getActiveLayer();
     if (act && !isTileLayer(act)) return;
     var spec = ED_TILES[ED.pal];
+    if (ED.cover){
+      if (!coverLayerOk(act)) return;
+      if (ED.stampCover){
+        var raw = layerTileRaw(act, cell.c, cell.r);
+        G.setCover(cell.c, cell.r, raw ? raw : G.COVER_AIR);
+        G.setCoverVar(cell.c, cell.r, layerVarRaw(act, cell.c, cell.r));
+        markLevelDirty();
+        return;
+      }
+      if (isClick && ED.clickCell === key && ED.clickBrush === ED.pal && spec.varN &&
+          tileMatchesBrush(spec, brushTile(cell.c, cell.r))){
+        G.setCoverVar(cell.c, cell.r, (brushVar(cell.c, cell.r) % spec.varN) + 1);
+        markLevelDirty();
+        return;
+      }
+      G.setCover(cell.c, cell.r, coverBrushId(spec));
+      markLevelDirty();
+      return;
+    }
     var nv = spec.id;
     if (isClick && ED.clickCell === key && ED.clickBrush === ED.pal && spec.varN &&
         tileMatchesBrush(spec, brushTile(cell.c, cell.r))){
@@ -783,6 +844,11 @@ function edErase(cell, wcell){
   var key = cell.c + ':' + cell.r;
   if (ED.last === key) return;
   ED.last = key;
+  if (inCoverPaint()){
+    G.setCover(cell.c, cell.r, 0);
+    markLevelDirty();
+    return;
+  }
   var actE = getActiveLayer();
   var oldE = (actE && isTileLayer(actE)) ? brushTile(cell.c, cell.r) : G.tileAt(cell.c, cell.r);
   if (!actE || isTileLayer(actE)) G.setTile(cell.c, cell.r, 0);
@@ -828,7 +894,7 @@ function edPlaceObject(cell){
   }
   if (kind.indexOf('enemy') === 0) G.mkEnemyAt(S, cx - 5, floorY, +kind.slice(5));
   else if (kind.indexOf('flier') === 0) G.mkFlierAt(S, cx - 6, cy - 4, +kind.slice(5));
-  else if (kind.indexOf('spider') === 0) G.mkSpiderAt(S, cx, floorY, 0);
+  else if (kind.indexOf('spider') === 0) G.mkSpiderAt(S, cx, floorY, +kind.slice(6));
   else if (kind.indexOf('tendril') === 0) G.mkTendrilAt(S, cx, cy, +kind.slice(7));
   else if (kind === 'torch') G.mkTorchAt(S, cx, floorY);
   else if (kind === 'chest') G.mkChestAt(S, cell.c*T, floorY, [{ kind:'coin', qty:5 }], false);
@@ -911,8 +977,13 @@ export function edExportText(){
     return '[' + base + ']';
   }).join(',') + '],');
   out.push('fliers: [' + S.fliers.map(function(f){
-    return '[' + Math.round(f.x) + ',' + Math.round(f.y) + ',' +
-           Math.round(f.x0) + ',' + Math.round(f.x1) + ',' + Math.round(f.v) + ',' + f.kind + ']';
+    var fbase = Math.round(f.x) + ',' + Math.round(f.y) + ',' +
+      Math.round(f.x0) + ',' + Math.round(f.x1) + ',' + Math.round(f.v) + ',' + f.kind;
+    if (f.loot && f.loot.length){
+      var flootTxt = f.loot.map(function(x){ return "['" + x.kind + "'," + x.qty + ']'; }).join(',');
+      fbase += ',[' + flootTxt + '],' + !!f.random;
+    }
+    return '[' + fbase + ']';
   }).join(',') + '],');
   out.push('spiders: [' + S.spiders.map(function(s2){
     return '[' + Math.floor(s2.hx / T) + ',' + (Math.floor(s2.hy / T) - 1) + ',' + s2.kind + ']';
@@ -933,7 +1004,13 @@ export function edExportText(){
     return '[' + Math.floor(t.x / T) + ',' + (Math.floor(t.y / T) - 1) + ']';
   }).join(',') + '],');
   out.push('boulders: [' + S.boulders.map(function(b){
-    return '[' + Math.floor((b.x + 6) / T) + ',' + (Math.floor((b.y + 11) / T) - 1) + ']';
+    var row = Math.floor((b.x + 6) / T) + ',' + (Math.floor((b.y + 11) / T) - 1);
+    if (b.pushV != null || b.friction != null || b.rollMax != null){
+      row += ',' + (b.pushV != null ? b.pushV : BOULDER_DEF.pushV) +
+        ',' + (b.friction != null ? b.friction : BOULDER_DEF.friction) +
+        ',' + (b.rollMax != null ? b.rollMax : BOULDER_DEF.rollMax);
+    }
+    return '[' + row + ']';
   }).join(',') + '],');
   out.push('npcs: [' + (S.npcs || []).map(function(n){
     var row = '[' + Math.floor((n.x + 5) / T) + ',' + (Math.floor((n.y + 18) / T) - 1) +
@@ -1010,6 +1087,23 @@ export function edDrawOverlay(){
     for (; gr <= r1 + 1; gr += wh) rc(0, gr*T - camy, visW, 1, '#ffd9a0');
     ctx.globalAlpha = 1;
   }
+  if (ED.cover){
+    var Lc = getActiveLayer();
+    var cc, rr, cv, ox, oy;
+    for (rr = r0; rr <= r1; rr++){
+      for (cc = c0; cc <= c1; cc++){
+        cv = G.coverRaw(Lc, cc, rr);
+        if (!cv) continue;
+        ox = cc * T - camx; oy = rr * T - camy;
+        ctx.globalAlpha = 0.22;
+        rc(ox, oy, T, T, cv === G.COVER_AIR ? '#ffe08a' : '#b48cff');
+        ctx.globalAlpha = 0.55;
+        rc(ox, oy, T, 1, '#e8d6ff');
+        rc(ox, oy, 1, T, '#e8d6ff');
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
   if (ED.hover){
     var hx = ED.hover.c*T - camx, hy = ED.hover.r*T - camy;
     rc(hx, hy, T, 2, '#ffd9a0'); rc(hx, hy + T - 2, T, 2, '#ffd9a0');
@@ -1025,7 +1119,11 @@ export function edDrawOverlay(){
   if (L) label = L.name + (L.wrap ? ' ▦' : '') + ' · ' + label;
   if (L && !isTileLayer(L) && ED.tool === 'tile') label = L.name + ' · props only';
   if (L && L.locked) label = 'Locked';
-  if (ED.erasing) label = 'Erase';
+  if (ED.cover && ED.tool === 'tile'){
+    label = (coverLayerOk(L) ? 'Cover' : 'Cover · collide') + ' · ' + label;
+    if (ED.stampCover) label = 'Stamp · ' + label;
+  }
+  if (ED.erasing) label = ED.cover ? 'Cover erase' : 'Erase';
   if (ED.dragObj) label = ED.dragObj.copied ? 'Copy · ' + ED.dragObj.entry.type : 'Move · ' + ED.dragObj.entry.type;
   if (ED.hover && G.isWaterV(brushTile(ED.hover.c, ED.hover.r)))
     label += ' · ' + shadePresetName(getPondShade(ED.hover.c, ED.hover.r));
@@ -1067,7 +1165,7 @@ function findObjPal(type, obj){
     k = ED_OBJS[i].kind;
     if (type === 'enemy' && k === 'enemy' + (obj.kind | 0)) return i;
     if (type === 'flier' && k === 'flier' + (obj.kind | 0)) return i;
-    if (type === 'spider' && k.indexOf('spider') === 0) return i;
+    if (type === 'spider' && k === 'spider' + (obj.kind | 0)) return i;
     if (type === 'tendril' && k === 'tendril' + (obj.kind | 0)) return i;
     if (type === 'torch' && k === 'torch') return i;
     if (type === 'chest' && k === (obj.locked ? 'chestL' : 'chest')) return i;
@@ -1081,7 +1179,7 @@ function findObjPal(type, obj){
   return 0;
 }
 function eyedrop(e, cell, wcell){
-  var hit = cycleHit(wcell.x, wcell.y);
+  var hit = (ED.cover && ED.tool === 'tile') ? null : cycleHit(wcell.x, wcell.y);
   if (hit){
     setTab('obj');
     ED.pal = findObjPal(hit.type, hit.obj);
@@ -1170,10 +1268,12 @@ cv.addEventListener('pointerdown', function(e){
   closeChestAdd();
   closeChestList();
   closeNpcTalk();
+  closeBoulderSettings();
   if (e.ctrlKey || e.metaKey){
     eyedrop(e, cell, wcell);
     return;
   }
+  ED.stampCover = !!e.altKey;
   var S0 = world();
   var hits = findAllAt(wcell.x, wcell.y);
   var giz = S0 && hitGizmo(S0, ED.sel, wcell.x, wcell.y);
@@ -1268,14 +1368,17 @@ function edUp(e){
   if (e && e.pointerId === ED.panId) ED.panId = -1;
   if (e && e.type === 'pointerup' && ED.pendHit){
     var ph = ED.pendHit.hit;
-    if (ph && (ph.type === 'chest' || ph.type === 'enemy') && ED.pendHit.single)
+    if (ph && (ph.type === 'chest' || ph.type === 'enemy' || ph.type === 'flier') && ED.pendHit.single)
       openChestList(ph.obj, ph.type, ED.pendHit.x, ED.pendHit.y);
     else if (ph && ph.type === 'npc')
       openNpcTalk(ph.obj, ED.pendHit.x, ED.pendHit.y);
+    else if (ph && ph.type === 'boulder')
+      openBoulderSettings(ph.obj, ED.pendHit.x, ED.pendHit.y);
   }
   ED.dragObj = null;
   ED.pendHit = null;
   ED.painting = false; ED.erasing = false;
+  ED.stampCover = false;
   ED.last = null; ED.stroke = null; ED.strokeOrig = null;
   ED.giz = false;
   endGizmo();
@@ -1427,9 +1530,20 @@ function syncGeoBtn(){
   var b = document.getElementById('edGeo');
   if (b) b.classList.toggle('on', !!ED.showGeo);
 }
+function toggleCover(){
+  ED.cover = !ED.cover;
+  setEditorRooms(ED.cover);
+  syncCoverBtn();
+}
+function syncCoverBtn(){
+  var b = document.getElementById('edCover');
+  if (b) b.classList.toggle('on', !!ED.cover);
+}
 
 var bGeo = document.getElementById('edGeo');
 if (bGeo) bGeo.addEventListener('click', function(){ toggleGeo(); });
+var bCover = document.getElementById('edCover');
+if (bCover) bCover.addEventListener('click', function(){ toggleCover(); });
 
 var bEdit = document.getElementById('bEdit');
 if (bEdit) bEdit.addEventListener('click', function(){
@@ -1443,6 +1557,35 @@ document.getElementById('edExport').addEventListener('click', function(){
   try { edText.select(); } catch(_){}
 });
 document.getElementById('edOk').addEventListener('click', function(){ edOut.classList.remove('on'); });
+function downloadBakeJson(data){
+  var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'ledge-bake.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+}
+
+var bBake = document.getElementById('edBake');
+if (bBake) bBake.addEventListener('click', function(){
+  flushLevel(world());
+  bBake.disabled = true;
+  pushBake({ full: true, silent: false, timeout: 4000 }).then(function(res){
+    bBake.disabled = false;
+    edText.value = 'Baked OK — src/core/defaults.js updated.\nLevels: ' + res.levels;
+    edOut.classList.add('on');
+  }).catch(function(err){
+    bBake.disabled = false;
+    downloadBakeJson(collectFull());
+    edText.value = 'Live write failed (' + (err && err.timedOut ? 'timeout' : err) + ').\n' +
+      'Editor already autosaves levels/params into defaults.js while the dev server runs.\n' +
+      'If this keeps failing, restart start-dev-server.bat.';
+    edOut.classList.add('on');
+  });
+});
 var bNew = document.getElementById('edNew');
 if (bNew) bNew.addEventListener('click', function(){
   if (onNewLevel) onNewLevel();
@@ -1451,3 +1594,12 @@ var bDel = document.getElementById('edDel');
 if (bDel) bDel.addEventListener('click', function(){
   if (onDelLevel) onDelLevel();
 });
+
+function flushBakeQuiet(){
+  flushLevel(world());
+  pushBake({ silent: true }).catch(function(){});
+}
+document.addEventListener('visibilitychange', function(){
+  if (document.hidden) flushBakeQuiet();
+});
+addEventListener('pagehide', flushBakeQuiet);

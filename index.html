@@ -20,7 +20,7 @@
     <div class="msub">caves and ledges</div>
     <div class="mpane" id="mHome"></div>
     <div class="mpane hide" id="mPath">
-      <div class="mpane-head">Пройденный путь <button type="button" class="mback" id="mPathBack">✕</button></div>
+      <div class="mpane-head"><button type="button" class="mback" id="mPathBack">‹</button> PATH</div>
       <div class="mlist" id="mlist"></div>
     </div>
     <div class="mpane hide" id="mSettings">
@@ -50,15 +50,18 @@
       <button type="button" class="ed-tab" data-tab="obj">Objects</button>
       <button type="button" class="ed-tab" data-tab="params">Params</button>
       <button type="button" class="ed-tab" data-tab="intro">Intro</button>
+      <button type="button" class="ed-tab" data-tab="gear">Gear</button>
       <button type="button" class="ed-tab" data-tab="mix">Mix</button>
     </div>
     <div class="ed-head-acts">
       <button type="button" class="edb" id="edUndo" title="Undo (Ctrl+Z)" disabled>Undo</button>
       <button type="button" class="edb" id="edRedo" title="Redo (Ctrl+Y)" disabled>Redo</button>
       <button type="button" class="edb" id="edGeo" title="Toggle collision overlay (G)">Geo</button>
+      <button type="button" class="edb" id="edCover" title="Paint room cover — tiles seen from outside. Alt+drag clones the map. Empty = hatch. RMB erases membership">Cover</button>
       <button type="button" class="edb" id="edNew">New Level</button>
       <button type="button" class="edb" id="edDel" title="Delete this level">Del Level</button>
       <button type="button" class="edb" id="edExport">Export</button>
+      <button type="button" class="edb" id="edBake" title="Force-write levels, params, settings, mix and talk into src/core/defaults.js (dev server). Editor already autosaves levels/params.">Bake</button>
       <button type="button" class="edb" id="edClose">Close</button>
     </div>
   </div>
@@ -73,6 +76,7 @@
       <div id="edParamList"></div>
     </div>
     <div class="ed-params" id="edIntro" hidden></div>
+    <div class="ed-params" id="edGear" hidden></div>
     <div class="ed-params" id="edMix" hidden></div>
   </div>
 </div>
@@ -113,6 +117,13 @@
     <button type="button" class="edb" id="edNpcTalkX">×</button>
   </div>
   <div id="edNpcTalkBody" class="ed-float-body"></div>
+</div>
+<div id="edBoulderSettings" class="ed-float" hidden>
+  <div class="ed-float-head">
+    <span>Boulder</span>
+    <button type="button" class="edb" id="edBoulderSettingsX">×</button>
+  </div>
+  <div id="edBoulderSettingsBody" class="ed-float-body"></div>
 </div>
 <div id="sys"><button class="mini" id="bEdit">Edit</button><button class="mini" id="bPause">Pause</button><button class="mini" id="bMenu">Menu</button><button class="mini" id="bFS">⛶ Full</button><button class="mini" id="bReset">Restart</button><button class="mini" id="bDbg">Debug</button></div>
 <script type="module" src="/src/main.js"></script>

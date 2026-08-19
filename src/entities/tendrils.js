@@ -2,7 +2,7 @@ import { T, C } from '../core/constants.js';
 import { runtime } from '../core/runtime.js';
 import { tileAt, isWetV, isWaterV, waterSurfaceY, rectFree, solidTile } from '../core/map.js';
 import { damage } from '../core/player.js';
-import { dropLoot } from './loot.js';
+import { dropLootFor } from './loot.js';
 import { allocId } from './ids.js';
 
 /* щупальца водорослей. kind 0 — жало, kind 1 — обвивает и тянет к корню.
@@ -136,7 +136,7 @@ export function hitTendril(S, w){
   if (!w || w.dead) return false;
   w.dead = true; w.hitT = 0.55;
   if (w.holding) release(S, w, S.p);
-  dropLoot(S, w.tx, w.ty, 't');
+  dropLootFor(S, w, w.tx, w.ty, 't');
   S.hitStop = Math.max(S.hitStop, 0.05);
   S.shake = Math.max(S.shake, 2);
   S.p.events.push('kill:t' + w.id);
@@ -231,6 +231,7 @@ export function stepTendrils(S, dt, inp){
   var p = S.p;
   for (var i = 0; i < S.tendrils.length; i++){
     var w = S.tendrils[i];
+    if (w.roomHide) continue;
     if (w.dead){
       w.hitT -= dt;
       w.len = Math.max(4, w.len - 80 * dt);

@@ -23,6 +23,7 @@ import { showSplash } from '../ui/splash.js';
 import { findById } from '../entities/ids.js';
 import { cycleHand } from '../entities/gear.js';
 import { entitiesShown } from '../core/layers.js';
+import { markRoomHidden } from '../core/rooms.js';
 import { hydrateAll } from '../core/persist.js';
 import { speechBlocks } from '../speech/runtime.js';
 import { stepLoot } from '../entities/loot.js';
@@ -444,6 +445,7 @@ function frame(now){
       if (!musicHeld() && musicArmed()) resumeMusic();
     } else hushMusic();
     view.edit = true;
+    markRoomHidden(S);
     snapEditCam();
     var z = ED.zoom || 1;
     setViewScale(z);
