@@ -57,6 +57,6 @@ Prefer `await import('/src/core/game.js')` on the Vite page if `GAME` is not on 
 - Uncovered risks
 
 ## Project context
-- Facade **`GAME`**; dev: `npm run dev` (free port, never hardcode `:5173`)
+- Facade **`GAME`**; parent or this agent starts **its own** Vite (`npm run dev`, free port, never hardcode `:5173`). Do not attach to another session's tab/port. Kill own PID and close own tab when done.
 - `AGENTS.md` verification tiers
 - MemPalace wing: `the_ledge`

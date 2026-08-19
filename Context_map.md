@@ -72,6 +72,7 @@
 - `agents/*.md` — **SoT субагентов**; `npm run sync:agents` → `.claude/agents/*` + `.grok/agents/*` (generated, не править вручную).
 - Version: SemVer SoT = `package.json`. Bump: `npm run bump:patch|minor|major|dev|…`. Хук `scripts/check-version-bump-hook.mjs` блокирует `git commit` без bump.
 - Git: агент коммитит **локально**. Пуш только по явной команде; иначе пользователь жмёт кнопку сам.
+- Dev server: свой Vite на сессию, не шарить; после проверки убить свой PID и закрыть свою вкладку. Порт из stdout, не `:5173`.
 - Token audit: `npm run token-audit` → `tmp/token-audit/`.
 
 ## Не путать

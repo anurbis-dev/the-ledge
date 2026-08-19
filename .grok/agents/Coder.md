@@ -25,7 +25,7 @@ If any is missing, or the task invents a new pattern / rewrites gameplay / touch
 ## Constraints
 - Implement literally; no drive-by cleanup outside scope
 - No new architecture (no new “manager” layers unless plan names them)
-- **DO NOT start dev server** (assume already running if needed)
+- **DO NOT start or kill a dev server** — the parent session owns one Vite for this task and must close it after. Do not attach to some other session's server.
 - **DO NOT touch docs/CHANGELOG** — DocCodeSync / parent does that
 - Prefer minimal edits; read file before edit
 - Gameplay 1:1 with canon unless the plan is an explicit fix
