@@ -6,7 +6,7 @@ import {
   setStance, setH, slopeUnder, slopeGradeUnder, grounded, autoLadder, tryBars,
   tryLadder, tryGrab, tryClimbOut, tryCrawlEdge, ladderTopUnder, attach, tryDescend,
   markGap, canDescend, awayFromEdge, startFallRecover, finishFallRecover,
-  finishGetup, stanceFitsAt
+  finishGetup, stanceFitsAt, stanceH, applyHeroBox, applyRollBox
 } from './player.js';
 import { stepPlats, platUnder } from '../entities/plats.js';
 import { stepLifts, inLift, liftConstrain } from '../entities/lifts.js';
@@ -221,15 +221,16 @@ export function step(S, dt, inp){
   p.lookUp += (wantLookUp - p.lookUp) * Math.min(1, dt * 6);
   if (p.lookUp < 0.01) p.lookUp = 0;
   // под низким потолком встать нельзя — держим стойку; шаг ↑ уже в блоке stanceT выше
-  if (p.stance === 1 && !p.onGround && rectFree(p.x, p.y + p.h - C.H, p.w, C.H)) setStance(S, p, 0);
+  if (p.stance === 1 && !p.onGround && rectFree(p.x, p.y + p.h - stanceH(0), p.w, stanceH(0))) setStance(S, p, 0);
   // страховка: габариты рассинхронились со стойкой (например, после переката под потолком).
   // проверяем не только над головой, но и с запасом по бокам — иначе можно «встать» внутри щели
-  if (!rolling && p.h !== C.H){
-    var fitStand = rectFree(p.x, p.y + p.h - C.H, p.w, C.H);
-    var fitCrouch = rectFree(p.x, p.y + p.h - C.CRH, p.w, C.CRH);
-    if (fitStand && p.stance === 0) setH(p, C.H);
-    else if (!fitStand && fitCrouch && p.stance <= 1){ setH(p, C.CRH); p.stance = 1; }
-    else if (!fitStand && !fitCrouch && p.h > C.PRH){ setH(p, C.PRH); p.stance = 2; }
+  if (!rolling && p.onGround && p.h !== stanceH(p.stance)){
+    var standH = stanceH(0), crouchH = stanceH(1), proneH = stanceH(2);
+    var fitStand = rectFree(p.x, p.y + p.h - standH, p.w, standH);
+    var fitCrouch = rectFree(p.x, p.y + p.h - crouchH, p.w, crouchH);
+    if (fitStand && p.stance === 0) setH(p, standH);
+    else if (!fitStand && fitCrouch && p.stance <= 1){ setH(p, crouchH); p.stance = 1; }
+    else if (!fitStand && !fitCrouch && p.h > proneH){ setH(p, proneH); p.stance = 2; }
   }
   markGap(p);
 
@@ -239,7 +240,7 @@ export function step(S, dt, inp){
       stanceBefore === 1 && p.stance === 1 && crouchRoll){
     if (inp.x !== 0) p.facing = inp.x > 0 ? 1 : -1;
     else if (p.vx !== 0) p.facing = p.vx > 0 ? 1 : -1;
-    p.rollT = C.ROLL_T; setH(p, C.RH); p.events.push('roll');
+    p.rollT = C.ROLL_T; applyRollBox(p); p.events.push('roll');
     rolling = true;
   }
   if (rolling){
@@ -315,7 +316,7 @@ export function step(S, dt, inp){
       (inp.downHeld || inp.downPressed) && Math.abs(p.vx) > 58){
     if (inp.x !== 0) p.facing = inp.x > 0 ? 1 : -1;
     else if (p.vx !== 0) p.facing = p.vx > 0 ? 1 : -1;
-    p.rollT = C.ROLL_T; setH(p, C.RH); p.events.push('roll');
+    p.rollT = C.ROLL_T; applyRollBox(p); p.events.push('roll');
     rolling = true;
   }
 
@@ -440,6 +441,8 @@ export function step(S, dt, inp){
     }
   }
 
+  applyHeroBox(p);
+
   var wasAir = !p.onGround, prevBottom = p.y + p.h, preX = p.x, preY = p.y;
   var slPre = null;
   if (!wasAir){                                  // встаём на склон ДО шага, иначе упрёмся в ступень
@@ -482,7 +485,7 @@ export function step(S, dt, inp){
       p.fell = fall;
       if (fall > C.SAFE){
         if (inp.x !== 0 && !rolling && p.rollCd <= 0){
-          p.rollT = C.ROLL_T; setH(p, C.RH); p.facing = inp.x > 0 ? 1 : -1;
+          p.rollT = C.ROLL_T; applyRollBox(p); p.facing = inp.x > 0 ? 1 : -1;
           p.vx = inp.x * C.ROLL_V; S.shake = Math.max(S.shake, 2);
           p.events.push('rollland');
           if (fall > C.HURT * 1.6) damage(S, 1, 0.35);

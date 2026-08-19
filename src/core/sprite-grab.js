@@ -1,8 +1,43 @@
 /* Точка рук героини: поиск кромки / перекладины. Смещение от origin. */
-import { C } from './constants.js';
+import { C, LADF, LADR, LADL } from './constants.js';
 import { getSpriteDef, getFrameAnchor } from './spriteset.js';
 
 export function defaultGrabOff(){ return { x: C.W + 2, y: C.HAND }; }
+
+/* Действие для хитбокса / Hands. Совпадает с heroClip, без номера кадра. */
+export function heroBoxAnim(p){
+  if (!p) return 'idle';
+  if (p.gettingUp) return 'prone';
+  if (p.rollT > 0) return 'roll';
+  if (p.state === 'snare') return 'snare';
+  if (p.inWater) return 'swim';
+  if (p.state === 'bars') return 'bars';
+  if (p.pickT > 0 && p.onGround) return 'pick';
+  if (p.stance === 2) return 'prone';
+  if (p.stance === 1) return Math.abs(p.vx) > 4 ? 'crouchWalk' : 'crouch';
+  if (p.grapple) return 'grapple';
+  if (p.atkT > 0) return 'attack';
+  if (p.bowT > 0 || p.bowReady) return 'bow';
+  if (p.state === 'stun') return 'stun';
+  if (p.throwT > 0) return 'throw';
+  if (p.state === 'ladder'){
+    if (p.lad && p.lad.v === LADF) return 'ladderF';
+    if (p.lad && (p.lad.v === LADR || p.lad.v === LADL)) return 'ladderD';
+    return 'ladder';
+  }
+  if (p.state === 'hang' && p.hang && p.hang.kind === 'lad') return 'hangLad';
+  if (p.state === 'climb' && p.climb && p.climb.kind === 'lad') return 'ladder';
+  if (p.state === 'hang') return 'hang';
+  if (p.state === 'climb') return 'climb';
+  if (!p.onGround){
+    if (p.sliding) return 'slide';
+    return p.vy > 60 ? 'fall' : 'jump';
+  }
+  if (p.landT > 0) return 'land';
+  if (p.pushWall) return 'wallPush';
+  if (Math.abs(p.vx) > 8) return 'run';
+  return 'idle';
+}
 
 function clipForGrab(p){
   if (!p) return 'idle';

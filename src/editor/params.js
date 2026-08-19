@@ -1,5 +1,6 @@
 import { C } from '../core/constants.js';
 import GAME from '../core/game.js';
+import { stanceH, stanceW } from '../core/player.js';
 import { initSliders } from './slider.js';
 import { BAKED } from '../core/defaults.js';
 import { preferLocal, notifyDraftChange } from '../core/persist.js';
@@ -172,11 +173,11 @@ export function applyParam(key, val){
   C[key] = val;
   var S = GAME.W, p = S && S.p;
   if (p){
-    if (key === 'W' && p.stance !== 2) p.w = C.W;
-    if (key === 'H' && p.stance === 0) p.h = C.H;
-    if (key === 'CRH' && p.stance === 1) p.h = C.CRH;
-    if (key === 'PRH' && p.stance === 2) p.h = C.PRH;
-    if (key === 'PRW' && p.stance === 2) p.w = C.PRW;
+    if (key === 'W' && p.stance !== 2) p.w = stanceW(p.stance);
+    if (key === 'H' && p.stance === 0) p.h = stanceH(0);
+    if (key === 'CRH' && p.stance === 1) p.h = stanceH(1);
+    if (key === 'PRH' && p.stance === 2) p.h = stanceH(2);
+    if (key === 'PRW' && p.stance === 2) p.w = stanceW(2);
     if (key === 'AIR_MAX' && !p.scuba) p.air = Math.min(p.air, C.AIR_MAX);
     if (key === 'SCUBA_AIR' && p.scuba) p.air = Math.min(p.air, C.SCUBA_AIR);
     if (key === 'STAM_MAX') p.stam = Math.min(p.stam, C.STAM_MAX);

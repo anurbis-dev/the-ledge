@@ -12,7 +12,8 @@ import {
   slopeTop, slopeSpec, slopeFamily, slopeRiseRight, SLOPE_SEQ,
   tileAt, varAt, varR, isSolidV, isLadV, solidTile, ladderTile, solidAt, ladderAt, rectFree
 } from './map.js';
-import { mkPlayer, resetPlayer, stanceH, hangBox, standBox } from './player.js';
+import { mkPlayer, resetPlayer, stanceH, hangBox, standBox, applyHeroBox } from './player.js';
+import { getAnimBox } from './spriteset.js';
 import { step } from './step.js';
 import { LEVELS, loadLevel, addBlankLevel, removeLevel } from '../levels/index.js';
 import { mkItems } from '../entities/items.js';
@@ -195,7 +196,7 @@ export const GAME = {
   get MAP_W(){ return runtime.MAP_W; }, get MAP_H(){ return runtime.MAP_H; }, get base(){ return runtime.base; },
   mapMinC, mapMaxC, mapMinR, mapMaxR, mapIx, inMap,
   E, ROCK, CRUMB, LADW, LADF, LADR, LADL, HTOP, BAR, PLANK, GIVE,
-  isHalfV, isBarV, ladderTop, stanceH,
+  isHalfV, isBarV, ladderTop, stanceH, applyHeroBox, getAnimBox,
   SLR, SLL, RNDA, RNDB, WATER, FALL,
   SLR2, SLR3, SLL2, SLL3, SLR4A, SLR4B, SLR4C, SLR4D,
   SLL4A, SLL4B, SLL4C, SLL4D, SLRCA, SLRCB, SLLCB, SLLCA,

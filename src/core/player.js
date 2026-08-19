@@ -7,13 +7,15 @@ import {
 import { dropTorch } from '../entities/torches.js';
 import { platUnder } from '../entities/plats.js';
 import { breakTalk } from '../speech/runtime.js';
-import { heroGrabOffset, heroGrabWorld, heroHandY } from './sprite-grab.js';
+import { heroGrabOffset, heroGrabWorld, heroHandY, heroBoxAnim } from './sprite-grab.js';
+import { getAnimBox } from './spriteset.js';
 
 /* ---------------- игрок ---------------- */
 export function mkPlayer(){
   var sx = runtime.LV.spawn.x, sy = runtime.LV.spawn.y;
+  var box = getAnimBox('hero', 'idle');
   return {
-    x: sx, y: sy, w: C.W, h: C.H, vx: 0, vy: 0, facing: 1,
+    x: sx, y: sy, w: box.w, h: box.h, vx: 0, vy: 0, facing: 1,
     state: 'normal', onGround: true, jumping: false, sliding: 0,
     coyote: 0, buf: 0, grabCd: 0, lock: 0, landT: 0, rollT: 0, rollCd: 0, stunT: 0,
     apexY: sy, fell: 0, ride: null, hang: null, climb: null, lad: null,
@@ -127,15 +129,49 @@ export function slopeGradeUnder(p){
 }
 export function grounded(S, p, noLadTop){
   if (slopeUnder(p) !== null) return true;
-  if (!rectFree(p.x + 1, p.y + p.h, p.w - 2, 1)) return true;
-  if (platUnder(S, p, p.y + p.h + 1)) return true;
+  var midW = Math.max(2, Math.min(6, Math.ceil(p.w * 0.25)));
+  var midX = p.x + p.w / 2 - midW / 2;
+  if (!rectFree(midX, p.y + p.h, midW, 1)) return true;
+  if (platUnder(S, { x: midX, y: p.y, w: midW, h: p.h }, p.y + p.h + 1)) return true;
   if (noLadTop) return false;
   return ladderTopUnder(p, p.y + p.h + 1) !== null;
 }
 
 export function setH(p, h){ var b = p.y + p.h; p.h = h; p.y = b - h; }
-export function stanceH(st){ return st === 2 ? C.PRH : (st === 1 ? C.CRH : C.H); }
-export function stanceW(st){ return st === 2 ? C.PRW : C.W; }
+export function stanceBox(st){
+  if (st === 2) return getAnimBox('hero', 'prone');
+  if (st === 1) return getAnimBox('hero', 'crouch');
+  return getAnimBox('hero', 'idle');
+}
+export function stanceH(st){ return stanceBox(st).h; }
+export function stanceW(st){ return stanceBox(st).w; }
+export function fitHeroBox(p, w, h){
+  if (!p || (p.w === w && p.h === h)) return true;
+  var cx = p.x + p.w / 2, btm = p.y + p.h;
+  var nx = cx - w / 2, ny = btm - h;
+  if (rectFree(nx, ny, w, h)){
+    p.x = nx; p.y = ny; p.w = w; p.h = h;
+    return true;
+  }
+  if (h !== p.h && rectFree(p.x, ny, p.w, h)){
+    p.y = ny; p.h = h;
+    return p.w === w;
+  }
+  return false;
+}
+export function applyHeroBox(p){
+  var b, st;
+  if (!p) return;
+  st = p.state;
+  if (st === 'hang' || st === 'climb' || st === 'ladder' || st === 'bars') return;
+  if (p.warp) return;
+  b = getAnimBox('hero', heroBoxAnim(p));
+  fitHeroBox(p, b.w, b.h);
+}
+export function applyRollBox(p){
+  var b = getAnimBox('hero', 'roll');
+  fitHeroBox(p, b.w, b.h);
+}
 export function setStance(S, p, st){
   if (p.stance === st) return true;
   var h = stanceH(st), w = stanceW(st);
@@ -154,11 +190,19 @@ function handOffY(p){
 
 export function hangBox(cx, cy, facing, kind, p){
   var hy = handOffY(p);
-  if (kind === 'lad') return { x: cx - C.W/2, y: cy - hy };
-  return { x: facing > 0 ? cx - C.W : cx, y: cy - hy };
+  var b = getAnimBox('hero', kind === 'lad' ? 'hangLad' : 'hang');
+  var w = b.w, h = b.h, y = cy - hy;
+  if (kind === 'lad') return { x: cx - w / 2, y: y, w: w, h: h };
+  return { x: facing > 0 ? cx - w : cx, y: y, w: w, h: h };
 }
-export function standBox(cx, cy, facing){ return { x: cx + facing*C.STAND_OFF - C.W/2, y: cy - C.H }; }
-export function ladBox(cx, cy){ return { x: cx - C.W/2, y: cy - C.H }; }
+export function standBox(cx, cy, facing){
+  var b = stanceBox(0);
+  return { x: cx + facing * C.STAND_OFF - b.w / 2, y: cy - b.h, w: b.w, h: b.h };
+}
+export function ladBox(cx, cy){
+  var b = getAnimBox('hero', 'ladder');
+  return { x: cx - b.w / 2, y: cy - b.h, w: b.w, h: b.h };
+}
 /* площадка над кромкой в стойке st: 0 стоя, 1 присед, 2 лаз */
 export function landBox(cx, cy, facing, st){
   var h = stanceH(st), w = stanceW(st);
@@ -385,7 +429,7 @@ export function tryGrab(S, p){
   var led = findLedge(p, dir, 0);                           // кромка уступа
   if (led){
     var hb = hangBox(led.cx, led.top, dir, 'ledge', p);
-    if (rectFree(hb.x, hb.y, p.w, p.h)){
+    if (rectFree(hb.x, hb.y, hb.w, hb.h)){
       grabTo(p, led.cx, led.top, dir, 'ledge', led.wc, led.tr);
       return true;
     }
@@ -399,7 +443,7 @@ export function tryGrab(S, p){
     if (Math.abs((dir > 0 ? p.x + p.w : p.x) - cxq) > 12) continue;
     if (Math.abs(handY - q.y) > 9) continue;
     var hbq = hangBox(cxq, q.y, dir, 'ledge', p);
-    if (!rectFree(hbq.x, hbq.y, p.w, p.h)) continue;
+    if (!rectFree(hbq.x, hbq.y, hbq.w, hbq.h)) continue;
     grabTo(p, cxq, q.y, dir, 'ledge', -1, -1);
     p.hang.plat = q;
     return true;
@@ -414,7 +458,7 @@ export function tryGrab(S, p){
       if (Math.abs(bot - handY) > C.LAD_TOL) continue;
       var lx = c * T + T/2;
       var lb = hangBox(lx, bot, dir, 'lad', p);
-      if (!rectFree(lb.x, lb.y, p.w, p.h)) continue;
+      if (!rectFree(lb.x, lb.y, lb.w, lb.h)) continue;
       var f = solidTile(c + 1, r) ? 1 : (solidTile(c - 1, r) ? -1 : p.facing);
       grabTo(p, lx, bot, f, 'lad', c, r);
       return true;
@@ -428,7 +472,7 @@ export function grabTo(p, cx, cy, facing, kind, tc, tr){
   p.lastWall = 0;
   dryOff(p);
   var b = hangBox(cx, cy, facing, kind === 'lad' ? 'lad' : 'ledge', p);
-  p.x = b.x; p.y = b.y; p.vx = 0; p.vy = 0; p.facing = facing;
+  p.x = b.x; p.y = b.y; p.w = b.w; p.h = b.h; p.vx = 0; p.vy = 0; p.facing = facing;
   p.state = 'hang'; p.onGround = false;
   p.hang = { cx: cx, cy: cy, kind: kind, tc: tc, tr: tr, lt: tileAt(tc, tr) };
   p.events.push('grab');
@@ -451,7 +495,7 @@ export function tryClimbOut(S, p, dir){
     return true;
   }
   var hb = hangBox(led.cx, led.top, dir, 'ledge', p);
-  if (!rectFree(hb.x, hb.y, p.w, p.h)) return false;
+  if (!rectFree(hb.x, hb.y, hb.w, hb.h)) return false;
   grabTo(p, led.cx, led.top, dir, 'ledge', led.wc, led.tr);
   return true;
 }
@@ -488,8 +532,10 @@ export function tryCrawlEdge(S, p, dir){
       // обрыв ~1 тайл: лёжа (PRW) в него не влезает по ширине — скатываемся кувырком,
       // сужаясь до обычной ширины переката, а не замираем на кромке
       var cxr = p.x + p.w / 2;
-      p.w = C.W; p.x = cxr - p.w / 2; p.stance = 0;
+      p.stance = 0;
+      p.x = cxr - p.w / 2;
       p.rollT = C.ROLL_T; p.facing = dir; p.vx = dir * C.ROLL_V * 0.7;
+      applyRollBox(p);
       p.onGround = false;
       p.events.push('roll');
       return 2;
@@ -530,9 +576,13 @@ function findDescend(p, want){
       if (!solidAt(px, gy + 2)){ col = Math.floor(px / T) - dir; break; }
     }
     if (col < 0 || !solidTile(col, Math.floor((gy + 2) / T))) continue;
+    var midTile = (col + 0.5) * T;
+    var midX = p.x + p.w / 2;
+    if (dir > 0 && midX <= midTile) continue;
+    if (dir < 0 && midX >= midTile) continue;
     var cx = dir > 0 ? (col + 1) * T : col * T, f = -dir;
     var hb = hangBox(cx, gy, f, 'ledge', p);
-    if (!rectFree(hb.x, hb.y, C.W, C.H)) continue;       // вис всегда в полный рост
+    if (!rectFree(hb.x, hb.y, hb.w, hb.h)) continue;       // вис — коробка hang
     return { cx: cx, gy: gy, facing: f, drop: dir };
   }
   return null;
@@ -565,7 +615,7 @@ export function startClimb(p, dir, cx, cy, facing, kind, land){
     // стойку жмём в конце анимации — иначе поза щёлкает сразу
   } else {
     to = hangBox(cx, cy, facing, 'ledge', p); ideal = standBox(cx, cy, facing);
-    p.stance = 0; p.w = C.W; p.h = C.H;                 // с лаза в вис — полный рост
+    p.stance = 0; p.w = to.w; p.h = to.h;                 // с лаза в вис — коробка hang
   }
   dryOff(p);
   p.facing = facing; p.state = 'climb'; p.vx = 0; p.vy = 0; p.onGround = false;

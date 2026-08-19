@@ -2,6 +2,7 @@
    Черновик — ledge.dev.sprites; в игру уезжает через Bake → BAKED.sprites.
    Пустой кадр = рисуем по-старому (скелет / rc). */
 import { BAKED } from './defaults.js';
+import { C } from './constants.js';
 
 var KEY = 'ledge.dev.sprites';
 
@@ -73,8 +74,9 @@ var byId = {};
 var i0;
 for (i0 = 0; i0 < SPRITE_DEFS.length; i0++) byId[SPRITE_DEFS[i0].id] = SPRITE_DEFS[i0];
 
-/* saved[spriteId][animId] = { frames, dirty, origin:[{x,y}|null], weapon:[{x,y}|null] }
+/* saved[spriteId][animId] = { frames, dirty, origin, grab, weapon, box:{w,h} }
    saved[spriteId]._meta = { fw, fh, ox, oy, fx } — оверрайд каталога. */
+var BOX_MIN = 2;
 var saved = {};
 var imgs = {};
 var onChange = null;
@@ -131,6 +133,46 @@ function cloneOrigin(o){
   return null;
 }
 
+function cloneBox(b){
+  if (!b || b.w == null || b.h == null) return null;
+  return { w: b.w | 0, h: b.h | 0 };
+}
+
+export function defaultAnimBox(id, anim){
+  if (id !== 'hero') return { w: 10, h: 14 };
+  if (anim === 'crouch' || anim === 'crouchWalk') return { w: C.W, h: C.CRH };
+  if (anim === 'prone') return { w: C.PRW, h: C.PRH };
+  if (anim === 'roll') return { w: C.W, h: C.RH };
+  return { w: C.W, h: C.H };
+}
+
+export function getAnimBox(id, anim){
+  var rec = recOf(id, anim), d = defaultAnimBox(id, anim), b;
+  b = rec && rec.box;
+  if (!b || b.w == null || b.h == null) return { w: d.w | 0, h: d.h | 0 };
+  return { w: b.w | 0, h: b.h | 0 };
+}
+
+export function setAnimBox(id, anim, w, h){
+  var rec = ensureRec(id, anim), meta, d, maxW, maxH, o;
+  if (!rec) return null;
+  meta = getSpriteMeta(id);
+  o = originFromRec(rec);
+  maxW = meta ? meta.fw : 16;
+  maxH = meta ? meta.fh : 16;
+  if (o){
+    maxW = Math.max(BOX_MIN, maxW - (o.x | 0));
+    maxH = Math.max(BOX_MIN, maxH - (o.y | 0));
+  }
+  w = clampS(w, BOX_MIN, maxW);
+  h = clampS(h, BOX_MIN, maxH);
+  d = defaultAnimBox(id, anim);
+  if (w === d.w && h === d.h) rec.box = null;
+  else rec.box = { w: w, h: h };
+  emit('anchor');
+  return getAnimBox(id, anim);
+}
+
 function cloneSaved(src){
   var out = {}, id, anim, rec, m;
   if (!src) return out;
@@ -151,7 +193,8 @@ function cloneSaved(src){
         dirty: (rec.dirty || []).slice(),
         origin: cloneOrigin(rec.origin),
         grab: cloneOrigin(rec.grab),
-        weapon: clonePts(rec.weapon)
+        weapon: clonePts(rec.weapon),
+        box: cloneBox(rec.box)
       };
     }
   }
@@ -281,6 +324,10 @@ export function setFrameAnchor(id, anim, i, kind, x, y){
   pt = clampPt({ x: x, y: y }, meta.fw, meta.fh);
   if (kind === 'origin'){
     rec.origin = pt;
+    if (rec.box){
+      rec.box.w = clampS(rec.box.w, BOX_MIN, Math.max(BOX_MIN, meta.fw - pt.x));
+      rec.box.h = clampS(rec.box.h, BOX_MIN, Math.max(BOX_MIN, meta.fh - pt.y));
+    }
     emit('anchor');
     return pt;
   }
@@ -312,6 +359,7 @@ export function clearAnimAnchors(id, anim){
   rec.origin = null;
   rec.grab = null;
   rec.weapon = [];
+  rec.box = null;
   emit('anchor');
 }
 
@@ -341,6 +389,10 @@ export function setSpriteSize(id, fw, fh){
     if (rec.weapon){
       for (i = 0; i < rec.weapon.length; i++)
         if (rec.weapon[i]) rec.weapon[i] = clampPt(rec.weapon[i], fw, fh);
+    }
+    if (rec.box){
+      rec.box.w = clampS(rec.box.w, BOX_MIN, fw);
+      rec.box.h = clampS(rec.box.h, BOX_MIN, fh);
     }
     void p;
   }

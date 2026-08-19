@@ -6,7 +6,7 @@ import {
 import {
   getSpriteDef, getSpriteFrameSrc, setSpriteFrame, clearSpriteFrame,
   isSpriteFrameDirty, getFrameAnchor, setFrameAnchor, setSpriteSize,
-  clearAnimAnchors
+  clearAnimAnchors, getAnimBox, setAnimBox
 } from '../core/spriteset.js';
 import { bakeSpriteFrameSrc, bakeBuiltinTileSrc, clearBakeCache } from '../render/sprite-bake.js';
 import { defaultFrameAnchors } from '../render/sprite-anchors.js';
@@ -28,7 +28,7 @@ var onChange = null;
 var TOOLS = [
   { id: 'pencil', name: 'Paint', title: 'Paint pixels (LMB). RMB erases.' },
   { id: 'pick', name: 'Pick', title: 'Pick color from a pixel. Cursor is a pipette while this is on.' },
-  { id: 'hitbox', name: 'Hit', title: 'Drag the collision box the hero hits — not the picture.' }
+  { id: 'hitbox', name: 'Hit', title: 'Drag the collision box. For a sprite this is the action hitbox (origin = top-left).' }
 ];
 
 var COLLIDE = [
@@ -45,7 +45,7 @@ var HINT = {
   pencil: 'LMB paint · RMB erase · Alt pick. Pixels are only a picture.',
   pick: 'LMB take color from a pixel. Pipette cursor while Pick is on.',
   hitbox: 'Drag the red frame. That box is collision — the picture does not change it.',
-  sprite: 'Cyan origin = world attach. Gold diamond = hands that find a ledge. Magenta = weapon. Drag or type.'
+  sprite: 'Red box = collision for this action (origin is its top-left). Gold = hands, magenta = weapon. Hit-tool drags a new box.'
 };
 
 var STRIP_KEY = 'ledge.ed.tileStripH';
@@ -76,6 +76,7 @@ var altPick = false;
 var pendingAnchor = null;
 var originXEl = null, originYEl = null, weaponXEl = null, weaponYEl = null;
 var grabXEl = null, grabYEl = null;
+var boxWEl = null, boxHEl = null;
 
 try {
   var savedStrip = parseInt(localStorage.getItem(STRIP_KEY), 10);
@@ -424,6 +425,7 @@ function liveAnchors(){
     else if (pendingAnchor.kind === 'weapon') w = { x: pendingAnchor.x, y: pendingAnchor.y };
     else if (pendingAnchor.kind === 'grab') g = { x: pendingAnchor.x, y: pendingAnchor.y };
   }
+  if (pendingBox) o = { x: pendingBox.x, y: pendingBox.y };
   return { origin: o, weapon: w, grab: g };
 }
 
@@ -453,6 +455,32 @@ function drawMark(cx, pt, k, col, kind){
   cx.restore();
 }
 
+function liveBoxRect(){
+  var a = liveAnchors(), b;
+  if (!a || !current) return null;
+  if (pendingBox) return pendingBox;
+  b = getAnimBox(current.id, animId);
+  return { x: a.origin.x, y: a.origin.y, w: b.w, h: b.h };
+}
+
+function drawSpriteBox(cx, k, filled){
+  var b = liveBoxRect(), x, y, w, h;
+  if (!b) return;
+  x = b.x * k; y = b.y * k; w = b.w * k; h = b.h * k;
+  cx.save();
+  cx.fillStyle = filled ? '#ff5a4a55' : 'rgba(255,90,74,0.18)';
+  cx.strokeStyle = '#ffd0c4';
+  cx.lineWidth = 2;
+  cx.fillRect(x, y, w, h);
+  cx.strokeRect(x + 1, y + 1, Math.max(0, w - 2), Math.max(0, h - 2));
+  cx.strokeStyle = '#ffe8e0';
+  cx.lineWidth = 1.5;
+  cx.beginPath();
+  cx.moveTo(x, y + h); cx.lineTo(x + w, y + h);
+  cx.stroke();
+  cx.restore();
+}
+
 function drawAnchors(cx, k){
   var a = liveAnchors(), ox, oy;
   if (!a) return;
@@ -473,12 +501,15 @@ function drawAnchors(cx, k){
 }
 
 function drawThumbAnchors(cx, aId, ii){
-  var d, o, w, g;
+  var d, o, w, g, b;
   if (!isSprite() || !current) return;
   d = defaultFrameAnchors(current.id, aId, ii);
   o = getFrameAnchor(current.id, aId, ii, 'origin') || d.origin;
   w = getFrameAnchor(current.id, aId, ii, 'weapon') || d.weapon;
   g = getFrameAnchor(current.id, aId, ii, 'grab') || d.grab;
+  b = getAnimBox(current.id, aId);
+  cx.strokeStyle = '#ffd0c4';
+  cx.strokeRect(o.x + 0.5, o.y + 0.5, Math.max(1, b.w - 1), Math.max(1, b.h - 1));
   cx.fillStyle = ORIGIN_COL;
   cx.fillRect(o.x, o.y, 1, 1);
   cx.fillStyle = GRAB_COL;
@@ -508,7 +539,7 @@ function hitAnchor(e, can){
 }
 
 function syncAnchorFields(){
-  var a = liveAnchors();
+  var a = liveAnchors(), b;
   if (!a) return;
   if (originXEl) originXEl.value = String(a.origin.x);
   if (originYEl) originYEl.value = String(a.origin.y);
@@ -516,6 +547,9 @@ function syncAnchorFields(){
   if (grabYEl) grabYEl.value = String(a.grab.y);
   if (weaponXEl) weaponXEl.value = String(a.weapon.x);
   if (weaponYEl) weaponYEl.value = String(a.weapon.y);
+  b = liveBoxRect();
+  if (boxWEl && b) boxWEl.value = String(b.w);
+  if (boxHEl && b) boxHEl.value = String(b.h);
 }
 
 function clampCell(n, max){
@@ -629,7 +663,9 @@ function syncCursor(){
   preview.classList.toggle('tool-hit', tool === 'hitbox' && !pick);
   preview.classList.toggle('tool-anchor', onMark);
   preview.title = tool === 'hitbox'
-    ? 'Drag to set the collision box (what the hero hits)'
+    ? (isSprite()
+      ? 'Drag the red box: origin becomes its top-left, size is collision for this action'
+      : 'Drag to set the collision box (what the hero hits)')
     : (pick ? 'Pick color' : (isSprite()
       ? 'Paint · RMB erase · drag cyan/magenta marks'
       : 'Paint pixel · RMB erase'));
@@ -640,19 +676,22 @@ function paintCanvas(){
   var can = preview;
   var cx = can.getContext('2d');
   var sx = can.width / fw, sy = can.height / fh;
-  var a, animName;
+  var a, b, animName;
   cx.imageSmoothingEnabled = false;
   fillChecker(cx, fw, fh, sx, sy);
   if (buf) cx.drawImage(buf, 0, 0, fw, fh, 0, 0, can.width, can.height);
   else if (current && mode === 'tile' && !current.custom) paintTileIcon(cx, current, can.width);
-  drawHitShape(cx, can.width, sx, tool === 'hitbox');
+  if (isSprite()) drawSpriteBox(cx, sx, tool === 'hitbox');
+  else drawHitShape(cx, can.width, sx, tool === 'hitbox');
   if (isSprite()) drawAnchors(cx, sx);
   if (hitLab){
     if (isSprite()){
       animName = (current.anims.filter(function(an){ return an.id === animId; })[0] || { name: animId }).name;
       a = liveAnchors();
+      b = liveBoxRect();
       hitLab.textContent = 'Frame ' + (frameI + 1) + ' · ' + animName +
         (a ? ' · origin ' + a.origin.x + ',' + a.origin.y +
+          (b ? ' · box ' + b.w + '×' + b.h : '') +
           ' · hands ' + a.grab.x + ',' + a.grab.y +
           ' · weapon ' + a.weapon.x + ',' + a.weapon.y : '');
     } else hitLab.textContent = hitText();
@@ -671,6 +710,29 @@ function syncTools(){
     ? HINT.sprite
     : (HINT[tool] || HINT.pencil);
   paintCanvas();
+}
+
+function applySpriteHitbox(x0, y0, x1, y1){
+  var x = Math.min(x0, x1), y = Math.min(y0, y1);
+  var w = Math.max(1, Math.abs(x1 - x0)), h = Math.max(1, Math.abs(y1 - y0));
+  if (x + w > fw) w = fw - x;
+  if (y + h > fh) h = fh - y;
+  if (w < 1) w = 1;
+  if (h < 1) h = 1;
+  pendingBox = { x: x, y: y, w: w, h: h };
+  paintCanvas();
+}
+
+function commitSpriteHitbox(){
+  if (!isSprite() || !current || !pendingBox) return;
+  var box = pendingBox;
+  pendingBox = null;
+  setFrameAnchor(current.id, animId, frameI, 'origin', box.x, box.y);
+  setAnimBox(current.id, animId, box.w, box.h);
+  notify();
+  syncAnchorFields();
+  paintCanvas();
+  paintStrips();
 }
 
 function applyBox(x0, y0, x1, y1){
@@ -713,7 +775,14 @@ function bindPreview(can){
     }
     syncCursor();
     if (tool === 'hitbox'){
-      if (e.button !== 0 || !isCustomTile()) return;
+      if (e.button !== 0) return;
+      if (isSprite()){
+        var hs = edgeOf(e, can);
+        boxDrag = { x0: hs.x, y0: hs.y, sprite: true };
+        applySpriteHitbox(hs.x, hs.y, hs.x, hs.y);
+        return;
+      }
+      if (!isCustomTile()) return;
       var a = edgeOf(e, can);
       boxDrag = { x0: a.x, y0: a.y };
       applyBox(a.x, a.y, a.x, a.y);
@@ -748,7 +817,8 @@ function bindPreview(can){
     }
     if (boxDrag){
       var b = edgeOf(e, can);
-      applyBox(boxDrag.x0, boxDrag.y0, b.x, b.y);
+      if (boxDrag.sprite) applySpriteHitbox(boxDrag.x0, boxDrag.y0, b.x, b.y);
+      else applyBox(boxDrag.x0, boxDrag.y0, b.x, b.y);
       return;
     }
     if (!painting) return;
@@ -765,8 +835,10 @@ function bindPreview(can){
       return;
     }
     if (boxDrag){
+      var spr = boxDrag.sprite;
       boxDrag = null;
-      commitBox();
+      if (spr) commitSpriteHitbox();
+      else commitBox();
       return;
     }
     if (painting){
@@ -973,6 +1045,7 @@ function fillBody(){
   pendingBox = null;
   pendingAnchor = null;
   originXEl = originYEl = weaponXEl = weaponYEl = grabXEl = grabYEl = null;
+  boxWEl = boxHEl = null;
   var custom = isCustomTile();
   var def = custom ? getTileDef(current.id) : null;
   var sprite = isSprite();
@@ -1019,6 +1092,30 @@ function fillBody(){
     originYEl.title = originXEl.title;
     xyRow('Origin', 'ed-anchor-o', originXEl, originYEl, ',');
 
+    boxWEl = numInp(10, 2, fw);
+    boxHEl = numInp(22, 2, fh);
+    boxWEl.title = 'Collision width for this action (from origin)';
+    boxHEl.title = 'Collision height for this action (from origin). Ground is the bottom edge.';
+    boxWEl.addEventListener('change', function(){
+      var n = parseInt(boxWEl.value, 10), cur;
+      if (!current || isNaN(n)) { syncAnchorFields(); return; }
+      cur = getAnimBox(current.id, animId);
+      setAnimBox(current.id, animId, n, cur.h);
+      notify();
+      syncAnchorFields();
+      paintCanvas();
+    });
+    boxHEl.addEventListener('change', function(){
+      var n = parseInt(boxHEl.value, 10), cur;
+      if (!current || isNaN(n)) { syncAnchorFields(); return; }
+      cur = getAnimBox(current.id, animId);
+      setAnimBox(current.id, animId, cur.w, n);
+      notify();
+      syncAnchorFields();
+      paintCanvas();
+    });
+    xyRow('Box', 'ed-anchor-b', boxWEl, boxHEl, '×');
+
     grabXEl = numInp(0, 0, fw - 1);
     grabYEl = numInp(0, 0, fh - 1);
     grabXEl.title = 'Hands that search for a ledge (this action)';
@@ -1038,8 +1135,7 @@ function fillBody(){
 
   toolsEl = document.createElement('div');
   toolsEl.className = 'ed-tile-tools';
-  var t, list = sprite ? TOOLS.filter(function(x){ return x.id !== 'hitbox'; }) : TOOLS;
-  if (tool === 'hitbox' && sprite) tool = 'pencil';
+  var t, list = TOOLS;
   for (t = 0; t < list.length; t++){
     (function(specT){
       var b = document.createElement('button');
@@ -1080,7 +1176,7 @@ function fillBody(){
   if (sprite){
     var sNote = document.createElement('div');
     sNote.className = 'ed-tile-note';
-    sNote.textContent = 'Cyan origin and gold hands are per action. Magenta weapon is this frame. Hands = ledge search (C.HAND). Unedited frames still use the old drawing.';
+    sNote.textContent = 'Red box = hitbox for this action; origin is its top-left, ground is the bottom edge. Gold hands = ledge search. Magenta weapon = this frame. Hit-tool drags a new box. Unedited frames still use the old drawing.';
     body.appendChild(sNote);
   } else {
     var nameInp = document.createElement('input');
@@ -1237,7 +1333,7 @@ function fillBody(){
     rstA.type = 'button';
     rstA.className = 'edb';
     rstA.textContent = 'Reset anchors';
-    rstA.title = 'Forget origin, hands and weapon points for this action.';
+    rstA.title = 'Forget origin, box, hands and weapon points for this action.';
     rstA.addEventListener('click', function(){
       clearAnimAnchors(current.id, animId);
       notify();
