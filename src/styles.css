@@ -190,7 +190,7 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
 .ed-field select,.ed-field input[type=color]{background:#150f26;color:#e9e4ff;border:1px solid #3a3460;
   border-radius:4px;font:inherit;font-size:11px;height:22px}
 #edInspectBody{padding:6px;display:flex;flex-direction:column;gap:5px}
-.ed-tileedit{width:260px;max-height:calc(100vh - 200px)}
+.ed-tileedit{width:280px;right:8px;top:48px;max-height:calc(100vh - 200px)}
 #edTileEditBody{padding:6px;display:flex;flex-direction:column;gap:6px}
 .ed-tilegeo{width:100%;height:auto;aspect-ratio:1;image-rendering:pixelated;image-rendering:crisp-edges;
   background:#1a1228;border:1px solid #3a3460;border-radius:4px;cursor:crosshair;touch-action:none}

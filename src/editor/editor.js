@@ -12,7 +12,8 @@ import { tileThumb, objThumb, paintObjIcon } from './thumbs.js';
 import { renderParams, resetAllParams } from './params.js';
 import { getActiveLayer, getLayers, layerTile, layerVar, layerDeco, layerTileRaw, layerVarRaw, isTileLayer } from '../core/layers.js';
 import {
-  customSpecs, addTile, loadImageFile, sliceSheet, guessOverlay, bindTileset, isCustomId
+  customSpecs, addTile, loadImageFile, sliceSheet, guessOverlay, bindTileset, isCustomId,
+  getTileDef, updateTile
 } from '../core/tileset.js';
 import { bindTileEdit, openTileEdit, closeTileEdit } from './tile-edit.js';
 import { clearThumbCache } from './thumbs.js';
@@ -56,7 +57,7 @@ export var ED = {
   dragObj: null, showGeo: false, cover: false, stampCover: false,
   sel: null, dragPal: null, giz: false,
   hitObj: null, pendHit: null,
-  selTiles: null, boxing: null, moving: null, ctrlGest: null
+  selTiles: null, boxing: null, moving: null, ctrlGest: null, clip: null
 };
 
 /* varN — сколько ручных узоров держит тайл; повторный клик по уже стоящему тайлу того же брашка
@@ -361,7 +362,7 @@ function swatch(parent, canvas, label, active, onPick, kind, pal){
   b.addEventListener('pointerdown', function(e){
     if (e.button !== 0) return;
     if (e.detail === 2) return;
-    e.stopPropagation(); e.preventDefault();
+    e.stopPropagation();
     onPick();
     startPaletteDrag(e, kind, pal, img);
     edRefresh();
@@ -373,7 +374,8 @@ function swatch(parent, canvas, label, active, onPick, kind, pal){
 function startPaletteDrag(e, kind, pal, img){
   ED.dragPal = { kind: kind, pal: pal, x: e.clientX, y: e.clientY, moved: false, pointerId: e.pointerId };
   var ghost = document.getElementById('edGhost');
-  if (ghost){
+  function showGhost(ev){
+    if (!ghost || !ghost.hidden) return;
     ghost.textContent = '';
     var c = document.createElement('canvas');
     c.width = img.width; c.height = img.height;
@@ -381,14 +383,16 @@ function startPaletteDrag(e, kind, pal, img){
     c.style.width = ED.icon + 'px'; c.style.height = ED.icon + 'px';
     ghost.appendChild(c);
     ghost.hidden = false;
-    ghost.style.left = e.clientX + 8 + 'px';
-    ghost.style.top = e.clientY + 8 + 'px';
+    ghost.style.left = ev.clientX + 8 + 'px';
+    ghost.style.top = ev.clientY + 8 + 'px';
   }
   function move(ev){
     if (!ED.dragPal || ev.pointerId !== ED.dragPal.pointerId) return;
-    if (Math.abs(ev.clientX - ED.dragPal.x) > 4 || Math.abs(ev.clientY - ED.dragPal.y) > 4)
+    if (Math.abs(ev.clientX - ED.dragPal.x) > 4 || Math.abs(ev.clientY - ED.dragPal.y) > 4){
       ED.dragPal.moved = true;
-    if (ghost){
+      showGhost(ev);
+    }
+    if (ghost && !ghost.hidden){
       ghost.style.left = ev.clientX + 8 + 'px';
       ghost.style.top = ev.clientY + 8 + 'px';
     }
@@ -489,6 +493,17 @@ function fillExtra(){
         extraBtn(edExtra, pr[0], Math.abs(ED.waterShade - pr[1]) < 0.02, function(){ ED.waterShade = pr[1]; });
       })(s);
     }
+  }
+  if (spec && spec.custom){
+    extraBtn(edExtra, spec.overlay ? 'Overlay' : 'Main', !!spec.overlay, function(){
+      var ts = getTileDef(spec.id);
+      if (!ts) return;
+      updateTile(spec.id, {
+        overlay: !ts.overlay,
+        collide: !ts.overlay ? 'none' : (ts.collide === 'none' ? 'full' : ts.collide)
+      });
+    });
+    extraBtn(edExtra, 'Edit', false, function(){ openTileEdit(spec); });
   }
 }
 
@@ -619,6 +634,11 @@ function isSpecialKind(kind){
 
 function palTiles(){ return ED_TILES.concat(customSpecs()); }
 function palSpec(){ return palTiles()[ED.pal] || ED_TILES[0]; }
+function specById(id){
+  var t = palTiles(), i;
+  for (i = 0; i < t.length; i++) if (t[i].id === id) return t[i];
+  return null;
+}
 
 function tileMatchesBrush(spec, v){
   if (!spec) return false;
@@ -1176,6 +1196,8 @@ export function edDrawOverlay(){
     var hx = ED.hover.c*T - camx, hy = ED.hover.r*T - camy;
     rc(hx, hy, T, 2, '#ffd9a0'); rc(hx, hy + T - 2, T, 2, '#ffd9a0');
     rc(hx, hy, 2, T, '#ffd9a0'); rc(hx + T - 2, hy, 2, T, '#ffd9a0');
+    if (brushDeco(ED.hover.c, ED.hover.r))
+      rc(hx + 2, hy + 2, 3, 3, '#7fc47f');
   }
   var S = world();
   if (S) drawGizmos(S, ED.sel);
@@ -1194,7 +1216,8 @@ export function edDrawOverlay(){
   if (spec && spec.overlay) label += ' · overlay';
   if (ED.selTiles && !ED.boxing) label = 'Select · move / Del';
   if (ED.boxing) label = 'Select';
-  if (ED.moving) label = 'Move tiles';
+  if (ED.moving) label = ED.moving.copy ? 'Copy tiles' : 'Move tiles';
+  if (ED.clip && !ED.selTiles) label += ' · copied';
   if (ED.erasing) label = ED.cover ? 'Cover erase' : 'Erase';
   if (ED.dragObj) label = ED.dragObj.copied ? 'Copy · ' + ED.dragObj.entry.type : 'Move · ' + ED.dragObj.entry.type;
   if (ED.hover && G.isWaterV(brushTile(ED.hover.c, ED.hover.r)))
@@ -1202,6 +1225,13 @@ export function edDrawOverlay(){
   if (ED.hover && spec && spec.varN && tileMatchesBrush(spec, brushTile(ED.hover.c, ED.hover.r))){
     var hv = brushVar(ED.hover.c, ED.hover.r);
     label += ' · v' + (hv > 0 ? hv : 'auto') + '/' + spec.varN;
+  }
+  if (ED.hover && ED.tool === 'tile'){
+    var hid = brushDeco(ED.hover.c, ED.hover.r);
+    if (hid){
+      var hs = specById(hid);
+      label += ' · +' + (hs ? hs.name : hid);
+    }
   }
   var col = ED.erasing ? '#ff7a6a' : (L && L.locked ? '#ff7a6a' : '#ffd9a0');
   for (var i = 0; i < label.length && i < 22; i++)
@@ -1254,7 +1284,29 @@ function eraseSelTiles(){
   buildWater();
   markLevelDirty();
 }
-function beginMoveSel(cell){
+function copySelTiles(){
+  if (!ED.selTiles) return;
+  var b = normBox(ED.selTiles);
+  ED.clip = {
+    w: b.c1 - b.c0, h: b.r1 - b.r0,
+    cells: readCells(b.c0, b.r0, b.c1, b.r1)
+  };
+}
+function pasteSelTiles(){
+  if (!ED.clip || !ED.hover) return;
+  var c0 = ED.hover.c, r0 = ED.hover.r, i, p;
+  beginOp();
+  for (i = 0; i < ED.clip.cells.length; i++){
+    p = ED.clip.cells[i];
+    writeCell(c0 + p.dc, r0 + p.dr, p.v, p.va, p.d);
+  }
+  ED.selTiles = { c0: c0, r0: r0, c1: c0 + ED.clip.w, r1: r0 + ED.clip.h };
+  G.buildGates(world());
+  buildWater();
+  markLevelDirty();
+  endOp();
+}
+function beginMoveSel(cell, copy){
   var b = normBox(ED.selTiles);
   ED.moving = {
     cells: readCells(b.c0, b.r0, b.c1, b.r1),
@@ -1262,7 +1314,8 @@ function beginMoveSel(cell){
     grabC: cell.c, grabR: cell.r,
     fromC: b.c0, fromR: b.r0,
     posC: b.c0, posR: b.r0,
-    under: null
+    under: null,
+    copy: !!copy
   };
 }
 function snapshotCell(c, r){
@@ -1286,7 +1339,7 @@ function applyMoveSel(cell){
       u = m.under[i];
       writeCell(u.c, u.r, u.v, u.va, u.d);
     }
-  } else {
+  } else if (!m.copy){
     for (i = 0; i < m.cells.length; i++){
       p = m.cells[i];
       writeCell(m.fromC + p.dc, m.fromR + p.dr, 0, 0, 0);
@@ -1448,7 +1501,7 @@ cv.addEventListener('pointerdown', function(e){
   }
   if (ED.selTiles && ED.tool === 'tile' && !ED.cover && inSelTiles(cell.c, cell.r)){
     beginOp();
-    beginMoveSel(cell);
+    beginMoveSel(cell, !!e.shiftKey);
     try { cv.setPointerCapture(e.pointerId); } catch(_){}
     return;
   }
@@ -1693,6 +1746,9 @@ addEventListener('keydown', function(e){
   if (e.key === 'Escape' && ED.on){
     e.preventDefault();
     e.stopImmediatePropagation();
+    var te = document.getElementById('edTileEdit');
+    if (te && !te.hidden){ closeTileEdit(); return; }
+    if (ED.selTiles){ ED.selTiles = null; return; }
     edClose();
     return;
   }
@@ -1722,6 +1778,18 @@ addEventListener('keydown', function(e){
     deleteSelected();
     markLevelDirty();
     endOp();
+  }
+  if (ED.on && (e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C') && ED.selTiles){
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    e.preventDefault();
+    copySelTiles();
+    return;
+  }
+  if (ED.on && (e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V') && ED.clip){
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    e.preventDefault();
+    pasteSelTiles();
+    return;
   }
   if (ED.on && (e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z' || e.key === 'y' || e.key === 'Y')){
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;

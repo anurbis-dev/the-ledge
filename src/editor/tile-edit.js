@@ -1,5 +1,6 @@
 import GAME from '../core/game.js';
 import { getTileDef, updateTile, removeTile, isCustomId } from '../core/tileset.js';
+import { wipeTileId } from '../core/layers.js';
 import { raiseFloat, placeFloat, hasFloatPos } from './float.js';
 import { bindResetHover } from './slider.js';
 import { invalidateAll } from '../render/tiles.js';
@@ -36,12 +37,10 @@ export function openTileEdit(spec, clientX, clientY){
   root.hidden = false;
   if (titleEl) titleEl.textContent = spec.custom ? 'Tile' : 'Tile (built-in)';
   fillBody(spec);
-  if (!hasFloatPos(root)){
-    var x = clientX != null ? clientX + 8 : innerWidth - 300;
-    var y = clientY != null ? clientY + 8 : 8;
-    placeFloat(root, x, y);
-  }
+  if (!hasFloatPos(root))
+    placeFloat(root, innerWidth - 300, 48);
   raiseFloat(root);
+  void clientX; void clientY;
 }
 
 function builtinCollide(spec){
@@ -201,6 +200,7 @@ function fillBody(spec){
     del.textContent = 'Delete tile';
     del.addEventListener('click', function(){
       if (!def) return;
+      wipeTileId(def.id);
       removeTile(def.id);
       notify();
       closeTileEdit();

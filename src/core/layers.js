@@ -377,6 +377,23 @@ export function ensureDeco(L){
   }
 }
 
+export function wipeTileId(id){
+  if (!id) return;
+  var ls = getLayers(), i, L, j;
+  function scrub(b){
+    if (!b) return;
+    for (j = 0; j < b.length; j++) if (b[j] === id) b[j] = 0;
+  }
+  for (i = 0; i < ls.length; i++){
+    L = ls[i];
+    if (!L) continue;
+    scrub(L.base); scrub(L.vary); scrub(L.deco);
+    scrub(L.stamp); scrub(L.stampVar); scrub(L.stampDeco);
+    L._chunks = {};
+    L._stampCan = null;
+  }
+}
+
 function copyBuf(src){
   return src ? new Uint8Array(src) : null;
 }
