@@ -461,6 +461,27 @@ function paintAny(c, r, x, y){
   var d = dAt(c, r);
   if (d) paintTileId(d, c, r, x, y, true);
 }
+function isDynId(v){
+  return v === G.CRUMB || v === G.WATER || v === G.FALL || v === G.PLANK || v === G.GIVE;
+}
+function nearRoom8(L, c, r, rid){
+  var dc, dr, nc, nr;
+  for (dr = -1; dr <= 1; dr++)
+    for (dc = -1; dc <= 1; dc++){
+      if (!dc && !dr) continue;
+      nc = c + dc; nr = r + dr;
+      if (!G.inMap(nc, nr)) continue;
+      if (L.roomOf[G.mapIx(nc, nr)] === rid) return true;
+    }
+  return false;
+}
+function paintHalo(c, r, x, y){
+  var v = tAt(c, r), d;
+  if (isDynId(v)) return;
+  if (v && !isFrontId(v)) paintTileId(v, c, r, x, y, true);
+  d = dAt(c, r);
+  if (d && !isFrontId(d) && !isDynId(d)) paintTileId(d, c, r, x, y, true);
+}
 
 function coverCanOf(L, rid){
   if (!L || !L.cover || !L.roomOf) return null;
@@ -480,6 +501,11 @@ function coverCanOf(L, rid){
   }
   if (maxC < 0){ cans[rid] = null; return null; }
   minC += oc; minR += or_; maxC += oc; maxR += or_;
+  // +1 тайл: соседи с автокромкой пещеры, иначе рамка вокруг скрытой комнаты
+  minC = Math.max(G.mapMinC(), minC - 1);
+  minR = Math.max(G.mapMinR(), minR - 1);
+  maxC = Math.min(G.mapMaxC() - 1, maxC + 1);
+  maxR = Math.min(G.mapMaxR() - 1, maxR + 1);
   var cw = (maxC - minC + 1) * T + PAD * 2;
   var ch = (maxR - minR + 1) * T + PAD * 2;
   var can = document.createElement('canvas');
@@ -495,9 +521,12 @@ function coverCanOf(L, rid){
       for (lr = minR; lr <= maxR; lr++){
         for (lc = minC; lc <= maxC; lc++){
           if (!G.inMap(lc, lr)) continue;
-          if (L.roomOf[G.mapIx(lc, lr)] !== rid) continue;
-          if (coverRaw(L, lc, lr) === COVER_AIR) continue;
-          paintAny(lc, lr, (lc - minC) * T + PAD, (lr - minR) * T + PAD);
+          if (L.roomOf[G.mapIx(lc, lr)] === rid){
+            if (coverRaw(L, lc, lr) === COVER_AIR) continue;
+            paintAny(lc, lr, (lc - minC) * T + PAD, (lr - minR) * T + PAD);
+          } else if (nearRoom8(L, lc, lr, rid)){
+            paintHalo(lc, lr, (lc - minC) * T + PAD, (lr - minR) * T + PAD);
+          }
         }
       }
     } finally {
