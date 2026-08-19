@@ -1,4 +1,4 @@
-/* плавающие окна редактора: drag за шапку / ПКМ, ресайз за уголок, скролл СКМ и колесом */
+/* плавающие окна: drag за шапку / ПКМ, ресайз за уголок, панорама СКМ-драгом по контенту, без полос */
 
 var KEY = 'ledge.ed.float';
 var zTop = 30;
@@ -107,7 +107,27 @@ function ensureGrip(root){
 }
 
 function isChrome(t){
-  return !!(t && t.closest && t.closest('button, .edb, input, textarea, select, .eye, .bn-field, a, canvas, .ed-tilegeo, .ed-tile-chip, .ed-tile-frame, .ed-tile-strips'));
+  return !!(t && t.closest && t.closest('button, .edb, input, textarea, select, .eye, .bn-field, a, canvas, .ed-tilegeo, .ed-tile-chip, .ed-tile-frame, .ed-tile-split'));
+}
+
+function canScroll(el){
+  if (!el || el.nodeType !== 1) return false;
+  var cs;
+  try { cs = getComputedStyle(el); } catch (_){ return false; }
+  var ox = cs.overflowX, oy = cs.overflowY;
+  var x = (ox === 'auto' || ox === 'scroll' || ox === 'overlay') && el.scrollWidth > el.clientWidth + 1;
+  var y = (oy === 'auto' || oy === 'scroll' || oy === 'overlay') && el.scrollHeight > el.clientHeight + 1;
+  return x || y;
+}
+
+function scrollableOf(start, root, fallback){
+  var el = start;
+  if (el && el.nodeType !== 1) el = el.parentElement;
+  while (el && el !== root){
+    if (canScroll(el)) return el;
+    el = el.parentElement;
+  }
+  return fallback;
 }
 
 export function bindFloat(root){
@@ -117,7 +137,7 @@ export function bindFloat(root){
   var head = root.querySelector(':scope > .ed-float-head');
   var scroller = ensureBody(root);
   var grip = ensureGrip(root);
-  var mode = null, pid = -1, ox = 0, oy = 0, sTop = 0, sLeft = 0, sW = 0, sH = 0;
+  var mode = null, pid = -1, ox = 0, oy = 0, sTop = 0, sLeft = 0, sW = 0, sH = 0, panEl = null;
   restore(root);
 
   function hookWin(){
@@ -148,8 +168,9 @@ export function bindFloat(root){
     pid = e.pointerId;
     ox = e.clientX;
     oy = e.clientY;
-    sTop = scroller.scrollTop;
-    sLeft = scroller.scrollLeft;
+    panEl = scrollableOf(e.target, root, scroller);
+    sTop = panEl.scrollTop;
+    sLeft = panEl.scrollLeft;
     root.classList.add('is-pan');
     raiseFloat(root);
     try { root.setPointerCapture(e.pointerId); } catch (_){}
@@ -176,9 +197,9 @@ export function bindFloat(root){
     e.stopPropagation();
     if (mode === 'move') placeFloat(root, e.clientX - ox, e.clientY - oy);
     else if (mode === 'size') applySize(root, sW + (e.clientX - ox), sH + (e.clientY - oy));
-    else {
-      scroller.scrollTop = sTop - (e.clientY - oy);
-      scroller.scrollLeft = sLeft - (e.clientX - ox);
+    else if (panEl){
+      panEl.scrollTop = sTop - (e.clientY - oy);
+      panEl.scrollLeft = sLeft - (e.clientX - ox);
     }
   }
 
@@ -187,6 +208,7 @@ export function bindFloat(root){
     if (mode === 'move' || mode === 'size') persist(root);
     mode = null;
     pid = -1;
+    panEl = null;
     root.classList.remove('is-drag', 'is-pan', 'is-sz');
     unhookWin();
   }
@@ -225,8 +247,14 @@ export function bindFloat(root){
   root.addEventListener('mousedown', function(e){ if (e.button === 1) e.preventDefault(); });
 
   root.addEventListener('wheel', function(e){
-    scroller.scrollTop += e.deltaY;
-    scroller.scrollLeft += e.deltaX;
+    var t = scrollableOf(e.target, root, scroller);
+    var dx = e.deltaX, dy = e.deltaY;
+    if (Math.abs(dy) > Math.abs(dx) && t.scrollWidth > t.clientWidth + 1 && t.scrollHeight <= t.clientHeight + 1)
+      t.scrollLeft += dy;
+    else {
+      t.scrollTop += dy;
+      t.scrollLeft += dx;
+    }
     e.preventDefault();
     e.stopPropagation();
   }, { passive: false });

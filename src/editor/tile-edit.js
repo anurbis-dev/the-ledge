@@ -25,8 +25,7 @@ var onChange = null;
 
 var TOOLS = [
   { id: 'pencil', name: 'Paint', title: 'Paint pixels (LMB). RMB erases.' },
-  { id: 'eraser', name: 'Erase', title: 'Erase pixels to transparent.' },
-  { id: 'pick', name: 'Pick', title: 'Pick color from a pixel.' },
+  { id: 'pick', name: 'Pick', title: 'Pick color from a pixel. Cursor is a pipette while this is on.' },
   { id: 'hitbox', name: 'Hit', title: 'Drag the collision box the hero hits — not the picture.' }
 ];
 
@@ -42,10 +41,13 @@ var COLLIDE = [
 
 var HINT = {
   pencil: 'LMB paint · RMB erase · Alt pick. Pixels are only a picture.',
-  eraser: 'LMB erase to transparent. The hero still hits the red box, not empty pixels.',
-  pick: 'LMB take color from a pixel.',
+  pick: 'LMB take color from a pixel. Pipette cursor while Pick is on.',
   hitbox: 'Drag the red frame. That box is collision — the picture does not change it.'
 };
+
+var STRIP_KEY = 'ledge.ed.tileStripH';
+var CHECK_A = '#76767c';
+var CHECK_B = '#6e6e74';
 
 var tool = 'pencil';
 var color = '#e8dcc8';
@@ -57,10 +59,18 @@ var toolsEl = null;
 var swatchEl = null;
 var colorInp = null;
 var stripsEl = null;
+var splitEl = null;
 var painting = null;
 var boxDrag = null;
 var pendingBox = null;
 var loadGen = 0;
+var stripH = 0;
+var altPick = false;
+
+try {
+  var savedStrip = parseInt(localStorage.getItem(STRIP_KEY), 10);
+  if (savedStrip > 0) stripH = savedStrip;
+} catch (e){}
 
 export function bindTileEdit(hooks){
   onChange = hooks && hooks.onChange;
@@ -75,6 +85,7 @@ export function closeTileEdit(){
     root.hidden = true;
     root.classList.remove('ed-sprite');
   }
+  altPick = false;
 }
 
 function isSprite(){ return mode === 'sprite'; }
@@ -246,11 +257,7 @@ function pickAt(e){
   if (!buf) return;
   var p = cellOf(e, preview);
   var d = buf.getContext('2d').getImageData(p.x, p.y, 1, 1).data;
-  if (d[3] < 8){
-    tool = 'eraser';
-    syncTools();
-    return;
-  }
+  if (d[3] < 8) return;
   color = rgbToHex(d[0], d[1], d[2]);
   if (colorInp) colorInp.value = color;
   fillSwatches();
@@ -384,40 +391,40 @@ function drawHitShape(cx, s, k, filled){
   cx.restore();
 }
 
+function fillChecker(cx, cols, rows, tw, th){
+  var i, j;
+  for (j = 0; j < rows; j++){
+    for (i = 0; i < cols; i++){
+      cx.fillStyle = ((i + j) & 1) ? CHECK_A : CHECK_B;
+      cx.fillRect(i * tw, j * th, tw, th);
+    }
+  }
+}
+
+function syncCursor(){
+  if (!preview) return;
+  var pick = tool === 'pick' || altPick;
+  preview.classList.toggle('tool-pick', pick);
+  preview.classList.toggle('tool-hit', tool === 'hitbox' && !pick);
+  preview.title = tool === 'hitbox'
+    ? 'Drag to set the collision box (what the hero hits)'
+    : (pick ? 'Pick color' : 'Paint pixel · RMB erase');
+}
+
 function paintCanvas(){
   if (!preview) return;
   var can = preview;
   var cx = can.getContext('2d');
-  var sx = can.width / fw, sy = can.height / fh, i, j;
+  var sx = can.width / fw, sy = can.height / fh;
   cx.imageSmoothingEnabled = false;
-  for (j = 0; j < fh; j++){
-    for (i = 0; i < fw; i++){
-      cx.fillStyle = ((i + j) & 1) ? '#2a2040' : '#1a1228';
-      cx.fillRect(i * sx, j * sy, sx, sy);
-    }
-  }
+  fillChecker(cx, fw, fh, sx, sy);
   if (buf) cx.drawImage(buf, 0, 0, fw, fh, 0, 0, can.width, can.height);
   else if (current && mode === 'tile' && !current.custom) paintTileIcon(cx, current, can.width);
-  cx.strokeStyle = '#3a346055';
-  cx.lineWidth = 1;
-  for (i = 0; i <= fw; i++){
-    cx.beginPath(); cx.moveTo(i * sx + 0.5, 0); cx.lineTo(i * sx + 0.5, can.height); cx.stroke();
-  }
-  for (j = 0; j <= fh; j++){
-    cx.beginPath(); cx.moveTo(0, j * sy + 0.5); cx.lineTo(can.width, j * sy + 0.5); cx.stroke();
-  }
   drawHitShape(cx, can.width, sx, tool === 'hitbox');
   if (hitLab) hitLab.textContent = isSprite()
     ? 'Frame ' + (frameI + 1) + ' · ' + (current.anims.filter(function(a){ return a.id === animId; })[0] || { name: animId }).name
     : hitText();
-  if (preview){
-    preview.classList.toggle('tool-erase', tool === 'eraser');
-    preview.classList.toggle('tool-pick', tool === 'pick');
-    preview.classList.toggle('tool-hit', tool === 'hitbox');
-    preview.title = tool === 'hitbox'
-      ? 'Drag to set the collision box (what the hero hits)'
-      : (tool === 'eraser' ? 'Erase pixel' : (tool === 'pick' ? 'Pick color' : 'Paint pixel · RMB erase'));
-  }
+  syncCursor();
 }
 
 function syncTools(){
@@ -459,6 +466,8 @@ function bindPreview(can){
     e.preventDefault();
     e.stopPropagation();
     try { can.setPointerCapture(e.pointerId); } catch (_){}
+    altPick = e.altKey;
+    syncCursor();
     if (tool === 'hitbox'){
       if (e.button !== 0 || !isCustomTile()) return;
       var a = edgeOf(e, can);
@@ -470,13 +479,17 @@ function bindPreview(can){
       pickAt(e);
       return;
     }
-    var erase = tool === 'eraser' || e.button === 2;
+    var erase = e.button === 2;
     var p = cellOf(e, can);
     painting = { erase: erase, x: p.x, y: p.y };
     stamp(p.x, p.y, erase);
     paintCanvas();
   });
   can.addEventListener('pointermove', function(e){
+    if (e.altKey !== altPick){
+      altPick = e.altKey;
+      syncCursor();
+    }
     if (boxDrag){
       var b = edgeOf(e, can);
       applyBox(boxDrag.x0, boxDrag.y0, b.x, b.y);
@@ -502,6 +515,11 @@ function bindPreview(can){
   }
   can.addEventListener('pointerup', end);
   can.addEventListener('pointercancel', end);
+  can.addEventListener('pointerleave', function(){
+    if (!altPick) return;
+    altPick = false;
+    syncCursor();
+  });
 }
 
 function selectFrame(nextAnim, nextI){
@@ -524,6 +542,52 @@ function frameSrcAt(aId, i){
   return tileFrameSrc(current.id, i) || currentSrc();
 }
 
+function rowH(){
+  var row = stripsEl && stripsEl.querySelector('.ed-tile-anim');
+  return row ? Math.max(36, row.offsetHeight) : 48;
+}
+
+function applyStripH(){
+  if (!stripsEl) return;
+  if (stripsEl.hidden){
+    if (splitEl) splitEl.hidden = true;
+    return;
+  }
+  if (splitEl) splitEl.hidden = false;
+  var one = rowH();
+  var h = stripH > 0 ? stripH : one;
+  if (h < one) h = one;
+  stripsEl.style.height = h + 'px';
+}
+
+function bindSplit(el){
+  el.addEventListener('pointerdown', function(e){
+    if (e.button !== 0 || !stripsEl || stripsEl.hidden) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var startY = e.clientY;
+    var startH = stripsEl.offsetHeight;
+    var max = Math.max(rowH(), (root.clientHeight || 400) - 180);
+    try { el.setPointerCapture(e.pointerId); } catch (_){}
+    function move(ev){
+      if (ev.pointerId !== e.pointerId) return;
+      var one = rowH();
+      stripH = Math.max(one, Math.min(max, startH + (ev.clientY - startY)));
+      stripsEl.style.height = stripH + 'px';
+    }
+    function up(ev){
+      if (ev.pointerId !== e.pointerId) return;
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
+      try { localStorage.setItem(STRIP_KEY, String(stripH)); } catch (_){}
+    }
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+  });
+}
+
 function paintStrips(){
   if (!stripsEl) return;
   var rows = [];
@@ -536,6 +600,7 @@ function paintStrips(){
   if (!rows.length){
     stripsEl.hidden = true;
     stripsEl.textContent = '';
+    applyStripH();
     return;
   }
   stripsEl.hidden = false;
@@ -563,12 +628,11 @@ function paintStrips(){
           th.title = row.name + ' ' + (ii + 1);
           var cx = th.getContext('2d');
           cx.imageSmoothingEnabled = false;
-          cx.fillStyle = '#1a1228';
-          cx.fillRect(0, 0, fw, fh);
+          fillChecker(cx, fw, fh, 1, 1);
           var img = new Image();
           img.onload = function(){
             cx.imageSmoothingEnabled = false;
-            cx.clearRect(0, 0, fw, fh);
+            fillChecker(cx, fw, fh, 1, 1);
             cx.drawImage(img, 0, 0, img.naturalWidth || fw, img.naturalHeight || fh, 0, 0, fw, fh);
           };
           img.src = frameSrcAt(row.id, ii);
@@ -582,6 +646,7 @@ function paintStrips(){
       stripsEl.appendChild(wrap);
     })(rows[r]);
   }
+  applyStripH();
 }
 
 function applyImportFile(file){
@@ -638,6 +703,7 @@ function fillBody(){
   swatchEl = null;
   colorInp = null;
   stripsEl = null;
+  splitEl = null;
   painting = null;
   boxDrag = null;
   pendingBox = null;
@@ -648,6 +714,13 @@ function fillBody(){
   stripsEl = document.createElement('div');
   stripsEl.className = 'ed-tile-strips';
   body.appendChild(stripsEl);
+
+  splitEl = document.createElement('div');
+  splitEl.className = 'ed-tile-split';
+  splitEl.title = 'Drag to show more animation rows';
+  splitEl.hidden = true;
+  body.appendChild(splitEl);
+  bindSplit(splitEl);
 
   var sc = scaleOf();
   var can = document.createElement('canvas');
@@ -706,7 +779,7 @@ function fillBody(){
   if (sprite){
     var sNote = document.createElement('div');
     sNote.className = 'ed-tile-note';
-    sNote.textContent = 'Each row is one animation. Click a frame to paint it. Unedited frames still use the old drawing in the game.';
+    sNote.textContent = 'Each animation is one row of frames. Drag the bar under the strip to show more rows. Click a frame to paint it. Unedited frames still use the old drawing in the game.';
     body.appendChild(sNote);
   } else {
     var nameInp = document.createElement('input');
@@ -916,3 +989,18 @@ if (root){
 
 var closeBtn = document.getElementById('edTileEditX');
 if (closeBtn) closeBtn.addEventListener('click', function(){ closeTileEdit(); });
+
+function onAltKey(e){
+  if (e.key !== 'Alt') return;
+  var on = e.type === 'keydown';
+  if (on === altPick) return;
+  altPick = on;
+  syncCursor();
+}
+addEventListener('keydown', onAltKey);
+addEventListener('keyup', onAltKey);
+addEventListener('blur', function(){
+  if (!altPick) return;
+  altPick = false;
+  syncCursor();
+});
