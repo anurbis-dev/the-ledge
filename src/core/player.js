@@ -252,6 +252,7 @@ export function applyHeroBox(p){
 export function applyRollBox(p){
   var b = getAnimBox('hero', 'roll');
   p.rollAng = 0;
+  p.stanceT = 0;                               // не крутить lerp стойки внутри переката
   forceHeroBox(p, b.w, b.h);
 }
 export function setStance(S, p, st){

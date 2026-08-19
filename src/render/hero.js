@@ -28,6 +28,7 @@ export function heroClip(p){
     var gt = 1 - p.getupT / C.GETUP_T;
     return ['getup', gt < 0.33 ? 0 : (gt < 0.66 ? 1 : 2)];
   }
+  if (p.rollT > 0) return ['roll', 0];
   if (p.stanceT > 0) return [p.stance === 2 ? 'prone' : (p.stance === 1 ? 'crouch' : 'idle'), 0];
   if (p.pickT > 0 && p.onGround){
     var pickAnim = p.stance === 2 ? 'pickProne' : (p.stance === 1 ? 'pickCrouch' : 'pick');
@@ -45,7 +46,6 @@ export function heroClip(p){
     return ['bow', bt < 0.6 ? 1 : (bt < 0.72 ? 2 : 0)];
   }
   if (p.state === 'stun') return ['stun', 0];
-  if (p.rollT > 0) return ['roll', 0];
   if (p.throwT > 0) return ['throw', 0];
   if (p.state === 'ladder'){
     var moving = Math.abs(p.lad.ph - (p.lad.lastPh || 0)) > 0.0001;
@@ -185,6 +185,7 @@ export function boxPose(p){
   if (p.inWater) return (Math.sin(animT*7) > 0) ? SWIM0 : SWIM1;   // одна поза, наклон задаётся поворотом
   if (p.state === 'bars') return (Math.sin(p.bars.ph*2.4) > 0) ? BARS0 : BARS1;
   if (p.gettingUp) return getupPose(1 - p.getupT / C.GETUP_T);  // встаёт после высокого падения
+  if (p.rollT > 0) return ROLLP;
   if (p.stanceT > 0)                                  // плавный переход стоя/присед/лёжа
     return lerpPose(stancePose(p.stanceFrom), stancePose(p.stance), 1 - p.stanceT / C.STANCE_T);
   if (p.pickT > 0 && p.onGround)                      // подбор — из текущей стойки: стоя, на корточках или лёжа
@@ -198,7 +199,6 @@ export function boxPose(p){
   }
   if (isBow(p) && p.bowT > 0) return bowPose(1 - p.bowT / C.BOW_ANIM_T);  // натяжение/спуск лука
   if (p.state === 'stun') return STUNP;
-  if (p.rollT > 0) return ROLLP;
   if (p.throwT > 0) return throwPose(1 - p.throwT / C.THROW_T);
   if (p.state === 'ladder'){
     var moving = Math.abs(p.lad.ph - (p.lad.lastPh || 0)) > 0.0001;
