@@ -17,7 +17,7 @@ import {
   getTileDef, updateTile
 } from '../core/tileset.js';
 import { bindTileEdit, openTileEdit, openSpriteEdit, closeTileEdit } from './tile-edit.js';
-import { listSpriteDefs, spriteDefForKind, bindSpriteset } from '../core/spriteset.js';
+import { listSpriteDefs, spriteDefForKind, getSpriteDef, bindSpriteset } from '../core/spriteset.js';
 import { clearThumbCache } from './thumbs.js';
 import { setEditorRooms, stepRooms } from '../core/rooms.js';
 import { showLayersPanel, bindLayersPanel } from './layers-panel.js';
@@ -330,6 +330,23 @@ export function syncDelBtn(){
 
 function world(){ return G.W; }
 
+function objPalForKind(kind){
+  var i;
+  for (i = 0; i < ED_OBJS.length; i++)
+    if (ED_OBJS[i].kind === kind) return i;
+  return -1;
+}
+function selectSpriteBrush(def){
+  var pal = def ? objPalForKind(def.kind) : -1;
+  if (pal < 0){
+    if (def) openSpriteEdit(def);
+    return false;
+  }
+  ED.tool = 'obj';
+  ED.pal = pal;
+  return true;
+}
+
 function setTab(tab){
   ED.tab = tab;
   if (tab === 'tile' || tab === 'obj'){
@@ -416,9 +433,15 @@ function startPaletteDrag(e, kind, pal, img){
     if (over && ED.dragPal.moved){
       var dKind = ED.dragPal.kind, dPal = ED.dragPal.pal;
       if (dKind === 'sprite'){
-        ED.dragPal = null;
-        if (ghost) ghost.hidden = true;
-        return;
+        var sdef = getSpriteDef(dPal);
+        var spal = sdef ? objPalForKind(sdef.kind) : -1;
+        if (spal < 0){
+          ED.dragPal = null;
+          if (ghost) ghost.hidden = true;
+          return;
+        }
+        dKind = 'obj';
+        dPal = spal;
       }
       var ospec = dKind === 'obj' ? ED_OBJS[dPal] : null;
       if (ospec && LOOT_KINDS[ospec.kind]){
@@ -470,7 +493,7 @@ function fillPal(){
     for (var j = 0; j < tiles.length; j++){
       (function(k){
         var spec = tiles[k];
-        var sw = swatch(edPal, tileThumb(spec, ED.icon), spec.name + (spec.overlay ? ' (overlay)' : ''), ED.pal === k, function(){ ED.pal = k; }, 'tile', k);
+        var sw = swatch(edPal, tileThumb(spec, ED.icon), spec.name + (spec.overlay ? ' (overlay)' : ''), ED.tool === 'tile' && ED.pal === k, function(){ ED.tool = 'tile'; ED.pal = k; }, 'tile', k);
         if (spec.overlay) sw.classList.add('deco');
         sw.addEventListener('dblclick', function(e){
           e.preventDefault(); e.stopPropagation();
@@ -484,14 +507,19 @@ function fillPal(){
     if (spr.length){
       var slab = document.createElement('div');
       slab.className = 'ed-pal-hint';
-      slab.textContent = 'Sprites — double-click a row of frames';
+      slab.textContent = 'Sprites — click foe/bird/spider/NPC to stamp; double-click to edit';
       edPal.appendChild(slab);
       var si;
       for (si = 0; si < spr.length; si++){
         (function(def){
-          var sw = swatch(edPal, spriteThumb(def, ED.icon), def.name, false, function(){
-            openSpriteEdit(def);
+          var stamp = objPalForKind(def.kind) >= 0;
+          var on = ED.tool === 'obj' && ED_OBJS[ED.pal] && ED_OBJS[ED.pal].kind === def.kind;
+          var sw = swatch(edPal, spriteThumb(def, ED.icon), def.name, on, function(){
+            if (stamp) selectSpriteBrush(def);
+            else openSpriteEdit(def);
           }, 'sprite', def.id);
+          if (stamp) sw.title = def.name + ' — drag onto canvas';
+          else sw.title = def.name + ' — double-click to edit frames';
           sw.addEventListener('dblclick', function(e){
             e.preventDefault(); e.stopPropagation();
             openSpriteEdit(def, e.clientX, e.clientY);
@@ -523,7 +551,7 @@ function fillPal(){
 function fillExtra(){
   if (!edExtra) return;
   edExtra.textContent = '';
-  if (ED.tab !== 'tile') return;
+  if (ED.tab !== 'tile' || ED.tool === 'obj') return;
   var spec = palSpec();
   if (spec && spec.id === G.WATER){
     for (var s = 0; s < WATER_SHADE_PRESETS.length; s++){
