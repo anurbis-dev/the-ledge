@@ -1031,6 +1031,8 @@ function scaleOf(){
 
 function fillBody(){
   if (!body || !current) return;
+  body.scrollTop = 0;
+  body.scrollLeft = 0;
   body.textContent = '';
   preview = null;
   hintEl = null;

@@ -199,10 +199,11 @@ function buildSettings(){
 
   function addSlider(key, label){
     var row = document.createElement('div');
-    row.className = 'mset-row';
+    row.className = 'mrow mset-row on';
     var top = document.createElement('div');
     top.className = 'mset-top';
     var name = document.createElement('div');
+    name.className = 'mname';
     name.textContent = label;
     var val = document.createElement('div');
     val.className = 'val';
@@ -218,9 +219,9 @@ function buildSettings(){
     row.appendChild(top); row.appendChild(inp);
     box.appendChild(row);
   }
-  addSlider('music', 'Музыка');
-  addSlider('talk', 'Диалоги');
-  addSlider('fx', 'Эффекты');
+  addSlider('music', 'Music');
+  addSlider('talk', 'Talk');
+  addSlider('fx', 'SFX');
 }
 
 function startEmbers(){

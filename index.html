@@ -6,8 +6,12 @@
 <meta name="theme-color" content="#07060f">
 <title>the LEDGE</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Crect width='8' height='8' fill='%2307060f'/%3E%3Crect x='1' y='5' width='6' height='2' fill='%23ffd9a0'/%3E%3Crect x='5' y='3' width='2' height='2' fill='%23e0563c'/%3E%3C/svg%3E">
+<style>
+html,body{margin:0;height:100%;background:#07060f}
+body[data-boot="pending"]{visibility:hidden}
+</style>
 </head>
-<body>
+<body data-boot="pending">
 <div id="stage"><div id="view"><canvas id="c" width="320" height="180"></canvas><canvas id="h" width="320" height="180"></canvas></div></div>
 <div id="splash">
   <canvas id="splashCv"></canvas>

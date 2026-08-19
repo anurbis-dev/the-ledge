@@ -1,5 +1,6 @@
 import { getActx } from './context.js';
 import { CATALOG, DEFAULT_SCORE, catalogEntry } from './scores/catalog.js';
+import { BAKED } from '../core/defaults.js';
 
 var MIX_KEY = 'ledge.dev.mix';
 var SCORE_KEY = 'ledge.dev.score';
@@ -25,6 +26,7 @@ function loadScoreId(){
     var id = localStorage.getItem(SCORE_KEY);
     if (id) return id;
   }catch(e){}
+  if (BAKED.score) return BAKED.score;
   return DEFAULT_SCORE;
 }
 
@@ -36,6 +38,12 @@ function applyScore(entry){
 }
 
 function loadMix(){
+  if (BAKED.mix && typeof BAKED.mix === 'object'){
+    if (BAKED.mix.master != null) mix.master = +BAKED.mix.master;
+    if (BAKED.mix.fadeIn != null) mix.fadeIn = +BAKED.mix.fadeIn;
+    if (BAKED.mix.solo) mix.solo = String(BAKED.mix.solo);
+    if (BAKED.mix.voices && typeof BAKED.mix.voices === 'object') mix.voices = BAKED.mix.voices;
+  }
   try{
     var raw = JSON.parse(localStorage.getItem(MIX_KEY) || '{}');
     if (raw && typeof raw === 'object'){
@@ -49,6 +57,16 @@ function loadMix(){
 
 function saveMix(){
   try{ localStorage.setItem(MIX_KEY, JSON.stringify(mix)); }catch(e){}
+}
+
+export function mixSnapshot(){
+  try {
+    var raw = localStorage.getItem(MIX_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_){ return null; }
+}
+export function scoreSnapshot(){
+  try { return localStorage.getItem(SCORE_KEY) || null; } catch (_){ return null; }
 }
 
 function tickSec(){

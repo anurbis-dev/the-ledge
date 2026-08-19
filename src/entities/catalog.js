@@ -24,6 +24,8 @@ export var ITEMS = {
   relic:   { name:'RELIC',        cat:'bag',  tab:'find', desc:'OLD STONE. IT HUMS IF YOU HOLD IT STILL.' },
   key:     { name:'KEY',          cat:'bag',  tab:'find', desc:'OPENS A LOCKED DOOR OR A LOCKED CHEST.' },
   tank:    { name:'AIR TANK',     cat:'bag',  tab:'find', desc:'SPARE BREATH. THE AQUALUNG DRINKS IT WHEN AIR RUNS OUT.' },
+  arrow:       { name:'ARROW',        cat:'bag', tab:'find', desc:'FLETCHED SHAFT. FEEDS THE BOW.' },
+  harpoonBolt: { name:'HARPOON BOLT', cat:'bag', tab:'find', desc:'BARBED BOLT. FEEDS THE HARPOON.' },
   idol:    { name:'STONE IDOL',   cat:'bag',  tab:'find', desc:'THREE SHARDS, ONE FACE. IT WATCHES BACK.' },
   stone:   { name:'STONE',        cat:'bag',  tab:'part', desc:'A SHARP ROCK. WANTS A STICK TO BECOME A POINT.' },
   shard_a: { name:'IDOL SHARD A', cat:'part', tab:'part', desc:'BROKEN FACE. THE SET WANTS THREE.' },
@@ -91,7 +93,8 @@ export function itemStats(entry){
   var g = GEAR[entry.type];
   var it = entry.item;
   if (g && g.reach) lines.push('REACH ' + g.reach);
-  if (it && it.max) lines.push('USES ' + Math.max(0, it.uses) + '/' + it.max);
+  if (it && it.infinite) lines.push('USES INF');
+  else if (it && it.max) lines.push('USES ' + Math.max(0, it.uses) + '/' + it.max);
   else if (g && g.uses) lines.push('USES ' + g.uses + '/' + g.uses);
   if (entry.slot) lines.push('SLOT ' + slotLabel(entry.slot));
   if (entry.equipped) lines.push('WORN');

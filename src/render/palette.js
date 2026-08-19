@@ -29,7 +29,8 @@ export const P = {
              wshield:['#a9743f','#6d4423'], ishield:['#b8c0cc','#6f7885'], gshield:['#e0b452','#96751f'],
              lhelm:['#a9743f','#6d4423'], ihelm:['#b8c4d8','#6f7d94'], ghelm:['#e6c357','#9a7c1e'],
              scuba:['#5a8fae','#365a70'], flippers:['#e0813f','#96521f'], harpoon:['#8a94a0','#586570'],
-             bow:['#bd8347','#7d5029'], spear:['#c3bccf','#7d5029'] }
+             bow:['#bd8347','#7d5029'], spear:['#c3bccf','#7d5029'],
+             arrow:['#bd8347','#7d5029'], harpoonBolt:['#8a94a0','#586570'] }
 };
 
 export const PALS = {

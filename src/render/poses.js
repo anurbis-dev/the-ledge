@@ -6,7 +6,7 @@ export const RUN_0 = po({head:[5,4],neck:[5,8],hip:[5,14],eF:[4,11],hF:[2,13],eB
 export const RUN_1 = po({head:[5,3],neck:[5,7],hip:[5,13],eF:[5,10],hF:[4,14],eB:[5,10],hB:[6,14],kF:[6,17],fF:[6,22],kB:[4,16],fB:[5,18]});
 export function swapFB(a){ return {head:a.head,neck:a.neck,hip:a.hip,eF:a.eB,hF:a.hB,eB:a.eF,hB:a.hF,kF:a.kB,fF:a.fB,kB:a.kF,fB:a.fF}; }
 export const RUN = [RUN_0, RUN_1, swapFB(RUN_0), swapFB(RUN_1)];
-/* рывок через колено на уступ — низкий наклонный присед, не вставание в рост */
+/* бывший мантл; кадр ещё в sprite-bake */
 export const VAULT_B = po({head:[9,9],neck:[8,11],hip:[6,14],eF:[11,10],hF:[13,7],eB:[3,12],hB:[1,15],kF:[10,15],fF:[13,11],kB:[3,18],fB:[1,21]});
 /* подбор предмета с земли — присед и рука вниз, к стопам */
 export const PICK_B = po({head:[7,12],neck:[7,15],hip:[6,17],eF:[10,16],hF:[12,20],eB:[3,15],hB:[2,18],kF:[8,17],fF:[8,21],kB:[3,17],fB:[3,21]});
@@ -31,8 +31,15 @@ export const ATK1 = po({head:[5,4],neck:[5,8],hip:[5,14],eF:[8,9],hF:[12,10],eB:
 export const ATK2 = po({head:[5,5],neck:[5,9],hip:[5,15],eF:[8,12],hF:[11,16],eB:[3,12],hB:[2,15],kF:[7,18],fF:[8,22],kB:[3,18],fB:[2,22]});
 export const CROUCH = po({head:[5,3],neck:[5,6],hip:[5,10],eF:[7,8],hF:[8,11],eB:[3,8],hB:[3,11],kF:[8,12],fF:[6,14],kB:[3,12],fB:[3,14]});
 export const CROUCH_W = po({head:[5,3],neck:[5,6],hip:[5,10],eF:[7,8],hF:[6,12],eB:[3,8],hB:[4,11],kF:[8,11],fF:[8,14],kB:[3,12],fB:[2,14]});
+/* упор в стену на корточках — руки тянутся вперёд-вверх от присед, ниже, чем стоя */
+export const CROUCH_WALLPUSH = po({head:[6,4],neck:[6,7],hip:[5,10],eF:[8,7],hF:[11,5],eB:[3,7],hB:[5,8],kF:[8,12],fF:[7,14],kB:[3,12],fB:[3,14]});
+/* подбор предмета на корточках — рука тянется вниз-вперёд от присед, не от роста стоя
+   (иначе PICK_B, рассчитанный на стойку C.H, «проваливает» корпус ниже низкого хитбокса CRH) */
+export const CROUCH_PICK = po({head:[6,5],neck:[6,7],hip:[5,10],eF:[9,8],hF:[12,12],eB:[3,8],hB:[2,11],kF:[8,12],fF:[7,14],kB:[3,12],fB:[3,14]});
 export const PRONE0 = po({head:[14,2],neck:[12,3],hip:[6,5],eF:[14,5],hF:[17,6],eB:[11,6],hB:[14,7],kF:[3,6],fF:[0,7],kB:[3,7],fB:[1,8]});
 export const PRONE1 = po({head:[14,2],neck:[12,3],hip:[6,5],eF:[15,6],hF:[17,7],eB:[10,5],hB:[13,6],kF:[3,5],fF:[0,6],kB:[3,7],fB:[1,8]});
+/* лёжа тянется рукой вперёд за стрелой — на полу или в стене узкого тоннеля, разница мала */
+export const PRONE_PICK = po({head:[15,1],neck:[13,2],hip:[6,5],eF:[16,5],hF:[21,7],eB:[11,6],hB:[14,7],kF:[3,6],fF:[0,7],kB:[3,7],fB:[1,8]});
 export const BARS0 = po({head:[5,7],neck:[5,10],hip:[5,16],eF:[6,5],hF:[7,1],eB:[4,6],hB:[3,2],kF:[6,20],fF:[6,24],kB:[4,20],fB:[4,24]});
 export const BARS1 = po({head:[5,7],neck:[5,10],hip:[5,16],eF:[7,4],hF:[9,1],eB:[3,6],hB:[2,2],kF:[7,20],fF:[8,23],kB:[4,20],fB:[3,24]});
 export const LADD0 = po({head:[6,5],neck:[6,9],hip:[4,15],eF:[8,7],hF:[9,3],eB:[5,10],hB:[4,7],kF:[6,18],fF:[5,22],kB:[3,18],fB:[2,21]});
@@ -66,15 +73,23 @@ export function climbPose(t){
     if (t <= CL_T[i]) return lerpPose(CL_K[i-1], CL_K[i], (t-CL_T[i-1])/(CL_T[i]-CL_T[i-1]));
   return CL_K[4];
 }
-export function vaultPose(t){
-  if (t <= 0) return RUN_0;
-  if (t >= 1) return RUN_1;
-  return t <= 0.5 ? lerpPose(RUN_0, VAULT_B, t/0.5) : lerpPose(VAULT_B, RUN_1, (t-0.5)/0.5);
+/* поза, в которую откатывается подбор — стоя/на корточках/лёжа, смотря в какой стойке начали подбирать */
+export function stancePose(st){ return st === 2 ? PRONE0 : (st === 1 ? CROUCH : IDLE_A); }
+export function pickPose(t, stance){
+  var base = stancePose(stance || 0);
+  var peak = stance === 2 ? PRONE_PICK : (stance === 1 ? CROUCH_PICK : PICK_B);
+  if (t <= 0) return base;
+  if (t >= 1) return base;
+  return t <= 0.45 ? lerpPose(base, peak, t/0.45) : lerpPose(peak, base, (t-0.45)/0.55);
 }
-export function pickPose(t){
-  if (t <= 0) return IDLE_A;
-  if (t >= 1) return IDLE_A;
-  return t <= 0.45 ? lerpPose(IDLE_A, PICK_B, t/0.45) : lerpPose(PICK_B, IDLE_A, (t-0.45)/0.55);
+/* подбор стрелы из стены — тянется вперёд и упирается в стену, как при упоре в валун;
+   на корточках ниже, чем стоя, лёжа — просто тянется рукой вперёд по тоннелю */
+export function wallPickPose(t, stance){
+  var base = stancePose(stance || 0);
+  var peak = stance === 2 ? PRONE_PICK : (stance === 1 ? CROUCH_WALLPUSH : WALLPUSH);
+  if (t <= 0) return base;
+  if (t >= 1) return base;
+  return t <= 0.45 ? lerpPose(base, peak, t/0.45) : lerpPose(peak, base, (t-0.45)/0.55);
 }
 export function throwPose(t){
   if (t <= 0) return IDLE_A;

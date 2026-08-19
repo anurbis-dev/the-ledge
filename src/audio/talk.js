@@ -1,4 +1,5 @@
 import { getActx, resumeAudio } from './context.js';
+import { BAKED } from '../core/defaults.js';
 
 var TALK_KEY = 'ledge.dev.talk';
 
@@ -63,7 +64,13 @@ export var TALK_VOICES = {
 var PENTA = [0, 3, 5, 7, 10];
 
 export function defaultTalkPrefs(){
-  return { hero: 'triChirp', npc: 'squareTalk', vol: 1 };
+  var d = { hero: 'triChirp', npc: 'squareTalk', vol: 1 };
+  if (BAKED.talk){
+    if (BAKED.talk.hero) d.hero = BAKED.talk.hero;
+    if (BAKED.talk.npc) d.npc = BAKED.talk.npc;
+    if (BAKED.talk.vol != null) d.vol = +BAKED.talk.vol;
+  }
+  return d;
 }
 
 export function loadTalkPrefs(){
@@ -86,6 +93,13 @@ export function saveTalkPrefs(p){
   if (p.vol != null) cur.vol = p.vol;
   try { localStorage.setItem(TALK_KEY, JSON.stringify(cur)); } catch (e){}
   return cur;
+}
+
+export function talkSnapshot(){
+  try {
+    var raw = localStorage.getItem(TALK_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_){ return null; }
 }
 
 export function findVariant(id){

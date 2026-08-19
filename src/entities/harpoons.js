@@ -1,7 +1,9 @@
 import { C } from '../core/constants.js';
 import { rectFree } from '../core/map.js';
-import { dropLoot } from './loot.js';
+import { dropLootFor } from './loot.js';
 import { allocId } from './ids.js';
+import { wearGear } from './gear.js';
+import { grantOne } from './craft.js';
 
 /* стрела гарпуна: летит по прямой, без гравитации, застревает в стене/цели */
 export function mkHarpoons(){ return []; }
@@ -24,7 +26,7 @@ export function stepHarpoons(S, dt){
         } else {
           en.dead = true; en.hitT = 0.6; en.vy = -90;
           S.hitStop = Math.max(S.hitStop, 0.06); S.shake = Math.max(S.shake, 3);
-          dropLoot(S, en.x + en.w/2, en.y + en.h/2, 'e');
+          dropLootFor(S, en, en.x + en.w/2, en.y + en.h/2, 'e');
           p.events.push('kill:' + en.id);
         }
         hit = true;
@@ -35,19 +37,19 @@ export function stepHarpoons(S, dt){
       if (spg.dead) continue;
       if (b.x > spg.x - 8 && b.x < spg.x + 8 && b.y > spg.y - 10 && b.y < spg.y + 6){
         spg.dead = true; spg.hitT = 0.5;
-        dropLoot(S, spg.x, spg.y, 'sp');
+        dropLootFor(S, spg, spg.x, spg.y, 'sp');
         p.events.push('kill:s' + spg.id);
         hit = true;
       }
     }
     for (var fi = 0; fi < S.fliers.length && !hit; fi++){
       var fl = S.fliers[fi];
-      if (fl.dead) continue;
       if (b.x > fl.x - 4 && b.x < fl.x + fl.w + 4 && b.y > fl.y - 2 && b.y < fl.y + fl.h + 2){
-        fl.dead = true; fl.hitT = 0.6;
+        var fcx = fl.x + fl.w/2, fcy = fl.y + fl.h/2;
         S.hitStop = Math.max(S.hitStop, 0.06);
-        dropLoot(S, fl.x + fl.w/2, fl.y + fl.h/2, 'f');
-        p.events.push('kill:f' + fl.id);
+        dropLootFor(S, fl, fcx, fcy, 'f');
+        p.events.push('kill:f' + fl.id + ':' + Math.round(fcx) + ':' + Math.round(fcy));
+        S.fliers.splice(fi, 1);
         hit = true;
       }
     }
@@ -57,10 +59,12 @@ export function stepHarpoons(S, dt){
 
 export function fireHarpoon(S){
   var p = S.p, g = p.gear.harpoon;
-  if (!g || g.uses <= 0) return false;
-  g.uses--;
+  if (!g) return false;
+  if (!(S.bag && S.bag.harpoonBolt > 0)) return false;    // нет болтов в инвентаре — не выстрелить
+  S.bag.harpoonBolt--;
   S.harpoons.push({ id: allocId(S.harpoons), x: p.x + p.w/2 + p.facing*8, y: p.y + p.h/2,
                      vx: p.facing * C.HARPOON_V, stuck: false });
+  wearGear(S, 'harpoon', 1);
   p.events.push('harpoon:shoot');
   return true;
 }
@@ -148,9 +152,10 @@ export function tryHarpoonPickup(S){
   for (var i = 0; i < S.harpoons.length; i++){
     var b = S.harpoons[i];
     if (!b.stuck) continue;
-    if (Math.abs(b.x - cx) < C.ACT_R && Math.abs(b.y - cy) < 22){
+    var dx = b.x - cx;
+    if (Math.abs(dx) < C.ACT_R && Math.abs(b.y - cy) < 22 && dx * p.facing > -2){
       S.harpoons.splice(i, 1);
-      if (g.uses < g.max) g.uses++;
+      grantOne(S, 'harpoonBolt');
       p.events.push('harpoon:pick');
       return true;
     }

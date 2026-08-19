@@ -1,7 +1,15 @@
 import { noteFirstItem } from '../speech/runtime.js';
+import { runtime } from '../core/runtime.js';
 
 /* слоты, которые крутятся в руке (Q / тап по иконке) */
 export var HAND_SLOTS = { weapon: 1, harpoon: 1 };
+
+/* оружие, чью durability можно настраивать по уровням в редакторе */
+export var WEAPON_TYPES = ['stick', 'spear', 'sword', 'blade', 'bow', 'harpoon'];
+
+/* стартовый боезапас, выдаётся вместе с оружием (боезапас — отдельно от durability) */
+var AMMO_START = { bow: 6, harpoon: 4 };
+var AMMO_KIND = { bow: 'arrow', harpoon: 'harpoonBolt' };
 
 /* ---------------- снаряжение ---------------- */
 export var GEAR = {
@@ -9,7 +17,7 @@ export var GEAR = {
   spear:  { slot:'weapon', uses:16, reach:1.3, name:'spear'  },
   sword:  { slot:'weapon', uses:20, reach:1.25, name:'sword'  },
   blade:  { slot:'weapon', uses:30, reach:1.45, name:'blade'  },
-  bow:    { slot:'weapon', uses:5, reach:1.0, name:'bow'  },
+  bow:    { slot:'weapon', uses:15, reach:1.0, name:'bow'  },
   wshield:{ slot:'shield', uses:5,  name:'shield' },
   ishield:{ slot:'shield', uses:9,  name:'shield' },
   gshield:{ slot:'shield', uses:14, name:'shield' },
@@ -18,11 +26,24 @@ export var GEAR = {
   ghelm:  { slot:'helmet', uses:10, name:'helm' },
   scuba:    { slot:'scuba',    uses:1, name:'scuba' },
   flippers: { slot:'flippers', uses:1, name:'flippers' },
-  harpoon:  { slot:'harpoon',  uses:4, name:'harpoon' }
+  harpoon:  { slot:'harpoon',  uses:15, name:'harpoon' }
 };
+
+/* durability оружия — берём переопределение уровня (редактор), иначе дефолт из GEAR.
+   0 в настройках уровня = бесконечная прочность, не ломается. */
+export function gearDurability(type){
+  var lv = runtime.LV;
+  var ov = lv && lv.gearDurability && lv.gearDurability[type];
+  return ov != null ? ov : GEAR[type].uses;
+}
 export function mkItem(type){
-  var d = GEAR[type];
-  return { type:type, slot:d.slot, uses:d.uses, max:d.uses };
+  var d = GEAR[type], dur = gearDurability(type), infinite = dur <= 0;
+  return { type:type, slot:d.slot, uses: infinite ? 0 : dur, max: infinite ? 0 : dur, infinite: infinite };
+}
+function giveAmmo(S, kind, n){
+  if (!S.bag) S.bag = {};
+  S.bag[kind] = (S.bag[kind] || 0) + n;
+  noteFirstItem(S, kind);
 }
 export function giveGear(S, type){
   var p = S.p, it = mkItem(type);
@@ -40,12 +61,14 @@ export function giveGear(S, type){
     p.harpoonGun = true;
     if (!p.gear.weapon) p.hand = 'harpoon';
   }
+  if (AMMO_START[type]) giveAmmo(S, AMMO_KIND[type], AMMO_START[type]);
   noteFirstItem(S, type);
   p.events.push('gear:' + type);
 }
 export function wearGear(S, slot, n){
   var p = S.p, it = p.gear[slot];
   if (!it) return false;
+  if (it.infinite) return true;                          // durability 0 в настройках — не ломается
   it.uses -= (n || 1);
   if (it.uses > 0) return true;
   p.gear[slot] = null;                                  // сломалось — берём запасное

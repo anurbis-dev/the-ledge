@@ -1,10 +1,16 @@
 import { getMix, setMixMaster } from '../audio/music.js';
 import { loadTalkPrefs, saveTalkPrefs } from '../audio/talk.js';
+import { BAKED } from '../core/defaults.js';
 
 var SKEY = 'ledge.settings.v1';
 
 export function loadSettings(){
   var d = { music: 100, talk: 85, fx: 60 };
+  if (BAKED.settings){
+    if (BAKED.settings.music != null) d.music = clampPct(BAKED.settings.music);
+    if (BAKED.settings.talk != null) d.talk = clampPct(BAKED.settings.talk);
+    if (BAKED.settings.fx != null) d.fx = clampPct(BAKED.settings.fx);
+  }
   try {
     var o = JSON.parse(localStorage.getItem(SKEY));
     if (o && typeof o === 'object'){
@@ -17,6 +23,12 @@ export function loadSettings(){
 }
 export function saveSettings(s){
   try { localStorage.setItem(SKEY, JSON.stringify(s)); } catch (e) {}
+}
+export function settingsSnapshot(){
+  try {
+    var raw = localStorage.getItem(SKEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_){ return null; }
 }
 export function clampPct(n){
   n = +n;
@@ -34,7 +46,8 @@ export function applySettings(s){
 export function applyBootSettings(){
   var s = loadSettings();
   var mix = getMix();
-  if (mix && mix.master != null && localStorage.getItem(SKEY) == null)
+  var bakedMusic = BAKED.settings && BAKED.settings.music != null;
+  if (mix && mix.master != null && localStorage.getItem(SKEY) == null && !bakedMusic)
     s.music = clampPct(Math.round(mix.master * 100));
   applySettings(s);
 }
