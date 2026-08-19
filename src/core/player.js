@@ -2,7 +2,7 @@ import { T, C, LADR, LADL, LADW } from './constants.js';
 import { runtime } from './runtime.js';
 import {
   tileAt, rectFree, solidAt, isSlopeV, slopeTop, slopeGrade, isLadV, ladderTop,
-  isBarV, ladderTile, solidTile, tileBlocks, isWaterV
+  isBarV, ladderTile, solidTile, tileBlocks, isWaterV, groundYAt
 } from './map.js';
 import { dropTorch } from '../entities/torches.js';
 import { platUnder } from '../entities/plats.js';
@@ -74,12 +74,19 @@ function rectFreeExceptFootLip(x, y, w, h, cx){
   return true;
 }
 
+export function snapFeet(p){
+  var cx = footCenterX(p), feet = p.y + p.h, gy;
+  gy = groundYAt(cx, feet);
+  if (gy == null) gy = groundYAt(cx, feet + 4);
+  if (gy != null) p.y = gy - p.h;
+}
+
 export function moveX(S, p, dx){
   var oy = p.y, cx, k;
   p.x += dx;
   if (!rectFree(p.x, p.y, p.w, p.h)){
     cx = footCenterX(p);
-    if (footSupported(p) || slopeUnderAt(p, cx) !== null){
+    if (p.vy < 48 && (footSupported(p) || slopeUnderAt(p, cx) !== null)){
       for (k = 1; k <= 3; k++){
         if (rectFree(p.x, p.y - k, p.w, p.h)){ p.y -= k; return; }
       }
@@ -95,15 +102,17 @@ export function moveX(S, p, dx){
 export function moveY(S, p, dy){
   var oldB = p.y + p.h;
   var prevVy = p.vy;
-  var cx, snapY, savedY, i, q;
+  var cx, gy, i, q;
   p.y += dy;
   if (!rectFree(p.x, p.y, p.w, p.h)){
     if (dy > 0){
-      snapY = Math.floor((p.y + p.h) / T) * T - p.h;
-      savedY = p.y;
-      p.y = snapY;
-      if (grounded(S, p)){ p.onGround = true; p.vy = 0; p.ride = null; return; }
-      p.y = savedY;
+      cx = footCenterX(p);
+      gy = groundYAt(cx, oldB + 1);
+      if (gy == null) gy = groundYAt(cx, p.y + p.h);
+      if (gy != null && oldB <= gy + 2 && p.y + p.h >= gy){
+        p.y = gy - p.h; p.onGround = true; p.vy = 0; p.ride = null;
+        return;
+      }
       return;
     }
     p.y = Math.floor(p.y / T) * T + T;

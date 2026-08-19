@@ -238,7 +238,8 @@ export function groundYAt(px, py){
     if (d && d.collide === 'custom' && d.box){
       var top = rr * T + d.box.y;
       var lx = px - c * T;
-      if (lx >= d.box.x && lx < d.box.x + d.box.w && py <= top + 2) return top;
+      if (lx >= d.box.x && lx < d.box.x + d.box.w &&
+          py >= top - 2 && py <= top + d.box.h + 2) return top;
       continue;
     }
     if (d && d.collide === 'bar'){
