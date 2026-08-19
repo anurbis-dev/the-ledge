@@ -377,7 +377,8 @@ export function lootDrops(){
   var S = world(), time = view.time;
   for (var i = 0; i < S.loot.length; i++){
     var l = S.loot[i];
-    var x = Math.round(l.x - cam.x), y = Math.round(l.y - cam.y);
+    var bob = Math.sin(time*2.4 + (l.ph || 0))*2;            // как S.items
+    var x = Math.round(l.x - cam.x), y = Math.round(l.y - cam.y + bob);
     if (x < -10 || x > viewW() + 10) continue;
     var bl = l.t < 3 && Math.sin(time*12) < 0;               // мигает перед исчезновением
     if (bl) continue;

@@ -30,11 +30,13 @@ export function grantLootKind(S, kind, qty, seed, extra){
 
 function pushLoot(S, x, y, vx, vy, kind, extra, life, grace){
   extra = extra || {};
+  var id = allocId(S.loot);
   S.loot.push({
-    id: allocId(S.loot),
+    id: id,
     x: x, y: y, vx: vx, vy: vy,
     kind: kind, qty: 1, t: life == null ? 14 : life, got: false,
     grace: grace || 0,
+    ph: (id * 37 % 100) / 100 * 6.28,
     bits: extra.bits, need: extra.need, set: extra.set, bit: extra.bit,
     uses: extra.uses, max: extra.max
   });
