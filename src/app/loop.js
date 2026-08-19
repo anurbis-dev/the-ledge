@@ -19,7 +19,7 @@ import { startMusic, hushMusic, resumeMusic, musicPlaying, getMix, setScore, lis
 import { held, latch, ax, stick, bindInput, hushStick } from '../input/input.js';
 import { ED, edOpen, edClose, edApply, edExportText, edDrawOverlay, bindEditor, snapEditCam, syncDelBtn } from '../editor/editor.js';
 import { hooks } from '../core/runtime.js';
-import { prog, buildMenu, showMenu, showMenuHome, menuScreen, isMenu, setMenu, saveProgress, dropProgressAt, applyBootSettings } from '../ui/menu.js';
+import { prog, buildMenu, showMenu, showMenuHome, menuScreen, isMenu, setMenu, saveProgress, dropProgressAt, applyBootSettings, unlockAllLevels } from '../ui/menu.js';
 import { showSplash } from '../ui/splash.js';
 import { findById } from '../entities/ids.js';
 import { cycleHand } from '../entities/gear.js';
@@ -704,6 +704,12 @@ export function start(){
     if (e.key === 'i' || e.key === 'I'){
       e.preventDefault();
       tryToggleInv();
+      return;
+    }
+    if (e.key === '0' || e.code === 'Numpad0'){
+      e.preventDefault();
+      if (typeof unlockAllLevels === 'function') unlockAllLevels();
+      if (isMenu() && menuScreen() === 'path') buildMenu();
       return;
     }
     if (e.key === 'r' || e.key === 'R'){ hardReset(); return; }

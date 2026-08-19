@@ -16,15 +16,20 @@ var CHEV = '<svg class="map-ic" viewBox="0 0 8 8" fill="none" aria-hidden="true"
 export function loadProgress(){
   try {
     var raw = localStorage.getItem(PKEY);
-    if (raw){ var o = JSON.parse(raw); if (o && typeof o.max === 'number') return o; }
+    if (raw){ var o = JSON.parse(raw); if (o && typeof o.max === 'number') return { max: o.max || 0, done: o.done || {}, all: !!o.all }; }
   } catch (e) {}
-  return { max: 0, done: {} };
+  return { max: 0, done: {}, all: false };
 }
 export function saveProgress(){
   try { localStorage.setItem(PKEY, JSON.stringify(prog)); } catch (e) {}
 }
 
-
+export function unlockAllLevels(){
+  prog.all = true;
+  prog.max = Math.max(prog.max, G.LEVELS.length - 1);
+  saveProgress();
+  if (typeof buildPath === 'function') buildPath();
+}
 
 export var prog = loadProgress();
 var inMenu = true;
@@ -135,7 +140,7 @@ function buildPath(){
   for (var i = 0; i < G.LEVELS.length; i++){
     (function(idx){
       var lv = G.LEVELS[idx];
-      var open = idx <= prog.max || !!lv.blank;
+      var open = !!prog.all || idx <= prog.max || !!lv.blank;
       var row = document.createElement('div');
       row.className = 'mrow' + (open ? ' on' : ' lock') + (prog.done[idx] ? ' done' : '');
       var num = document.createElement('div');
