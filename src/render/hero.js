@@ -5,19 +5,18 @@ import {
   K, IDLE_A, IDLE_B, RUN, JUMPP, FALLP, LANDP, SLIDEP, STUNP, SNAREP, ROLLP,
   LADP0, LADP1, LADF0, LADF1, ATK0, ATK1, ATK2, CROUCH, CROUCH_W,
   PRONE0, PRONE1, BARS0, BARS1, LADD0, LADD1, SWIM0, SWIM1,
-  HANGL, HANG_A, HANG_B, lerpPose, climbPose, vaultPose, pickPose, throwPose, getupPose,
+  HANGL, HANG_A, HANG_B, lerpPose, climbPose, stancePose, pickPose, wallPickPose, throwPose, getupPose,
   BOW_STANCE, bowPose, bowHandOnString, bowReleaseFx,
   WALLPUSH, GRAPPLE_D, GRAPPLE_U
 } from './poses.js';
 import { figure, drawBow, drawHeldWeapon } from './figure.js';
-import { torchPts } from './light.js';
 import { isBowHand, isHarpoonHand } from '../entities/gear.js';
 import { spriteFrameImage, getSpriteDef, getFrameAnchor } from '../core/spriteset.js';
 import { defaultFrameAnchors } from './sprite-anchors.js';
 
 var G = GAME, C = G.C;
+var ROLL_CX = 5, ROLL_CY = 11;
 
-function stancePose(st){ return st === 2 ? PRONE0 : (st === 1 ? CROUCH : IDLE_A); }
 function isBow(p){ return isBowHand(p); }
 
 export function heroClip(p){
@@ -59,7 +58,6 @@ export function heroClip(p){
     var cp = p.climb.p;
     return ['climb', cp < 0.2 ? 0 : (cp < 0.4 ? 1 : (cp < 0.6 ? 2 : (cp < 0.8 ? 3 : 4)))];
   }
-  if (p.state === 'climb' && p.climb.kind === 'vault') return ['vault', 0];
   if (!p.onGround){
     if (p.sliding) return ['slide', 0];
     return [p.vy < -40 ? 'jump' : (p.vy > 60 ? 'fall' : 'jump'), 0];
@@ -67,7 +65,7 @@ export function heroClip(p){
   if (p.landT > 0) return ['land', 0];
   if (p.pushWall) return ['wallPush', 0];
   if (Math.abs(p.vx) > 8) return ['run', (runPh | 0) % 4];
-  if (isBow(p)) return ['bow', 0];
+  if (isBow(p) && p.bowReady) return ['bow', 0];
   return ['idle', Math.sin(animT * 2.6) > 0 ? 0 : 1];
 }
 
@@ -83,7 +81,7 @@ function frameWeapon(id, anim, i){
   return defaultFrameAnchors(id, anim, i).weapon;
 }
 
-function blitHeroSprite(img, def, wx, wy, facing, origin){
+function blitHeroSprite(img, def, wx, wy, facing, origin, rot){
   var ox = origin ? origin.x : def.ox;
   var oy = origin ? origin.y : def.oy;
   var fx = def.fx != null ? def.fx : 5;
@@ -91,7 +89,12 @@ function blitHeroSprite(img, def, wx, wy, facing, origin){
   var y = Math.round(wy - oy - cam.y);
   ctx.save();
   ctx.imageSmoothingEnabled = false;
-  if (facing < 0){
+  if (rot){
+    ctx.translate(Math.round(wx + ROLL_CX - cam.x), Math.round(wy + ROLL_CY - cam.y));
+    ctx.rotate(rot);
+    if (facing < 0) ctx.scale(-1, 1);
+    ctx.drawImage(img, -(ox + ROLL_CX), -(oy + ROLL_CY));
+  } else if (facing < 0){
     ctx.translate(x + ox + fx, y);
     ctx.scale(-1, 1);
     ctx.drawImage(img, -(ox + fx), 0);
@@ -112,10 +115,10 @@ function spriteLocalScreen(wx, wy, facing, origin, def, lx, ly){
 
 function heroWeaponState(p){
   var bow = isBow(p), harp = isHarpoonHand(p);
-  var bowIdle = p.onGround && p.state === 'normal' && p.stance === 0 &&
-    p.atkT <= 0 && p.rollT <= 0 && p.pickT <= 0 && p.throwT <= 0 &&
+  var staticIdle = p.onGround && p.state === 'normal' && p.stance === 0 && p.stanceT <= 0 &&
+    !p.gettingUp && !p.grapple && p.atkT <= 0 && p.rollT <= 0 && p.pickT <= 0 && p.throwT <= 0 &&
     p.landT <= 0 && !p.pushWall && Math.abs(p.vx) <= 8 && !p.inWater;
-  var bowHeld = bow && (p.bowT > 0 || bowIdle);
+  var bowHeld = bow && (p.bowT > 0 || (p.bowReady && staticIdle));
   var hs = null, onBack = false;
   if (harp){
     if (p.grapple){
@@ -132,7 +135,7 @@ function heroWeaponState(p){
   } else if (bow && !bowHeld){
     onBack = true;
   }
-  return { hs: hs, onBack: onBack, bowHeld: bowHeld };
+  return { hs: hs, onBack: onBack, bowHeld: bowHeld, bow: bow };
 }
 
 function overlayHeroWeapon(p, clip, def, wx, wy, facing, origin){
@@ -142,7 +145,8 @@ function overlayHeroWeapon(p, clip, def, wx, wy, facing, origin){
   var xy = spriteLocalScreen(wx, wy, facing, origin, def, weap.x, weap.y);
   if (st.bowHeld){
     var bt = p.bowT > 0 ? (1 - p.bowT / C.BOW_ANIM_T) : 0;
-    drawBow({ hB: xy, hF: [xy[0] + facing * 6, xy[1]] }, facing, 0, bowHandOnString(bt), bowReleaseFx(bt));
+    var grip = xy, str = [xy[0] + facing * 6, xy[1]];
+    drawBow({ hB: grip, hF: str }, facing, 0, bowHandOnString(bt), bowReleaseFx(bt));
   } else if (st.hs){
     drawHeldWeapon(xy[0], xy[1], st.hs.ang, st.hs.type);
   }
@@ -161,19 +165,27 @@ function tryHeroSprite(p){
     wx = p.climb.cx; wy = p.climb.cy; facing = p.climb.facing;
   }
   var origin = frameOrigin('hero', clip[0], clip[1], def);
-  blitHeroSprite(img, def, wx, wy, facing, origin);
+  blitHeroSprite(img, def, wx, wy, facing, origin, p.rollT > 0 ? p.rollAng : 0);
   overlayHeroWeapon(p, clip, def, wx, wy, facing, origin);
   return true;
 }
 
 export function boxPose(p){
   var animT = view.animT, runPh = view.runPh;
+  // стойка стрельбы держится только пока героиня неподвижна после выстрела —
+  // любое иное действие сбрасывает готовность до следующего нажатия атаки
+  var staticIdle = p.onGround && p.state === 'normal' && p.stance === 0 && p.stanceT <= 0 &&
+    !p.gettingUp && !p.grapple && p.atkT <= 0 && p.rollT <= 0 && p.pickT <= 0 && p.throwT <= 0 &&
+    p.landT <= 0 && !p.pushWall && Math.abs(p.vx) <= 8 && !p.inWater;
+  if (!staticIdle) p.bowReady = false;
   if (p.state === 'snare') return SNAREP;
   if (p.inWater) return (Math.sin(animT*7) > 0) ? SWIM0 : SWIM1;   // одна поза, наклон задаётся поворотом
   if (p.state === 'bars') return (Math.sin(p.bars.ph*2.4) > 0) ? BARS0 : BARS1;
   if (p.gettingUp) return getupPose(1 - p.getupT / C.GETUP_T);  // встаёт после высокого падения
   if (p.stanceT > 0)                                  // плавный переход стоя/присед/лёжа
     return lerpPose(stancePose(p.stanceFrom), stancePose(p.stance), 1 - p.stanceT / C.STANCE_T);
+  if (p.pickT > 0 && p.onGround)                      // подбор — из текущей стойки: стоя, на корточках или лёжа
+    return p.pickWall ? wallPickPose(1 - p.pickT / C.PICK_T, p.stance) : pickPose(1 - p.pickT / C.PICK_T, p.stance);
   if (p.stance === 2) return (Math.abs(p.vx) > 4 && Math.sin(animT*7) > 0) ? PRONE1 : PRONE0;
   if (p.stance === 1) return (Math.abs(p.vx) > 4 && Math.sin(animT*6) > 0) ? CROUCH_W : CROUCH;
   if (p.grapple) return (p.grapple.up || (p.grapple.phase !== 'fly' && Math.abs(p.grapple.vx) < 20)) ? GRAPPLE_U : GRAPPLE_D;
@@ -184,7 +196,6 @@ export function boxPose(p){
   if (isBow(p) && p.bowT > 0) return bowPose(1 - p.bowT / C.BOW_ANIM_T);  // натяжение/спуск лука
   if (p.state === 'stun') return STUNP;
   if (p.rollT > 0) return ROLLP;
-  if (p.pickT > 0 && p.onGround) return pickPose(1 - p.pickT / C.PICK_T);
   if (p.throwT > 0) return throwPose(1 - p.throwT / C.THROW_T);
   if (p.state === 'ladder'){
     var moving = Math.abs(p.lad.ph - (p.lad.lastPh || 0)) > 0.0001;
@@ -197,7 +208,6 @@ export function boxPose(p){
   if (p.state === 'hang' && p.hang.kind === 'lad') return HANGL;
   if (p.state === 'climb' && p.climb.kind === 'lad')
     return lerpPose(HANGL, (p.lad && p.lad.v === G.LADF) ? LADF0 : LADP0, p.climb.p);
-  if (p.state === 'climb' && p.climb.kind === 'vault') return vaultPose(p.climb.p);
   if (!p.onGround){
     if (p.sliding) return SLIDEP;
     return p.vy < -40 ? JUMPP : (p.vy > 60 ? FALLP : lerpPose(JUMPP, FALLP, 0.5));
@@ -205,18 +215,8 @@ export function boxPose(p){
   if (p.landT > 0) return LANDP;
   if (p.pushWall) return WALLPUSH;                   // жмёт в стену — руки на уровне груди по стене
   if (Math.abs(p.vx) > 8) return RUN[(runPh|0) % 4];
-  if (isBow(p)) return BOW_STANCE;                    // лук наготове, но не тянет тетиву
+  if (isBow(p) && p.bowReady) return BOW_STANCE;      // лук наготове сразу после выстрела, в статике
   return (Math.sin(animT*2.6) > 0) ? IDLE_A : IDLE_B;
-}
-export function lightDirAt(wx, wy){
-  var bx = 0, by = -1, bd = 1e9, i, L = torchPts();
-  for (i = 0; i < L.length; i++){
-    var dx = L[i][0] - wx, dy = L[i][1] - wy, d = dx*dx+dy*dy;
-    if (d < bd){ bd = d; bx = dx; by = dy; }
-  }
-  if (bd > 130*130) return [0,-1];
-  var m = Math.sqrt(bd) || 1;
-  return [bx/m, by/m];
 }
 export function hero(){
   var S = world(), time = view.time, tail = view.tail;
@@ -224,8 +224,6 @@ export function hero(){
       (p.state === 'hang' && p.hang.kind === 'lad' && G.tileAt(p.hang.tc, p.hang.tr) === G.LADF);
   if (tryHeroSprite(p)) return;
   var cxw = p.x + p.w/2, cyw = p.y + p.h/2;
-  var ld = lightDirAt(cxw, cyw), rim = [Math.round(ld[0]), Math.round(ld[1])];
-  if (rim[0] === 0 && rim[1] === 0) rim[1] = -1;
   var wag = tail.a;
 
   if ((p.state === 'hang' && p.hang.kind === 'ledge') ||
@@ -242,16 +240,12 @@ export function hero(){
     }
     for (i = 0; i < K.length; i++){ k = K[i];
       pt[k] = [cx + facing*pose[k][0] - cam.x + ox, cy + pose[k][1] - cam.y + oy]; }
-    figure(pt, facing, wag, false, rim, null, p.stick, { helmet: p.helmet, shield: p.shield });
+    figure(pt, facing, wag, false, null, null, p.stick, { helmet: p.helmet, shield: p.shield });
     tintHero(p, pt, cxw, cyw);
     return;
   }
-  var pose2 = boxPose(p), rot = 0, cxs = 0, cys = 0;
-  if (p.rollT > 0){ rot = p.rollAng; cxs = 5; cys = 11; }
-  else if (p.state === 'climb' && p.climb.kind === 'vault'){
-    var vt = p.climb.p, lean = Math.sin(Math.min(1, Math.max(0, vt)) * Math.PI) * 0.5;
-    rot = lean * (p.facing > 0 ? 1 : -1); cxs = 6; cys = 12;  // пригибание с наклоном вперёд
-  }
+  var pose2 = boxPose(p), rot = 0, cxs = 0, cys = 0, rollWhole = p.rollT > 0;
+  if (rollWhole){ rot = p.rollAng; cxs = ROLL_CX; cys = ROLL_CY; }
   else if (p.state !== 'snare' && p.inWater && Math.abs(p.swimAng) > 0.02){
     rot = p.swimAng * (p.facing > 0 ? 1 : -1);            // наклон корпуса по ходу плавания
     cxs = 5; cys = 6;
@@ -263,7 +257,7 @@ export function hero(){
     k = K[i];
     var lxp = (frontal || p.facing > 0) ? pose2[k][0] : (p.w - pose2[k][0]);
     var ly = pose2[k][1];
-    if (rot){
+    if (rot && !rollWhole){
       var dx = lxp - cxs, dy = ly - cys, cs = Math.cos(rot), sn = Math.sin(rot);
       lxp = cxs + dx*cs - dy*sn; ly = cys + dx*sn + dy*cs;
     }
@@ -286,8 +280,14 @@ export function hero(){
   } else if (bow && !bowHeld){
     onBack = true;                              // на бегу/в прыжке лук за спиной, руки свободны
   }
-  var headTilt = p.lookUp > 0.02 ? p.lookUp * 0.6 : 0;   // голова поворачивается, взгляд вверх
-  figure(pt, p.facing, wag, frontal, rim, hs, onBack, {
+  var headTilt = (!rollWhole && p.lookUp > 0.02) ? p.lookUp * 0.6 : 0;
+  if (rollWhole){
+    ctx.save();
+    ctx.translate(Math.round(p.x) + cxs - cam.x, Math.round(oy) + cys - cam.y);
+    ctx.rotate(rot);
+    ctx.translate(-(Math.round(p.x) + cxs - cam.x), -(Math.round(oy) + cys - cam.y));
+  }
+  figure(pt, p.facing, wag, frontal, null, hs, onBack, {
     helmet: p.helmet, shield: p.shield,
     helmType: p.gear.helmet && p.gear.helmet.type,
     shieldType: p.gear.shield && p.gear.shield.type,
@@ -300,6 +300,7 @@ export function hero(){
     drawBow(pt, p.facing, 0, bowHandOnString(bt), bowReleaseFx(bt));
   }
   tintHero(p, pt, cxw, cyw);
+  if (rollWhole) ctx.restore();
 }
 function tintHero(p, pt, cxw, cyw){
   if (!p.inWater && !p.wading) return;
