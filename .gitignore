@@ -2,6 +2,7 @@ node_modules/
 dist/
 .vscode/
 *.log
+.dev-server*.log
 
 tmp/**
 !tmp/ledge-v19.html

@@ -65,8 +65,17 @@
 
 Новые объекты: Sound (flat / falloff), Light (цвет / сила / радиус), Volume (color correct + маски круг / град. V-H / инверт / от центра; рамка с хэндлами осей и поворотом за угол). Инспектор `#edInspect`.
 
+## Агенты
+
+- `AGENTS.md` — **канонические** инструкции (MemPalace wing `the_ledge`, post-fix, git/version, browser, subagents). Править только там.
+- `CLAUDE.md` — короткий pointer → `AGENTS.md` (auto-load Claude Code); не дублировать правила.
+- `agents/*.md` — **SoT субагентов**; `npm run sync:agents` → `.claude/agents/*` + `.grok/agents/*` (generated, не править вручную).
+- Version: SemVer SoT = `package.json`. Bump: `npm run bump:patch|minor|major|dev|…`. Хук `scripts/check-version-bump-hook.mjs` блокирует `git commit` без bump.
+- Token audit: `npm run token-audit` → `tmp/token-audit/`.
+
 ## Не путать
 
 - `D:\TMP\AI_games\levelDesigner` — редактор уровней, не эта игра.
 - `D:\TMP\AI_games\Ledge_game` — старый экспорт проекта редактора.
+- `D:\PixisEditor` — соседний пиксельный редактор; оттуда взят каркас правил агентов. Dev-порт `:5173` часто занят им.
 - Порт в редактор (`LEDGE_PORT_PLAN`) — отдельная линия, этот репо автономный.

@@ -1,6 +1,6 @@
 {
   "name": "the-ledge",
-  "version": "0.1.0-dev.61",
+  "version": "0.1.0-dev.62",
   "description": "the LEDGE — caves and ledges",
   "type": "module",
   "scripts": {
@@ -17,7 +17,10 @@
     "bump:release": "node scripts/bump-version.mjs release",
     "music:score": "node scripts/track-to-score.mjs",
     "music:compose": "node scripts/compose-scores.mjs",
-    "bake": "node scripts/bake-defaults.mjs"
+    "bake": "node scripts/bake-defaults.mjs",
+    "sync:agents": "node scripts/sync-agent-defs.mjs",
+    "token-audit": "node scripts/token-audit.mjs",
+    "token-audit:json": "node scripts/token-audit.mjs --json"
   },
   "repository": {
     "type": "git",

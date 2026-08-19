@@ -27,6 +27,12 @@ npm run build    # → dist/index.html (один файл)
 | `src/audio/` | WebAudio blips + chip-музыка (`music.js`, `scores/`) |
 | `tmp/ledge-v19.html` | канон монолита |
 
+## Docs
+
+- `Context_map.md` — актуальная карта модулей и поведения.
+- `docs/EDITOR_GUIDE.md` — полная документация по встроенному редактору и сценариям сборки игровых ситуаций.
+- `AGENTS.md` — правила агентов (Grok / Claude). `CLAUDE.md` — короткий указатель. Субагенты: `agents/` → `npm run sync:agents`.
+
 ## Version
 
 SemVer в `package.json`. Перед коммитом: `npm run bump:dev` (WIP) / `bump:patch` / `bump:minor`.
