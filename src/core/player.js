@@ -591,7 +591,10 @@ export function tryCrawlEdge(S, p, dir){
   if (groundAhead(S, p, dir)) return 0;
   if (p.stance === 2){
     var da = dropAhead(S, p, dir);
-    if (da > T + 2 && tryDescend(S, p, dir)) return 2;
+    if (da > T + 2){
+      if (tryDescend(S, p, dir)) return 2;
+      return 0;                                    // обрыв: не кувыркаемся, ждём ↓
+    }
     if (da > 2){
       // обрыв ~1 тайл: лёжа (PRW) в него не влезает по ширине — скатываемся кувырком,
       // сужаясь до обычной ширины переката, а не замираем на кромке
@@ -640,10 +643,10 @@ function findDescend(p, want){
       if (!solidAt(px, gy + 2)){ col = Math.floor(px / T) - dir; break; }
     }
     if (col < 0 || !solidTile(col, Math.floor((gy + 2) / T))) continue;
-    var midTile = (col + 0.5) * T;
     var midX = p.x + p.w / 2;
-    if (dir > 0 && midX <= midTile) continue;
-    if (dir < 0 && midX >= midTile) continue;
+    // опора = центр коробки: достаточно стоять на последнем тайле.
+    // midTile отсекал лёжа (PRW>T/2) — губа уже под телом, центр ещё до середины
+    if (Math.floor(midX / T) !== col) continue;
     var cx = dir > 0 ? (col + 1) * T : col * T, f = -dir;
     var hb = hangBox(cx, gy, f, 'ledge', p);
     if (!rectFree(hb.x, hb.y, hb.w, hb.h)) continue;       // вис — коробка hang
