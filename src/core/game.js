@@ -196,7 +196,8 @@ function mkItemAt(S, cx, cy, kind){
   S.items.push({ id:allocId(S.items), x:cx, y:cy, kind:kind, got:false, ph:Math.random()*6.28 });
 }
 function mkEnemyAt(S, x, y, kind, loot, random){
-  S.enemies.push({ id:allocId(S.enemies), x:x, y:y-14, w: kind===2?14:11, h: kind===2?18:14,
+  var box = getAnimBox('enemy' + (kind | 0), 'idle');
+  S.enemies.push({ id:allocId(S.enemies), x:x, y:y-box.h, w:box.w, h:box.h,
                    x0:x-64, x1:x+64, v:26, kind:kind, tough: kind===2?2:1,
                    dir:1, dead:false, hitT:0, ph:0, vy:0,
                    loot: (loot && loot.length) ? loot.map(function(e){ return { kind:e.kind, qty:e.qty }; }) : [],

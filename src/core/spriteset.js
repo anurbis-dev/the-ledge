@@ -139,11 +139,15 @@ function cloneBox(b){
 }
 
 export function defaultAnimBox(id, anim){
-  if (id !== 'hero') return { w: 10, h: 14 };
-  if (anim === 'crouch' || anim === 'crouchWalk') return { w: C.W, h: C.CRH };
-  if (anim === 'prone') return { w: C.PRW, h: C.PRH };
-  if (anim === 'roll') return { w: C.W, h: C.RH };
-  return { w: C.W, h: C.H };
+  if (id === 'hero'){
+    if (anim === 'crouch' || anim === 'crouchWalk') return { w: C.W, h: C.CRH };
+    if (anim === 'prone') return { w: C.PRW, h: C.PRH };
+    if (anim === 'roll') return { w: C.W, h: C.RH };
+    return { w: C.W, h: C.H };
+  }
+  if (id === 'enemy2') return { w: 14, h: 18 };
+  if (id === 'enemy0' || id === 'enemy1') return { w: 11, h: 14 };
+  return { w: 10, h: 14 };
 }
 
 export function getAnimBox(id, anim){

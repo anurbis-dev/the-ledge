@@ -2,7 +2,7 @@
 // Shipped snapshot: levels, params, sprite anchors/boxes, optional settings/mix/talk/intro.
 // Per-browser localStorage is a draft overlay; newer savedAt wins (see persist.preferLocal).
 export var BAKED = {
-  "savedAt": 1787170763172,
+  "savedAt": 1787172993842,
   "levels": {
     "1": {
       "id": 1,
@@ -23,7 +23,7 @@ export var BAKED = {
       },
       "enemies": [
         [
-          920,
+          855,
           352,
           816,
           944,
@@ -35,11 +35,11 @@ export var BAKED = {
           352,
           2304,
           2464,
-          20555,
+          28777,
           1
         ],
         [
-          1811,
+          1829,
           352,
           1680,
           1840,
@@ -47,7 +47,7 @@ export var BAKED = {
           2
         ],
         [
-          2527,
+          2656,
           352,
           2496,
           2656,
@@ -55,11 +55,11 @@ export var BAKED = {
           0
         ],
         [
-          839,
+          976,
           612,
           176,
           496,
-          20555,
+          28777,
           1
         ],
         [
@@ -71,7 +71,7 @@ export var BAKED = {
           2
         ],
         [
-          1161,
+          1237,
           640,
           1072,
           1360,
@@ -83,22 +83,22 @@ export var BAKED = {
           640,
           1680,
           1968,
-          18297,
+          25616,
           1
         ],
         [
-          209,
+          243,
           356,
-          131,
-          259,
-          6,
+          179,
+          307,
+          26,
           2
         ]
       ],
       "fliers": [
         [
-          93,
-          174,
+          67,
+          176,
           48,
           112,
           26,
@@ -106,23 +106,23 @@ export var BAKED = {
         ],
         [
           800,
-          178,
+          183,
           800,
           896,
-          10341,
+          13960,
           1
         ],
         [
-          1602,
-          307,
+          1571,
+          306,
           1536,
           1632,
           2,
           2
         ],
         [
-          2171,
-          177,
+          2155,
+          152,
           2048,
           2176,
           32,
@@ -130,14 +130,14 @@ export var BAKED = {
         ],
         [
           2752,
-          173,
+          172,
           2576,
           2752,
-          11399,
+          15389,
           1
         ],
         [
-          389,
+          374,
           516,
           336,
           480,
@@ -145,7 +145,7 @@ export var BAKED = {
           2
         ],
         [
-          1277,
+          1294,
           512,
           1232,
           1344,
@@ -155,22 +155,22 @@ export var BAKED = {
       ],
       "spiders": [
         [
-          53,
+          52,
           8,
           0
         ],
         [
-          48,
+          41,
           14,
           1
         ],
         [
-          147,
+          152,
           14,
           2
         ],
         [
-          69,
+          67,
           16,
           0
         ],
@@ -180,7 +180,7 @@ export var BAKED = {
           1
         ],
         [
-          78,
+          81,
           11,
           2
         ],
@@ -905,7 +905,7 @@ export var BAKED = {
           "y0": 304,
           "y1": 400,
           "v": 26,
-          "dir": 1,
+          "dir": -1,
           "vert": true
         },
         {
@@ -918,7 +918,7 @@ export var BAKED = {
           "y0": 208,
           "y1": 208,
           "v": 26,
-          "dir": -1,
+          "dir": 1,
           "vert": false
         },
         {
@@ -931,7 +931,7 @@ export var BAKED = {
           "y0": 576,
           "y1": 576,
           "v": 24,
-          "dir": 1,
+          "dir": -1,
           "vert": false
         }
       ],
@@ -89115,11 +89115,14 @@ export var BAKED = {
             "base": null,
             "vary": null,
             "deco": null,
+            "tint": null,
+            "grades": [],
             "cover": null,
             "coverVary": null,
             "stamp": null,
             "stampVar": null,
             "stampDeco": null,
+            "stampTint": null,
             "_stampW": 0,
             "_stampH": 0
           },
@@ -89144,11 +89147,14 @@ export var BAKED = {
             "base": null,
             "vary": null,
             "deco": null,
+            "tint": null,
+            "grades": [],
             "cover": null,
             "coverVary": null,
             "stamp": null,
             "stampVar": null,
             "stampDeco": null,
+            "stampTint": null,
             "_stampW": 0,
             "_stampH": 0
           },
@@ -89173,11 +89179,14 @@ export var BAKED = {
             "base": null,
             "vary": null,
             "deco": null,
+            "tint": null,
+            "grades": [],
             "cover": null,
             "coverVary": null,
             "stamp": null,
             "stampVar": null,
             "stampDeco": null,
+            "stampTint": null,
             "_stampW": 0,
             "_stampH": 0
           },
@@ -89202,11 +89211,14 @@ export var BAKED = {
             "base": null,
             "vary": null,
             "deco": null,
+            "tint": null,
+            "grades": [],
             "cover": null,
             "coverVary": null,
             "stamp": null,
             "stampVar": null,
             "stampDeco": null,
+            "stampTint": null,
             "_stampW": 0,
             "_stampH": 0
           },
@@ -116063,11 +116075,14 @@ export var BAKED = {
               0,
               0
             ],
+            "tint": null,
+            "grades": [],
             "cover": null,
             "coverVary": null,
             "stamp": null,
             "stampVar": null,
             "stampDeco": null,
+            "stampTint": null,
             "_stampW": 0,
             "_stampH": 0
           },
@@ -116095,11 +116110,14 @@ export var BAKED = {
             "base": null,
             "vary": null,
             "deco": null,
+            "tint": null,
+            "grades": [],
             "cover": null,
             "coverVary": null,
             "stamp": null,
             "stampVar": null,
             "stampDeco": null,
+            "stampTint": null,
             "_stampW": 0,
             "_stampH": 0
           },
@@ -116127,11 +116145,14 @@ export var BAKED = {
             "base": null,
             "vary": null,
             "deco": null,
+            "tint": null,
+            "grades": [],
             "cover": null,
             "coverVary": null,
             "stamp": null,
             "stampVar": null,
             "stampDeco": null,
+            "stampTint": null,
             "_stampW": 0,
             "_stampH": 0
           },
@@ -116159,11 +116180,14 @@ export var BAKED = {
             "base": null,
             "vary": null,
             "deco": null,
+            "tint": null,
+            "grades": [],
             "cover": null,
             "coverVary": null,
             "stamp": null,
             "stampVar": null,
             "stampDeco": null,
+            "stampTint": null,
             "_stampW": 0,
             "_stampH": 0
           },
@@ -116185,11 +116209,14 @@ export var BAKED = {
             "base": null,
             "vary": null,
             "deco": null,
+            "tint": null,
+            "grades": [],
             "cover": null,
             "coverVary": null,
             "stamp": null,
             "stampVar": null,
             "stampDeco": null,
+            "stampTint": null,
             "_stampW": 0,
             "_stampH": 0
           }
@@ -116495,6 +116522,26 @@ export var BAKED = {
           "w": 10,
           "h": 25
         }
+      }
+    },
+    "enemy0": {
+      "idle": {
+        "origin": {
+          "x": 3,
+          "y": 3
+        },
+        "grab": {
+          "x": 8,
+          "y": 4
+        },
+        "box": {
+          "w": 10,
+          "h": 17
+        }
+      },
+      "_meta": {
+        "fw": 16,
+        "fh": 20
       }
     }
   }

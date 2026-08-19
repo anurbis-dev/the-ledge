@@ -2,18 +2,36 @@ import { C } from '../core/constants.js';
 import { runtime } from '../core/runtime.js';
 import { rectFree, solidAt } from '../core/map.js';
 import { damage, slopeUnder } from '../core/player.js';
+import { getAnimBox } from '../core/spriteset.js';
 import { dropLootFor } from './loot.js';
 import { GEAR, wearGear } from './gear.js';
+
+export function enemyBox(kind){
+  return getAnimBox('enemy' + (kind | 0), 'idle');
+}
+
+export function applyEnemyBox(e){
+  var b, feet, restFeet;
+  if (!e) return;
+  b = enemyBox(e.kind);
+  if (e.w === b.w && e.h === b.h) return;
+  feet = e.y + e.h;
+  restFeet = e.baseY !== undefined ? e.baseY + e.h : feet;
+  e.w = b.w;
+  e.h = b.h;
+  e.y = feet - e.h;
+  if (e.baseY !== undefined) e.baseY = restFeet - e.h;
+}
 
 export function mkEnemies(){
   var LV = runtime.LV;
   return (LV.enemies || []).map(function(a, i){
     var kind = a[5] !== undefined ? a[5] : (i % 3);
-    var hh = kind === 2 ? 18 : 14, ww = kind === 2 ? 14 : 11;
+    var box = enemyBox(kind);
     var loot = Array.isArray(a[6])
       ? a[6].map(function(e){ return { kind: e[0], qty: Math.max(1, e[1] | 0 || 1) }; })
       : [];
-    return { id:i, x:a[0], y:a[1]-hh, w:ww, h:hh, x0:a[2], x1:a[3],
+    return { id:i, x:a[0], y:a[1]-box.h, w:box.w, h:box.h, x0:a[2], x1:a[3],
              v: a[4] * (kind === 1 ? 1.4 : (kind === 2 ? 0.7 : 1)),
              kind: kind, tough: kind === 2 ? 2 : 1,
              dir: i%2 ? -1 : 1, dead:false, hitT:0, ph:i*1.3, vy:0,
@@ -24,6 +42,7 @@ export function stepEnemies(S, dt){
   var p = S.p;
   for (var i = 0; i < S.enemies.length; i++){
     var e = S.enemies[i];
+    applyEnemyBox(e);
     if (e.roomHide) continue;
     if (e.dead){ e.hitT -= dt; continue; }
     if (e.hitT > 0){ e.hitT -= dt; }
