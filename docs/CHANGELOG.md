@@ -1,3 +1,3 @@
 # Changelog (unreleased)
 
-- Origin/box/Hands спрайта пишутся Bake в `BAKED.sprites` (без PNG). Второй кувырок снова берёт коробку действия (`forceHeroBox`, `rollAng` сбрасывается на старте).
+- Редактор: кисть Color — hue/sat/brightness/contrast на клетку без отдельных вариантов тайла. LMB красит, RMB сбрасывает, Ctrl+click берёт.

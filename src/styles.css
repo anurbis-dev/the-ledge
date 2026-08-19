@@ -55,7 +55,8 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
 .ed-body{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding:6px}
 .ed-pal{display:flex;gap:4px;flex-wrap:wrap;align-content:flex-start;
   overflow:auto;flex:1;min-height:0}
-.ed-extra{display:flex;gap:4px;flex-wrap:wrap;padding-top:4px}
+.ed-extra{display:flex;gap:4px;flex-wrap:wrap;padding-top:4px;align-items:center}
+.ed-extra .ed-color-sl,.ed-extra .bn-slider{width:132px;flex:1 1 120px;height:26px}
 .ed-extra:empty,.ed-pal:empty,.ed-pal[hidden],.ed-extra[hidden]{display:none!important}
 .ed-swatch{padding:2px;border-radius:6px;border:2px solid #4a4370;
   background:#1a152ecc;display:flex;align-items:center;justify-content:center;flex:0 0 auto}

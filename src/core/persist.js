@@ -87,7 +87,7 @@ function packStash(s){
     layers: (s.layers || []).map(function(L){
       var o = {};
       for (var k in L){
-        if (k === 'base' || k === 'vary' || k === 'deco' || k === 'cover' || k === 'coverVary' || k === 'stamp' || k === 'stampVar' || k === 'stampDeco')
+        if (k === 'base' || k === 'vary' || k === 'deco' || k === 'tint' || k === 'cover' || k === 'coverVary' || k === 'stamp' || k === 'stampVar' || k === 'stampDeco' || k === 'stampTint')
           o[k] = packU8(L[k]);
         else if (k === 'roomOf') continue;
         else if (k.charAt(0) !== '_' || k === '_stampW' || k === '_stampH')
@@ -105,7 +105,7 @@ function unpackStash(s){
     layers: (s.layers || []).map(function(L){
       var o = {};
       for (var k in L){
-        if (k === 'base' || k === 'vary' || k === 'deco' || k === 'cover' || k === 'coverVary' || k === 'stamp' || k === 'stampVar' || k === 'stampDeco')
+        if (k === 'base' || k === 'vary' || k === 'deco' || k === 'tint' || k === 'cover' || k === 'coverVary' || k === 'stamp' || k === 'stampVar' || k === 'stampDeco' || k === 'stampTint')
           o[k] = unpackU8(L[k]);
         else o[k] = L[k];
       }

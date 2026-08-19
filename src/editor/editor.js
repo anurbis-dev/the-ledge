@@ -11,7 +11,8 @@ import { isSlopeBrush, fitSlopeStroke } from './slopes.js';
 import { tileThumb, objThumb, paintObjIcon } from './thumbs.js';
 import { spriteThumb } from '../render/sprite-bake.js';
 import { renderParams, resetAllParams } from './params.js';
-import { getActiveLayer, getLayers, layerTile, layerVar, layerDeco, layerTileRaw, layerVarRaw, isTileLayer } from '../core/layers.js';
+import { getActiveLayer, getLayers, layerTile, layerVar, layerDeco, layerTileRaw, layerVarRaw, isTileLayer, internGrade, layerGrade, copyGrade, GRADE_DEF } from '../core/layers.js';
+import { initSliders } from './slider.js';
 import {
   customSpecs, addTile, loadImageFile, sliceSheet, guessOverlay, bindTileset, isCustomId,
   getTileDef, updateTile
@@ -57,6 +58,7 @@ export var ED = {
   clickCell: null, clickBrush: -1,
   holdT: null, holdErased: false, holdX: 0, holdY: 0,
   dragObj: null, showGeo: false, cover: false, stampCover: false,
+  color: false, grade: { hue: 0, sat: 1, bright: 0.15, contrast: 1 },
   sel: null, dragPal: null, giz: false,
   hitObj: null, pendHit: null,
   selTiles: null, boxing: null, moving: null, ctrlGest: null, clip: null
@@ -550,10 +552,31 @@ function fillPal(){
   }
 }
 
+function extraSlider(parent, label, min, max, step, val, set){
+  var wrap = document.createElement('label');
+  wrap.className = 'slider-wrap ed-color-sl';
+  wrap.innerHTML = '<div class="slider-label-overlay"><span>' + label + '</span><span></span></div>';
+  var inp = document.createElement('input');
+  inp.type = 'range'; inp.min = min; inp.max = max; inp.step = step;
+  inp.value = val;
+  inp.addEventListener('input', function(){ set(+inp.value); });
+  wrap.appendChild(inp);
+  parent.appendChild(wrap);
+}
+
 function fillExtra(){
   if (!edExtra) return;
   edExtra.textContent = '';
   if (ED.tab !== 'tile' || ED.tool === 'obj') return;
+  if (ED.color){
+    extraSlider(edExtra, 'Hue', -180, 180, 1, ED.grade.hue || 0, function(v){ ED.grade.hue = v; });
+    extraSlider(edExtra, 'Sat', 0, 2, 0.05, ED.grade.sat == null ? 1 : ED.grade.sat, function(v){ ED.grade.sat = v; });
+    extraSlider(edExtra, 'Bright', -1, 1, 0.05, ED.grade.bright || 0, function(v){ ED.grade.bright = v; });
+    extraSlider(edExtra, 'Contrast', 0, 2, 0.05, ED.grade.contrast == null ? 1 : ED.grade.contrast, function(v){ ED.grade.contrast = v; });
+    extraBtn(edExtra, 'Reset', false, function(){ ED.grade = copyGrade(GRADE_DEF); });
+    initSliders(edExtra);
+    return;
+  }
   var spec = palSpec();
   if (spec && spec.id === G.WATER){
     for (var s = 0; s < WATER_SHADE_PRESETS.length; s++){
@@ -616,6 +639,7 @@ export function edOpen(){
   showLayersPanel(true);
   syncGeoBtn();
   syncCoverBtn();
+  syncColorBtn();
   dispatchEvent(new Event('resize'));
   flushLevel(world());
   pushBake({ silent: true }).catch(function(){});
@@ -923,6 +947,11 @@ export function edApply(cell, isClick){
   if (ED.tool === 'tile'){
     var act = getActiveLayer();
     if (act && !isTileLayer(act)) return;
+    if (ED.color && !ED.cover){
+      G.setTint(cell.c, cell.r, internGrade(act, ED.grade));
+      markLevelDirty();
+      return;
+    }
     var spec = palSpec();
     if (!spec) return;
     if (spec.overlay && !ED.cover){
@@ -988,6 +1017,11 @@ function edErase(cell, wcell){
   ED.last = key;
   if (inCoverPaint()){
     G.setCover(cell.c, cell.r, 0);
+    markLevelDirty();
+    return;
+  }
+  if (ED.color && ED.tool === 'tile'){
+    G.setTint(cell.c, cell.r, 0);
     markLevelDirty();
     return;
   }
@@ -1253,6 +1287,21 @@ export function edDrawOverlay(){
     }
     ctx.globalAlpha = 1;
   }
+  if (ED.color && ED.tool === 'tile'){
+    var Lcol = getActiveLayer(), cg, oxc, oyc, cc2, rr2;
+    if (Lcol && isTileLayer(Lcol)){
+      for (rr2 = r0; rr2 <= r1; rr2++){
+        for (cc2 = c0; cc2 <= c1; cc2++){
+          cg = layerGrade(Lcol, cc2, rr2);
+          if (!cg) continue;
+          oxc = cc2 * T - camx; oyc = rr2 * T - camy;
+          ctx.globalAlpha = 0.28;
+          rc(oxc, oyc, T, T, gradeWash(cg));
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
   var box = ED.boxing || ED.selTiles;
   if (box){
     var bc0 = Math.min(box.c0, box.c1), br0 = Math.min(box.r0, box.r1);
@@ -1286,12 +1335,16 @@ export function edDrawOverlay(){
     label = (coverLayerOk(L) ? 'Cover' : 'Cover · collide') + ' · ' + label;
     if (ED.stampCover) label = 'Stamp · ' + label;
   }
+  if (ED.color && ED.tool === 'tile'){
+    label = 'Color · ' + gradeLabel(ED.grade);
+    if (L) label = L.name + ' · ' + label;
+  }
   if (spec && spec.overlay) label += ' · overlay';
   if (ED.selTiles && !ED.boxing) label = 'Select · move / Del';
   if (ED.boxing) label = 'Select';
   if (ED.moving) label = ED.moving.copy ? 'Copy tiles' : 'Move tiles';
   if (ED.clip && !ED.selTiles) label += ' · copied';
-  if (ED.erasing) label = ED.cover ? 'Cover erase' : 'Erase';
+  if (ED.erasing) label = ED.cover ? 'Cover erase' : (ED.color ? 'Color erase' : 'Erase');
   if (ED.dragObj) label = ED.dragObj.copied ? 'Copy · ' + ED.dragObj.entry.type : 'Move · ' + ED.dragObj.entry.type;
   if (ED.hover && G.isWaterV(brushTile(ED.hover.c, ED.hover.r)))
     label += ' · ' + shadePresetName(getPondShade(ED.hover.c, ED.hover.r));
@@ -1305,6 +1358,8 @@ export function edDrawOverlay(){
       var hs = specById(hid);
       label += ' · +' + (hs ? hs.name : hid);
     }
+    var hg = G.gradeAt(ED.hover.c, ED.hover.r);
+    if (hg) label += ' · ' + gradeLabel(hg);
   }
   var col = ED.erasing ? '#ff7a6a' : (L && L.locked ? '#ff7a6a' : '#ffd9a0');
   for (var i = 0; i < label.length && i < 22; i++)
@@ -1336,14 +1391,16 @@ function readCells(c0, r0, c1, r1){
         dc: c - c0, dr: r - r0,
         v: L ? layerTileRaw(L, c, r) : G.tileAt(c, r),
         va: L ? layerVarRaw(L, c, r) : G.varAt(c, r),
-        d: brushDeco(c, r)
+        d: brushDeco(c, r),
+        g: copyGrade(layerGrade(L, c, r))
       });
   return out;
 }
-function writeCell(c, r, v, va, d){
+function writeCell(c, r, v, va, d, g){
   G.setTile(c, r, v || 0);
   if (va) G.setVar(c, r, va);
   G.setDeco(c, r, d || 0);
+  G.setTint(c, r, v ? internGrade(getActiveLayer(), g) : 0);
 }
 function eraseSelTiles(){
   if (!ED.selTiles) return;
@@ -1371,7 +1428,7 @@ function pasteSelTiles(){
   beginOp();
   for (i = 0; i < ED.clip.cells.length; i++){
     p = ED.clip.cells[i];
-    writeCell(c0 + p.dc, r0 + p.dr, p.v, p.va, p.d);
+    writeCell(c0 + p.dc, r0 + p.dr, p.v, p.va, p.d, p.g);
   }
   ED.selTiles = { c0: c0, r0: r0, c1: c0 + ED.clip.w, r1: r0 + ED.clip.h };
   G.buildGates(world());
@@ -1397,7 +1454,8 @@ function snapshotCell(c, r){
     c: c, r: r,
     v: L ? layerTileRaw(L, c, r) : G.tileAt(c, r),
     va: L ? layerVarRaw(L, c, r) : G.varAt(c, r),
-    d: brushDeco(c, r)
+    d: brushDeco(c, r),
+    g: copyGrade(layerGrade(L, c, r))
   };
 }
 function applyMoveSel(cell){
@@ -1410,12 +1468,12 @@ function applyMoveSel(cell){
   if (m.under){
     for (i = 0; i < m.under.length; i++){
       u = m.under[i];
-      writeCell(u.c, u.r, u.v, u.va, u.d);
+      writeCell(u.c, u.r, u.v, u.va, u.d, u.g);
     }
   } else if (!m.copy){
     for (i = 0; i < m.cells.length; i++){
       p = m.cells[i];
-      writeCell(m.fromC + p.dc, m.fromR + p.dr, 0, 0, 0);
+      writeCell(m.fromC + p.dc, m.fromR + p.dr, 0, 0, 0, null);
     }
   }
   m.under = [];
@@ -1425,14 +1483,29 @@ function applyMoveSel(cell){
   }
   for (i = 0; i < m.cells.length; i++){
     p = m.cells[i];
-    writeCell(nc + p.dc, nr + p.dr, p.v, p.va, p.d);
+    writeCell(nc + p.dc, nr + p.dr, p.v, p.va, p.d, p.g);
   }
   m.posC = nc; m.posR = nr;
   ED.selTiles = { c0: nc, r0: nr, c1: nc + m.w, r1: nr + m.h };
   markLevelDirty();
 }
 
+function gradeLabel(g){
+  if (!g) return 'h0';
+  return 'h' + (g.hue || 0) +
+    ' s' + (g.sat == null ? 1 : g.sat) +
+    ' b' + (g.bright || 0) +
+    ' c' + (g.contrast == null ? 1 : g.contrast);
+}
+function gradeWash(g){
+  var h = ((g.hue || 0) + 360) % 360;
+  var l = Math.max(22, Math.min(68, 48 + (g.bright || 0) * 36));
+  var s = Math.max(20, Math.min(80, 40 + ((g.sat == null ? 1 : g.sat) - 1) * 40));
+  return 'hsl(' + (h | 0) + ',' + (s | 0) + '%,' + (l | 0) + '%)';
+}
+
 function startHold(cell, wcell){
+  if (ED.color) return;
   clearHold();
   ED.holdT = setTimeout(function(){
     ED.holdT = null;
@@ -1470,7 +1543,17 @@ function findObjPal(type, obj){
   }
   return 0;
 }
+function pickColor(cell){
+  var g = layerGrade(getActiveLayer(), cell.c, cell.r);
+  ED.grade = g ? copyGrade(g) : copyGrade(GRADE_DEF);
+  edRefresh();
+}
+
 function eyedrop(e, cell, wcell){
+  if (ED.color && ED.tool === 'tile'){
+    pickColor(cell);
+    return true;
+  }
   var hit = (ED.cover && ED.tool === 'tile') ? null : cycleHit(wcell.x, wcell.y);
   if (hit){
     setTab('obj');
@@ -1610,6 +1693,10 @@ cv.addEventListener('pointerdown', function(e){
   closeNpcTalk();
   closeBoulderSettings();
   if (e.ctrlKey || e.metaKey){
+    if (ED.color && ED.tool === 'tile'){
+      pickColor(cell);
+      return;
+    }
     if (ED.tool !== 'tile' || ED.cover){
       eyedrop(e, cell, wcell);
       return;
@@ -2029,18 +2116,39 @@ function syncGeoBtn(){
 }
 function toggleCover(){
   ED.cover = !ED.cover;
+  if (ED.cover && ED.color){
+    ED.color = false;
+    syncColorBtn();
+  }
   setEditorRooms(ED.cover);
   syncCoverBtn();
+  edRefresh();
 }
 function syncCoverBtn(){
   var b = document.getElementById('edCover');
   if (b) b.classList.toggle('on', !!ED.cover);
+}
+function toggleColor(){
+  ED.color = !ED.color;
+  if (ED.color && ED.cover){
+    ED.cover = false;
+    setEditorRooms(false);
+    syncCoverBtn();
+  }
+  syncColorBtn();
+  edRefresh();
+}
+function syncColorBtn(){
+  var b = document.getElementById('edColor');
+  if (b) b.classList.toggle('on', !!ED.color);
 }
 
 var bGeo = document.getElementById('edGeo');
 if (bGeo) bGeo.addEventListener('click', function(){ toggleGeo(); });
 var bCover = document.getElementById('edCover');
 if (bCover) bCover.addEventListener('click', function(){ toggleCover(); });
+var bColor = document.getElementById('edColor');
+if (bColor) bColor.addEventListener('click', function(){ toggleColor(); });
 
 var bEdit = document.getElementById('bEdit');
 if (bEdit) bEdit.addEventListener('click', function(){

@@ -5,7 +5,7 @@ import {
   SLL4A, SLL4B, SLL4C, SLL4D, SLRCA, SLRCB, SLLCB, SLLCA, PLANK, GIVE
 } from './constants.js';
 import { runtime, setWorld, hooks, ensureMap, mapIx, inMap, mapMinC, mapMaxC, mapMinR, mapMaxR } from './runtime.js';
-import { getActiveLayer, getLayers, isTileLayer, wrapIndex, ensureStamp, ensureDeco } from './layers.js';
+import { getActiveLayer, getLayers, isTileLayer, wrapIndex, ensureStamp, ensureDeco, ensureTint, internGrade, layerTintRaw, layerGrade } from './layers.js';
 import { COVER_AIR, ensureCover, coverRaw, coverVarRaw, stepRooms } from './rooms.js';
 import {
   isHalfV, isBarV, ladderTop, isSlopeV, isWaterV, isFlowV, isWetV, slopeSurfaceY,
@@ -69,6 +69,7 @@ function setTile(c, r, v){
     var wix = wrapIndex(L, c, r);
     if (L.stamp[wix] !== v) L.stampVar[wix] = 0;
     L.stamp[wix] = v;
+    if (!v && L.stampTint) L.stampTint[wix] = 0;
     L._stampCan = null;
     if (hooks.onSetTile) hooks.onSetTile(c, r);
     return true;
@@ -81,6 +82,9 @@ function setTile(c, r, v){
   var ix = mapIx(c, r);
   if (buf[ix] !== v) vr[ix] = 0;   // смена типа тайла сбрасывает ручной узор
   buf[ix] = v;
+  if (!v){
+    if (L && L.tint) L.tint[ix] = 0;
+  }
   if (hooks.onSetTile) hooks.onSetTile(c, r);
   return true;
 }
@@ -130,6 +134,35 @@ function decoAt(c, r){
   if (L.wrap && L.stampDeco) return L.stampDeco[wrapIndex(L, c, r)] || 0;
   if (!L.deco || !inMap(c, r)) return 0;
   return L.deco[mapIx(c, r)] || 0;
+}
+
+function setTint(c, r, v){
+  var L = getActiveLayer();
+  if (L && L.locked) return false;
+  if (L && !isTileLayer(L)) return false;
+  v = v & 255;
+  if (L && L.wrap){
+    ensureStamp(L);
+    if (!L.stampTint) L.stampTint = new Uint8Array(L.stamp.length);
+    L.stampTint[wrapIndex(L, c, r)] = v;
+    L._stampCan = null;
+    if (hooks.onSetTile) hooks.onSetTile(c, r);
+    return true;
+  }
+  if (!inMap(c, r) && !v) return false;
+  ensureMap(c, r);
+  if (!inMap(c, r)) return false;
+  ensureTint(L);
+  if (!L || !L.tint) return false;
+  L.tint[mapIx(c, r)] = v;
+  if (hooks.onSetTile) hooks.onSetTile(c, r);
+  return true;
+}
+function tintAt(c, r){
+  return layerTintRaw(getActiveLayer(), c, r);
+}
+function gradeAt(c, r){
+  return layerGrade(getActiveLayer(), c, r);
 }
 
 function setCover(c, r, v){
@@ -206,6 +239,7 @@ export const GAME = {
   solidTile, ladderTile, solidAt, ladderAt,
   setTile, varAt, setVar, varR,
   setDeco, decoAt,
+  setTint, tintAt, gradeAt, internGrade,
   COVER_AIR, setCover, setCoverVar, coverRaw, coverVarRaw,
   buildGates: function(S){ buildGates(S); },
   mkItemAt, mkEnemyAt, mkFlierAt, mkSpiderAt, mkTorchAt, mkChestAt, mkTendrilAt,

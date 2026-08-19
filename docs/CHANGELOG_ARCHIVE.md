@@ -1,5 +1,9 @@
 # Changelog archive
 
+## 0.1.0-dev.81
+
+- Origin/box/Hands спрайта пишутся Bake в `BAKED.sprites` (без PNG). Второй кувырок снова берёт коробку действия (`forceHeroBox`, `rollAng` сбрасывается на старте).
+
 ## 0.1.0-dev.80
 
 - Камера: мир в целых px, доля — CSS-сдвиг буфера 321×181 в `#view` (шаг экрана). HUD на `#h`. `C.CAM_SUBPX` (Params, 1 по умолчанию).

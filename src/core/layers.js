@@ -49,6 +49,109 @@ export function layerCssFilter(L){
   return 'hue-rotate(' + hue + 'deg) saturate(' + sat + ') brightness(' + br + ')';
 }
 
+export var GRADE_DEF = { hue: 0, sat: 1, bright: 0, contrast: 1 };
+
+export function copyGrade(g){
+  if (!g) return { hue: 0, sat: 1, bright: 0, contrast: 1 };
+  return {
+    hue: g.hue || 0,
+    sat: g.sat == null ? 1 : g.sat,
+    bright: g.bright || 0,
+    contrast: g.contrast == null ? 1 : g.contrast
+  };
+}
+
+export function gradeCssFilter(g){
+  if (!g) return '';
+  var hue = g.hue || 0;
+  var sat = g.sat == null ? 1 : g.sat;
+  var br = 1 + (g.bright || 0);
+  var ct = g.contrast == null ? 1 : g.contrast;
+  if (!hue && sat === 1 && Math.abs(br - 1) < 0.001 && Math.abs(ct - 1) < 0.001) return '';
+  return 'hue-rotate(' + hue + 'deg) saturate(' + sat + ') brightness(' + br + ') contrast(' + ct + ')';
+}
+
+function qn(v, step){
+  return Math.round(v / step) * step;
+}
+
+export function quantizeGrade(g){
+  g = copyGrade(g);
+  g.hue = qn(g.hue, 1);
+  g.sat = qn(g.sat, 0.05);
+  g.bright = qn(g.bright, 0.05);
+  g.contrast = qn(g.contrast, 0.05);
+  return g;
+}
+
+export function isIdentityGrade(g){
+  if (!g) return true;
+  return !(g.hue || 0) && (g.sat == null || Math.abs(g.sat - 1) < 0.001) &&
+    Math.abs(g.bright || 0) < 0.001 && (g.contrast == null || Math.abs(g.contrast - 1) < 0.001);
+}
+
+function gradeSame(a, b){
+  return a.hue === b.hue && a.sat === b.sat && a.bright === b.bright && a.contrast === b.contrast;
+}
+
+function gradeDist(a, b){
+  var dh = a.hue - b.hue;
+  var ds = (a.sat - b.sat) * 90;
+  var db = (a.bright - b.bright) * 180;
+  var dc = (a.contrast - b.contrast) * 90;
+  return dh * dh + ds * ds + db * db + dc * dc;
+}
+
+function copyGrades(arr){
+  if (!arr || !arr.length) return [];
+  var out = [], i;
+  for (i = 0; i < arr.length; i++) out.push(copyGrade(arr[i]));
+  return out;
+}
+
+export function internGrade(L, g){
+  if (!L) return 0;
+  g = quantizeGrade(g);
+  if (isIdentityGrade(g)) return 0;
+  if (!L.grades) L.grades = [];
+  var i, best = 0, bd = 1e9, d;
+  for (i = 0; i < L.grades.length; i++){
+    if (gradeSame(L.grades[i], g)) return i + 1;
+    d = gradeDist(L.grades[i], g);
+    if (d < bd){ bd = d; best = i + 1; }
+  }
+  if (L.grades.length >= 255) return best || 1;
+  L.grades.push(g);
+  return L.grades.length;
+}
+
+export function gradeFromIndex(L, ix){
+  if (!L || !ix || !L.grades) return null;
+  return L.grades[ix - 1] || null;
+}
+
+export function ensureTint(L){
+  if (!L || !isTileLayer(L)) return;
+  var n = runtime.MAP_W * runtime.MAP_H;
+  if (!L.tint || L.tint.length !== n){
+    var old = L.tint;
+    L.tint = new Uint8Array(n);
+    if (old && old.length) L.tint.set(old.subarray(0, Math.min(old.length, n)));
+  }
+  if (!L.grades) L.grades = [];
+}
+
+export function layerTintRaw(L, c, r){
+  if (!L) return 0;
+  if (L.wrap && L.stampTint) return L.stampTint[wrapIndex(L, c, r)] || 0;
+  if (!L.tint || !inRange(c, r)) return 0;
+  return L.tint[(r - runtime.originR) * runtime.MAP_W + (c - runtime.originC)] || 0;
+}
+
+export function layerGrade(L, c, r){
+  return gradeFromIndex(L, layerTintRaw(L, c, r));
+}
+
 export function lastCollideIndex(){
   var ls = getLayers(), last = -1, i;
   for (i = 0; i < ls.length; i++) if (ls[i].collide) last = i;
@@ -138,7 +241,9 @@ export function initDefaultLayers(){
     wrap: false, wrapW: 8, wrapH: 8,
     hue: 0, sat: 1, bright: 0,
     base: runtime.base, vary: runtime.vary,
-    deco: new Uint8Array(runtime.MAP_W * runtime.MAP_H)
+    deco: new Uint8Array(runtime.MAP_W * runtime.MAP_H),
+    tint: new Uint8Array(runtime.MAP_W * runtime.MAP_H),
+    grades: []
   });
   var front = takeIds(defaultFront());
   for (i = 0; i < front.length; i++) runtime.layers.push(front[i]);
@@ -174,6 +279,8 @@ export function addLayer(name){
     base: new Uint8Array(runtime.MAP_W * runtime.MAP_H),
     vary: new Uint8Array(runtime.MAP_W * runtime.MAP_H),
     deco: new Uint8Array(runtime.MAP_W * runtime.MAP_H),
+    tint: new Uint8Array(runtime.MAP_W * runtime.MAP_H),
+    grades: [],
     cover: null, coverVary: null
   };
   var ix = (runtime.activeLayer | 0) + 1;
@@ -234,6 +341,8 @@ export function setLayerCollide(L, on){
       L.base = new Uint8Array(runtime.MAP_W * runtime.MAP_H);
       L.vary = new Uint8Array(runtime.MAP_W * runtime.MAP_H);
       L.deco = new Uint8Array(runtime.MAP_W * runtime.MAP_H);
+      L.tint = new Uint8Array(runtime.MAP_W * runtime.MAP_H);
+      if (!L.grades) L.grades = [];
     }
   }
   L.collide = !!on;
@@ -265,6 +374,7 @@ export function ensureStamp(L){
     L._stampW = s.w; L._stampH = s.h;
     if (!L.stampVar || L.stampVar.length !== n) L.stampVar = new Uint8Array(n);
     if (!L.stampDeco || L.stampDeco.length !== n) L.stampDeco = new Uint8Array(n);
+    if (!L.stampTint || L.stampTint.length !== n) L.stampTint = new Uint8Array(n);
     return;
   }
   var ow = L._stampW || 0;
@@ -273,7 +383,7 @@ export function ensureStamp(L){
     ow = L.wrapW || s.w;
     oh = (L.stamp.length / ow) | 0;
   }
-  var ns = new Uint8Array(n), nv = new Uint8Array(n), nd = new Uint8Array(n);
+  var ns = new Uint8Array(n), nv = new Uint8Array(n), nd = new Uint8Array(n), nt = new Uint8Array(n);
   var c, r, ix;
   if (L.stamp && ow && oh){
     for (r = 0; r < Math.min(oh, s.h); r++)
@@ -282,6 +392,7 @@ export function ensureStamp(L){
         ns[r * s.w + c] = L.stamp[ix] || 0;
         if (L.stampVar) nv[r * s.w + c] = L.stampVar[ix] || 0;
         if (L.stampDeco) nd[r * s.w + c] = L.stampDeco[ix] || 0;
+        if (L.stampTint) nt[r * s.w + c] = L.stampTint[ix] || 0;
       }
   } else if (L.base){
     for (r = 0; r < s.h; r++)
@@ -291,11 +402,13 @@ export function ensureStamp(L){
         ns[r * s.w + c] = L.base[ix] || 0;
         if (L.vary) nv[r * s.w + c] = L.vary[ix] || 0;
         if (L.deco) nd[r * s.w + c] = L.deco[ix] || 0;
+        if (L.tint) nt[r * s.w + c] = L.tint[ix] || 0;
       }
   }
   L.stamp = ns;
   L.stampVar = nv;
   L.stampDeco = nd;
+  L.stampTint = nt;
   L._stampW = s.w;
   L._stampH = s.h;
   L._stampCan = null;
@@ -318,6 +431,8 @@ export function setLayerWrap(L, on){
     L.base = new Uint8Array(runtime.MAP_W * runtime.MAP_H);
     L.vary = new Uint8Array(runtime.MAP_W * runtime.MAP_H);
     L.deco = new Uint8Array(runtime.MAP_W * runtime.MAP_H);
+    L.tint = new Uint8Array(runtime.MAP_W * runtime.MAP_H);
+    if (!L.grades) L.grades = [];
   }
   return true;
 }
@@ -408,8 +523,10 @@ function dumpLayer(L){
     amp: L.amp, y0: L.y0, color: L.color,
     period: L.period, hmin: L.hmin, hmax: L.hmax, col: L.col, colD: L.colD, seed: L.seed,
     base: copyBuf(L.base), vary: copyBuf(L.vary), deco: copyBuf(L.deco),
+    tint: copyBuf(L.tint), grades: copyGrades(L.grades),
     cover: copyBuf(L.cover), coverVary: copyBuf(L.coverVary),
     stamp: copyBuf(L.stamp), stampVar: copyBuf(L.stampVar), stampDeco: copyBuf(L.stampDeco),
+    stampTint: copyBuf(L.stampTint),
     _stampW: L._stampW || 0, _stampH: L._stampH || 0
   };
 }
@@ -424,8 +541,10 @@ function loadLayer(L){
     amp: L.amp, y0: L.y0, color: L.color,
     period: L.period, hmin: L.hmin, hmax: L.hmax, col: L.col, colD: L.colD, seed: L.seed,
     base: copyBuf(L.base), vary: copyBuf(L.vary), deco: copyBuf(L.deco),
+    tint: copyBuf(L.tint), grades: copyGrades(L.grades),
     cover: copyBuf(L.cover), coverVary: copyBuf(L.coverVary),
     stamp: copyBuf(L.stamp), stampVar: copyBuf(L.stampVar), stampDeco: copyBuf(L.stampDeco),
+    stampTint: copyBuf(L.stampTint),
     _stampW: L._stampW || 0, _stampH: L._stampH || 0,
     _roomsDirty: true
   };

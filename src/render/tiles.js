@@ -1,7 +1,7 @@
 import GAME from '../core/game.js';
 import { hooks } from '../core/runtime.js';
 import { COVER_AIR, coverRaw, coverVarRaw, roomCoverA, rebuildRooms } from '../core/rooms.js';
-import { getLayers, layerShown, lastCollideIndex, layerTileRaw, layerVarRaw, layerDeco, isTileLayer, wrapSize, layerCssFilter } from '../core/layers.js';
+import { getLayers, layerShown, lastCollideIndex, layerTileRaw, layerVarRaw, layerDeco, isTileLayer, wrapSize, layerCssFilter, layerGrade, gradeCssFilter } from '../core/layers.js';
 import { getTileDef, tileImage, tileFrameImage, tileFrameCount } from '../core/tileset.js';
 import { buildWater } from './fx.js';
 import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH, viewScale } from './ctx.js';
@@ -195,11 +195,49 @@ function blitWaves(c, x, y, deep){
     Math.round(x), Math.round(y - WAVE_PAD), T, WAVE_H);
   return true;
 }
+var _tintA = null, _tintB = null;
+function tintScratch(which, w){
+  var c = which === 'a' ? _tintA : _tintB;
+  if (!c || c.width !== w){
+    c = document.createElement('canvas');
+    c.width = w; c.height = w;
+    var g = c.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    if (which === 'a') _tintA = c; else _tintB = c;
+  }
+  return c;
+}
+function paintGraded(c, r, x, y, fn){
+  var css = gradeCssFilter(_L ? layerGrade(_L, c, r) : null);
+  if (!css){ fn(x, y); return; }
+  var p = PAD, w = T + p * 2;
+  var a = tintScratch('a', w), b = tintScratch('b', w);
+  var ga = a.getContext('2d'), gb = b.getContext('2d');
+  ga.setTransform(1, 0, 0, 1, 0, 0);
+  ga.globalAlpha = 1;
+  ga.globalCompositeOperation = 'source-over';
+  ga.filter = 'none';
+  ga.clearRect(0, 0, w, w);
+  var saved = getCtx();
+  setCtx(ga);
+  try { fn(p, p); } finally { setCtx(saved); }
+  gb.setTransform(1, 0, 0, 1, 0, 0);
+  gb.globalAlpha = 1;
+  gb.globalCompositeOperation = 'source-over';
+  gb.clearRect(0, 0, w, w);
+  gb.filter = css;
+  gb.drawImage(a, 0, 0);
+  gb.filter = 'none';
+  ctx.drawImage(b, Math.round(x - p), Math.round(y - p));
+}
+
 export function drawTile(c, r, x, y, dyn){
-  var v = tAt(c, r);
-  if (!isFrontId(v)) paintTileId(v, c, r, x, y, dyn);
-  var d = dAt(c, r);
-  if (d && !isFrontId(d)) paintTileId(d, c, r, x, y, dyn);
+  paintGraded(c, r, x, y, function(px, py){
+    var v = tAt(c, r);
+    if (!isFrontId(v)) paintTileId(v, c, r, px, py, dyn);
+    var d = dAt(c, r);
+    if (d && !isFrontId(d)) paintTileId(d, c, r, px, py, dyn);
+  });
 }
 function paintTileId(v, c, r, x, y, dyn){
   if (!v) return;
@@ -459,11 +497,13 @@ export function invalidateAll(){
 }
 
 function paintAny(c, r, x, y){
-  var v = tAt(c, r);
-  if (v) paintTileId(v, c, r, x, y, true);
-  if (_paintCover) return;
-  var d = dAt(c, r);
-  if (d) paintTileId(d, c, r, x, y, true);
+  paintGraded(c, r, x, y, function(px, py){
+    var v = tAt(c, r);
+    if (v) paintTileId(v, c, r, px, py, true);
+    if (_paintCover) return;
+    var d = dAt(c, r);
+    if (d) paintTileId(d, c, r, px, py, true);
+  });
 }
 function isDynId(v){
   return v === G.CRUMB || v === G.WATER || v === G.FALL || v === G.PLANK || v === G.GIVE;
@@ -480,11 +520,12 @@ function nearRoom8(L, c, r, rid){
   return false;
 }
 function paintHalo(c, r, x, y){
-  var v = tAt(c, r), d;
+  var v = tAt(c, r), d = dAt(c, r);
   if (isDynId(v)) return;
-  if (v && !isFrontId(v)) paintTileId(v, c, r, x, y, true);
-  d = dAt(c, r);
-  if (d && !isFrontId(d) && !isDynId(d)) paintTileId(d, c, r, x, y, true);
+  paintGraded(c, r, x, y, function(px, py){
+    if (v && !isFrontId(v)) paintTileId(v, c, r, px, py, true);
+    if (d && !isFrontId(d) && !isDynId(d)) paintTileId(d, c, r, px, py, true);
+  });
 }
 
 function coverCanOf(L, rid){
@@ -718,9 +759,13 @@ function drawFrontOn(L){
         if (ca > 0.98) continue;
         if (ca > 0.02) ctx.globalAlpha = 1 - ca;
         v = tAt(c, r);
-        if (v && isFrontId(v)) paintTileId(v, c, r, c * T - camx, r * T - camy, true);
         d = dAt(c, r);
-        if (d && isFrontId(d)) paintTileId(d, c, r, c * T - camx, r * T - camy, true);
+        if ((v && isFrontId(v)) || (d && isFrontId(d))){
+          paintGraded(c, r, c * T - camx, r * T - camy, function(px, py){
+            if (v && isFrontId(v)) paintTileId(v, c, r, px, py, true);
+            if (d && isFrontId(d)) paintTileId(d, c, r, px, py, true);
+          });
+        }
         if (ca > 0.02) ctx.globalAlpha = 1;
       }
     }
