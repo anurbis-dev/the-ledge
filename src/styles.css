@@ -190,10 +190,20 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
 .ed-field select,.ed-field input[type=color]{background:#150f26;color:#e9e4ff;border:1px solid #3a3460;
   border-radius:4px;font:inherit;font-size:11px;height:22px}
 #edInspectBody{padding:6px;display:flex;flex-direction:column;gap:5px}
-.ed-tileedit{width:280px;right:8px;top:48px;max-height:calc(100vh - 200px)}
+.ed-tileedit{width:300px;right:8px;top:48px;max-height:calc(100vh - 200px)}
 #edTileEditBody{padding:6px;display:flex;flex-direction:column;gap:6px}
 .ed-tilegeo{width:100%;height:auto;aspect-ratio:1;image-rendering:pixelated;image-rendering:crisp-edges;
   background:#1a1228;border:1px solid #3a3460;border-radius:4px;cursor:crosshair;touch-action:none}
+.ed-tilegeo.tool-erase{cursor:cell}
+.ed-tilegeo.tool-pick{cursor:copy}
+.ed-tilegeo.tool-hit{cursor:nwse-resize}
+.ed-tile-tools{display:flex;gap:4px}
+.ed-tile-tools .edb{flex:1;min-width:0;padding:0 4px}
+.ed-tile-swatches{display:flex;flex-wrap:wrap;gap:3px}
+.ed-tile-chip{width:14px;height:14px;padding:0;border:1px solid #3a3460;border-radius:2px;cursor:pointer}
+.ed-tile-chip.on{outline:1px solid #ffd9a0;outline-offset:1px}
+.ed-tile-hitlab{font-size:10px;color:#ffd0c4;line-height:1.35}
+.ed-tile-actions{display:flex;gap:4px;flex-wrap:wrap}
 .ed-tile-note{font-size:10px;color:#6a628f;line-height:1.35}
 .ed-swatch.deco{box-shadow:inset 0 -2px 0 #7fc47f}
 .ed-swatch.deco::after{content:"";position:absolute;right:2px;top:2px;width:5px;height:5px;

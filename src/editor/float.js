@@ -107,7 +107,7 @@ function ensureGrip(root){
 }
 
 function isChrome(t){
-  return !!(t && t.closest && t.closest('button, .edb, input, textarea, select, .eye, .bn-field, a'));
+  return !!(t && t.closest && t.closest('button, .edb, input, textarea, select, .eye, .bn-field, a, canvas, .ed-tilegeo, .ed-tile-chip'));
 }
 
 export function bindFloat(root){
@@ -201,6 +201,7 @@ export function bindFloat(root){
       return;
     }
     if (e.button === 2){
+      if (isChrome(e.target)) return;
       e.preventDefault();
       e.stopPropagation();
       startMove(e);
