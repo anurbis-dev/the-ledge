@@ -2,15 +2,18 @@ import GAME from '../core/game.js';
 import { ctx, cam, view, viewW, rc, lb, world, setFill, pushEntA, popEntA, entA } from './ctx.js';
 import { P } from './palette.js';
 import { drawItemIcon } from './icons.js';
-import { spriteFrameImage, getSpriteDef } from '../core/spriteset.js';
+import { spriteFrameImage, getSpriteDef, getFrameAnchor } from '../core/spriteset.js';
 
 function blitEntSprite(id, anim, frame, wx, wy, dir){
   var img = spriteFrameImage(id, anim, frame);
   if (!img) return false;
   var def = getSpriteDef(id);
   if (!def) return false;
-  var x = Math.round(wx - (def.ox || 0) - cam.x);
-  var y = Math.round(wy - (def.oy || 0) - cam.y);
+  var origin = getFrameAnchor(id, anim, frame, 'origin');
+  var ox = origin ? origin.x : (def.ox || 0);
+  var oy = origin ? origin.y : (def.oy || 0);
+  var x = Math.round(wx - ox - cam.x);
+  var y = Math.round(wy - oy - cam.y);
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   if (dir < 0){

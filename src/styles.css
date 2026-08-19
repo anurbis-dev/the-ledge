@@ -188,8 +188,14 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
 .ed-check{display:flex;align-items:center;gap:6px;font-size:11px;color:#cfc6ff}
 .ed-field{display:flex;align-items:center;justify-content:space-between;gap:6px;
   font-size:11px;color:#cfc6ff}
-.ed-field select,.ed-field input[type=color]{background:#150f26;color:#e9e4ff;border:1px solid #3a3460;
+.ed-field select,.ed-field input[type=color],.ed-field input[type=number]{background:#150f26;color:#e9e4ff;border:1px solid #3a3460;
   border-radius:4px;font:inherit;font-size:11px;height:22px}
+.ed-field input[type=number]{width:52px;padding:0 4px}
+.ed-tile-xy{display:flex;align-items:center;gap:4px}
+.ed-tile-xy .sep{color:#6a628f;min-width:8px;text-align:center}
+.ed-field.ed-anchor-o > span:first-child{color:#6ec8ff}
+.ed-field.ed-anchor-w > span:first-child{color:#ff7eb6}
+.ed-tilegeo.tool-anchor{cursor:move}
 #edInspectBody{padding:6px;display:flex;flex-direction:column;gap:5px}
 .ed-tileedit{width:300px;right:8px;top:48px;max-height:calc(100vh - 200px)}
 .ed-tileedit.ed-sprite{width:380px}

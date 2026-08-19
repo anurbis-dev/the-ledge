@@ -1,49 +1,11 @@
 /* Растр кадра из текущей процедурной картинки — стартовая точка для спрайт-редактора. */
 import { getCtx, setCtx } from './ctx.js';
 import { figure } from './figure.js';
-import {
-  K, IDLE_A, IDLE_B, RUN, JUMPP, FALLP, LANDP, SLIDEP, STUNP, SNAREP, ROLLP,
-  LADP0, LADP1, LADF0, LADF1, ATK0, ATK1, ATK2, CROUCH, CROUCH_W,
-  PRONE0, PRONE1, BARS0, BARS1, LADD0, LADD1, SWIM0, SWIM1,
-  HANGL, HANG_A, HANG_B, CL_K, VAULT_B, PICK_B, THROW_B, WALLPUSH,
-  BOW_STANCE, BOW_DRAW, BOW_RELEASE, GRAPPLE_D, GRAPPLE_U,
-  CROUCH_WALLPUSH, CROUCH_PICK, PRONE_PICK, DIVE0, DIVE1
-} from './poses.js';
+import { K } from './poses.js';
+import { HERO_POSES } from './sprite-anchors.js';
 import { paintTileIcon, paintObjIcon } from '../editor/thumbs.js';
 import { canvasToPng } from '../core/tileset.js';
 import { getSpriteDef, getSpriteFrameSrc, isSpriteFrameDirty } from '../core/spriteset.js';
-
-var HERO_POSES = {
-  idle: [IDLE_A, IDLE_B],
-  run: RUN,
-  jump: [JUMPP],
-  fall: [FALLP],
-  land: [LANDP],
-  slide: [SLIDEP],
-  crouch: [CROUCH],
-  crouchWalk: [CROUCH_W],
-  prone: [PRONE0, PRONE1],
-  wallPush: [WALLPUSH],
-  vault: [VAULT_B],
-  pick: [PICK_B],
-  throw: [THROW_B],
-  attack: [ATK0, ATK1, ATK2],
-  roll: [ROLLP],
-  stun: [STUNP],
-  snare: [SNAREP],
-  ladder: [LADP0, LADP1],
-  ladderF: [LADF0, LADF1],
-  ladderD: [LADD0, LADD1],
-  bars: [BARS0, BARS1],
-  swim: [SWIM0, SWIM1],
-  dive: [DIVE0, DIVE1],
-  hangLad: [HANGL],
-  hang: [HANG_A, HANG_B],
-  climb: CL_K,
-  bow: [BOW_STANCE, BOW_DRAW, BOW_RELEASE],
-  grapple: [GRAPPLE_D, GRAPPLE_U],
-  getup: [PRONE0, CROUCH, IDLE_A]
-};
 
 var FRONTAL = { ladderF: 1 };
 
@@ -100,6 +62,8 @@ export function bakeSpriteFrame(id, animId, frameI){
 }
 
 var bakeCache = {};
+
+export function clearBakeCache(){ bakeCache = {}; }
 
 export function bakeSpriteFrameSrc(id, animId, frameI){
   var k = id + ':' + animId + ':' + (frameI | 0);

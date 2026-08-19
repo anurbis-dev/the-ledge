@@ -9,10 +9,11 @@ import {
   BOW_STANCE, bowPose, bowHandOnString, bowReleaseFx,
   WALLPUSH, GRAPPLE_D, GRAPPLE_U
 } from './poses.js';
-import { figure, drawBow } from './figure.js';
+import { figure, drawBow, drawHeldWeapon } from './figure.js';
 import { torchPts } from './light.js';
 import { isBowHand, isHarpoonHand } from '../entities/gear.js';
-import { spriteFrameImage, getSpriteDef } from '../core/spriteset.js';
+import { spriteFrameImage, getSpriteDef, getFrameAnchor } from '../core/spriteset.js';
+import { defaultFrameAnchors } from './sprite-anchors.js';
 
 var G = GAME, C = G.C;
 
@@ -70,20 +71,81 @@ export function heroClip(p){
   return ['idle', Math.sin(animT * 2.6) > 0 ? 0 : 1];
 }
 
-function blitHeroSprite(img, def, wx, wy, facing){
+function frameOrigin(id, anim, i, def){
+  var o = getFrameAnchor(id, anim, i, 'origin');
+  if (o) return o;
+  return { x: def.ox, y: def.oy };
+}
+
+function frameWeapon(id, anim, i){
+  var w = getFrameAnchor(id, anim, i, 'weapon');
+  if (w) return w;
+  return defaultFrameAnchors(id, anim, i).weapon;
+}
+
+function blitHeroSprite(img, def, wx, wy, facing, origin){
+  var ox = origin ? origin.x : def.ox;
+  var oy = origin ? origin.y : def.oy;
   var fx = def.fx != null ? def.fx : 5;
-  var x = Math.round(wx - def.ox - cam.x);
-  var y = Math.round(wy - def.oy - cam.y);
+  var x = Math.round(wx - ox - cam.x);
+  var y = Math.round(wy - oy - cam.y);
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   if (facing < 0){
-    ctx.translate(x + def.ox + fx, y);
+    ctx.translate(x + ox + fx, y);
     ctx.scale(-1, 1);
-    ctx.drawImage(img, -(def.ox + fx), 0);
+    ctx.drawImage(img, -(ox + fx), 0);
   } else {
     ctx.drawImage(img, x, y);
   }
   ctx.restore();
+}
+
+function spriteLocalScreen(wx, wy, facing, origin, def, lx, ly){
+  var ox = origin.x, oy = origin.y, fx = def.fx != null ? def.fx : 5;
+  var sy = Math.round(wy - oy + ly - cam.y);
+  var sx;
+  if (facing < 0) sx = Math.round(wx + ox + 2 * fx - lx - cam.x);
+  else sx = Math.round(wx - ox + lx - cam.x);
+  return [sx, sy];
+}
+
+function heroWeaponState(p){
+  var bow = isBow(p), harp = isHarpoonHand(p);
+  var bowIdle = p.onGround && p.state === 'normal' && p.stance === 0 &&
+    p.atkT <= 0 && p.rollT <= 0 && p.pickT <= 0 && p.throwT <= 0 &&
+    p.landT <= 0 && !p.pushWall && Math.abs(p.vx) <= 8 && !p.inWater;
+  var bowHeld = bow && (p.bowT > 0 || bowIdle);
+  var hs = null, onBack = false;
+  if (harp){
+    if (p.grapple){
+      var ga = Math.atan2(p.grapple.y - (p.y + 8), p.grapple.x - (p.x + p.w / 2));
+      hs = { ang: ga, type: 'harpoon' };
+    } else onBack = true;
+  } else if (p.stick && !bow){
+    if (p.atkT > 0){
+      var tt = 1 - p.atkT / C.ATK_T;
+      var a0 = -2.1 + tt*3.5;
+      hs = { ang: p.facing > 0 ? a0 : Math.PI - a0,
+           type: p.gear.weapon && p.gear.weapon.type };
+    } else onBack = true;
+  } else if (bow && !bowHeld){
+    onBack = true;
+  }
+  return { hs: hs, onBack: onBack, bowHeld: bowHeld };
+}
+
+function overlayHeroWeapon(p, clip, def, wx, wy, facing, origin){
+  var st = heroWeaponState(p);
+  if (st.onBack || (!st.hs && !st.bowHeld)) return;
+  var weap = frameWeapon('hero', clip[0], clip[1]);
+  var xy = spriteLocalScreen(wx, wy, facing, origin, def, weap.x, weap.y);
+  if (st.bowHeld){
+    var bt = p.bowT > 0 ? (1 - p.bowT / C.BOW_ANIM_T) : 0;
+    drawBow({ hB: xy, hF: [xy[0] + facing * 6, xy[1]] }, facing, 0, bowHandOnString(bt), bowReleaseFx(bt));
+  } else if (st.hs){
+    drawHeldWeapon(xy[0], xy[1], st.hs.ang, st.hs.type);
+  }
 }
 
 function tryHeroSprite(p){
@@ -98,7 +160,9 @@ function tryHeroSprite(p){
   } else if (p.state === 'climb' && p.climb.kind === 'ledge'){
     wx = p.climb.cx; wy = p.climb.cy; facing = p.climb.facing;
   }
-  blitHeroSprite(img, def, wx, wy, facing);
+  var origin = frameOrigin('hero', clip[0], clip[1], def);
+  blitHeroSprite(img, def, wx, wy, facing, origin);
+  overlayHeroWeapon(p, clip, def, wx, wy, facing, origin);
   return true;
 }
 

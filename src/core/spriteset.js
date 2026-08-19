@@ -71,10 +71,12 @@ var byId = {};
 var i0;
 for (i0 = 0; i0 < SPRITE_DEFS.length; i0++) byId[SPRITE_DEFS[i0].id] = SPRITE_DEFS[i0];
 
-/* saved[spriteId][animId] = { frames: [src|null], dirty: [bool] } */
+/* saved[spriteId][animId] = { frames, dirty, origin:[{x,y}|null], weapon:[{x,y}|null] }
+   saved[spriteId]._meta = { fw, fh, ox, oy, fx } — оверрайд каталога. */
 var saved = {};
 var imgs = {};
 var onChange = null;
+var MIN_S = 8, MAX_S = 128;
 
 function animOf(def, animId){
   var i;
@@ -110,19 +112,36 @@ function loadAll(){
   }
 }
 
+function clonePts(arr){
+  var out = [], i, p;
+  if (!arr) return out;
+  for (i = 0; i < arr.length; i++){
+    p = arr[i];
+    out[i] = p && typeof p === 'object' ? { x: p.x | 0, y: p.y | 0 } : null;
+  }
+  return out;
+}
+
 function cloneSaved(src){
-  var out = {}, id, anim, rec;
+  var out = {}, id, anim, rec, m;
   if (!src) return out;
   for (id in src){
     if (!Object.prototype.hasOwnProperty.call(src, id)) continue;
     out[id] = {};
+    m = src[id] && src[id]._meta;
+    if (m && typeof m === 'object') out[id]._meta = {
+      fw: m.fw, fh: m.fh, ox: m.ox, oy: m.oy, fx: m.fx
+    };
     for (anim in src[id]){
       if (!Object.prototype.hasOwnProperty.call(src[id], anim)) continue;
+      if (anim === '_meta') continue;
       rec = src[id][anim];
       if (!rec) continue;
       out[id][anim] = {
         frames: (rec.frames || []).slice(),
-        dirty: (rec.dirty || []).slice()
+        dirty: (rec.dirty || []).slice(),
+        origin: clonePts(rec.origin),
+        weapon: clonePts(rec.weapon)
       };
     }
   }
@@ -162,15 +181,113 @@ export function bindSpriteset(hooks){
   onChange = hooks && hooks.onChange;
 }
 
-export function listSpriteDefs(){ return SPRITE_DEFS; }
+export function getSpriteMeta(id){
+  var b = byId[id], m;
+  if (!b) return null;
+  m = saved[id] && saved[id]._meta;
+  return {
+    fw: m && m.fw != null ? m.fw | 0 : b.fw,
+    fh: m && m.fh != null ? m.fh | 0 : b.fh,
+    ox: m && m.ox != null ? m.ox | 0 : b.ox,
+    oy: m && m.oy != null ? m.oy | 0 : b.oy,
+    fx: m && m.fx != null ? m.fx | 0 : (b.fx != null ? b.fx : 0)
+  };
+}
 
-export function getSpriteDef(id){ return byId[id] || null; }
+export function getSpriteDef(id){
+  var b = byId[id], m;
+  if (!b) return null;
+  m = getSpriteMeta(id);
+  if (!saved[id] || !saved[id]._meta) return b;
+  return {
+    id: b.id, name: b.name, kind: b.kind, anims: b.anims,
+    fw: m.fw, fh: m.fh, ox: m.ox, oy: m.oy, fx: m.fx
+  };
+}
+
+export function listSpriteDefs(){
+  return SPRITE_DEFS.map(function(d){ return getSpriteDef(d.id); });
+}
 
 export function spriteDefForKind(kind){
   var i;
   for (i = 0; i < SPRITE_DEFS.length; i++)
-    if (SPRITE_DEFS[i].kind === kind) return SPRITE_DEFS[i];
+    if (SPRITE_DEFS[i].kind === kind) return getSpriteDef(SPRITE_DEFS[i].id);
   return null;
+}
+
+function clampS(n, lo, hi){
+  n = n | 0;
+  if (n < lo) return lo;
+  if (n > hi) return hi;
+  return n;
+}
+
+function clampPt(p, fw, fh){
+  if (!p) return null;
+  return { x: clampS(p.x, 0, fw - 1), y: clampS(p.y, 0, fh - 1) };
+}
+
+function ensureRec(id, anim){
+  var def = byId[id], a = animOf(def, anim);
+  if (!def || !a) return null;
+  if (!saved[id]) saved[id] = {};
+  if (!saved[id][anim]) saved[id][anim] = { frames: [], dirty: [] };
+  return saved[id][anim];
+}
+
+export function getFrameAnchor(id, anim, i, kind){
+  var rec = recOf(id, anim), arr, p;
+  if (kind !== 'origin' && kind !== 'weapon') return null;
+  arr = rec && rec[kind];
+  p = arr && arr[i | 0];
+  return p ? { x: p.x | 0, y: p.y | 0 } : null;
+}
+
+export function setFrameAnchor(id, anim, i, kind, x, y){
+  var rec, meta;
+  if (kind !== 'origin' && kind !== 'weapon') return null;
+  rec = ensureRec(id, anim);
+  if (!rec) return null;
+  meta = getSpriteMeta(id);
+  i = i | 0;
+  if (!rec[kind]) rec[kind] = [];
+  rec[kind][i] = clampPt({ x: x, y: y }, meta.fw, meta.fh);
+  emit('anchor');
+  return rec[kind][i];
+}
+
+export function clearFrameAnchor(id, anim, i, kind){
+  var rec = recOf(id, anim);
+  if (!rec || (kind !== 'origin' && kind !== 'weapon') || !rec[kind]) return;
+  rec[kind][i | 0] = null;
+  emit('anchor');
+}
+
+export function setSpriteSize(id, fw, fh){
+  var def = byId[id], meta, rec, anim, i, p;
+  if (!def) return null;
+  fw = clampS(fw, MIN_S, MAX_S);
+  fh = clampS(fh, MIN_S, MAX_S);
+  if (!saved[id]) saved[id] = {};
+  if (!saved[id]._meta) saved[id]._meta = {};
+  saved[id]._meta.fw = fw;
+  saved[id]._meta.fh = fh;
+  meta = getSpriteMeta(id);
+  if (meta.ox > fw - 1) saved[id]._meta.ox = fw - 1;
+  if (meta.oy > fh - 1) saved[id]._meta.oy = fh - 1;
+  for (anim in saved[id]){
+    if (!Object.prototype.hasOwnProperty.call(saved[id], anim) || anim === '_meta') continue;
+    rec = saved[id][anim];
+    if (!rec) continue;
+    for (i = 0; i < 64; i++){
+      if (rec.origin && rec.origin[i]) rec.origin[i] = clampPt(rec.origin[i], fw, fh);
+      if (rec.weapon && rec.weapon[i]) rec.weapon[i] = clampPt(rec.weapon[i], fw, fh);
+    }
+    void p;
+  }
+  emit('size');
+  return getSpriteMeta(id);
 }
 
 function recOf(id, anim){
@@ -199,9 +316,8 @@ export function setSpriteFrame(id, anim, i, src, dirty){
   if (!def || !a) return null;
   i = i | 0;
   if (i < 0 || i >= a.n) return null;
-  if (!saved[id]) saved[id] = {};
-  if (!saved[id][anim]) saved[id][anim] = { frames: [], dirty: [] };
-  var rec = saved[id][anim];
+  var rec = ensureRec(id, anim);
+  if (!rec) return null;
   rec.frames[i] = src || '';
   rec.dirty[i] = dirty !== false && !!src;
   if (src) loadSrc(imgKey(id, anim, i), src);

@@ -110,22 +110,23 @@ export function figure(pt, facing, wag, frontal, rim, heldStick, backStick, gear
       rc(sx4 - 4, sy4 - 7, 8, 1, '#fff0b0'); rc(sx4 - 1, sy4 - 5, 2, 8, cc5[1]);
     }
   }
-  if (heldStick){
-    var ang = heldStick.ang, hx2 = pt.hF[0], hy2 = pt.hF[1];
-    var ex2 = hx2 + Math.cos(ang)*20, ey2 = hy2 + Math.sin(ang)*20;
-    var bx2 = hx2 - Math.cos(ang)*5, by2 = hy2 - Math.sin(ang)*5;
-    var wt5 = heldStick.type || 'stick';
-    var wc5 = P.gearCol[wt5] || [P.stickC, P.stickD];
-    var thin = wt5 === 'stick' || wt5 === 'spear';
-    lb([bx2,by2], [ex2,ey2], thin ? 2 : 3, wc5[1]);
-    lb([bx2,by2], [ex2,ey2], 1, wc5[0]);
-    if (!thin){                                      // гарда и навершие у клинков
-      var gx5 = hx2 + Math.cos(ang)*3, gy5 = hy2 + Math.sin(ang)*3;
-      lb([gx5 - Math.sin(ang)*4, gy5 + Math.cos(ang)*4],
-         [gx5 + Math.sin(ang)*4, gy5 - Math.cos(ang)*4], 2, wc5[1]);
-    }
-    rc(Math.round(ex2) - 1, Math.round(ey2) - 1, wt5 === 'spear' ? 3 : 2, 2, wc5[0]);
+  if (heldStick) drawHeldWeapon(pt.hF[0], pt.hF[1], heldStick.ang, heldStick.type);
+}
+
+export function drawHeldWeapon(hx2, hy2, ang, type){
+  var ex2 = hx2 + Math.cos(ang)*20, ey2 = hy2 + Math.sin(ang)*20;
+  var bx2 = hx2 - Math.cos(ang)*5, by2 = hy2 - Math.sin(ang)*5;
+  var wt5 = type || 'stick';
+  var wc5 = P.gearCol[wt5] || [P.stickC, P.stickD];
+  var thin = wt5 === 'stick' || wt5 === 'spear';
+  lb([bx2,by2], [ex2,ey2], thin ? 2 : 3, wc5[1]);
+  lb([bx2,by2], [ex2,ey2], 1, wc5[0]);
+  if (!thin){                                      // гарда и навершие у клинков
+    var gx5 = hx2 + Math.cos(ang)*3, gy5 = hy2 + Math.sin(ang)*3;
+    lb([gx5 - Math.sin(ang)*4, gy5 + Math.cos(ang)*4],
+       [gx5 + Math.sin(ang)*4, gy5 - Math.cos(ang)*4], 2, wc5[1]);
   }
+  rc(Math.round(ex2) - 1, Math.round(ey2) - 1, wt5 === 'spear' ? 3 : 2, 2, wc5[0]);
 }
 
 function rotV(vx, vy, cs, sn){ return [vx*cs - vy*sn, vx*sn + vy*cs]; }

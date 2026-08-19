@@ -5,9 +5,10 @@ import {
 } from '../core/tileset.js';
 import {
   getSpriteDef, getSpriteFrameSrc, setSpriteFrame, clearSpriteFrame,
-  isSpriteFrameDirty
+  isSpriteFrameDirty, getFrameAnchor, setFrameAnchor, setSpriteSize
 } from '../core/spriteset.js';
-import { bakeSpriteFrameSrc, bakeBuiltinTileSrc } from '../render/sprite-bake.js';
+import { bakeSpriteFrameSrc, bakeBuiltinTileSrc, clearBakeCache } from '../render/sprite-bake.js';
+import { defaultFrameAnchors } from '../render/sprite-anchors.js';
 import { wipeTileId } from '../core/layers.js';
 import { raiseFloat, placeFloat, hasFloatPos } from './float.js';
 import { invalidateAll } from '../render/tiles.js';
@@ -42,12 +43,16 @@ var COLLIDE = [
 var HINT = {
   pencil: 'LMB paint · RMB erase · Alt pick. Pixels are only a picture.',
   pick: 'LMB take color from a pixel. Pipette cursor while Pick is on.',
-  hitbox: 'Drag the red frame. That box is collision — the picture does not change it.'
+  hitbox: 'Drag the red frame. That box is collision — the picture does not change it.',
+  sprite: 'Cyan circle = origin (world attach). Magenta square = weapon hand. Drag a mark or type X Y. Size is the frame canvas.'
 };
 
 var STRIP_KEY = 'ledge.ed.tileStripH';
 var CHECK_A = '#76767c';
 var CHECK_B = '#6e6e74';
+var ORIGIN_COL = '#6ec8ff';
+var WEAPON_COL = '#ff7eb6';
+var SIZE_MIN = 8, SIZE_MAX = 128;
 
 var tool = 'pencil';
 var color = '#e8dcc8';
@@ -66,6 +71,8 @@ var pendingBox = null;
 var loadGen = 0;
 var stripH = 0;
 var altPick = false;
+var pendingAnchor = null;
+var originXEl = null, originYEl = null, weaponXEl = null, weaponYEl = null;
 
 try {
   var savedStrip = parseInt(localStorage.getItem(STRIP_KEY), 10);
@@ -86,6 +93,7 @@ export function closeTileEdit(){
     root.classList.remove('ed-sprite');
   }
   altPick = false;
+  pendingAnchor = null;
 }
 
 function isSprite(){ return mode === 'sprite'; }
@@ -112,9 +120,9 @@ export function openTileEdit(spec, clientX, clientY){
 export function openSpriteEdit(def, clientX, clientY){
   if (!root || !def) return;
   mode = 'sprite';
-  current = def;
-  fw = def.fw || 16;
-  fh = def.fh || 16;
+  current = getSpriteDef(def.id) || def;
+  fw = current.fw || 16;
+  fh = current.fh || 16;
   animId = def.anims && def.anims[0] ? def.anims[0].id : '';
   frameI = 0;
   root.classList.add('ed-sprite');
@@ -401,14 +409,188 @@ function fillChecker(cx, cols, rows, tw, th){
   }
 }
 
+function liveAnchors(){
+  var d, o, w;
+  if (!isSprite() || !current) return null;
+  d = defaultFrameAnchors(current.id, animId, frameI);
+  o = getFrameAnchor(current.id, animId, frameI, 'origin') || d.origin;
+  w = getFrameAnchor(current.id, animId, frameI, 'weapon') || d.weapon;
+  if (pendingAnchor){
+    if (pendingAnchor.kind === 'origin') o = { x: pendingAnchor.x, y: pendingAnchor.y };
+    else w = { x: pendingAnchor.x, y: pendingAnchor.y };
+  }
+  return { origin: o, weapon: w };
+}
+
+function drawMark(cx, pt, k, col, kind){
+  var x = (pt.x + 0.5) * k, y = (pt.y + 0.5) * k;
+  cx.save();
+  cx.strokeStyle = col;
+  cx.fillStyle = col;
+  cx.lineWidth = 1.5;
+  cx.beginPath();
+  cx.moveTo(x - 7, y); cx.lineTo(x + 7, y);
+  cx.moveTo(x, y - 7); cx.lineTo(x, y + 7);
+  cx.stroke();
+  if (kind === 'weapon'){
+    cx.strokeRect(x - 4, y - 4, 8, 8);
+  } else {
+    cx.beginPath();
+    cx.arc(x, y, 4, 0, Math.PI * 2);
+    cx.stroke();
+  }
+  cx.restore();
+}
+
+function drawAnchors(cx, k){
+  var a = liveAnchors();
+  if (!a) return;
+  drawMark(cx, a.origin, k, ORIGIN_COL, 'origin');
+  drawMark(cx, a.weapon, k, WEAPON_COL, 'weapon');
+}
+
+function hitAnchor(e, can){
+  var a = liveAnchors(), r, k, dO, dW, rad;
+  if (!a || !can) return null;
+  r = can.getBoundingClientRect();
+  k = r.width / fw;
+  function dist(pt){
+    var dx = e.clientX - r.left - (pt.x + 0.5) * k;
+    var dy = e.clientY - r.top - (pt.y + 0.5) * k;
+    return dx * dx + dy * dy;
+  }
+  rad = 14 * 14;
+  dO = dist(a.origin);
+  dW = dist(a.weapon);
+  if (dW <= rad && dW <= dO) return 'weapon';
+  if (dO <= rad) return 'origin';
+  return null;
+}
+
+function syncAnchorFields(){
+  var a = liveAnchors();
+  if (!a) return;
+  if (originXEl) originXEl.value = String(a.origin.x);
+  if (originYEl) originYEl.value = String(a.origin.y);
+  if (weaponXEl) weaponXEl.value = String(a.weapon.x);
+  if (weaponYEl) weaponYEl.value = String(a.weapon.y);
+}
+
+function clampCell(n, max){
+  n = n | 0;
+  if (n < 0) return 0;
+  if (n > max) return max;
+  return n;
+}
+
+function commitAnchor(kind, x, y){
+  if (!isSprite() || !current) return;
+  setFrameAnchor(current.id, animId, frameI, kind, x, y);
+  notify();
+  syncAnchorFields();
+  paintCanvas();
+}
+
+function numInp(val, min, max){
+  var el = document.createElement('input');
+  el.type = 'number';
+  el.value = String(val);
+  el.min = String(min);
+  el.max = String(max);
+  el.step = '1';
+  el.addEventListener('keydown', function(e){ e.stopPropagation(); });
+  return el;
+}
+
+function xyRow(label, cls, a, b, sep){
+  var row = document.createElement('label');
+  row.className = 'ed-field' + (cls ? ' ' + cls : '');
+  var sp = document.createElement('span');
+  sp.textContent = label;
+  row.appendChild(sp);
+  var wrap = document.createElement('span');
+  wrap.className = 'ed-tile-xy';
+  wrap.appendChild(a);
+  var mid = document.createElement('span');
+  mid.className = 'sep';
+  mid.textContent = sep || '×';
+  wrap.appendChild(mid);
+  wrap.appendChild(b);
+  row.appendChild(wrap);
+  body.appendChild(row);
+  return row;
+}
+
+function bindAnchorInp(el, kind, axis){
+  el.addEventListener('change', function(){
+    var a = liveAnchors(), n, x, y;
+    if (!a || !current) return;
+    n = parseInt(el.value, 10);
+    if (isNaN(n)) { syncAnchorFields(); return; }
+    n = clampCell(n, axis === 'x' ? fw - 1 : fh - 1);
+    x = kind === 'origin' ? a.origin.x : a.weapon.x;
+    y = kind === 'origin' ? a.origin.y : a.weapon.y;
+    if (axis === 'x') x = n; else y = n;
+    commitAnchor(kind, x, y);
+  });
+}
+
+function resizeSpriteFrames(id, nw, nh, done){
+  var def = getSpriteDef(id), jobs = [], r, i, src;
+  if (!def){ if (done) done(); return; }
+  for (r = 0; r < def.anims.length; r++){
+    for (i = 0; i < def.anims[r].n; i++){
+      if (!isSpriteFrameDirty(id, def.anims[r].id, i)) continue;
+      src = getSpriteFrameSrc(id, def.anims[r].id, i);
+      if (src) jobs.push({ anim: def.anims[r].id, i: i, src: src });
+    }
+  }
+  if (!jobs.length){ if (done) done(); return; }
+  var left = jobs.length;
+  jobs.forEach(function(job){
+    var img = new Image();
+    img.onload = function(){
+      var c = document.createElement('canvas');
+      c.width = nw; c.height = nh;
+      var cx = c.getContext('2d');
+      cx.imageSmoothingEnabled = false;
+      cx.drawImage(img, 0, 0);
+      setSpriteFrame(id, job.anim, job.i, canvasToPng(c), true);
+      left--;
+      if (!left && done) done();
+    };
+    img.onerror = function(){ left--; if (!left && done) done(); };
+    img.src = job.src;
+  });
+}
+
+function applySpriteSize(nw, nh){
+  if (!isSprite() || !current) return;
+  nw = clampCell(nw, SIZE_MAX); if (nw < SIZE_MIN) nw = SIZE_MIN;
+  nh = clampCell(nh, SIZE_MAX); if (nh < SIZE_MIN) nh = SIZE_MIN;
+  if (nw === fw && nh === fh) return;
+  setSpriteSize(current.id, nw, nh);
+  clearBakeCache();
+  current = getSpriteDef(current.id) || current;
+  fw = current.fw; fh = current.fh;
+  resizeSpriteFrames(current.id, fw, fh, function(){
+    notify();
+    fillBody();
+  });
+}
+
 function syncCursor(){
   if (!preview) return;
   var pick = tool === 'pick' || altPick;
-  preview.classList.toggle('tool-pick', pick);
+  var onMark = isSprite() && !!pendingAnchor;
+  preview.classList.toggle('tool-pick', pick && !onMark);
   preview.classList.toggle('tool-hit', tool === 'hitbox' && !pick);
+  preview.classList.toggle('tool-anchor', onMark);
   preview.title = tool === 'hitbox'
     ? 'Drag to set the collision box (what the hero hits)'
-    : (pick ? 'Pick color' : 'Paint pixel · RMB erase');
+    : (pick ? 'Pick color' : (isSprite()
+      ? 'Paint · RMB erase · drag cyan/magenta marks'
+      : 'Paint pixel · RMB erase'));
 }
 
 function paintCanvas(){
@@ -416,14 +598,22 @@ function paintCanvas(){
   var can = preview;
   var cx = can.getContext('2d');
   var sx = can.width / fw, sy = can.height / fh;
+  var a, animName;
   cx.imageSmoothingEnabled = false;
   fillChecker(cx, fw, fh, sx, sy);
   if (buf) cx.drawImage(buf, 0, 0, fw, fh, 0, 0, can.width, can.height);
   else if (current && mode === 'tile' && !current.custom) paintTileIcon(cx, current, can.width);
   drawHitShape(cx, can.width, sx, tool === 'hitbox');
-  if (hitLab) hitLab.textContent = isSprite()
-    ? 'Frame ' + (frameI + 1) + ' · ' + (current.anims.filter(function(a){ return a.id === animId; })[0] || { name: animId }).name
-    : hitText();
+  if (isSprite()) drawAnchors(cx, sx);
+  if (hitLab){
+    if (isSprite()){
+      animName = (current.anims.filter(function(an){ return an.id === animId; })[0] || { name: animId }).name;
+      a = liveAnchors();
+      hitLab.textContent = 'Frame ' + (frameI + 1) + ' · ' + animName +
+        (a ? ' · origin ' + a.origin.x + ',' + a.origin.y + ' · weapon ' + a.weapon.x + ',' + a.weapon.y : '');
+    } else hitLab.textContent = hitText();
+  }
+  syncAnchorFields();
   syncCursor();
 }
 
@@ -434,7 +624,7 @@ function syncTools(){
       btns[i].classList.toggle('on', btns[i].getAttribute('data-tool') === tool);
   }
   if (hintEl) hintEl.textContent = isSprite()
-    ? (HINT[tool] === HINT.hitbox ? 'LMB paint · RMB erase. This frame is the picture the game can blit.' : (HINT[tool] || HINT.pencil))
+    ? HINT.sprite
     : (HINT[tool] || HINT.pencil);
   paintCanvas();
 }
@@ -467,6 +657,16 @@ function bindPreview(can){
     e.stopPropagation();
     try { can.setPointerCapture(e.pointerId); } catch (_){}
     altPick = e.altKey;
+    if (e.button === 0 && isSprite() && !e.altKey){
+      var hit = hitAnchor(e, can);
+      if (hit){
+        var a0 = liveAnchors();
+        pendingAnchor = { kind: hit, x: a0[hit].x, y: a0[hit].y };
+        syncCursor();
+        paintCanvas();
+        return;
+      }
+    }
     syncCursor();
     if (tool === 'hitbox'){
       if (e.button !== 0 || !isCustomTile()) return;
@@ -490,6 +690,18 @@ function bindPreview(can){
       altPick = e.altKey;
       syncCursor();
     }
+    if (pendingAnchor){
+      var c = cellOf(e, can);
+      pendingAnchor.x = c.x;
+      pendingAnchor.y = c.y;
+      paintCanvas();
+      return;
+    }
+    if (!painting && !boxDrag && isSprite() && preview){
+      var over = hitAnchor(e, can);
+      preview.classList.toggle('tool-anchor', !!over);
+      preview.classList.toggle('tool-pick', (tool === 'pick' || altPick) && !over);
+    }
     if (boxDrag){
       var b = edgeOf(e, can);
       applyBox(boxDrag.x0, boxDrag.y0, b.x, b.y);
@@ -502,6 +714,12 @@ function bindPreview(can){
     paintCanvas();
   });
   function end(e){
+    if (pendingAnchor){
+      var pa = pendingAnchor;
+      pendingAnchor = null;
+      commitAnchor(pa.kind, pa.x, pa.y);
+      return;
+    }
     if (boxDrag){
       boxDrag = null;
       commitBox();
@@ -707,6 +925,8 @@ function fillBody(){
   painting = null;
   boxDrag = null;
   pendingBox = null;
+  pendingAnchor = null;
+  originXEl = originYEl = weaponXEl = weaponYEl = null;
   var custom = isCustomTile();
   var def = custom ? getTileDef(current.id) : null;
   var sprite = isSprite();
@@ -734,6 +954,29 @@ function fillBody(){
   hitLab = document.createElement('div');
   hitLab.className = 'ed-tile-hitlab';
   body.appendChild(hitLab);
+
+  if (sprite){
+    var sizeW = numInp(fw, SIZE_MIN, SIZE_MAX);
+    var sizeH = numInp(fh, SIZE_MIN, SIZE_MAX);
+    function onSize(){
+      applySpriteSize(parseInt(sizeW.value, 10) || fw, parseInt(sizeH.value, 10) || fh);
+    }
+    sizeW.addEventListener('change', onSize);
+    sizeH.addEventListener('change', onSize);
+    xyRow('Size', '', sizeW, sizeH, '×');
+
+    originXEl = numInp(0, 0, fw - 1);
+    originYEl = numInp(0, 0, fh - 1);
+    bindAnchorInp(originXEl, 'origin', 'x');
+    bindAnchorInp(originYEl, 'origin', 'y');
+    xyRow('Origin', 'ed-anchor-o', originXEl, originYEl, ',');
+
+    weaponXEl = numInp(0, 0, fw - 1);
+    weaponYEl = numInp(0, 0, fh - 1);
+    bindAnchorInp(weaponXEl, 'weapon', 'x');
+    bindAnchorInp(weaponYEl, 'weapon', 'y');
+    xyRow('Weapon', 'ed-anchor-w', weaponXEl, weaponYEl, ',');
+  }
 
   toolsEl = document.createElement('div');
   toolsEl.className = 'ed-tile-tools';
@@ -779,7 +1022,7 @@ function fillBody(){
   if (sprite){
     var sNote = document.createElement('div');
     sNote.className = 'ed-tile-note';
-    sNote.textContent = 'Each animation is one row of frames. Drag the bar under the strip to show more rows. Click a frame to paint it. Unedited frames still use the old drawing in the game.';
+    sNote.textContent = 'Each animation is one row of frames. Cyan circle = origin, magenta square = weapon hand — drag or type. Size is the frame canvas. Unedited frames still use the old drawing in the game.';
     body.appendChild(sNote);
   } else {
     var nameInp = document.createElement('input');
