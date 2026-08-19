@@ -182,10 +182,11 @@
 ## 11. Params / Intro / Gear / Mix
 
 `Params`:
-- Живые слайдеры констант `C`.
+- Живые слайдеры констант `C` (persist `ledge.dev.C`, bake через snapshot params).
 - Поиск по параметрам.
 - `Backspace` на наведённом контроле сбрасывает к дефолту.
 - `Reset all` сбрасывает все параметры к заводским.
+- Группа `Camera` (`src/render/camera.js`): `CAM_DZ_X/Y` (мёртвая зона якоря, 10×8), `CAM_FOLLOW` (резина, выше = резче, 6.5), `CAM_SNAP` (липнет при Δ≤snap, 1px — без pixel crawl на стопе), `CAM_LEAD` / `CAM_LEAD_IDLE` / `CAM_LEAD_V` / `CAM_LEAD_K` (взгляд вперёд), `CAM_LOOK_DN` / `CAM_LOOK_UP` / `CAM_LOOK_V` / `CAM_LOOK_K` (↑↓ стоя). Рендер камеры по-прежнему целочисленный (`Math.round`).
 
 `Intro`:
 - Поле `This level` = индивидуальная фраза уровня (`LV.intro`).

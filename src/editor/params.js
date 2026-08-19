@@ -126,6 +126,20 @@ export var PARAM_GROUPS = [
     { key: 'CRUMB_T', label: 'Crumb crack t', min: 0.2, max: 3, step: 0.05 },
     { key: 'TEND_REACH', label: 'Tendril reach', min: 20, max: 180, step: 1 },
     { key: 'TEND_HOLD', label: 'Tendril hold', min: 0.4, max: 6, step: 0.1 }
+  ]},
+  { id: 'camera', name: 'Camera', items: [
+    { key: 'CAM_DZ_X', label: 'Dead zone X', min: 0, max: 80, step: 1, hint: 'anchor idle half-width' },
+    { key: 'CAM_DZ_Y', label: 'Dead zone Y', min: 0, max: 80, step: 1, hint: 'anchor idle half-height' },
+    { key: 'CAM_FOLLOW', label: 'Follow rate', min: 0.5, max: 20, step: 0.1, hint: 'rubber; higher = snappier' },
+    { key: 'CAM_SNAP', label: 'Snap px', min: 0, max: 8, step: 0.05, hint: 'stick when closer; kills pixel crawl' },
+    { key: 'CAM_LEAD', label: 'Lead', min: 0, max: 80, step: 1, hint: 'look-ahead at run' },
+    { key: 'CAM_LEAD_IDLE', label: 'Lead idle', min: 0, max: 1, step: 0.01, hint: 'lead mul when slow' },
+    { key: 'CAM_LEAD_V', label: 'Lead vx', min: 0, max: 120, step: 1, hint: 'full lead above this speed' },
+    { key: 'CAM_LEAD_K', label: 'Lead blend', min: 0.2, max: 12, step: 0.1 },
+    { key: 'CAM_LOOK_DN', label: 'Look down', min: 0, max: 90, step: 1 },
+    { key: 'CAM_LOOK_UP', label: 'Look up', min: -90, max: 0, step: 1 },
+    { key: 'CAM_LOOK_V', label: 'Look vx max', min: 0, max: 60, step: 1, hint: 'look only if slower' },
+    { key: 'CAM_LOOK_K', label: 'Look blend', min: 0.2, max: 12, step: 0.1 }
   ]}
 ];
 

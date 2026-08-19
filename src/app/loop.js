@@ -8,7 +8,8 @@ import {
   beginIntro, skipIntro, dismissIntro, stepIntro, isIntroReady,
   beginOutro, skipOutro, pickOutro, stepOutro, hitOutro, isOutroReady,
   setOutroFocus, outroFocus,
-  applyPal, buildWater, stepWater, invalidateAll, fore, rc, getFish, spark, landDust, bonkDust, clampCam,
+  applyPal, buildWater, stepWater, invalidateAll, fore, rc, getFish, spark, landDust, bonkDust,
+  resetCam, followCam, pushCamRender, popCamRender,
   setViewScale, applyVolumes, drawCollideOverlay,
   isInvOpen, invInspecting, openInv, closeInv, toggleInv, stepInv, drawInventory, handleInvPointer, handleInvWheel, handleInvKey,
   clientToGame, hitsHero, giveInv, giveInvKit
@@ -360,8 +361,7 @@ function startLevel(idx){
   introT = 1;                                  // плашка с названием, игра ждёт касания
   paused = false; gameOver = null; setOutro(null);
   parts.length = 0; view.flash = 0.7; view.warpJump = true;
-  cam.x = S.p.x - VW/2; cam.y = S.p.y - VH/2;
-  cam.ax = S.p.x + S.p.w/2; cam.ay = S.p.y + S.p.h/2;
+  resetCam(S.p);
   applyPal(); buildWater(); invalidateAll();
   setMenu(false);
   canResume = true;
@@ -548,25 +548,8 @@ function frame(now){
   }
 
   var p2 = S.p;
-  var pcx = p2.x + p2.w/2, pcy = p2.y + p2.h/2;    // мёртвая зона: якорь двигаем только за её границей
-  var DZX = 10, DZY = 8;
-  if (pcx - cam.ax > DZX) cam.ax = pcx - DZX; else if (pcx - cam.ax < -DZX) cam.ax = pcx + DZX;
-  if (pcy - cam.ay > DZY) cam.ay = pcy - DZY; else if (pcy - cam.ay < -DZY) cam.ay = pcy + DZY;
-  var tgtLead = p2.facing * 20 * (Math.abs(p2.vx) > 30 ? 1 : 0.35);
-  cam.lead += (tgtLead - cam.lead) * Math.min(1, dt*3.2);
-  var wantLook = speechBlocks(S) ? 0 :
-                 (inp.downHeld && p2.onGround && Math.abs(p2.vx) < 10 && p2.state === 'normal') ? 44 :
-                 (inp.upHeld && p2.onGround && Math.abs(p2.vx) < 10 && p2.state === 'normal' ? -30 : 0);
-  cam.look += (wantLook - cam.look) * Math.min(1, dt*2.2);
-  var want = clampCam(cam.ax - VW/2 + cam.lead, cam.ay - VH/2 + cam.look);
-  var tx = want.x, ty = want.y;
-  var kk = 1 - Math.pow(0.0015, dt);
-  if (S.fade >= 0.95 || view.warpJump){ cam.x = tx; cam.y = ty; view.warpJump = false; }   // прыжок камеры под чёрным экраном
-  else { cam.x += (tx - cam.x)*kk; cam.y += (ty - cam.y)*kk; }
-  var shx = 0, shy = 0;
-  if (S.shake > 0.05){ shx = (Math.random()-0.5)*S.shake*2; shy = (Math.random()-0.5)*S.shake*2; }
-  var rcx = cam.x, rcy = cam.y;
-  cam.x = Math.round(cam.x + shx); cam.y = Math.round(cam.y + shy);
+  followCam(dt, p2, { lookLock: speechBlocks(S), downHeld: inp.downHeld, upHeld: inp.upHeld });
+  var camPrev = pushCamRender(S.shake);
 
   var tail = view.tail;
   var tgtTail = -p2.vx*0.016 + (p2.state === 'ladder' ? 0 : Math.sin(view.time*5.5)*0.5) - (p2.vy < -80 ? 1.2 : 0);
@@ -619,7 +602,7 @@ function frame(now){
   }
   hud();
 
-  cam.x = rcx; cam.y = rcy;
+  popCamRender(camPrev);
 
   if (dbgOn){
     dbgEl.textContent = 'state ' + p2.state + ' face ' + p2.facing + ' hp ' + S.hp +
@@ -859,8 +842,7 @@ export function start(){
                         exportText: edExportText,
                         undo: undoOp, redo: redoOp, canUndo: canUndo, canRedo: canRedo };
   }
-  cam.x = S.p.x - VW/2; cam.y = S.p.y - VH/2;
-  cam.ax = S.p.x + S.p.w/2; cam.ay = S.p.y + S.p.h/2;
+  resetCam(S.p);
   resize();
   last = performance.now();
   requestAnimationFrame(frame);
