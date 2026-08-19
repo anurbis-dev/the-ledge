@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=block');
 
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;background:#07060f;overflow:hidden;
@@ -321,13 +321,14 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
 #splashCv{position:absolute;inset:0;width:100%;height:100%;display:block;opacity:0;pointer-events:none}
 .splash-title{position:absolute;left:50%;top:50%;transform:translate(-50%, -50%);opacity:0;
   color:#ffd9a0;text-transform:uppercase;font-size:clamp(28px,7vw,60px);letter-spacing:.22em;line-height:1;
-  text-shadow:0 3px 0 #5a3323,0 0 0 2px #0d0a18;transition:transform .5s ease}
-#splash.ready .splash-title{opacity:1;transition:none}
+  white-space:nowrap;text-shadow:0 3px 0 #5a3323,0 0 0 2px #0d0a18;transition:none}
+#splash.can-fade .splash-title{transition:opacity .55s ease}
+#splash.ready .splash-title{opacity:1}
 #splash.advance .splash-title{opacity:1;transform:translate(-50%, -50%) translateY(-32px);transition:transform .5s ease}
-.splash-title .the{font-size:.42em;font-weight:500;letter-spacing:.14em;opacity:.8;margin-right:.22em}
+.splash-title .the{font-size:.42em;font-weight:400;letter-spacing:.14em;opacity:.8;margin-right:.22em}
 .shint{position:absolute;left:0;right:0;bottom:14%;text-align:center;
   font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#6a628f;
   opacity:0;transition:opacity .4s;pointer-events:none}
 .shint.show{opacity:.8;animation:shintpulse 1.6s ease-in-out infinite}
 @keyframes shintpulse{0%,100%{opacity:.45}50%{opacity:.9}}
-@media (prefers-reduced-motion:reduce){.shint.show{animation:none;opacity:.8}.splash-title{transition:none}.splash-title,.splash-title .the{opacity:1}} 
+@media (prefers-reduced-motion:reduce){.shint.show{animation:none;opacity:.8}.splash-title,#splash.can-fade .splash-title{transition:none}} 

@@ -1,3 +1,41 @@
+var TITLE_FACE = "48px 'Press Start 2P'";
+
+if (typeof document !== 'undefined' && document.fonts && document.fonts.load){
+  document.fonts.load(TITLE_FACE).catch(function(){});
+}
+
+function titleFaceReady(){
+  try { return !!(document.fonts && document.fonts.check(TITLE_FACE)); }
+  catch (e) { return false; }
+}
+
+function whenTitleStyled(cb){
+  var fired = false;
+  function go(){
+    if (fired) return;
+    fired = true;
+    cb();
+  }
+  var el = document.querySelector('.splash-title');
+  var lastW = -1, stable = 0, t0 = performance.now();
+  if (document.fonts && document.fonts.load){
+    document.fonts.load(TITLE_FACE).catch(function(){});
+  }
+  function tick(){
+    var booted = !document.body.getAttribute('data-boot');
+    var w = el ? el.getBoundingClientRect().width : 0;
+    var ok = booted && titleFaceReady() && w > 1 && Math.abs(w - lastW) < 0.5;
+    lastW = w;
+    stable = ok ? stable + 1 : 0;
+    if (stable >= 2 || performance.now() - t0 > 2500){
+      requestAnimationFrame(function(){ requestAnimationFrame(go); });
+      return;
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
 export function showSplash(onDone){
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var root = document.getElementById('splash');
@@ -38,14 +76,27 @@ export function showSplash(onDone){
     setTimeout(finish, reduced ? 80 : 420);
   }
 
+  function reveal(){
+    if (started || done) return;
+    if (reduced){
+      root.classList.add('ready');
+      setTimeout(onInput, 40);
+      return;
+    }
+    root.classList.add('can-fade');
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        if (started || done) return;
+        root.classList.add('ready');
+      });
+    });
+  }
+
   root.classList.remove('hide');
   root.classList.remove('out');
   root.classList.remove('advance');
-  root.classList.add('ready');
   root.addEventListener('click', onInput);
   document.addEventListener('keydown', onInput, { capture: true, passive: true });
 
-  if (reduced){
-    setTimeout(onInput, 40);
-  }
+  whenTitleStyled(reveal);
 }
