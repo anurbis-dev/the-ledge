@@ -10,7 +10,12 @@ export { plats, lifts, caveExit, doors, chests, lootDrops, items, pickables, dra
 export { drawBubbles } from './bubbles.js';
 export { hero } from './hero.js';
 export { lightPass } from './light.js';
-export { hud, drawIntro, drawPaused, drawOutro, drawDead, hudHitsWeapon } from './hud.js';
+export {
+  hud, drawIntro, drawPaused, drawOutro, drawDead, hudHitsWeapon,
+  beginIntro, skipIntro, dismissIntro, stepIntro, isIntroReady,
+  beginOutro, skipOutro, pickOutro, stepOutro, hitOutro, isOutroReady,
+  setOutroFocus, outroFocus
+} from './hud.js';
 export {
   isInvOpen, invInspecting, openInv, closeInv, toggleInv, stepInv,
   drawInventory, handleInvPointer, handleInvWheel, handleInvKey, clientToGame, hitsHero, giveInv, giveInvKit

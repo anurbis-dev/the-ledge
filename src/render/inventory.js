@@ -2,6 +2,7 @@ import GAME from '../core/game.js';
 import { ctx, cv, VW, VH, cam, rc, setCtx, getCtx } from './ctx.js';
 import { textPix, textPixC, num } from './hud.js';
 import { drawItemIcon } from './icons.js';
+import { FOLD_AXIS, foldHeroOrigin, foldBlit } from './fold.js';
 import { TABS, DEV_KITS, listPack, itemInfo, itemStats } from '../entities/catalog.js';
 import { canCombine, combineItems, pieceLabel, grantOne } from '../entities/craft.js';
 import { dropFromPack } from '../entities/loot.js';
@@ -22,7 +23,7 @@ var ptr = null;        // { mode, sl, x0, y0, x, y, scroll0 }
 var dropAsk = 1;       // сколько выбросить
 var askOn = false;     // модалка количества после DROP
 
-var AXIS_T = 0.15;
+var AXIS_T = FOLD_AXIS;
 var PW = Math.round(VW * 0.7);
 var PH = Math.round(VH * 0.7);
 var PX = ((VW - PW) / 2) | 0;
@@ -55,25 +56,6 @@ function wrapPix(str, maxChars){
   }
   if (cur) lines.push(cur);
   return lines;
-}
-
-function ease(t){
-  if (t <= 0) return 0;
-  if (t >= 1) return 1;
-  return t * t * (3 - 2 * t);
-}
-
-function axisScales(f){
-  var e = 2 / PW;
-  if (f <= 0) return { sx: 0, sy: 0 };
-  if (f < 1) return { sx: e, sy: ease(f) };
-  if (f < 2) return { sx: e + (1 - e) * ease(f - 1), sy: 1 };
-  return { sx: 1, sy: 1 };
-}
-
-function heroOrigin(S){
-  if (!S || !S.p) return { x: VW / 2, y: VH / 2 };
-  return { x: S.p.x + S.p.w / 2 - cam.x, y: S.p.y + S.p.h / 2 - cam.y };
 }
 
 function pingOpen(){ blip(480, 0.08, 'triangle', 0.04); }
@@ -136,7 +118,7 @@ export function closeInv(instant){
 }
 
 export function openInv(){
-  var o = heroOrigin(G.W);
+  var o = foldHeroOrigin(G.W);
   ox = o.x; oy = o.y;
   if (!(open && dir > 0)) pingOpen();
   open = true;
@@ -402,14 +384,7 @@ export function drawInventory(){
   rc(0, 0, VW, VH, '#07060f');
   ctx.globalAlpha = 1;
   paintSheet(S);
-  var sc = axisScales(fold);
-  if (sc.sx <= 0 || sc.sy <= 0) return;
-  var dw = Math.max(1, Math.round(PW * sc.sx));
-  var dh = Math.max(1, Math.round(PH * sc.sy));
-  var dx = Math.round(ox + (PX - ox) * sc.sx);
-  var dy = Math.round(oy + (PY - oy) * sc.sy);
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(invCv, 0, 0, PW, PH, dx, dy, dw, dh);
+  foldBlit(invCv, PW, PH, ox, oy, PX, PY, fold);
 }
 
 function setTab(id){

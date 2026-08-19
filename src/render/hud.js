@@ -1,8 +1,10 @@
 import GAME from '../core/game.js';
-import { ctx, view, VW, VH, rc, world } from './ctx.js';
+import { ctx, view, VW, VH, rc, world, setCtx, getCtx } from './ctx.js';
 import { P } from './palette.js';
 import { pickIntroLine } from '../core/intro.js';
 import { listHand, activeHandItem, isHarpoonHand } from '../entities/gear.js';
+import { FOLD_AXIS, foldHeroOrigin, foldBlit } from './fold.js';
+import { blip } from '../audio/sfx.js';
 
 var G = GAME, C = G.C;
 
@@ -23,6 +25,148 @@ var ABC = {
   '>':'100110111110100', '<':'001011111011001', '/':'001001010100100'
 };
 var introLine = '';
+
+var IW = 148, IH = 52;
+var IX = ((VW - IW) / 2) | 0, IY = ((VH - IH) / 2) | 0;
+var OW = 176, OH = 112;
+var OX = ((VW - OW) / 2) | 0, OY = ((VH - OH) / 2) | 0;
+var BTN_W = 76, BTN_H = 13, BTN_Y = 90;
+
+var introCv = document.createElement('canvas');
+introCv.width = IW; introCv.height = IH;
+var introCx = introCv.getContext('2d');
+introCx.imageSmoothingEnabled = false;
+
+var outroCv = document.createElement('canvas');
+outroCv.width = OW; outroCv.height = OH;
+var outroCx = outroCv.getContext('2d');
+outroCx.imageSmoothingEnabled = false;
+
+var introFold = { on: false, fold: 0, dir: 0, last: 0, ox: VW / 2, oy: VH / 2 };
+var outroFold = { on: false, fold: 0, dir: 0, last: 0, ox: VW / 2, oy: VH / 2, focus: 'continue', pick: null };
+
+function pingOpen(){ blip(480, 0.08, 'triangle', 0.04); }
+function pingOpenH(){ blip(640, 0.07, 'triangle', 0.035); }
+function pingCloseH(){ blip(360, 0.07, 'triangle', 0.035); }
+function pingClose(){ blip(240, 0.1, 'triangle', 0.04); }
+function pingPick(){ blip(720, 0.08, 'triangle', 0.04); }
+
+function fillSheet(x, y, w, h){
+  rc(x, y, w, h, '#120c20');
+  rc(x, y, w, 1, '#6a5fa8'); rc(x, y + h - 1, w, 1, '#6a5fa8');
+  rc(x, y, 1, h, '#6a5fa8'); rc(x + w - 1, y, 1, h, '#6a5fa8');
+}
+
+function drawChip(r, fill, rim){
+  rc(r.x, r.y, r.w, r.h, fill);
+  rc(r.x, r.y, r.w, 1, rim);
+  rc(r.x, r.y + r.h - 1, r.w, 1, rim);
+  rc(r.x, r.y, 1, r.h, rim);
+  rc(r.x + r.w - 1, r.y, 1, r.h, rim);
+}
+
+function stepFold(st, dt){
+  if (st.dir === 0) return null;
+  st.last = st.fold;
+  if (st.dir > 0){
+    st.fold += dt / FOLD_AXIS;
+    if (st.last < 1 && st.fold >= 1) pingOpenH();
+    if (st.fold >= 2){ st.fold = 2; st.dir = 0; }
+  } else {
+    st.fold -= dt / FOLD_AXIS;
+    if (st.last > 1 && st.fold <= 1) pingClose();
+    if (st.fold <= 0){
+      st.fold = 0; st.dir = 0; st.on = false;
+      return 'closed';
+    }
+  }
+  return null;
+}
+
+function beginFold(st){
+  var o = foldHeroOrigin(G.W);
+  st.ox = o.x; st.oy = o.y;
+  if (!(st.on && st.dir > 0)) pingOpen();
+  st.on = true;
+  st.dir = 1;
+  if (st.fold <= 0){ st.fold = 0.001; st.last = 0; }
+}
+
+function snapFold(st){
+  st.on = false; st.fold = 0; st.dir = 0; st.last = 0;
+}
+
+function startClose(st){
+  if (!st.on || st.dir < 0) return;
+  if (st.dir >= 0) pingCloseH();
+  st.dir = -1;
+  st.on = true;
+}
+
+function dimFold(fold){
+  var dim = Math.min(1, fold / 2) * 0.42;
+  ctx.globalAlpha = dim;
+  rc(0, 0, VW, VH, '#07060f');
+  ctx.globalAlpha = 1;
+}
+
+function outroBtns(){
+  return {
+    replay: { id: 'replay', x: 8, y: BTN_Y, w: BTN_W, h: BTN_H, label: 'REPLAY' },
+    continue: { id: 'continue', x: OW - 8 - BTN_W, y: BTN_Y, w: BTN_W, h: BTN_H,
+      label: (view.outro && view.outro.next < 0) ? 'MENU' : 'CONTINUE' }
+  };
+}
+
+export function beginIntro(){ beginFold(introFold); }
+export function skipIntro(){ snapFold(introFold); }
+export function dismissIntro(){ startClose(introFold); }
+export function isIntroReady(){ return introFold.on && introFold.fold >= 2 && introFold.dir === 0; }
+export function isIntroFolding(){ return introFold.on || introFold.fold > 0; }
+export function stepIntro(dt){ return stepFold(introFold, dt); }
+
+export function beginOutro(){
+  outroFold.focus = 'continue';
+  outroFold.pick = null;
+  beginFold(outroFold);
+}
+export function skipOutro(){
+  snapFold(outroFold);
+  outroFold.pick = null;
+  outroFold.focus = 'continue';
+}
+export function isOutroReady(){ return outroFold.on && outroFold.fold >= 2 && outroFold.dir === 0; }
+export function outroFocus(){ return outroFold.focus; }
+export function setOutroFocus(id){
+  if (id !== 'replay' && id !== 'continue') return;
+  if (outroFold.focus === id) return;
+  outroFold.focus = id;
+  pingPick();
+}
+export function pickOutro(kind){
+  if (!outroFold.on || outroFold.dir < 0) return;
+  if (kind !== 'replay' && kind !== 'continue') return;
+  outroFold.pick = kind;
+  outroFold.focus = kind;
+  startClose(outroFold);
+}
+export function hitOutro(sx, sy){
+  if (!isOutroReady()) return null;
+  var btns = outroBtns();
+  var ids = ['replay', 'continue'], i, b;
+  for (i = 0; i < ids.length; i++){
+    b = btns[ids[i]];
+    if (sx >= OX + b.x && sx <= OX + b.x + b.w && sy >= OY + b.y && sy <= OY + b.y + b.h)
+      return b.id;
+  }
+  return null;
+}
+export function stepOutro(dt){
+  var done = stepFold(outroFold, dt);
+  if (done === 'closed') return outroFold.pick || 'continue';
+  return null;
+}
+
 export function digit(n, x, y, col){
   var s = DIG[n];
   for (var r = 0; r < 5; r++) for (var c = 0; c < 3; c++) if (s[r*3+c] === '1') rc(x+c, y+r, 1, 1, col);
@@ -155,18 +299,25 @@ export function digitS(n, x, y, col, sc){
     if (s2[r*3+c] === '1') rc(x + c*sc, y + r*sc, sc, sc, col);
 }
 export function drawIntro(){
+  if (!introFold.on && introFold.fold <= 0) return;
   var time = view.time;
   var lv = G.levelSpec();
   var name = ((lv && lv.name) || 'LEVEL').toUpperCase();
-  panel(VW/2 - 74, VH/2 - 26, 148, 52);
-  rc(VW/2 - 60, VH/2 - 16, 120, 1, '#3b3268');
-  var sc = name.length <= 6 ? 3 : 2;
-  textPixC(name, VW/2, VH/2 - 10, '#ffd9a0', sc);
   if (view.warpJump || !introLine){
     introLine = pickIntroLine(lv);
     view.warpJump = false;
   }
-  if (Math.sin(time * 4) > 0) textPixC(introLine, VW/2, VH/2 + 12, '#8f88bb', 1);
+  var main = getCtx();
+  setCtx(introCx);
+  introCx.clearRect(0, 0, IW, IH);
+  fillSheet(0, 0, IW, IH);
+  rc(14, 10, 120, 1, '#3b3268');
+  var sc = name.length <= 6 ? 3 : 2;
+  textPixC(name, IW / 2, 16, '#ffd9a0', sc);
+  if (Math.sin(time * 4) > 0) textPixC(introLine, IW / 2, 38, '#8f88bb', 1);
+  setCtx(main);
+  dimFold(introFold.fold);
+  foldBlit(introCv, IW, IH, introFold.ox, introFold.oy, IX, IY, introFold.fold);
 }
 export function drawPaused(){
   panel(VW/2 - 46, VH/2 - 20, 92, 40);
@@ -174,9 +325,13 @@ export function drawPaused(){
   rc(VW/2 + 4, VH/2 - 9, 6, 18, '#ffd9a0');
 }
 export function drawOutro(){
-  var o = view.outro, tt = o.totals;
-  var time = view.time;
-  panel(VW/2 - 84, VH/2 - 44, 168, 88);
+  var o = view.outro;
+  if ((!outroFold.on && outroFold.fold <= 0) || !o) return;
+  var tt = o.totals;
+  var main = getCtx();
+  setCtx(outroCx);
+  outroCx.clearRect(0, 0, OW, OH);
+  fillSheet(0, 0, OW, OH);
   var rows = [
     ['coin',   o.bag.coin, tt.coin],
     ['gem',    o.bag.gem,  tt.gem],
@@ -185,17 +340,28 @@ export function drawOutro(){
     ['secret', tt.secretsFound, tt.secrets]
   ];
   for (var i = 0; i < rows.length; i++){
-    var y = VH/2 - 32 + i*14, k = rows[i][0];
-    if (k === 'coin'){ rc(VW/2 - 74, y, 5, 7, P.coin); rc(VW/2 - 75, y+1, 7, 5, P.coin); }
-    else if (k === 'gem'){ rc(VW/2 - 76, y+1, 8, 3, P.gem); rc(VW/2 - 75, y+4, 6, 3, P.gemD); }
-    else if (k === 'shroom'){ rc(VW/2 - 73, y+3, 2, 4, P.stem); rc(VW/2 - 76, y, 8, 3, P.shroom); }
-    else if (k === 'chest'){ rc(VW/2 - 77, y+1, 10, 6, P.chest); rc(VW/2 - 77, y, 10, 2, P.chestL); }
-    else { rc(VW/2 - 76, y, 8, 7, '#241a30'); rc(VW/2 - 74, y+2, 4, 3, P.lockC); }
-    textPix('' + rows[i][1], VW/2 - 30, y, '#ffe9a8', 1);
-    rc(VW/2 - 12, y + 3, 5, 1, '#6a628f');
-    textPix('' + rows[i][2], VW/2 - 2, y, '#cfc6ff', 1);
+    var y = 8 + i * 14, k = rows[i][0];
+    if (k === 'coin'){ rc(10, y, 5, 7, P.coin); rc(9, y+1, 7, 5, P.coin); }
+    else if (k === 'gem'){ rc(8, y+1, 8, 3, P.gem); rc(9, y+4, 6, 3, P.gemD); }
+    else if (k === 'shroom'){ rc(11, y+3, 2, 4, P.stem); rc(8, y, 8, 3, P.shroom); }
+    else if (k === 'chest'){ rc(7, y+1, 10, 6, P.chest); rc(7, y, 10, 2, P.chestL); }
+    else { rc(8, y, 8, 7, '#241a30'); rc(10, y+2, 4, 3, P.lockC); }
+    textPix('' + rows[i][1], 54, y + 1, '#ffe9a8', 1);
+    rc(72, y + 4, 5, 1, '#6a628f');
+    textPix('' + rows[i][2], 82, y + 1, '#cfc6ff', 1);
   }
-  if (Math.sin(time*4) > 0) rc(VW/2 - 26, VH/2 + 34, 52, 2, '#8f88bb');
+  rc(8, 80, OW - 16, 1, '#3b3268');
+  var btns = outroBtns();
+  var ids = ['replay', 'continue'], bi, b, on;
+  for (bi = 0; bi < ids.length; bi++){
+    b = btns[ids[bi]];
+    on = outroFold.focus === b.id;
+    drawChip(b, on ? '#2a2448' : '#1a1430', on ? '#ffd9a0' : '#6a5fa8');
+    textPixC(b.label, b.x + (b.w / 2) | 0, b.y + 4, on ? '#ffd9a0' : '#cfc6ff', 1);
+  }
+  setCtx(main);
+  dimFold(outroFold.fold);
+  foldBlit(outroCv, OW, OH, outroFold.ox, outroFold.oy, OX, OY, outroFold.fold);
 }
 export function drawDead(over){
   var fade = Math.min(0.58, over.t / 0.85 * 0.58);

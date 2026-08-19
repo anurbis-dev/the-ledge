@@ -5,6 +5,9 @@ import {
   lootDrops, items, pickables, drawTorches, drawHarpoons, drawArrows, enemies, spiders, fliers, tendrils,
   hero, lightPass, drawWeeds, drawFish, drawParts, drawHearts,
   vignette, hud, drawIntro, drawPaused, drawOutro, drawDead, drawBubbles, hudHitsWeapon,
+  beginIntro, skipIntro, dismissIntro, stepIntro, isIntroReady,
+  beginOutro, skipOutro, pickOutro, stepOutro, hitOutro, isOutroReady,
+  setOutroFocus, outroFocus,
   applyPal, buildWater, stepWater, invalidateAll, fore, rc, getFish, spark, landDust, bonkDust, clampCam,
   setViewScale, applyVolumes, drawCollideOverlay,
   isInvOpen, invInspecting, openInv, closeInv, toggleInv, stepInv, drawInventory, handleInvPointer, handleInvWheel, handleInvKey,
@@ -277,6 +280,7 @@ function resumeGame(){
   if (!isMenu() || !canResume || !S) return false;
   setMenu(false);
   paused = false;
+  skipIntro();
   introT = 0;
   return true;
 }
@@ -293,6 +297,7 @@ function deleteLevelAt(idx, fromEditor){
   if (next < 0) return;
   if (wasCurrent){
     startLevel(next);
+    skipIntro();
     introT = 0;
     if (fromEditor){
       if (!ED.on) edOpen();
@@ -311,13 +316,24 @@ function dismissDead(){
   canResume = false;
   showMenu();
 }
+function applyOutroPick(pick){
+  var nx = outro ? outro.next : -1;
+  var idx = G.levelIndex();
+  skipOutro();
+  setOutro(null);
+  if (pick === 'replay') startLevel(idx);
+  else if (nx >= 0) startLevel(nx);
+  else { canResume = false; showMenu(); }
+}
 function advanceScreens(){
   if (gameOver && gameOver.t > 0.5){ dismissDead(); return true; }
-  if (introT > 0){ introT = 0; return true; }
-  if (outro && outro.t > 0.4){
-    var nx = outro.next; setOutro(null);
-    if (nx >= 0) startLevel(nx);
-    else { canResume = false; showMenu(); }
+  if (introT > 0){
+    if (isIntroReady()) dismissIntro();
+    latch.j = latch.u = latch.d = latch.a = false;
+    return true;
+  }
+  if (outro){
+    if (isOutroReady()) pickOutro('continue');
     return true;
   }
   if (paused){ paused = false; return true; }
@@ -327,6 +343,8 @@ function advanceScreens(){
 function hardReset(){
   gameOver = null;
   closeInv(true);
+  skipIntro(); introT = 0;
+  skipOutro(); setOutro(null);
   clearHistory();
   setS(G.mkWorld(G.levelIndex()));
   parts.length = 0; view.flash = 0.6;
@@ -335,6 +353,7 @@ function hardReset(){
 
 function startLevel(idx){
   closeInv(true);
+  skipOutro();
   clearHistory();
   setS(G.mkWorld(idx));
   introT = 1;                                  // плашка с названием, игра ждёт касания
@@ -348,8 +367,11 @@ function startLevel(idx){
   syncDelBtn();
   startMusic();
   if (G.levelSpec() && G.levelSpec().blank){
+    skipIntro();
     introT = 0;
     if (!ED.on) edOpen();
+  } else {
+    beginIntro();
   }
 }
 
@@ -370,10 +392,12 @@ function levelTotals(){
   return t;
 }
 function finishLevel(){
+  gameOver = null;
   var i = G.levelIndex();
   prog.done[i] = true;
   setOutro({ t: 0, totals: levelTotals(), bag: { coin:S.bag.coin, gem:S.bag.gem, shroom:S.bag.shroom },
             next: i + 1 < G.LEVELS.length ? i + 1 : -1 });
+  beginOutro();
   if (i + 1 < G.LEVELS.length) prog.max = Math.max(prog.max, i + 1);
   else prog.max = Math.max(prog.max, i);
   saveProgress();
@@ -470,8 +494,19 @@ function frame(now){
     tilesFront(); lightPass(); applyVolumes(); drawWeeds(); tendrils();
     if (ED.showGeo) drawCollideOverlay();
     fore(); vignette(); drawBubbles(); hud();
-    if (introT > 0) drawIntro();
-    else if (outro){ outro.t += dt; drawOutro(); }
+    if (introT > 0){
+      if (stepIntro(dt) === 'closed') introT = 0;
+      if (introT > 0) drawIntro();
+    }
+    else if (outro){
+      outro.t += dt;
+      var pick = stepOutro(dt);
+      if (pick){
+        applyOutroPick(pick);
+        if (introT > 0) drawIntro();
+      }
+      else drawOutro();
+    }
     else if (gameOver){ gameOver.t += dt; drawDead(gameOver); }
     else if (isInvOpen()){
       if (S) stepLoot(S, dt, true);
@@ -621,12 +656,13 @@ export function start(){
     onHeroTap: function(e){ return tryHeroInv(e); }
   });
   bindEditor({
-    onOpen: function(){ paused = false; introT = 0; },
+    onOpen: function(){ paused = false; skipIntro(); introT = 0; },
     onNewLevel: function(){
       var idx = G.newBlankLevel();
       prog.max = Math.max(prog.max, idx);
       saveProgress();
       startLevel(idx);
+      skipIntro();
       introT = 0;
       if (!ED.on) edOpen();
     },
@@ -643,6 +679,13 @@ export function start(){
   addEventListener('keydown', function(e){
     var tag = (e.target && e.target.tagName) || '';
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (outro){
+      if (e.key === 'r' || e.key === 'R'){
+        e.preventDefault();
+        if (isOutroReady()) pickOutro('replay');
+        return;
+      }
+    }
     if (gameOver){ if (gameOver.t > 0.5) dismissDead(); return; }
     if (tryDevGive(e.key)){ e.preventDefault(); return; }
     if (e.key !== 'Escape' && handleInvKey(e.key)){
@@ -721,7 +764,18 @@ export function start(){
   document.getElementById('bPause').addEventListener('click', function(){
     if (!isMenu() && introT <= 0 && !outro && !gameOver) paused = !paused;
   });
-  addEventListener('pointerdown', function(){ if (!ED.on && !isMenu()) advanceScreens(); });
+  addEventListener('pointerdown', function(e){
+    if (ED.on || isMenu()) return;
+    if (outro){
+      if (!isOutroReady()) return;
+      var g = clientToGame(e.clientX, e.clientY);
+      if (!g) return;
+      var hit = hitOutro(g.x, g.y);
+      if (hit) pickOutro(hit);
+      return;
+    }
+    advanceScreens();
+  });
   addEventListener('keydown', function(e){
     if (e.key === 'Escape'){
       var tag = (e.target && e.target.tagName) || '';
@@ -738,6 +792,17 @@ export function start(){
     }
     if (gameOver) return;
     if (e.key === 'p' || e.key === 'P'){ if (!isMenu() && introT <= 0 && !outro) paused = !paused; return; }
+    if (outro && isOutroReady()){
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A'){
+        e.preventDefault(); setOutroFocus('replay'); return;
+      }
+      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D'){
+        e.preventDefault(); setOutroFocus('continue'); return;
+      }
+      if (e.key === 'Enter' || e.key === ' '){
+        e.preventDefault(); pickOutro(outroFocus()); return;
+      }
+    }
     if (e.key === 'Enter' || e.key === ' ') advanceScreens();
   });
   document.getElementById('bReset').addEventListener('click', hardReset);
@@ -759,6 +824,7 @@ export function start(){
     var splashEl = document.getElementById('splash');
     if (splashEl) splashEl.classList.add('hide');
     startLevel(devLevel);
+    skipIntro();
     introT = 0;
   } else {
     showSplash(function(){ showMenu(); });
@@ -767,7 +833,7 @@ export function start(){
     window.__state = function(){ return S; };
     window.__start = startLevel;
     window.__menu = function(){ return isMenu(); };
-    window.__skip = function(){ introT = 0; paused = false; gameOver = null; setOutro(null); };
+    window.__skip = function(){ skipIntro(); introT = 0; paused = false; gameOver = null; skipOutro(); setOutro(null); };
     window.__screens = function(){ return { intro: introT, paused: paused, outro: !!outro, dead: !!gameOver, resume: canResume, inv: isInvOpen() }; };
     window.__inv = {
       open: openInv, close: closeInv, toggle: toggleInv, isOpen: isInvOpen,
