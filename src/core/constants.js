@@ -36,7 +36,7 @@ export const C = {
   ROOM_FADE: 0.55,
   /* камера: мёртвая зона, резинка, взгляд вперёд / вверх-вниз */
   CAM_DZ_X: 10, CAM_DZ_Y: 8,
-  CAM_FOLLOW: 6.5, CAM_SNAP: 1,
+  CAM_FOLLOW: 6.5, CAM_SNAP: 1, CAM_SUBPX: 1,
   CAM_LEAD: 20, CAM_LEAD_IDLE: 0.35, CAM_LEAD_V: 30, CAM_LEAD_K: 3.2,
   CAM_LOOK_DN: 44, CAM_LOOK_UP: -30, CAM_LOOK_V: 10, CAM_LOOK_K: 2.2
 };

@@ -84,7 +84,7 @@ export function lightPass(){
   lx.globalCompositeOperation = 'source-over';
   var dk = G.inDark(S, S.p.x + S.p.w/2, S.p.y + S.p.h/2);
   lx.fillStyle = dk ? '#0d0b16' : P.amb;              // в тёмной комнате почти нет фонового света
-  lx.fillRect(0, 0, VW, VH);
+  lx.fillRect(0, 0, VW + 1, VH + 1);
   lx.globalCompositeOperation = 'lighter';
   function add(x, y, r, col, a){
     if (x < -r || x > VW+r || y < -r || y > VH+r) return;

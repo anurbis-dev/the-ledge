@@ -1,9 +1,15 @@
 import GAME from '../core/game.js';
 
+export const VW = 320, VH = 180;
+export const BUF_W = VW + 1, BUF_H = VH + 1;
 export const cv = document.getElementById('c');
+export const hv = document.getElementById('h');
+export const viewBox = document.getElementById('view');
+if (cv){ cv.width = BUF_W; cv.height = BUF_H; }
 export let ctx = cv.getContext('2d');
-export const VW = cv.width, VH = cv.height;
 ctx.imageSmoothingEnabled = false;
+export const hx = hv ? hv.getContext('2d') : null;
+if (hx) hx.imageSmoothingEnabled = false;
 
 export var viewScale = 1;
 export function setViewScale(z){ viewScale = z > 0 ? z : 1; }
@@ -11,7 +17,7 @@ export function viewW(){ return VW / viewScale; }
 export function viewH(){ return VH / viewScale; }
 
 export const lc = document.createElement('canvas');
-lc.width = VW; lc.height = VH;
+lc.width = BUF_W; lc.height = BUF_H;
 export const lx = lc.getContext('2d');
 lx.imageSmoothingEnabled = false;
 
@@ -19,7 +25,7 @@ export const cam = { x: 0, y: 0, lead: 0, look: 0, ax: 0, ay: 0 };
 export const view = {
   time: 0, animT: 0, runPh: 0, parts: [], flash: 0,
   tail: { a: 0, v: 0 }, warpJump: false, hearts: [],
-  outro: null
+  outro: null, camFx: 0, camFy: 0
 };
 
 var _fs = null;
@@ -28,6 +34,19 @@ export function setFill(col){
 }
 export function setCtx(c){ ctx = c; _fs = null; }
 export function getCtx(){ return ctx; }
+
+export function paintHud(fn){
+  if (!hx){ fn(); return; }
+  hx.setTransform(1, 0, 0, 1, 0, 0);
+  hx.clearRect(0, 0, VW, VH);
+  var prev = ctx;
+  setCtx(hx);
+  fn();
+  setCtx(prev);
+}
+export function clearHud(){
+  if (hx) hx.clearRect(0, 0, VW, VH);
+}
 
 export function world(){ return GAME.W; }
 

@@ -5,8 +5,13 @@ html,body{height:100%;background:#07060f;overflow:hidden;
   touch-action:none;overscroll-behavior:none}
 #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
   padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+#view{position:relative;overflow:hidden;flex:0 0 auto;background:#07060f;
+  box-shadow:0 0 0 2px #191428,0 14px 50px #000c}
 canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;
-  background:#07060f;box-shadow:0 0 0 2px #191428,0 14px 50px #000c}
+  background:#07060f}
+#view canvas{background:transparent}
+#c{background:#07060f}
+#h{position:absolute;left:0;top:0;pointer-events:none}
 #dbg{position:fixed;left:8px;top:8px;font-size:9px;color:#7de0c0;text-shadow:0 1px 0 #000;
   display:none;pointer-events:none;white-space:pre;z-index:9}
 #stick{position:fixed;left:0;bottom:0;width:52%;height:62%;z-index:5;touch-action:none}

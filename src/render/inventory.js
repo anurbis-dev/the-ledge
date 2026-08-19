@@ -153,7 +153,8 @@ export function stepInv(dt){
 }
 
 export function clientToGame(cx, cy){
-  var r = cv.getBoundingClientRect();
+  var box = document.getElementById('view') || cv;
+  var r = box.getBoundingClientRect();
   if (!r.width || !r.height) return null;
   return { x: (cx - r.left) / r.width * VW, y: (cy - r.top) / r.height * VH };
 }

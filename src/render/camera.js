@@ -1,6 +1,6 @@
 import GAME from '../core/game.js';
 import { C } from '../core/constants.js';
-import { cam, view, VW, VH, viewW, viewH } from './ctx.js';
+import { cam, view, VW, VH, viewW, viewH, cv, viewBox } from './ctx.js';
 
 export function clampCam(x, y){
   if (view.edit) return { x: x, y: y };
@@ -60,15 +60,45 @@ export function followCam(dt, p, flags){
   cam.y = easeToward(cam.y, want.y, kk, snap);
 }
 
+export function clearCamPan(){
+  view.camFx = 0;
+  view.camFy = 0;
+  if (cv) cv.style.transform = '';
+}
+
+export function applyCamPan(fx, fy){
+  view.camFx = fx;
+  view.camFy = fy;
+  if (!cv || view.edit || C.CAM_SUBPX < 0.5){
+    if (cv) cv.style.transform = '';
+    return;
+  }
+  var box = viewBox || cv;
+  var dw = box.clientWidth || VW;
+  var dh = box.clientHeight || VH;
+  var px = Math.round(fx * dw / VW);
+  var py = Math.round(fy * dh / VH);
+  cv.style.transform = 'translate(' + (-px) + 'px,' + (-py) + 'px)';
+}
+
 export function pushCamRender(shake){
   var shx = 0, shy = 0;
   if (shake > 0.05){
     shx = (Math.random() - 0.5) * shake * 2;
     shy = (Math.random() - 0.5) * shake * 2;
   }
+  var rx = cam.x + shx, ry = cam.y + shy;
   var prev = { x: cam.x, y: cam.y };
-  cam.x = Math.round(cam.x + shx);
-  cam.y = Math.round(cam.y + shy);
+  if (C.CAM_SUBPX < 0.5 || view.edit){
+    cam.x = Math.round(rx);
+    cam.y = Math.round(ry);
+    clearCamPan();
+    return prev;
+  }
+  var fx = rx - Math.floor(rx), fy = ry - Math.floor(ry);
+  cam.x = Math.floor(rx);
+  cam.y = Math.floor(ry);
+  applyCamPan(fx, fy);
   return prev;
 }
 

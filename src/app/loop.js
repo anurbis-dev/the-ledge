@@ -1,6 +1,6 @@
 import GAME from '../core/game.js';
 import {
-  cv, ctx, VW, VH, cam, view,
+  cv, ctx, VW, VH, BUF_W, BUF_H, viewBox, hv, cam, view,
   sky, tiles, tilesFront, plats, lifts, caveExit, doors, chests, boulders, npcs,
   lootDrops, items, pickables, drawTorches, drawHarpoons, drawArrows, enemies, spiders, fliers, tendrils,
   hero, lightPass, drawWeeds, drawFish, drawParts, drawHearts,
@@ -9,7 +9,7 @@ import {
   beginOutro, skipOutro, pickOutro, stepOutro, hitOutro, isOutroReady,
   setOutroFocus, outroFocus,
   applyPal, buildWater, stepWater, invalidateAll, fore, rc, getFish, spark, landDust, bonkDust,
-  resetCam, followCam, pushCamRender, popCamRender,
+  resetCam, followCam, pushCamRender, popCamRender, clearCamPan, paintHud, clearHud,
   setViewScale, applyVolumes, drawCollideOverlay,
   isInvOpen, invInspecting, openInv, closeInv, toggleInv, stepInv, drawInventory, handleInvPointer, handleInvWheel, handleInvKey,
   clientToGame, hitsHero, giveInv, giveInvKit
@@ -424,8 +424,17 @@ function resize(){
   var padB = ED.on ? 8 : (land ? 4 : 150);
   var s = Math.min((innerWidth - (land ? 4 : 16))/VW, (innerHeight - padB)/VH);
   s = Math.max(0.55, s);
-  cv.style.width = Math.floor(VW*s) + 'px';
-  cv.style.height = Math.floor(VH*s) + 'px';
+  var dw = Math.floor(VW * s), dh = Math.floor(VH * s);
+  if (viewBox){
+    viewBox.style.width = dw + 'px';
+    viewBox.style.height = dh + 'px';
+  }
+  cv.style.width = Math.floor(BUF_W * s) + 'px';
+  cv.style.height = Math.floor(BUF_H * s) + 'px';
+  if (hv){
+    hv.style.width = dw + 'px';
+    hv.style.height = dh + 'px';
+  }
 }
 
 export function getOutro(){ return outro; }
@@ -437,7 +446,11 @@ function frame(now){
   if (!ED.on && !isMenu()){ view.time += dt; view.animT += dt; }
   if (view.flash > 0) view.flash = Math.max(0, view.flash - dt*2.2);
 
-  if (isMenu()){ acc = 0; hushLift(); hushSounds(); hushMusic(); requestAnimationFrame(frame); return; }
+  if (isMenu()){
+    acc = 0; hushLift(); hushSounds(); hushMusic();
+    clearCamPan(); clearHud();
+    requestAnimationFrame(frame); return;
+  }
   if (ED.on){
     acc = 0;
     hushLift();
@@ -445,13 +458,15 @@ function frame(now){
       if (!musicHeld() && musicArmed()) resumeMusic();
     } else hushMusic();
     view.edit = true;
+    clearCamPan();
+    clearHud();
     markRoomHidden(S);
     snapEditCam();
     var z = ED.zoom || 1;
     setViewScale(z);
     ctx.imageSmoothingEnabled = false;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, VW, VH);
+    ctx.clearRect(0, 0, BUF_W, BUF_H);
     sky();
     ctx.setTransform(z, 0, 0, z, 0, 0);
     tiles();
@@ -486,7 +501,8 @@ function frame(now){
     hushLift(); hushSounds();
     if ((paused && !isInvOpen()) || outro || gameOver) hushMusic();
     else resumeMusic();
-    ctx.clearRect(0, 0, VW, VH);
+    var ovPrev = pushCamRender(S.shake);
+    ctx.clearRect(0, 0, BUF_W, BUF_H);
     sky(); tiles();
     if (entitiesShown(false)){
       plats(); lifts(); caveExit(); doors(); boulders(); chests();
@@ -495,27 +511,31 @@ function frame(now){
     }
     tilesFront(); lightPass(); applyVolumes(); drawWeeds(); tendrils();
     if (ED.showGeo) drawCollideOverlay();
-    fore(); vignette(); drawBubbles(); hud();
-    if (introT > 0){
-      if (stepIntro(dt) === 'closed') introT = 0;
-      if (introT > 0) drawIntro();
-    }
-    else if (outro){
-      outro.t += dt;
-      var pick = stepOutro(dt);
-      if (pick){
-        applyOutroPick(pick);
-        if (introT > 0) drawIntro();
-      }
-      else drawOutro();
-    }
-    else if (gameOver){ gameOver.t += dt; drawDead(gameOver); }
-    else if (isInvOpen()){
+    fore(); drawBubbles();
+    if (isInvOpen()){
       if (S) stepLoot(S, dt, true);
       stepInv(dt);
-      if (isInvOpen()) drawInventory();
     }
-    else drawPaused();
+    paintHud(function(){
+      vignette(); hud();
+      if (introT > 0){
+        if (stepIntro(dt) === 'closed') introT = 0;
+        if (introT > 0) drawIntro();
+      }
+      else if (outro){
+        outro.t += dt;
+        var pick = stepOutro(dt);
+        if (pick){
+          applyOutroPick(pick);
+          if (introT > 0) drawIntro();
+        }
+        else drawOutro();
+      }
+      else if (gameOver){ gameOver.t += dt; drawDead(gameOver); }
+      else if (isInvOpen()) drawInventory();
+      else drawPaused();
+    });
+    popCamRender(ovPrev);
     requestAnimationFrame(frame);
     return;
   }
@@ -562,7 +582,7 @@ function frame(now){
   liftSound(anyMoving);
   stepSounds(S);
 
-  ctx.clearRect(0, 0, VW, VH);
+  ctx.clearRect(0, 0, BUF_W, BUF_H);
   sky();
   tiles();
   plats();
@@ -592,15 +612,17 @@ function frame(now){
   tendrils();
   if (ED.showGeo) drawCollideOverlay();
   fore();
-  vignette();
   drawBubbles();
-  if (gameOver){ gameOver.t += dt; drawDead(gameOver); }
-  if (S.fade > 0){
-    ctx.globalAlpha = Math.min(1, S.fade);
-    rc(0, 0, VW, VH, '#07060f');
-    ctx.globalAlpha = 1;
-  }
-  hud();
+  paintHud(function(){
+    vignette();
+    if (gameOver){ gameOver.t += dt; drawDead(gameOver); }
+    if (S.fade > 0){
+      ctx.globalAlpha = Math.min(1, S.fade);
+      rc(0, 0, VW, VH, '#07060f');
+      ctx.globalAlpha = 1;
+    }
+    hud();
+  });
 
   popCamRender(camPrev);
 

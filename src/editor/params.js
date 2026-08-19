@@ -133,6 +133,7 @@ export var PARAM_GROUPS = [
     { key: 'CAM_DZ_Y', label: 'Dead zone Y', min: 0, max: 80, step: 1, hint: 'anchor idle half-height' },
     { key: 'CAM_FOLLOW', label: 'Follow rate', min: 0.5, max: 20, step: 0.1, hint: 'rubber; higher = snappier' },
     { key: 'CAM_SNAP', label: 'Snap px', min: 0, max: 8, step: 0.05, hint: 'stick when closer; kills pixel crawl' },
+    { key: 'CAM_SUBPX', label: 'Subpixel pan', min: 0, max: 1, step: 1, hint: '1 = slide at screen pixels' },
     { key: 'CAM_LEAD', label: 'Lead', min: 0, max: 80, step: 1, hint: 'look-ahead at run' },
     { key: 'CAM_LEAD_IDLE', label: 'Lead idle', min: 0, max: 1, step: 0.01, hint: 'lead mul when slow' },
     { key: 'CAM_LEAD_V', label: 'Lead vx', min: 0, max: 120, step: 1, hint: 'full lead above this speed' },

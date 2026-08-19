@@ -83,7 +83,7 @@ function fillSky(){
     SKYG.addColorStop(0, sk[0]); SKYG.addColorStop(0.42, sk[1]); SKYG.addColorStop(1, sk[2]);
     skyRev = palRev;
   }
-  setFill(SKYG); ctx.fillRect(0, 0, VW, VH);
+  setFill(SKYG); ctx.fillRect(0, 0, VW + 1, VH + 1);
 }
 function drawStars(px, py){
   for (var i = 0; i < 54; i++){
