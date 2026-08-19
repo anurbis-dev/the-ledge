@@ -50,13 +50,13 @@ After completing any code fix or feature implementation, always execute these st
 2. **Update MemPalace** — persist any stable architectural facts, design decisions, or newly discovered patterns via `mempalace_add_drawer` / `mempalace_update_drawer` and `mempalace_kg_add` if relevant.
 3. **Update local auto-memory** — only for always-on behavioral triggers (e.g., response language). Everything else goes to MemPalace, not local files.
 4. **Browser verification** — confirm the fix via `chrome-devtools` MCP (`evaluate_script` on `GAME` / canvas, `list_console_messages` for errors). Only then declare the task complete. Docs/rules-only → skip browser.
-5. **Commit + push** — agent does this himself (see Git below). Do not ask the user.
+5. **Local commit** — agent commits locally himself (see Git below). **Do not push** unless the user explicitly asks. The user may push from their UI button.
 
 Do not skip these steps even for "small" fixes — consistency is what keeps docs and memory trustworthy over time.
 
 ## Git, version, commit, push
 
-**Single source of truth = `package.json` `version`** (SemVer). Агент **сам** коммитит и пушит `origin` / текущую ветку. Не просить пользователя. Не force-push.
+**Single source of truth = `package.json` `version`** (SemVer). Агент **сам** делает **локальный** `git commit`. **Не пушить**, пока пользователь явно не скажет («запушь», `git push`). Иначе пуш — кнопка в UI у пользователя. Не force-push. Не просить пользователя нажать кнопку.
 
 ### SemVer + channel
 
@@ -83,10 +83,15 @@ Format: `MAJOR.MINOR.PATCH` or `MAJOR.MINOR.PATCH-CHANNEL.N`.
 3. If `docs/CHANGELOG.md` is in the commit: archive pre-commit `HEAD` content into `docs/CHANGELOG_ARCHIVE.md` (prepend), leave only this commit’s new bullets in `CHANGELOG.md`.
 4. Stage relevant files including `package.json` (and CHANGELOG pair if touched). Do not commit secrets.
 5. Commit with a clear message. Prefer no `Co-Authored-By` unless the user wants it.
-6. Push: `git push -u origin HEAD` on a new branch; never force-push `main`/`master` unless explicitly requested.
-7. After push, report branch + remote URL + version.
+6. After commit, report branch + version + that the commit is **local only** (not pushed).
 
-Default remote: `origin` → `https://github.com/anurbis-dev/the-ledge.git`.
+### Push
+
+- **Only** on explicit user request («запушь», `git push`, «пуш»).
+- Otherwise stop after local commit — the user may push themselves (UI button).
+- Default remote: `origin` → `https://github.com/anurbis-dev/the-ledge.git`.
+- Prefer `git push -u origin HEAD` on a new branch; never force-push `main`/`master` unless explicitly requested.
+- After a requested push, report branch + remote URL + version.
 
 ### Enforcement
 
