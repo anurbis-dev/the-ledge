@@ -1,3 +1,7 @@
+## 0.1.2-dev.14
+
+- Снят GitHub Pages с этой репы: не публиковать игру под домен user-site.
+
 ## 0.1.2-dev.13
 
 - Публичная сборка на GitHub Pages: `https://anurbis-dev.github.io/the-ledge/` (`pages.yml` → `dist/`).

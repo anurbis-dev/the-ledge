@@ -52,9 +52,11 @@ export function resetPlayer(S){
 export function footCenterX(p){ return p.x + p.w * 0.5; }
 
 /* опора = центр текущей коробки (поза / ящик из редактора), не край AABB */
-function footSupported(p){
+function footSupported(p, noLadTop){
   var cx = footCenterX(p);
-  return solidAt(cx, p.y + p.h) || solidAt(cx, p.y + p.h + 1);
+  if (solidAt(cx, p.y + p.h) || solidAt(cx, p.y + p.h + 1)) return true;
+  if (noLadTop) return false;
+  return ladderTopUnder(p, p.y + p.h) !== null || ladderTopUnder(p, p.y + p.h + 1) !== null;
 }
 
 /* свес: центр уже в воздухе — плитки ряда ступней не держат и не толкают назад */
@@ -197,10 +199,9 @@ export function slopeGradeUnder(p){
 export function grounded(S, p, noLadTop){
   var cx = footCenterX(p);
   if (slopeUnderAt(p, cx) !== null) return true;
-  if (footSupported(p)) return true;
+  if (footSupported(p, noLadTop)) return true;
   if (platUnder(S, { x: cx - 1, y: p.y, w: 2, h: p.h }, p.y + p.h + 1)) return true;
-  if (noLadTop) return false;
-  return ladderTopUnder(p, p.y + p.h + 1) !== null;
+  return false;
 }
 
 export function setH(p, h){ var b = p.y + p.h; p.h = h; p.y = b - h; }
@@ -887,10 +888,19 @@ export function updateLadder(S, p, dt, inp){
   }
   if (up !== 0){
     var sp = C.LAD_V * dt, nx = p.x, ny = p.y;
+    var prefer = diag ? L.dirx : (inp.x ? (inp.x > 0 ? 1 : -1) : p.facing);
     if (diag){ nx += L.dirx * up * sp * 0.72; ny -= up * sp * 0.72; }
     else ny -= up * sp;
+    // вертикаль: на верхней перекладине ↑ — сразу встать, не лезть в воздух
+    if (!diag && up > 0){
+      var topRow = Math.floor((p.y + p.h/2 + L.oy) / T);
+      if (ladderTop(L.tc, topRow) && ny + p.h <= topRow * T + 4){
+        exitTop(S, p, L.tc, topRow, prefer);
+        return;
+      }
+    }
     if (!rectFree(nx, ny, p.w, p.h)){
-      if (up > 0) exitTop(S, p, L.tc, L.tr, diag ? L.dirx : (inp.x ? (inp.x > 0 ? 1 : -1) : p.facing));
+      if (up > 0) exitTop(S, p, L.tc, L.tr, prefer);
     } else {
       var rx = nx + p.w/2 + L.ox, ry = ny + p.h/2 + L.oy;
       var move = false, drop = false;
@@ -907,8 +917,7 @@ export function updateLadder(S, p, dt, inp){
       } else {
         L.tr = Math.floor(ry / T);
         if (ladKindAt(rx, ry)) move = true;
-        else if (up > 0) exitTop(S, p, L.tc, Math.floor((p.y + p.h/2 + L.oy) / T),
-                                 inp.x ? (inp.x > 0 ? 1 : -1) : p.facing);
+        else if (up > 0) exitTop(S, p, L.tc, Math.floor((p.y + p.h/2 + L.oy) / T), prefer);
         else drop = true;
       }
       if (move){ p.x = nx; p.y = ny; L.ph += sp * 0.17; }

@@ -1,3 +1,3 @@
 # Changelog (unreleased)
 
-- Снят GitHub Pages с этой репы: не публиковать игру под домен user-site.
+- Верх лестницы держит как блок: one-way в `tileBlocks`/`groundYAt`, ↑ на верху сразу `exitTop` (не лезет в воздух и не срывается с края).

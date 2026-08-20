@@ -174,7 +174,7 @@ export function solidTile(c, r){
 export function ladderTile(c, r){ return isLadV(tileAt(c, r)); }
 export function ladderTop(c, r){                        // верхняя перекладина держит как земля
   var v = tileAt(c, r);
-  if (v !== LADW && v !== LADF) return false;
+  if (!isLadV(v) || isSlopeV(v)) return false;         // вертикаль / custom climb, не скос
   return !isLadV(tileAt(c, r - 1));
 }
 export function solidAt(px, py){
@@ -197,6 +197,8 @@ export function solidAt(px, py){
 }
 export function ladderAt(px, py){ return ladderTile(Math.floor(px / T), Math.floor(py / T)); }
 export function tileBlocks(c, r, y, h, x, w){
+  // верх лестницы — односторонняя площадка (как oneWay): ловим только сверху
+  if (ladderTop(c, r)) return y + h > r * T && y + h <= r * T + 4;
   var v = tileAt(c, r);
   var d = defOf(v);
   if (d){
@@ -233,6 +235,11 @@ export function groundYAt(px, py){
     if (isSlopeV(v)){
       var sy = rr*T + slopeTop(v, c, px);
       if (py <= sy + 2) return sy;
+    }
+    if (ladderTop(c, rr)){
+      var lty = rr * T;
+      if (py >= lty - 2 && py <= lty + 7) return lty;
+      continue;
     }
     var d = defOf(v);
     if (d && d.collide === 'custom' && d.box){
