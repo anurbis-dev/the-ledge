@@ -1661,6 +1661,31 @@ function startIconScale(e){
   window.addEventListener('pointerup', up);
   window.addEventListener('pointercancel', up);
 }
+var zoomDrag = null;
+function clampZoom(z){
+  return Math.max(ZOOM_STEPS[0], Math.min(ZOOM_STEPS[ZOOM_STEPS.length - 1], z));
+}
+function startLevelZoom(e, sx, sy){
+  zoomDrag = { y: e.clientY, zoom: ED.zoom || 1, sx: sx, sy: sy, pointerId: e.pointerId };
+  function move(ev){
+    if (!zoomDrag || ev.pointerId !== zoomDrag.pointerId) return;
+    ev.preventDefault();
+    var next = clampZoom(zoomDrag.zoom * Math.pow(2, (zoomDrag.y - ev.clientY) / 120));
+    if (next !== ED.zoom) setZoom(next, zoomDrag.sx, zoomDrag.sy);
+  }
+  function up(ev){
+    if (!zoomDrag || ev.pointerId !== zoomDrag.pointerId) return;
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', up);
+    if (ED.zoom !== ZOOM_STEPS[nearestZoomIx(ED.zoom)])
+      setZoom(ZOOM_STEPS[nearestZoomIx(ED.zoom)], zoomDrag.sx, zoomDrag.sy);
+    zoomDrag = null;
+  }
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', up);
+}
 
 cv.addEventListener('pointerdown', function(e){
   if (!ED.on) return;
@@ -1675,8 +1700,8 @@ cv.addEventListener('pointerdown', function(e){
     return;
   }
   if (e.button === 2){
-    if ((e.ctrlKey || e.metaKey) && ED.tab === 'obj'){
-      startIconScale(e);
+    if (e.ctrlKey || e.metaKey){
+      startLevelZoom(e, cell.sx, cell.sy);
       return;
     }
     closeVarMenu();
