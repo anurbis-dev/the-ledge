@@ -4,8 +4,11 @@ import { getSpriteDef, getFrameAnchor } from './spriteset.js';
 
 export function defaultGrabOff(){ return { x: C.W + 2, y: C.HAND }; }
 
-/* Хитбокс по действию. Подбор — жест внутри текущей стойки: pick* только в heroClip,
-   иначе baked pick.h≈crouch роняет стоячий PICK_B в пол через applyHeroBox. */
+/* Доля анимации до низа приседа — как pickPose / torches.PICK_APEX. */
+var PICK_APEX = 0.45;
+
+/* Хитбокс по действию. Подбор стоя: crouch только около апекса, иначе idle —
+   сразу pick/crouch на всём pickT давал провал в пол (PICK_B под низкий box). */
 export function heroBoxAnim(p){
   if (!p) return 'idle';
   if (p.gettingUp) return 'prone';
@@ -13,6 +16,13 @@ export function heroBoxAnim(p){
   if (p.state === 'snare') return 'snare';
   if (p.inWater) return 'swim';
   if (p.state === 'bars') return 'bars';
+  if (p.pickT > 0 && p.onGround){
+    if (p.stance === 2) return 'prone';
+    if (p.stance === 1) return 'crouch';
+    var t = 1 - p.pickT / C.PICK_T;
+    if (t >= PICK_APEX * 0.5 && t <= PICK_APEX + (1 - PICK_APEX) * 0.55) return 'crouch';
+    return 'idle';
+  }
   if (p.stance === 2) return 'prone';
   if (p.stance === 1) return Math.abs(p.vx) > 4 ? 'crouchWalk' : 'crouch';
   if (p.grapple) return 'grapple';

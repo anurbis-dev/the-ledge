@@ -144,7 +144,6 @@ export function defaultAnimBox(id, anim){
   if (id === 'hero'){
     if (anim === 'crouch' || anim === 'crouchWalk' || anim === 'pickCrouch') return { w: C.W, h: C.CRH };
     if (anim === 'prone' || anim === 'pickProne') return { w: C.PRW, h: C.PRH };
-    /* pick (стоя) = рост idle/C.H — жест приседа внутри стойки, не смена хитбокса */
     if (anim === 'roll') return { w: C.W, h: C.RH };
     return { w: C.W, h: C.H };
   }

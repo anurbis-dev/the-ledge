@@ -254,7 +254,8 @@ export function hero(){
     cxs = 5; cys = 6;
   }
   var oy = p.y;
-  if (p.gettingUp)                              // поза растёт вверх, ноги остаются на земле
+  // getup / подбор: h меняется, поза в своих координатах — ноги к низу хитбокса
+  if (p.gettingUp || (p.pickT > 0 && p.onGround))
     oy = p.y + p.h - Math.max(pose2.fF[1], pose2.fB[1]);
   for (i = 0; i < K.length; i++){
     k = K[i];
