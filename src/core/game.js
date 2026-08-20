@@ -12,7 +12,7 @@ import {
   slopeTop, slopeSpec, slopeFamily, slopeRiseRight, SLOPE_SEQ,
   tileAt, varAt, varR, isSolidV, isLadV, solidTile, ladderTile, solidAt, ladderAt, rectFree
 } from './map.js';
-import { mkPlayer, resetPlayer, stanceH, hangBox, standBox, applyHeroBox } from './player.js';
+import { mkPlayer, resetPlayer, stanceH, hangBox, standBox, applyHeroBox, isInvuln, toggleInvuln, setInvuln } from './player.js';
 import { getAnimBox } from './spriteset.js';
 import { step } from './step.js';
 import { LEVELS, loadLevel, addBlankLevel, removeLevel } from '../levels/index.js';
@@ -260,7 +260,7 @@ export const GAME = {
   buildGates: function(S){ buildGates(S); },
   mkItemAt, mkEnemyAt, mkFlierAt, mkSpiderAt, mkTorchAt, mkChestAt, mkDoorAt, mkTendrilAt,
   mkLightAt, mkSoundAt, mkVolumeAt, mkBoulderAt, mkNpcAt, getLayers, getActiveLayer,
-  rectFree, mkWorld, step, resetPlayer,
+  rectFree, mkWorld, step, resetPlayer, isInvuln, toggleInvuln, setInvuln,
   LEVELS, loadLevel, newBlankLevel: addBlankLevel, removeLevel, levelIndex(){ return runtime.LVI; },
   levelSpec(){ return runtime.LV; },
   tryAction, dropTorch, attack, tryDoor, inLift,

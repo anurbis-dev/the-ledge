@@ -1,7 +1,7 @@
 import { C } from '../core/constants.js';
 import { runtime } from '../core/runtime.js';
 import { rectFree, solidAt } from '../core/map.js';
-import { damage, slopeUnder } from '../core/player.js';
+import { damage, isInvuln, slopeUnder } from '../core/player.js';
 import { getAnimBox } from '../core/spriteset.js';
 import { dropLootFor } from './loot.js';
 import { GEAR, wearGear } from './gear.js';
@@ -84,7 +84,7 @@ export function stepEnemies(S, dt){
       e.dir = -e.dir; e.x += e.v * e.dir * dt;
     }
     if (e.baseY !== undefined && e.vy === 0) e.baseY = e.y;
-    if (p.hurtCd <= 0 && p.state !== 'stun' &&
+    if (!isInvuln() && p.hurtCd <= 0 && p.state !== 'stun' &&
         p.x + p.w > e.x + 1 && p.x < e.x + e.w - 1 &&
         p.y + p.h > e.y + 1 && p.y < e.y + e.h - 1){
       var kb = (p.x + p.w/2 < e.x + e.w/2) ? -1 : 1;

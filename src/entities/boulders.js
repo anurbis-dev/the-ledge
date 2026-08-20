@@ -1,7 +1,7 @@
 import { T, C } from '../core/constants.js';
 import { runtime } from '../core/runtime.js';
 import { rectFree, isSlopeV, slopeGrade, slopeRiseRight, slopeTop, tileAt } from '../core/map.js';
-import { damage } from '../core/player.js';
+import { damage, isInvuln } from '../core/player.js';
 import { allocId } from './ids.js';
 
 export var BW = 12, BH = 11, BR = 6;
@@ -94,7 +94,7 @@ export function stepBoulders(S, dt){
       var nx2 = b.x + b.vx * dt;
       if (rectFree(nx2, b.y, BW, BH)){ b.rot += (nx2 - b.x) / BR; b.x = nx2; } else b.vx = 0;
     }
-    if (p.hurtCd <= 0 && p.state !== 'stun' && b.vy > 40 && overlapsPlayer(b, p)){
+    if (!isInvuln() && p.hurtCd <= 0 && p.state !== 'stun' && b.vy > 40 && overlapsPlayer(b, p)){
       p.hurtCd = C.HURT_CD;
       damage(S, 99, 0.3);                         // насмерть — каска не спасает
       p.events.push('hitdrop');

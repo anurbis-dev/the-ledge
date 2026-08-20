@@ -1,7 +1,7 @@
 import { T, C } from '../core/constants.js';
 import { runtime } from '../core/runtime.js';
 import { rectFree, solidTile } from '../core/map.js';
-import { damage } from '../core/player.js';
+import { damage, isInvuln } from '../core/player.js';
 import { wearGear } from './gear.js';
 
 export function mkFliers(){
@@ -57,7 +57,7 @@ export function stepFliers(S, dt){
         var dxp = (p.x + p.w/2) - (f.x + f.w/2), dyp = (p.y + 8) - (f.y + f.h/2);
         var ln = Math.sqrt(dxp*dxp + dyp*dyp) || 1;
         f.x += dxp/ln * 150 * dt; f.y += dyp/ln * 150 * dt;
-        if (p.hurtCd <= 0 && p.state !== 'stun' &&
+        if (!isInvuln() && p.hurtCd <= 0 && p.state !== 'stun' &&
             Math.abs(dxp) < 12 && Math.abs(dyp) < 12){
           p.hurtCd = C.HURT_CD;
           if (p.helmet){ p.events.push('clank'); wearGear(S, 'helmet'); }
@@ -81,7 +81,7 @@ export function stepFliers(S, dt){
         p.events.push('bomb');
       } else f.cd = 0.3;
     }
-    if (p.hurtCd <= 0 && p.state !== 'stun' &&
+    if (!isInvuln() && p.hurtCd <= 0 && p.state !== 'stun' &&
         p.x + p.w > f.x && p.x < f.x + f.w && p.y + p.h > f.y && p.y < f.y + f.h){
       p.hurtCd = C.HURT_CD; damage(S, 1, 0.3);
       p.vy = -120; p.onGround = false;
@@ -96,7 +96,7 @@ export function stepDrops(S, dt){
     d.y += d.vy * dt;
     if (!rectFree(d.x - 1, d.y - 2, 3, 3)){ S.drops.splice(i, 1); p.events.push('splat'); continue; }
     if (d.y > (runtime.originR + runtime.MAP_H)*T){ S.drops.splice(i, 1); continue; }
-    if (p.hurtCd <= 0 && p.state !== 'stun' &&
+    if (!isInvuln() && p.hurtCd <= 0 && p.state !== 'stun' &&
         d.x > p.x && d.x < p.x + p.w && d.y > p.y && d.y < p.y + p.h){
       S.drops.splice(i, 1);
       if (p.helmet){ p.events.push('clank'); wearGear(S, 'helmet'); continue; }

@@ -1,7 +1,7 @@
 import { T, C } from '../core/constants.js';
 import { runtime } from '../core/runtime.js';
 import { solidTile } from '../core/map.js';
-import { damage } from '../core/player.js';
+import { damage, isInvuln } from '../core/player.js';
 import { dropLootFor } from './loot.js';
 
 export function mkSpiders(){
@@ -133,7 +133,7 @@ export function stepSpiders(S, dt){
       }
       if (sp.len > maxLen - 6) sp.len = maxLen - 6;
       sp.y = sp.hy + sp.len;
-      if (p.hurtCd <= 0 && p.state !== 'stun' &&
+      if (!isInvuln() && p.hurtCd <= 0 && p.state !== 'stun' &&
           Math.abs((p.x + p.w/2) - sp.hx) < 10 &&
           Math.abs((p.y + p.h/2) - sp.y) < 12){
         p.hurtCd = C.HURT_CD; damage(S, 1, 0.25);

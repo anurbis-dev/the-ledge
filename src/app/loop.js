@@ -641,7 +641,7 @@ function frame(now){
       '\nx ' + p2.x.toFixed(0) + ' y ' + p2.y.toFixed(0) + ' vy ' + p2.vy.toFixed(0) +
       '\nground ' + (p2.onGround?1:0) + ' slide ' + p2.sliding + ' roll ' + p2.rollT.toFixed(2) +
       '\nax ' + inp.x.toFixed(2) + ' up ' + (inp.upHeld?1:0) + ' dn ' + (inp.downHeld?1:0) +
-      '\nfell ' + p2.fell.toFixed(0);
+      '\nfell ' + p2.fell.toFixed(0) + ' invuln ' + (G.isInvuln() ? 1 : 0);
   }
   requestAnimationFrame(frame);
 }
@@ -704,6 +704,11 @@ export function start(){
       }
     }
     if (gameOver){ if (gameOver.t > 0.5) dismissDead(); return; }
+    if (e.key === '9' || e.code === 'Numpad9'){
+      e.preventDefault();
+      G.toggleInvuln();
+      return;
+    }
     if (tryDevGive(e.key)){ e.preventDefault(); return; }
     if (e.key !== 'Escape' && handleInvKey(e.key)){
       if (e.key === 'i' || e.key === 'I') e.preventDefault();

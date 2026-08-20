@@ -343,8 +343,14 @@ function findLedge(p, dir, extraUp){
   return best;
 }
 
+/* dev: 9 — полный иммунитет к урону (враги, падение, утопление и т.п.) */
+var invuln = false;
+export function isInvuln(){ return invuln; }
+export function toggleInvuln(){ invuln = !invuln; return invuln; }
+export function setInvuln(v){ invuln = !!v; return invuln; }
+
 export function damage(S, n, stun){
-  if (S.dead) return;
+  if (S.dead || invuln) return false;
   S.hp -= n;
   if (S.hp < 0) S.hp = 0;
   S.p.stunT = stun; S.p.state = 'stun'; S.p.vx = 0;
@@ -353,6 +359,7 @@ export function damage(S, n, stun){
   S.p.events.push('hurt');
   breakTalk(S, 'hit');
   if (S.hp <= 0){ S.hp = 0; S.dead = true; S.p.events.push('dead'); }
+  return true;
 }
 /* приземление: залипаем в приседе (среднее) или лёжа (высокое), без управления */
 export function startFallRecover(S, p, st, dur){

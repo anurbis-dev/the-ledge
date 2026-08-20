@@ -1,5 +1,5 @@
 import GAME from '../core/game.js';
-import { damage } from '../core/player.js';
+import { damage, isInvuln } from '../core/player.js';
 import { getLayers, layerShown, layerCssFilter } from '../core/layers.js';
 import { roomVisAt } from '../core/rooms.js';
 import { ctx, cam, view, VW, VH, rc, lb, setFill, world } from './ctx.js';
@@ -454,7 +454,7 @@ export function stepWater(dt){
       f.dir = dx > 0 ? 1 : -1;                        // крупные подплывают и кусают
       f.x += f.dir * f.v * 1.3 * dt;
       f.bite -= dt;
-      if (Math.abs(dx) < 12 && Math.abs(dy) < 12 && f.bite <= 0 && S.p.hurtCd <= 0){
+      if (Math.abs(dx) < 12 && Math.abs(dy) < 12 && f.bite <= 0 && S.p.hurtCd <= 0 && !isInvuln()){
         f.bite = 1.6; S.p.hurtCd = C.HURT_CD;
         damage(S, 1, 0.25);
         S.p.events.push('bite');

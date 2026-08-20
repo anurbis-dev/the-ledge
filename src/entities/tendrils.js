@@ -1,7 +1,7 @@
 import { T, C } from '../core/constants.js';
 import { runtime } from '../core/runtime.js';
 import { tileAt, isWetV, isWaterV, waterSurfaceY, rectFree, solidTile } from '../core/map.js';
-import { damage } from '../core/player.js';
+import { damage, isInvuln } from '../core/player.js';
 import { dropLootFor } from './loot.js';
 import { allocId } from './ids.js';
 
@@ -275,7 +275,7 @@ export function stepTendrils(S, dt, inp){
       var hit = Math.abs(w.tx - pcx) < tipR && Math.abs(w.ty - pcy) < tipR + 2;
       if (hit && p.state !== 'snare' && p.state !== 'stun'){
         if (w.kind === 0){
-          if (p.hurtCd <= 0){
+          if (!isInvuln() && p.hurtCd <= 0){
             p.hurtCd = C.HURT_CD;
             var kb = pcx < w.bx ? -1 : 1;
             damage(S, 1, 0.22);

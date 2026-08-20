@@ -2,7 +2,7 @@ import { T, C, ROCK } from './constants.js';
 import { runtime, setWorld } from './runtime.js';
 import { tileAt, rectFree, isWaterV, waterSurfaceY, ladderTile } from './map.js';
 import {
-  moveX, moveY, damage, updateBars, ease, updateClimb, updateHang, updateLadder,
+  moveX, moveY, damage, isInvuln, updateBars, ease, updateClimb, updateHang, updateLadder,
   setStance, setH, slopeUnder, slopeUnderAt, slopeGradeUnder, grounded, autoLadder, tryBars,
   tryLadder, tryGrab, tryClimbOut, tryCrawlEdge, ladderTopUnder, attach, startLadSnap, tryDescend,
   footCenterX, snapFeet, wallSlideDir, unstickFromWall,
@@ -514,7 +514,9 @@ export function step(S, dt, inp){
       var fall = (p.inWater || p.wading || wetCenter || wetFeet) ? 0 : (p.y - p.apexY);
       p.fell = fall;
       if (fall > C.SAFE){
-        if (inp.x !== 0 && !rolling && p.rollCd <= 0){
+        if (isInvuln()){
+          if (fall > 18){ p.landT = 0.1; p.events.push('land'); }
+        } else if (inp.x !== 0 && !rolling && p.rollCd <= 0){
           p.rollT = C.ROLL_T; applyRollBox(p); p.facing = inp.x > 0 ? 1 : -1;
           p.vx = inp.x * C.ROLL_V; S.shake = Math.max(S.shake, 2);
           p.events.push('rollland');
