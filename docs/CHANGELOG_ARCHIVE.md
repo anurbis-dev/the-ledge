@@ -1,3 +1,7 @@
+## 0.1.2-dev.17
+
+- Bake снова пишет `tileGfx` (Paint у тайлов 1–32) в `defaults.js`; пустой dump с холодной вкладки больше не затирает baked-оверрайды.
+
 ## 0.1.2-dev.16
 
 - Верх лестницы держит как блок через `groundYAt`/`footSupported` + посадка в `moveY` (не `tileBlocks`); ↑ → `exitTop`; сход вбок с `ladCd` (autoLadder чтит); в стену не выходим.

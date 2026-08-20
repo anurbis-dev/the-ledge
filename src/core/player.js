@@ -847,27 +847,33 @@ export function tryLadder(S, p, inp){
   }
   return false;
 }
+/* мягкий сход/липкость: lerp в state=snap (ease), без резкого телепорта */
+export function startLadSnap(p, tx, ty, opts){
+  opts = opts || {};
+  p.snap = {
+    fx: p.x, fy: p.y, tx: tx, ty: ty, p: 0,
+    dur: opts.dur != null ? opts.dur : C.LAD_SNAP,
+    air: !!opts.air,
+    vx: opts.vx || 0, vy: opts.vy || 0,
+    toLad: opts.toLad || null
+  };
+  if (opts.facing) p.facing = opts.facing;
+  p.state = 'snap'; p.lad = null; p.vx = 0; p.vy = 0; p.onGround = false;
+  p.ladCd = opts.ladCd != null ? opts.ladCd : 0.3;
+  if (opts.event !== false) p.events.push(opts.event || 'offladder');
+  return true;
+}
 export function exitTop(S, p, col, row, prefer){
-  // встаём прямо на верхнюю перекладину — она держит как земля
-  var ty = row*T - p.h, tx = p.x;
-  if (ladderTop(col, row) && rectFree(tx, ty, p.w, p.h)){
-    p.x = tx; p.y = ty; p.vx = 0; p.vy = 0;
-    p.state = 'normal'; p.onGround = true; p.lad = null; p.snap = null;
-    p.ladCd = 0.3;
-    p.apexY = p.y; p.coyote = C.COYOTE; p.events.push('offladder');
-    return true;
-  }
+  var ty = row * T - p.h, tx = p.x;
+  if (ladderTop(col, row) && rectFree(tx, ty, p.w, p.h))
+    return startLadSnap(p, tx, ty, { ladCd: 0.3 });
   var sides = [prefer, -prefer], i, s;            // запасной вариант — на соседнюю площадку
   for (i = 0; i < 2; i++){
     s = sides[i];
     if (!solidTile(col + s, row)) continue;
-    tx = (col + s)*T + T/2 - p.w/2; ty = row*T - p.h;
+    tx = (col + s) * T + T / 2 - p.w / 2; ty = row * T - p.h;
     if (!rectFree(tx, ty, p.w, p.h)) continue;
-    p.snap = { fx: p.x, fy: p.y, tx: tx, ty: ty, p: 0, dur: C.LAD_SNAP };
-    p.facing = s; p.state = 'snap'; p.lad = null; p.vx = 0; p.vy = 0;
-    p.ladCd = 0.3;
-    p.events.push('offladder');
-    return true;
+    return startLadSnap(p, tx, ty, { facing: s, ladCd: 0.3 });
   }
   return false;
 }
@@ -881,12 +887,12 @@ export function updateLadder(S, p, dt, inp){
     p.events.push('jump'); return;
   }
   if (!diag && Math.abs(inp.x) > 0.6 && !inp.upHeld && !inp.downHeld){
-    var sx = inp.x > 0 ? 1 : -1, tx = p.x + sx * 6;
-    // нужен зазор в сторону схода — иначе 3px «выход» в стену → падение вдоль → autoLadder
-    if (rectFree(tx, p.y, p.w, p.h) && rectFree(tx + sx * 4, p.y, p.w, p.h)){
-      p.x = tx; p.state = 'normal'; p.lad = null; p.facing = sx;
-      p.vx = sx * 110; p.vy = -70; p.apexY = p.y; p.ladCd = 0.4;
-      p.events.push('offladder');
+    var sx = inp.x > 0 ? 1 : -1, tx = p.x + sx * 10, ty = p.y - 6;
+    // нужен зазор в сторону схода — иначе выход в стену → падение вдоль → autoLadder
+    if (rectFree(tx, ty, p.w, p.h) && rectFree(tx + sx * 4, p.y, p.w, p.h)){
+      startLadSnap(p, tx, ty, {
+        facing: sx, air: true, vx: sx * 110, vy: -40, ladCd: 0.4
+      });
       return;
     }
   }
@@ -939,10 +945,8 @@ export function updateLadder(S, p, dt, inp){
           if (!rectFree(p.x + 1, p.y + p.h + sn, p.w - 2, 1)){ p.y += sn - 1; break; }
         }
         if (grounded(S, p) || !rectFree(p.x, p.y + 2, p.w, p.h)){
-          p.y = Math.floor((p.y + p.h + 2)/T)*T - p.h;
-          p.state = 'normal'; p.onGround = true; p.lad = null; p.apexY = p.y;
-          p.ladCd = 0.25;
-          p.coyote = C.COYOTE; p.events.push('offladder');
+          var gty = Math.floor((p.y + p.h + 2) / T) * T - p.h;
+          startLadSnap(p, p.x, gty, { ladCd: 0.25 });
         } else {
           var bc = L.tc, br = L.tr;
           while (br > 0 && !ladderTile(bc, br)) br--;

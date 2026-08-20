@@ -1,3 +1,3 @@
 # Changelog (unreleased)
 
-- Bake снова пишет `tileGfx` (Paint у тайлов 1–32) в `defaults.js`; пустой dump с холодной вкладки больше не затирает baked-оверрайды.
+- Сходы с лестницы и липкость сверху — мягкий `ease`-lerp в `state=snap` (`startLadSnap`), без резкого телепорта.

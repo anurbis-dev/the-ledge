@@ -4,7 +4,7 @@ import { tileAt, rectFree, isWaterV, waterSurfaceY, ladderTile } from './map.js'
 import {
   moveX, moveY, damage, updateBars, ease, updateClimb, updateHang, updateLadder,
   setStance, setH, slopeUnder, slopeUnderAt, slopeGradeUnder, grounded, autoLadder, tryBars,
-  tryLadder, tryGrab, tryClimbOut, tryCrawlEdge, ladderTopUnder, attach, tryDescend,
+  tryLadder, tryGrab, tryClimbOut, tryCrawlEdge, ladderTopUnder, attach, startLadSnap, tryDescend,
   footCenterX, snapFeet, wallSlideDir, unstickFromWall,
   markGap, canDescend, awayFromEdge, startFallRecover, finishFallRecover,
   finishGetup, stanceFitsAt, stanceH, applyHeroBox, applyRollBox
@@ -156,11 +156,21 @@ export function step(S, dt, inp){
   if (p.state === 'snap'){
     var sn = p.snap; sn.p += dt / sn.dur;
     if (sn.p >= 1){
-      p.x = sn.tx; p.y = sn.ty; p.snap = null; p.state = 'normal';
-      p.onGround = true; p.apexY = p.y; p.coyote = C.COYOTE; p.vx = 0; p.vy = 0;
+      p.x = sn.tx; p.y = sn.ty; p.snap = null;
+      if (sn.toLad){
+        attach(p, sn.toLad.kind, sn.toLad.col, sn.toLad.ox || 0, sn.toLad.oy || 0);
+        p.lad.tc = sn.toLad.tc; p.lad.tr = sn.toLad.tr;
+      } else if (sn.air){
+        p.state = 'normal'; p.onGround = false;
+        p.vx = sn.vx || 0; p.vy = sn.vy || 0;
+        p.apexY = p.y; p.coyote = C.COYOTE;
+      } else {
+        p.state = 'normal'; p.onGround = true; p.apexY = p.y;
+        p.coyote = C.COYOTE; p.vx = 0; p.vy = 0;
+      }
     } else {
       var se = ease(sn.p);
-      p.x = sn.fx + (sn.tx - sn.fx)*se; p.y = sn.fy + (sn.ty - sn.fy)*se;
+      p.x = sn.fx + (sn.tx - sn.fx) * se; p.y = sn.fy + (sn.ty - sn.fy) * se;
     }
     pickups(S, p); return;
   }
@@ -521,16 +531,16 @@ export function step(S, dt, inp){
       p.apexY = p.y;
     }
     if (p.state === 'normal' && !rolling){
-      // стоим на верхней перекладине и жмём вниз — уходим на лестницу
+      // стоим на верхней перекладине и жмём вниз — мягко липнем на лестницу
       var lt = ladderTopUnder(p, p.y + p.h + 1);
       if (lt !== null && (inp.downPressed || inp.downHeld) && p.stance === 0){
         var lc = Math.floor((p.x + p.w/2) / T);
         var lr = Math.floor((lt + 2) / T);
         if (ladderTile(lc, lr)){
-          p.y = lt - Math.round(p.h/2);      // центр — на первой перекладине
-          p.x = lc*T + T/2 - p.w/2;          // и ровно по колонке лестницы
-          attach(p, tileAt(lc, lr), lc, 0, 0);
-          p.lad.tc = lc; p.lad.tr = lr;
+          startLadSnap(p, lc * T + T / 2 - p.w / 2, lt - Math.round(p.h / 2), {
+            event: false, ladCd: 0,
+            toLad: { kind: tileAt(lc, lr), col: lc, ox: 0, oy: 0, tc: lc, tr: lr }
+          });
           return;
         }
       }
