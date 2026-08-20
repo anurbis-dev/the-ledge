@@ -178,7 +178,7 @@ function fillBody(sel){
   }
   if (sel.type === 'door'){
     note(body, o.pair >= 0
-      ? ('Paired with door id ' + o.pair + '. Delete removes both. Place pair with 2 clicks.')
+      ? ('Pair #' + (o.pair < o.id ? o.pair : o.id) + ' ↔ id ' + o.pair + '. Same color/badge; line links them. RMB/Delete removes both.')
       : 'Waiting for return door — click again to place the pair. Esc cancels.');
     select(body, 'Required item', bagItemOpts(),
       o.need || '',

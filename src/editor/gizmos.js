@@ -1,8 +1,21 @@
 import { ctx, cam, rc } from '../render/ctx.js';
 import { volCenter, volWorld, volLocal, pointInVolume } from '../entities/volumes.js';
 import { runtime } from '../core/runtime.js';
+import { findById } from '../entities/ids.js';
 
 var drag = null;
+var PAIR_COLS = ['#7de08a', '#7ad0ff', '#ffcf7a', '#ff7ab0', '#c9a0ff', '#e0c060', '#ff9a6a', '#6ad0c8'];
+
+function pairColor(d){
+  var a = d.id | 0, b = d.pair | 0;
+  var k = (b >= 0 && b < a) ? b : a;
+  return PAIR_COLS[((k % PAIR_COLS.length) + PAIR_COLS.length) % PAIR_COLS.length];
+}
+
+function pairIndex(d){
+  var a = d.id | 0, b = d.pair | 0;
+  return (b >= 0 && b < a) ? b : a;
+}
 
 function spawnOf(){
   var lv = runtime.LV;
@@ -182,6 +195,12 @@ export function drawGizmos(S, sel){
     drawPoint(o, '#7ad0ff', son, son && o.mode === 'falloff');
   }
   list = S.doors || [];
+  /* линии пар — под маркерами, только для валидных пар (раз рисуем оба конца) */
+  for (i = 0; i < list.length; i++){
+    o = list[i];
+    if (o.pair == null || o.pair < 0 || o.id > o.pair) continue;
+    drawDoorLink(o, findById(list, o.pair), sel && sel.type === 'door' && (sel.obj === o || (sel.obj && sel.obj.id === o.pair)));
+  }
   for (i = 0; i < list.length; i++){
     o = list[i];
     drawDoor(o, sel && sel.type === 'door' && sel.obj === o);
@@ -218,13 +237,42 @@ function drawExit(o, on){
   ctx.restore();
 }
 
+function drawDoorLink(a, b, strong){
+  if (!a || !b) return;
+  var col = pairColor(a);
+  var x0 = a.x + 8 - cam.x, y0 = a.y - 14 - cam.y;
+  var x1 = b.x + 8 - cam.x, y1 = b.y - 14 - cam.y;
+  ctx.save();
+  ctx.strokeStyle = col;
+  ctx.globalAlpha = strong ? 0.95 : 0.45;
+  ctx.lineWidth = strong ? 2 : 1;
+  ctx.setLineDash(strong ? [] : [3, 3]);
+  ctx.beginPath();
+  ctx.moveTo(x0, y0);
+  ctx.lineTo(x1, y1);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
 function drawDoor(o, on){
   var x = o.x - cam.x, y = o.y - cam.y;
+  var col = pairColor(o);
+  var idx = pairIndex(o);
   ctx.save();
-  ctx.globalAlpha = on ? 1 : 0.7;
-  rc(x - 1, y - 27, 18, 27, on ? '#c99a63' : '#5e3f22');
+  ctx.globalAlpha = on ? 1 : 0.75;
+  rc(x - 1, y - 27, 18, 27, on ? col : '#5e3f22');
   rc(x + 1, y - 24, 14, 23, on ? '#9a6a3c' : '#7a5230');
   if (o.need || o.locked) rc(x + 6, y - 14, 4, 5, '#e0c060');
+  /* бейдж пары — общий номер + цвет */
+  rc(x + 4, y - 34, 8, 7, '#1a1220');
+  rc(x + 5, y - 33, 6, 5, col);
+  ctx.fillStyle = '#1a1220';
+  ctx.font = '6px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.globalAlpha = 1;
+  ctx.fillText(String(idx), x + 8, y - 30.5);
   ctx.restore();
 }
 

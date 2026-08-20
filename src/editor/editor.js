@@ -240,6 +240,9 @@ function moveObjectTo(entry, cell){
 }
 /* Ctrl+драг: не трогая оригинал, заводит его копию на текущей клетке — дальше она таскается как обычный drag */
 function copyObjectAt(entry, cell){
+  var pal = findObjPal(entry.type, entry.obj);
+  var kind = pal >= 0 ? ED_OBJS[pal].kind : null;
+  if (kind && occupiedByKind(kind, cell, null)) return entry;
   respawnObjectAt(entry, cell);
   return newestOf(entry);
 }
@@ -1177,24 +1180,175 @@ function edErase(cell, wcell){
 function edEraseObjects(cell){
   var S = world();
   var T = G.T, ox = cell.c*T + 8, oy = cell.r*T + 8;
-  for (var i = 0; i < OBJ_KINDS.length; i++){
+  var i, o, drop, list, spawn, lv;
+  for (i = 0; i < OBJ_KINDS.length; i++){
     (function(k){
-      k.set(S, k.get(S).filter(function(o){ return !objNear(k.pos(o), ox, oy); }));
+      k.set(S, k.get(S).filter(function(obj){ return !objNear(k.pos(obj), ox, oy); }));
     })(OBJ_KINDS[i]);
   }
   if (S.p.torch >= 0 && !findById(S.torches, S.p.torch)) S.p.torch = -1;
-  function away(o){ return Math.abs(o.x - ox) >= 14 || Math.abs(o.y - oy) >= 18; }
+  function away(obj){ return Math.abs(obj.x - ox) >= 14 || Math.abs(obj.y - oy) >= 18; }
   if (S.lights) S.lights = S.lights.filter(away);
   if (S.sounds) S.sounds = S.sounds.filter(away);
   if (S.volumes) S.volumes = S.volumes.filter(function(v){
     return Math.abs(v.x + v.w/2 - ox) >= v.w/2 + 4 || Math.abs(v.y + v.h/2 - oy) >= v.h/2 + 4;
   });
+  /* двери: попадание по створке + снос пары */
+  list = S.doors || [];
+  drop = {};
+  for (i = 0; i < list.length; i++){
+    o = list[i];
+    if (Math.abs(o.x + 8 - ox) < 14 && Math.abs(o.y - 12 - oy) < 22){
+      drop[o.id] = 1;
+      if (o.pair >= 0) drop[o.pair] = 1;
+      if (ED.doorPending === o) ED.doorPending = null;
+    }
+  }
+  if (Object.keys(drop).length){
+    S.doors = list.filter(function(d){ return !drop[d.id]; });
+  }
+  /* выходы */
+  list = exitsList();
+  lv = G.levelSpec();
+  for (i = list.length - 1; i >= 0; i--){
+    o = list[i];
+    if (Math.abs(o.x + 8 - ox) < 16 && Math.abs(o.y - 16 - oy) < 22) list.splice(i, 1);
+  }
+  if (lv) lv.exit = list[0] || null;
+  /* Start — RMB сбрасывает на дефолт, как Delete */
+  spawn = spawnMarker();
+  if (spawn && Math.abs(spawn.x + 5 - ox) < 14 && Math.abs(spawn.y + 11 - oy) < 18){
+    spawn.x = 16; spawn.y = 6 * T - 22;
+    if (S.respawn){ S.respawn.x = spawn.x; S.respawn.y = spawn.y; }
+  }
   if (ED.sel && ED.sel.obj){
     var still = pickSpecial(S, ox, oy);
     if (!still || still.obj !== ED.sel.obj) selectSpecial(null);
   }
   markLevelDirty();
 }
+/** Одна клетка — один экземпляр того же kind; разные kind можно ставить вместе. */
+function kindCellKey(kind, o, T){
+  var x, y;
+  if (kind === 'door') return Math.floor(o.x / T) + ':' + (Math.floor(o.y / T) - 1);
+  if (kind === 'level_exit') return Math.floor(o.x / T) + ':' + (Math.floor(o.y / T) - 1);
+  if (kind === 'player_start') return Math.floor((o.x + 5) / T) + ':' + Math.floor((o.y + 11) / T);
+  if (kind === 'sound' || kind === 'light') return Math.floor(o.x / T) + ':' + Math.floor(o.y / T);
+  if (kind === 'volume') return Math.floor((o.x + o.w / 2) / T) + ':' + Math.floor((o.y + o.h / 2) / T);
+  if (kind.indexOf('enemy') === 0 || kind.indexOf('flier') === 0)
+    return Math.floor((o.x + o.w / 2) / T) + ':' + Math.floor((o.y + o.h / 2) / T);
+  if (kind.indexOf('spider') === 0) return Math.floor(o.hx / T) + ':' + Math.floor((o.hy - 8) / T);
+  if (kind.indexOf('tendril') === 0) return Math.floor(o.bx / T) + ':' + Math.floor(o.by / T);
+  if (kind === 'torch') return Math.floor(o.x / T) + ':' + Math.floor((o.y - 8) / T);
+  if (kind === 'chest' || kind === 'chestL') return Math.floor((o.x + 10) / T) + ':' + Math.floor((o.y - 6) / T);
+  if (kind === 'boulder') return Math.floor((o.x + 6) / T) + ':' + Math.floor((o.y + 5) / T);
+  if (kind.indexOf('npc_') === 0) return Math.floor((o.x + 5) / T) + ':' + Math.floor((o.y + 9) / T);
+  return Math.floor(o.x / T) + ':' + Math.floor(o.y / T);
+}
+
+function occupiedByKind(kind, cell, skip){
+  var S = world(), T = G.T, key = cell.c + ':' + cell.r, i, o, list;
+  if (!S) return false;
+  if (kind === 'player_start') return false; /* Start всегда один — place переносит */
+  if (kind === 'door'){
+    list = S.doors || [];
+    for (i = 0; i < list.length; i++){
+      o = list[i]; if (o === skip) continue;
+      if (kindCellKey('door', o, T) === key) return true;
+    }
+    return false;
+  }
+  if (kind === 'level_exit'){
+    list = exitsList();
+    for (i = 0; i < list.length; i++){
+      o = list[i]; if (o === skip) continue;
+      if (kindCellKey('level_exit', o, T) === key) return true;
+    }
+    return false;
+  }
+  if (kind === 'sound'){
+    list = S.sounds || [];
+    for (i = 0; i < list.length; i++) if (list[i] !== skip && kindCellKey('sound', list[i], T) === key) return true;
+    return false;
+  }
+  if (kind === 'light'){
+    list = S.lights || [];
+    for (i = 0; i < list.length; i++) if (list[i] !== skip && kindCellKey('light', list[i], T) === key) return true;
+    return false;
+  }
+  if (kind === 'volume'){
+    list = S.volumes || [];
+    for (i = 0; i < list.length; i++) if (list[i] !== skip && kindCellKey('volume', list[i], T) === key) return true;
+    return false;
+  }
+  if (kind.indexOf('enemy') === 0){
+    list = S.enemies || [];
+    for (i = 0; i < list.length; i++){
+      o = list[i]; if (o === skip) continue;
+      if ((o.kind | 0) === (+kind.slice(5) | 0) && kindCellKey(kind, o, T) === key) return true;
+    }
+    return false;
+  }
+  if (kind.indexOf('flier') === 0){
+    list = S.fliers || [];
+    for (i = 0; i < list.length; i++){
+      o = list[i]; if (o === skip) continue;
+      if ((o.kind | 0) === (+kind.slice(5) | 0) && kindCellKey(kind, o, T) === key) return true;
+    }
+    return false;
+  }
+  if (kind.indexOf('spider') === 0){
+    list = S.spiders || [];
+    for (i = 0; i < list.length; i++){
+      o = list[i]; if (o === skip) continue;
+      if ((o.kind | 0) === (+kind.slice(6) | 0) && kindCellKey(kind, o, T) === key) return true;
+    }
+    return false;
+  }
+  if (kind.indexOf('tendril') === 0){
+    list = S.tendrils || [];
+    for (i = 0; i < list.length; i++){
+      o = list[i]; if (o === skip) continue;
+      if ((o.kind | 0) === (+kind.slice(7) | 0) && kindCellKey(kind, o, T) === key) return true;
+    }
+    return false;
+  }
+  if (kind === 'torch'){
+    list = S.torches || [];
+    for (i = 0; i < list.length; i++) if (list[i] !== skip && kindCellKey('torch', list[i], T) === key) return true;
+    return false;
+  }
+  if (kind === 'chest' || kind === 'chestL'){
+    list = S.chests || [];
+    for (i = 0; i < list.length; i++){
+      o = list[i]; if (o === skip) continue;
+      if (!!o.locked !== (kind === 'chestL')) continue;
+      if (kindCellKey(kind, o, T) === key) return true;
+    }
+    return false;
+  }
+  if (kind === 'boulder'){
+    list = S.boulders || [];
+    for (i = 0; i < list.length; i++) if (list[i] !== skip && kindCellKey('boulder', list[i], T) === key) return true;
+    return false;
+  }
+  if (kind.indexOf('npc_') === 0){
+    list = S.npcs || [];
+    for (i = 0; i < list.length; i++){
+      o = list[i]; if (o === skip) continue;
+      if ((o.tree || 'hermit') === kind.slice(4) && kindCellKey(kind, o, T) === key) return true;
+    }
+    return false;
+  }
+  /* предметы мира (coin/gem/…) */
+  list = S.items || [];
+  for (i = 0; i < list.length; i++){
+    o = list[i]; if (o === skip || o.got) continue;
+    if (o.kind === kind && kindCellKey(kind, o, T) === key) return true;
+  }
+  return false;
+}
+
 function edPlaceObject(cell){
   var S = world();
   var T = G.T;
@@ -1203,6 +1357,7 @@ function edPlaceObject(cell){
   var kind = spec.kind;
   var cx = cell.c*T + 8, cy = cell.r*T + 8, floorY = (cell.r + 1)*T;
   if (kind === 'player_start'){ placePlayerStart(cell); return; }
+  if (occupiedByKind(kind, cell, kind === 'door' ? ED.doorPending : null)) return;
   if (kind === 'level_exit'){ placeLevelExit(cell); return; }
   if (kind === 'door'){ placeDoorPair(cell); return; }
   if (ED.doorPending) cancelDoorPending();
