@@ -148,6 +148,13 @@ export function moveY(S, p, dy){
         p.y = q.y - p.h; p.vy = 0; p.onGround = true; p.ride = q; return;
       }
     }
+    // верх лестницы — one-way поверхность без tileBlocks (сход вбок не магнитит)
+    gy = groundYAt(cx, oldB + 1);
+    if (gy == null) gy = groundYAt(cx, p.y + p.h);
+    if (gy != null && ladderTopUnder(p, gy + 1) !== null &&
+        oldB <= gy + 2 && p.y + p.h >= gy){
+      p.y = gy - p.h; p.vy = 0; p.onGround = true; p.ride = null;
+    }
   }
 }
 export function groundAhead(S, p, dir){
@@ -464,7 +471,7 @@ export function updateBars(S, p, dt, inp){
 
 /* --- автоцепляние за лестницу в падении --- */
 export function autoLadder(S, p, prevBottom){
-  if (p.state !== 'normal' || p.vy <= 0 || p.lock > 0) return false;
+  if (p.state !== 'normal' || p.vy <= 0 || p.lock > 0 || (p.ladCd || 0) > 0) return false;
   var cx = p.x + p.w/2;
   var c = Math.floor(cx / T);
   var r0 = Math.floor(prevBottom / T), r1 = Math.floor((p.y + p.h) / T);
@@ -846,6 +853,7 @@ export function exitTop(S, p, col, row, prefer){
   if (ladderTop(col, row) && rectFree(tx, ty, p.w, p.h)){
     p.x = tx; p.y = ty; p.vx = 0; p.vy = 0;
     p.state = 'normal'; p.onGround = true; p.lad = null; p.snap = null;
+    p.ladCd = 0.3;
     p.apexY = p.y; p.coyote = C.COYOTE; p.events.push('offladder');
     return true;
   }
@@ -857,6 +865,7 @@ export function exitTop(S, p, col, row, prefer){
     if (!rectFree(tx, ty, p.w, p.h)) continue;
     p.snap = { fx: p.x, fy: p.y, tx: tx, ty: ty, p: 0, dur: C.LAD_SNAP };
     p.facing = s; p.state = 'snap'; p.lad = null; p.vx = 0; p.vy = 0;
+    p.ladCd = 0.3;
     p.events.push('offladder');
     return true;
   }
@@ -867,14 +876,17 @@ export function updateLadder(S, p, dt, inp){
   if (inp.jumpPressed){
     p.state = 'normal'; p.lad = null; p.vy = C.JUMP * 0.84;
     p.vx = inp.x * 92; p.jumping = true; p.apexY = p.y;
+    p.ladCd = 0.3;
     if (inp.x) p.facing = inp.x > 0 ? 1 : -1;
     p.events.push('jump'); return;
   }
   if (!diag && Math.abs(inp.x) > 0.6 && !inp.upHeld && !inp.downHeld){
-    var sx = inp.x > 0 ? 1 : -1, tx = p.x + sx*3;
-    if (rectFree(tx, p.y, p.w, p.h)){
+    var sx = inp.x > 0 ? 1 : -1, tx = p.x + sx * 6;
+    // нужен зазор в сторону схода — иначе 3px «выход» в стену → падение вдоль → autoLadder
+    if (rectFree(tx, p.y, p.w, p.h) && rectFree(tx + sx * 4, p.y, p.w, p.h)){
       p.x = tx; p.state = 'normal'; p.lad = null; p.facing = sx;
-      p.vx = sx*95; p.vy = -70; p.apexY = p.y; p.events.push('offladder');
+      p.vx = sx * 110; p.vy = -70; p.apexY = p.y; p.ladCd = 0.4;
+      p.events.push('offladder');
       return;
     }
   }
@@ -929,6 +941,7 @@ export function updateLadder(S, p, dt, inp){
         if (grounded(S, p) || !rectFree(p.x, p.y + 2, p.w, p.h)){
           p.y = Math.floor((p.y + p.h + 2)/T)*T - p.h;
           p.state = 'normal'; p.onGround = true; p.lad = null; p.apexY = p.y;
+          p.ladCd = 0.25;
           p.coyote = C.COYOTE; p.events.push('offladder');
         } else {
           var bc = L.tc, br = L.tr;
@@ -941,6 +954,7 @@ export function updateLadder(S, p, dt, inp){
   }
   if (p.state === 'ladder' && grounded(S, p, true) && up < 0){
     p.state = 'normal'; p.onGround = true; p.lad = null; p.apexY = p.y;
+    p.ladCd = 0.25;
     p.coyote = C.COYOTE; p.events.push('offladder');
   }
 }

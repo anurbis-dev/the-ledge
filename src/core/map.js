@@ -197,8 +197,8 @@ export function solidAt(px, py){
 }
 export function ladderAt(px, py){ return ladderTile(Math.floor(px / T), Math.floor(py / T)); }
 export function tileBlocks(c, r, y, h, x, w){
-  // верх лестницы — односторонняя площадка (как oneWay): ловим только сверху
-  if (ladderTop(c, r)) return y + h > r * T && y + h <= r * T + 4;
+  // ladderTop не блокирует AABB: опора через groundYAt / footSupported (как скос),
+  // иначе mid-сход вбок ловит slab top+4 и «магнитит» обратно
   var v = tileAt(c, r);
   var d = defOf(v);
   if (d){

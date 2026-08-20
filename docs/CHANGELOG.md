@@ -1,3 +1,3 @@
 # Changelog (unreleased)
 
-- Верх лестницы держит как блок: one-way в `tileBlocks`/`groundYAt`, ↑ на верху сразу `exitTop` (не лезет в воздух и не срывается с края).
+- Верх лестницы держит как блок через `groundYAt`/`footSupported` + посадка в `moveY` (не `tileBlocks`); ↑ → `exitTop`; сход вбок с `ladCd` (autoLadder чтит); в стену не выходим.
