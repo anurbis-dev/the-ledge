@@ -139,24 +139,33 @@ function lerpVis(dt){
   }
 }
 
+function markRoomAt(next, ls, c, r){
+  var i, L, ix;
+  if (!inMap(c, r)) return;
+  for (i = 0; i < ls.length; i++){
+    L = ls[i];
+    if (!L.collide || !L.cover || L.wrap) continue;
+    if (L._roomsDirty) rebuildRooms(L);
+    ix = mapIx(c, r);
+    if (!L.cover[ix]) continue;
+    next[roomKey(L, ix)] = 1;
+  }
+}
+
 export function stepRooms(S, dt){
   var p = S && S.p;
   var next = {};
   var ls = runtime.layers || [];
-  var i, L, c, r, ix;
+  var c, feet;
   var prev = runtime.roomsOn;
   if (p){
+    // корпус + клетка под ногами: иначе COVER_AIR/лаз в полу мигает
+    // (ступни на верхней кромке тайла → p.h-1 ещё в ряду выше)
     c = Math.floor((p.x + p.w * 0.5) / T);
-    r = Math.floor((p.y + p.h - 1) / T);
-    for (i = 0; i < ls.length; i++){
-      L = ls[i];
-      if (!L.collide || !L.cover || L.wrap) continue;
-      if (L._roomsDirty) rebuildRooms(L);
-      if (!inMap(c, r)) continue;
-      ix = mapIx(c, r);
-      if (!L.cover[ix]) continue;
-      next[roomKey(L, ix)] = 1;
-    }
+    markRoomAt(next, ls, c, Math.floor((p.y + p.h - 1) / T));
+    feet = p.y + p.h;
+    markRoomAt(next, ls, c, Math.floor(feet / T));
+    markRoomAt(next, ls, c, Math.floor((feet + 1) / T));
   }
   var changed = !sameOn(prev, next);
   runtime.roomsOn = next;
