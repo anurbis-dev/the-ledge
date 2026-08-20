@@ -15,10 +15,11 @@ import { getActiveLayer, getLayers, layerTile, layerVar, layerDeco, layerTileRaw
 import { initSliders } from './slider.js';
 import {
   customSpecs, addTile, loadImageFile, sliceSheet, guessOverlay, bindTileset, isCustomId,
-  getTileDef, updateTile
+  getTileDef, updateTile, getTileGfx
 } from '../core/tileset.js';
 import { bindTileEdit, openTileEdit, openSpriteEdit, closeTileEdit } from './tile-edit.js';
 import { listSpriteDefs, spriteDefForKind, getSpriteDef, bindSpriteset } from '../core/spriteset.js';
+import { bakeBuiltinTileSrc } from '../render/sprite-bake.js';
 import { clearThumbCache } from './thumbs.js';
 import { setEditorRooms, stepRooms } from '../core/rooms.js';
 import { showLayersPanel, bindLayersPanel } from './layers-panel.js';
@@ -90,6 +91,7 @@ export var ED_TILES = [
   { name: 'Give',    id: G.GIVE,  color: '#4a4069' }
 ];
 export var ED_OBJS = [
+  { name: 'Start',   kind: 'player_start' },
   { name: 'Foe 1',   kind: 'enemy0' },
   { name: 'Foe 2',   kind: 'enemy1' },
   { name: 'Foe 3',   kind: 'enemy2' },
@@ -724,7 +726,77 @@ function selectSpecial(sel){
 }
 
 function isSpecialKind(kind){
-  return kind === 'sound' || kind === 'light' || kind === 'volume';
+  return kind === 'sound' || kind === 'light' || kind === 'volume' || kind === 'player_start';
+}
+
+function spawnMarker(){
+  var lv = G.levelSpec();
+  if (!lv) return null;
+  if (!lv.spawn) lv.spawn = { x: 16, y: 6 * G.T - 22 };
+  return lv.spawn;
+}
+
+function placePlayerStart(cell){
+  var T = G.T, box = G.getAnimBox('hero', 'idle') || { w: 10, h: 22 };
+  var spawn = spawnMarker(), S = world();
+  if (!spawn) return;
+  spawn.x = Math.round(cell.c * T + 8 - box.w / 2);
+  spawn.y = Math.round((cell.r + 1) * T - box.h);
+  if (S && S.respawn){ S.respawn.x = spawn.x; S.respawn.y = spawn.y; }
+  selectSpecial({ type: 'player_start', obj: spawn });
+}
+
+function duplicatePalTile(){
+  if (ED.tool !== 'tile' && ED.tab !== 'tile') return false;
+  var spec = palSpec();
+  if (!spec || spec.id == null) return false;
+  var src = '', frames = null, name, collide = 'full', patch;
+  if (spec.custom || isCustomId(spec.id)){
+    var def = getTileDef(spec.id);
+    if (!def) return false;
+    src = def.src || '';
+    frames = def.frames && def.frames.length ? def.frames.slice() : null;
+    name = (def.name || 'Tile') + ' copy';
+    patch = {
+      name: name,
+      src: src,
+      frames: frames,
+      overlay: !!def.overlay,
+      collide: def.collide || 'none',
+      box: def.box ? { x: def.box.x, y: def.box.y, w: def.box.w, h: def.box.h } : undefined,
+      oneWay: !!def.oneWay,
+      climb: !!def.climb,
+      front: !!def.front
+    };
+  } else {
+    var g = getTileGfx(spec.id);
+    src = (g && g.src) || bakeBuiltinTileSrc(spec);
+    frames = g && g.frames && g.frames.length ? g.frames.slice() : null;
+    name = (spec.name || 'Tile') + ' copy';
+    collide = 'full';
+    if (G.isLadV(spec.id)) collide = 'climb';
+    else if (G.isBarV(spec.id)) collide = 'bar';
+    else if (G.isHalfV(spec.id)) collide = 'half';
+    else if (!G.isSolidV(spec.id)) collide = 'none';
+    patch = {
+      name: name,
+      src: src,
+      frames: frames,
+      overlay: !!spec.overlay,
+      collide: collide,
+      climb: collide === 'climb'
+    };
+  }
+  if (!patch.src && !(patch.frames && patch.frames.length)) return false;
+  var t = addTile(patch);
+  if (!t) return false;
+  ED.tool = 'tile';
+  ED.tab = 'tile';
+  fillPal();
+  var tiles = palTiles(), i;
+  for (i = 0; i < tiles.length; i++) if (tiles[i].id === t.id){ ED.pal = i; break; }
+  edRefresh();
+  return true;
 }
 
 function palTiles(){ return ED_TILES.concat(customSpecs()); }
@@ -1065,6 +1137,7 @@ function edPlaceObject(cell){
   if (!spec) return;
   var kind = spec.kind;
   var cx = cell.c*T + 8, cy = cell.r*T + 8, floorY = (cell.r + 1)*T;
+  if (kind === 'player_start'){ placePlayerStart(cell); return; }
   if (kind === 'sound'){ selectSpecial({ type: 'sound', obj: G.mkSoundAt(S, cx, cy) }); return; }
   if (kind === 'light'){ selectSpecial({ type: 'light', obj: G.mkLightAt(S, cx, cy) }); return; }
   if (kind === 'volume'){ selectSpecial({ type: 'volume', obj: G.mkVolumeAt(S, cx, cy) }); return; }
@@ -1538,6 +1611,7 @@ function findObjPal(type, obj){
     if (type === 'sound' && k === 'sound') return i;
     if (type === 'light' && k === 'light') return i;
     if (type === 'volume' && k === 'volume') return i;
+    if (type === 'player_start' && k === 'player_start') return i;
     if (type === 'boulder' && k === 'boulder') return i;
     if (type === 'npc' && k === 'npc_' + (obj.tree || 'hermit')) return i;
   }
@@ -2034,6 +2108,13 @@ addEventListener('keydown', function(e){
     pasteSelTiles();
     return;
   }
+  if (ED.on && (e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')){
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (duplicatePalTile()){
+      e.preventDefault();
+      return;
+    }
+  }
   if (ED.on && (e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z' || e.key === 'y' || e.key === 'Y')){
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
     e.preventDefault();
@@ -2123,10 +2204,15 @@ window.addEventListener('drop', onEditorDrop);
 function deleteSelected(){
   var S = world();
   if (!S || !ED.sel) return;
-  var t = ED.sel.type, o = ED.sel.obj;
+  var t = ED.sel.type, o = ED.sel.obj, spawn;
   if (t === 'light') S.lights = (S.lights || []).filter(function(x){ return x !== o; });
   else if (t === 'sound') S.sounds = (S.sounds || []).filter(function(x){ return x !== o; });
   else if (t === 'volume') S.volumes = (S.volumes || []).filter(function(x){ return x !== o; });
+  else if (t === 'player_start'){
+    spawn = spawnMarker();
+    if (spawn){ spawn.x = 16; spawn.y = 6 * G.T - 22; }
+    if (S.respawn){ S.respawn.x = 16; S.respawn.y = 6 * G.T - 22; }
+  }
   selectSpecial(null);
 }
 

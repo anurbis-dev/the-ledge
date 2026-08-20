@@ -199,6 +199,7 @@ function overlaySprites(dst, src){
         drec.frames = rec.frames.slice();
         drec.dirty = (rec.dirty || []).slice();
       }
+      if (rec.n != null) drec.n = rec.n | 0;
       if ('origin' in rec) drec.origin = cloneOrigin(rec.origin);
       if ('grab' in rec) drec.grab = cloneOrigin(rec.grab);
       if ('weapon' in rec) drec.weapon = clonePts(rec.weapon);
@@ -258,13 +259,78 @@ export function getSpriteMeta(id){
   };
 }
 
+function liveAnims(b, id){
+  var i, a, out = [];
+  if (!b || !b.anims) return out;
+  for (i = 0; i < b.anims.length; i++){
+    a = b.anims[i];
+    out.push({ id: a.id, name: a.name, n: getAnimFrameCount(id, a.id) });
+  }
+  return out;
+}
+
+export function getAnimFrameCount(id, anim){
+  var def = byId[id], a = animOf(def, anim), rec;
+  if (!def || !a) return 0;
+  rec = recOf(id, anim);
+  if (rec && rec.n != null && (rec.n | 0) >= 1) return rec.n | 0;
+  return a.n | 0;
+}
+
+export function setAnimFrameCount(id, anim, n){
+  var def = byId[id], a = animOf(def, anim), rec, i, cur;
+  if (!def || !a) return null;
+  n = n | 0;
+  if (n < 1) n = 1;
+  if (n > 64) n = 64;
+  rec = ensureRec(id, anim);
+  if (!rec) return null;
+  cur = getAnimFrameCount(id, anim);
+  rec.n = n;
+  if (!rec.frames) rec.frames = [];
+  if (!rec.dirty) rec.dirty = [];
+  if (n > cur){
+    for (i = cur; i < n; i++){
+      if (rec.frames[i] == null) rec.frames[i] = '';
+      if (rec.dirty[i] == null) rec.dirty[i] = false;
+    }
+  } else if (n < cur){
+    rec.frames.length = n;
+    rec.dirty.length = n;
+    if (rec.weapon && rec.weapon.length > n) rec.weapon.length = n;
+    for (i = n; i < cur; i++) delete imgs[imgKey(id, anim, i)];
+  }
+  emit('frame');
+  return n;
+}
+
+export function reorderAnimFrames(id, anim, fromI, toI){
+  var n = getAnimFrameCount(id, anim), rec, f, d, w;
+  fromI = fromI | 0; toI = toI | 0;
+  if (fromI === toI || fromI < 0 || toI < 0 || fromI >= n || toI >= n) return null;
+  rec = ensureRec(id, anim);
+  if (!rec) return null;
+  if (!rec.frames) rec.frames = [];
+  if (!rec.dirty) rec.dirty = [];
+  f = rec.frames.splice(fromI, 1)[0] || '';
+  d = rec.dirty.splice(fromI, 1)[0];
+  rec.frames.splice(toI, 0, f);
+  rec.dirty.splice(toI, 0, !!d);
+  if (rec.weapon){
+    w = rec.weapon.splice(fromI, 1)[0];
+    rec.weapon.splice(toI, 0, w);
+  }
+  loadAll();
+  emit('frame');
+  return { from: fromI, to: toI };
+}
+
 export function getSpriteDef(id){
   var b = byId[id], m;
   if (!b) return null;
   m = getSpriteMeta(id);
-  if (!saved[id] || !saved[id]._meta) return b;
   return {
-    id: b.id, name: b.name, kind: b.kind, anims: b.anims,
+    id: b.id, name: b.name, kind: b.kind, anims: liveAnims(b, id),
     fw: m.fw, fh: m.fh, ox: m.ox, oy: m.oy, fx: m.fx
   };
 }
@@ -433,10 +499,11 @@ export function spriteFrameImage(id, anim, i){
 }
 
 export function setSpriteFrame(id, anim, i, src, dirty){
-  var def = byId[id], a = animOf(def, anim);
+  var def = byId[id], a = animOf(def, anim), n;
   if (!def || !a) return null;
   i = i | 0;
-  if (i < 0 || i >= a.n) return null;
+  n = getAnimFrameCount(id, anim);
+  if (i < 0 || i >= n) return null;
   var rec = ensureRec(id, anim);
   if (!rec) return null;
   rec.frames[i] = src || '';
@@ -448,10 +515,10 @@ export function setSpriteFrame(id, anim, i, src, dirty){
 }
 
 export function setSpriteAnimFrames(id, anim, srcs){
-  var def = byId[id], a = animOf(def, anim);
+  var def = byId[id], a = animOf(def, anim), n, i;
   if (!def || !a) return null;
-  var i;
-  for (i = 0; i < a.n; i++)
+  n = getAnimFrameCount(id, anim);
+  for (i = 0; i < n; i++)
     setSpriteFrame(id, anim, i, (srcs && srcs[i]) || '', true);
   return recOf(id, anim);
 }

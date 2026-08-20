@@ -6,7 +6,8 @@ import {
 import {
   getSpriteDef, getSpriteFrameSrc, setSpriteFrame, clearSpriteFrame,
   isSpriteFrameDirty, getFrameAnchor, setFrameAnchor, setSpriteSize,
-  clearAnimAnchors, getAnimBox, setAnimBox
+  clearAnimAnchors, getAnimBox, setAnimBox,
+  getAnimFrameCount, setAnimFrameCount, reorderAnimFrames
 } from '../core/spriteset.js';
 import { bakeSpriteFrameSrc, bakeBuiltinTileSrc, clearBakeCache } from '../render/sprite-bake.js';
 import { defaultFrameAnchors } from '../render/sprite-anchors.js';
@@ -77,6 +78,9 @@ var pendingAnchor = null;
 var originXEl = null, originYEl = null, weaponXEl = null, weaponYEl = null;
 var grabXEl = null, grabYEl = null;
 var boxWEl = null, boxHEl = null;
+var playTimer = 0;
+var playBtn = null;
+var frameDrag = null;
 
 try {
   var savedStrip = parseInt(localStorage.getItem(STRIP_KEY), 10);
@@ -87,10 +91,20 @@ export function bindTileEdit(hooks){
   onChange = hooks && hooks.onChange;
 }
 
+function stopPlay(){
+  if (playTimer){ clearInterval(playTimer); playTimer = 0; }
+  if (playBtn){
+    playBtn.textContent = 'Play';
+    playBtn.classList.remove('on');
+  }
+}
+
 export function closeTileEdit(){
+  stopPlay();
   current = null;
   painting = null;
   boxDrag = null;
+  frameDrag = null;
   mode = 'tile';
   if (root){
     root.hidden = true;
@@ -106,6 +120,7 @@ function canPaint(){ return isSprite() || isCustomTile() || (mode === 'tile' && 
 
 export function openTileEdit(spec, clientX, clientY){
   if (!root || !spec) return;
+  stopPlay();
   mode = 'tile';
   fw = 16; fh = 16;
   animId = '';
@@ -121,9 +136,28 @@ export function openTileEdit(spec, clientX, clientY){
   void clientX; void clientY;
 }
 
+function isFoeSprite(id){
+  return /^(enemy|flier|spider)\d+$/.test(id || '');
+}
+
+function materializeBakes(id){
+  var def = getSpriteDef(id), r, a, i, n;
+  if (!def || !def.anims) return;
+  for (r = 0; r < def.anims.length; r++){
+    a = def.anims[r];
+    n = getAnimFrameCount(id, a.id);
+    for (i = 0; i < n; i++){
+      if (isSpriteFrameDirty(id, a.id, i)) continue;
+      setSpriteFrame(id, a.id, i, bakeSpriteFrameSrc(id, a.id, i), true);
+    }
+  }
+}
+
 export function openSpriteEdit(def, clientX, clientY){
   if (!root || !def) return;
+  stopPlay();
   mode = 'sprite';
+  if (isFoeSprite(def.id)) materializeBakes(def.id);
   current = getSpriteDef(def.id) || def;
   fw = current.fw || 16;
   fh = current.fh || 16;
@@ -856,16 +890,175 @@ function bindPreview(can){
   });
 }
 
-function selectFrame(nextAnim, nextI){
-  if (nextAnim === animId && nextI === frameI) return;
+function selectFrame(nextAnim, nextI, keepPlay){
+  if (!keepPlay) stopPlay();
+  if (nextAnim === animId && nextI === frameI){
+    if (keepPlay){
+      loadBuf(currentSrc(), function(){ paintCanvas(); syncStripOn(); });
+    }
+    return;
+  }
   animId = nextAnim;
   frameI = nextI;
   loadBuf(currentSrc(), function(){
     fillSwatches();
     syncTools();
-    paintStrips();
+    if (keepPlay) syncStripOn();
+    else paintStrips();
   });
   paintCanvas();
+}
+
+function syncStripOn(){
+  if (!stripsEl) return;
+  var list = stripsEl.querySelectorAll('.ed-tile-frame'), i, th, ai, fi;
+  for (i = 0; i < list.length; i++){
+    th = list[i];
+    ai = th.getAttribute('data-anim') || '';
+    fi = +(th.getAttribute('data-i') || 0);
+    th.classList.toggle('on', ai === animId && fi === frameI);
+  }
+}
+
+function tileFramesList(){
+  if (!current) return [];
+  if (isCustomTile()){
+    var def = getTileDef(current.id);
+    if (def && def.frames && def.frames.length) return def.frames.slice();
+    if (def && def.src) return [def.src];
+    return [];
+  }
+  var g = getTileGfx(current.id);
+  if (g && g.frames && g.frames.length) return g.frames.slice();
+  if (g && g.src) return [g.src];
+  return [];
+}
+
+function writeTileFrames(frames){
+  if (!current || !frames || !frames.length) return;
+  if (isCustomTile()){
+    updateTile(current.id, { frames: frames, src: frames[0] });
+    current.src = frames[0];
+  } else {
+    setTileGfx(current.id, { frames: frames, src: frames[0] });
+  }
+  notify();
+}
+
+function addAnimFrame(rowId){
+  var n, src, frames, last;
+  if (isSprite()){
+    n = getAnimFrameCount(current.id, rowId);
+    last = getSpriteFrameSrc(current.id, rowId, n - 1) || bakeSpriteFrameSrc(current.id, rowId, n - 1);
+    setAnimFrameCount(current.id, rowId, n + 1);
+    if (last) setSpriteFrame(current.id, rowId, n, last, true);
+    current = getSpriteDef(current.id) || current;
+    notify();
+    selectFrame(rowId, n);
+    fillBody();
+    return;
+  }
+  frames = tileFramesList();
+  if (!frames.length){
+    src = currentSrc();
+    if (!src) return;
+    frames = [src];
+  }
+  frames.push(frames[frames.length - 1]);
+  writeTileFrames(frames);
+  selectFrame('', frames.length - 1);
+  fillBody();
+}
+
+function reorderTileFrames(fromI, toI){
+  var frames = tileFramesList(), item;
+  if (fromI === toI || fromI < 0 || toI < 0 || fromI >= frames.length || toI >= frames.length) return;
+  item = frames.splice(fromI, 1)[0];
+  frames.splice(toI, 0, item);
+  if (frameI === fromI) frameI = toI;
+  else if (fromI < frameI && toI >= frameI) frameI--;
+  else if (fromI > frameI && toI <= frameI) frameI++;
+  writeTileFrames(frames);
+  paintStrips();
+  loadBuf(currentSrc(), function(){ fillSwatches(); syncTools(); paintCanvas(); });
+}
+
+function bindFrameDrag(th, rowId, ii, n){
+  th.addEventListener('pointerdown', function(e){
+    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.altKey) return;
+    frameDrag = {
+      anim: rowId, from: ii, startX: e.clientX, startY: e.clientY,
+      moved: false, el: th, pointerId: e.pointerId, canReorder: n >= 2
+    };
+    try { th.setPointerCapture(e.pointerId); } catch (_){}
+  });
+  th.addEventListener('pointermove', function(e){
+    if (!frameDrag || frameDrag.el !== th || e.pointerId !== frameDrag.pointerId) return;
+    if (!frameDrag.canReorder) return;
+    var dx = e.clientX - frameDrag.startX, dy = e.clientY - frameDrag.startY;
+    if (!frameDrag.moved && dx * dx + dy * dy < 25) return;
+    frameDrag.moved = true;
+    th.classList.add('dragging');
+    var bar = th.parentNode, kids, i, target = frameDrag.from, rect;
+    if (!bar) return;
+    kids = bar.querySelectorAll('.ed-tile-frame');
+    for (i = 0; i < kids.length; i++){
+      rect = kids[i].getBoundingClientRect();
+      if (e.clientX < rect.left + rect.width / 2){ target = i; break; }
+      target = i;
+    }
+    frameDrag.to = target;
+  });
+  function endDrag(e){
+    if (!frameDrag || frameDrag.el !== th || e.pointerId !== frameDrag.pointerId) return;
+    var from = frameDrag.from, to = frameDrag.to != null ? frameDrag.to : from, moved = frameDrag.moved;
+    th.classList.remove('dragging');
+    frameDrag = null;
+    if (!moved){
+      selectFrame(rowId, ii);
+      return;
+    }
+    if (from === to){ paintStrips(); return; }
+    if (isSprite()){
+      reorderAnimFrames(current.id, rowId, from, to);
+      if (frameI === from && animId === rowId) frameI = to;
+      else if (animId === rowId){
+        if (from < frameI && to >= frameI) frameI--;
+        else if (from > frameI && to <= frameI) frameI++;
+      }
+      current = getSpriteDef(current.id) || current;
+      notify();
+      paintStrips();
+      loadBuf(currentSrc(), function(){ fillSwatches(); syncTools(); paintCanvas(); });
+    } else {
+      reorderTileFrames(from, to);
+    }
+  }
+  th.addEventListener('pointerup', endDrag);
+  th.addEventListener('pointercancel', endDrag);
+}
+
+function togglePlay(){
+  var rows, row, n;
+  if (playTimer){ stopPlay(); return; }
+  if (isSprite()){
+    n = getAnimFrameCount(current.id, animId);
+  } else {
+    n = tileFrameCount(current.id);
+  }
+  if (n < 2) return;
+  if (playBtn){
+    playBtn.textContent = 'Stop';
+    playBtn.classList.add('on');
+  }
+  playTimer = setInterval(function(){
+    if (!current){ stopPlay(); return; }
+    if (isSprite()) n = getAnimFrameCount(current.id, animId);
+    else n = tileFrameCount(current.id);
+    if (n < 2){ stopPlay(); return; }
+    selectFrame(animId, (frameI + 1) % n, true);
+  }, 125);
+  void rows; void row;
 }
 
 function frameSrcAt(aId, i){
@@ -926,19 +1119,37 @@ function paintStrips(){
   if (!stripsEl) return;
   var rows = [];
   if (isSprite()){
-    rows = current.anims.map(function(a){ return { id: a.id, name: a.name, n: a.n }; });
+    current = getSpriteDef(current.id) || current;
+    rows = (current.anims || []).map(function(a){
+      return { id: a.id, name: a.name, n: getAnimFrameCount(current.id, a.id) };
+    });
   } else {
-    var n = tileFrameCount(current.id);
-    if (n > 1) rows = [{ id: '', name: 'Frames', n: n }];
+    var n0 = tileFrameCount(current.id);
+    if (n0 >= 1 && canPaint()) rows = [{ id: '', name: 'Frames', n: Math.max(1, n0) }];
   }
   if (!rows.length){
     stripsEl.hidden = true;
     stripsEl.textContent = '';
+    playBtn = null;
     applyStripH();
     return;
   }
   stripsEl.hidden = false;
   stripsEl.textContent = '';
+  var head = document.createElement('div');
+  head.className = 'ed-tile-anim-toolbar';
+  playBtn = document.createElement('button');
+  playBtn.type = 'button';
+  playBtn.className = 'edb' + (playTimer ? ' on' : '');
+  playBtn.textContent = playTimer ? 'Stop' : 'Play';
+  playBtn.title = 'Play all frames of the current animation';
+  playBtn.addEventListener('click', function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    togglePlay();
+  });
+  head.appendChild(playBtn);
+  stripsEl.appendChild(head);
   var r;
   for (r = 0; r < rows.length; r++){
     (function(row){
@@ -957,9 +1168,11 @@ function paintStrips(){
           th.width = fw;
           th.height = fh;
           th.className = 'ed-tile-frame' + (row.id === animId && ii === frameI ? ' on' : '');
+          th.setAttribute('data-anim', row.id);
+          th.setAttribute('data-i', String(ii));
           if (isSprite() && isSpriteFrameDirty(current.id, row.id, ii))
             th.classList.add('dirty');
-          th.title = row.name + ' ' + (ii + 1);
+          th.title = row.name + ' ' + (ii + 1) + ' — drag to reorder';
           var cx = th.getContext('2d');
           cx.imageSmoothingEnabled = false;
           fillChecker(cx, fw, fh, 1, 1);
@@ -972,12 +1185,21 @@ function paintStrips(){
           };
           img.src = frameSrcAt(row.id, ii);
           if (isSprite()) drawThumbAnchors(cx, row.id, ii);
-          th.addEventListener('click', function(){
-            selectFrame(row.id, ii);
-          });
+          bindFrameDrag(th, row.id, ii, row.n);
           bar.appendChild(th);
         })(i);
       }
+      var add = document.createElement('button');
+      add.type = 'button';
+      add.className = 'edb ed-tile-frame-add';
+      add.textContent = '+';
+      add.title = 'Add frame';
+      add.addEventListener('click', function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        addAnimFrame(row.id);
+      });
+      bar.appendChild(add);
       wrap.appendChild(bar);
       stripsEl.appendChild(wrap);
     })(rows[r]);
@@ -995,8 +1217,9 @@ function applyImportFile(file){
       if (slices.length === 1){
         setSpriteFrame(current.id, animId, frameI, slices[0].src, true);
       } else if (a){
-        var i, n = Math.min(a.n, slices.length);
-        for (i = 0; i < n; i++) setSpriteFrame(current.id, animId, i, slices[i].src, true);
+        var i, need = slices.length, have = getAnimFrameCount(current.id, animId);
+        if (need > have) setAnimFrameCount(current.id, animId, need);
+        for (i = 0; i < need; i++) setSpriteFrame(current.id, animId, i, slices[i].src, true);
       }
       notify();
       fillBody();

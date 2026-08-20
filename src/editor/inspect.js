@@ -27,7 +27,12 @@ export function showInspect(sel){
   if (!root) return;
   if (!sel || !sel.obj){ root.hidden = true; return; }
   root.hidden = false;
-  if (titleEl) titleEl.textContent = sel.type === 'volume' ? 'Volume' : (sel.type === 'light' ? 'Light' : 'Sound');
+  if (titleEl){
+    titleEl.textContent = sel.type === 'volume' ? 'Volume'
+      : (sel.type === 'light' ? 'Light'
+        : (sel.type === 'player_start' ? 'Start'
+          : 'Sound'));
+  }
   fillBody(sel);
   if (!hasFloatPos(root)) placeFloat(root, innerWidth - 250, 8);
   raiseFloat(root);
@@ -106,6 +111,13 @@ function fillBody(sel){
   if (!body) return;
   body.textContent = '';
   var o = sel.obj;
+  if (sel.type === 'player_start'){
+    var note = document.createElement('div');
+    note.className = 'ed-tile-note';
+    note.textContent = 'Level start. Only one — placing again moves it. Delete resets to the blank default.';
+    body.appendChild(note);
+    return;
+  }
   if (sel.type === 'sound'){
     var ds = DEF.sound;
     select(body, 'Mode', [

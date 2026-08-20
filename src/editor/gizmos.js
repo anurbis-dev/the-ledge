@@ -1,7 +1,15 @@
 import { ctx, cam, rc } from '../render/ctx.js';
 import { volCenter, volWorld, volLocal, pointInVolume } from '../entities/volumes.js';
+import { runtime } from '../core/runtime.js';
 
 var drag = null;
+
+function spawnOf(){
+  var lv = runtime.LV;
+  if (!lv) return null;
+  if (!lv.spawn) lv.spawn = { x: 16, y: 6 * 16 - 22 };
+  return lv.spawn;
+}
 
 function near(ax, ay, bx, by, r){
   var dx = ax - bx, dy = ay - by;
@@ -14,8 +22,11 @@ export function pickSpecial(S, wx, wy){
 }
 
 export function pickAllSpecial(S, wx, wy){
-  var out = [], i, o, list;
+  var out = [], i, o, list, spawn;
   if (!S) return out;
+  spawn = spawnOf();
+  if (spawn && near(wx, wy, spawn.x + 5, spawn.y + 11, 12))
+    out.push({ type: 'player_start', obj: spawn });
   list = S.lights || [];
   for (i = list.length - 1; i >= 0; i--){
     o = list[i];
@@ -65,6 +76,9 @@ export function hitGizmo(S, sel, wx, wy){
       return { kind: 'radius', type: t, obj: o };
     if (near(wx, wy, o.x, o.y, 10)) return { kind: 'move', type: t, obj: o };
   }
+  if (t === 'player_start'){
+    if (near(wx, wy, o.x + 5, o.y + 11, 12)) return { kind: 'move', type: t, obj: o };
+  }
   return null;
 }
 
@@ -79,9 +93,14 @@ export function beginGizmo(hit, wx, wy){
 
 export function moveGizmo(wx, wy){
   if (!drag) return;
-  var o = drag.obj, dx = wx - drag.x0, dy = wy - drag.y0;
+  var o = drag.obj, dx = wx - drag.x0, dy = wy - drag.y0, S;
   if (drag.kind === 'move'){
     o.x = drag.ox + dx; o.y = drag.oy + dy;
+    if (drag.type === 'player_start'){
+      o.x = Math.round(o.x); o.y = Math.round(o.y);
+      S = runtime.W;
+      if (S && S.respawn){ S.respawn.x = o.x; S.respawn.y = o.y; }
+    }
     return;
   }
   if (drag.kind === 'radius'){
@@ -116,7 +135,7 @@ function handle(x, y, col){
 }
 
 export function drawGizmos(S, sel){
-  var i, o, list = S.volumes || [];
+  var i, o, list = S.volumes || [], spawn, onStart;
   for (i = 0; i < list.length; i++){
     o = list[i];
     drawVolumeFrame(o, sel && sel.type === 'volume' && sel.obj === o);
@@ -133,6 +152,21 @@ export function drawGizmos(S, sel){
     var son = sel && sel.type === 'sound' && sel.obj === o;
     drawPoint(o, '#7ad0ff', son, son && o.mode === 'falloff');
   }
+  spawn = spawnOf();
+  if (spawn){
+    onStart = sel && sel.type === 'player_start' && sel.obj === spawn;
+    drawStart(spawn, onStart);
+  }
+}
+
+function drawStart(o, on){
+  var x = o.x - cam.x, y = o.y - cam.y;
+  ctx.save();
+  ctx.globalAlpha = on ? 1 : 0.85;
+  rc(x + 2, y + 2, 6, 18, on ? '#7dffb0' : '#3a8f5c');
+  rc(x + 8, y + 2, 10, 7, on ? '#b6ffd4' : '#5bbf7a');
+  rc(x + 1, y + 19, 8, 2, '#1a1220');
+  ctx.restore();
 }
 
 function drawVolumeFrame(o, on){

@@ -136,7 +136,9 @@ export function paintObjIcon(c, kind, s){
   var k = s / 16;
   function r(x, y, w, h, col){ px(c, x * k, y * k, Math.max(1, w * k), Math.max(1, h * k), col); }
   r(0, 0, 16, 16, '#160f26');
-  if (kind === 'enemy0'){
+  if (kind === 'player_start'){
+    r(4, 2, 2, 12, '#3a8f5c'); r(6, 2, 7, 5, '#7dffb0'); r(3, 13, 4, 2, '#1a1220');
+  } else if (kind === 'enemy0'){
     r(3, 5, 10, 9, P.foeB); r(4, 6, 8, 6, P.foeA); r(10, 7, 2, 2, P.foeEye);
     r(5, 3, 1, 3, P.foeA); r(8, 2, 1, 3, P.foeA); r(11, 3, 1, 3, P.foeA);
   } else if (kind === 'enemy1'){
