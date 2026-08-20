@@ -1,6 +1,7 @@
 /* Кастомные тайлы: картинка + флаги. id 64..255 (Uint8).
-   Черновик — ledge.dev.tiles; в игру уезжает через Bake → BAKED.tiles. */
+   Черновик — ledge.dev.tiles; в игру уезжает через Bake → BAKED.tiles / BAKED.tileGfx. */
 import { BAKED } from './defaults.js';
+import { preferLocal, notifyDraftChange } from './persist.js';
 
 export var CUSTOM_BASE = 64;
 export var CUSTOM_MAX = 255;
@@ -118,10 +119,11 @@ function cloneGfx(src){
 
 function boot(){
   var local = readLocal();
+  var useLocal = preferLocal() && local;
   var baked = (BAKED && BAKED.tiles) || [];
-  if (local && local.tiles && local.tiles.length) tiles = local.tiles.map(normalizeTile).filter(Boolean);
+  if (useLocal && local.tiles && local.tiles.length) tiles = local.tiles.map(normalizeTile).filter(Boolean);
   else tiles = baked.map(normalizeTile).filter(Boolean);
-  if (local && local.gfx && Object.keys(local.gfx).length) gfx = cloneGfx(local.gfx);
+  if (useLocal && local.gfx && Object.keys(local.gfx).length) gfx = cloneGfx(local.gfx);
   else gfx = cloneGfx((BAKED && BAKED.tileGfx) || {});
   rebuild();
   loadAllImgs();
@@ -241,6 +243,7 @@ function nextId(){
 
 function emit(why){
   writeLocal();
+  notifyDraftChange();
   if (onChange) onChange(why || 'change');
 }
 

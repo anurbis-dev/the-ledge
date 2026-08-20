@@ -3,7 +3,7 @@ import { viteSingleFile } from "vite-plugin-singlefile";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
-import { writeFile, rename } from "node:fs/promises";
+import { writeFile, rename, unlink } from "node:fs/promises";
 import { mergeBaked, formatDefaults, parseDefaultsSource } from "./scripts/bake-merge.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -21,6 +21,31 @@ function loadExistingBaked() {
     console.error("[bake] could not parse defaults.js, using last good snapshot:", err.message);
     return loadExistingBaked.last || null;
   }
+}
+
+function waitMs(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function atomicWriteDefaults(text) {
+  // Unique tmp name prevents cross-process collisions when multiple vite
+  // servers are running against the same workspace.
+  const tmp = `${defaultsPath}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
+  await writeFile(tmp, text, "utf8");
+  let lastErr = null;
+  for (let i = 0; i < 8; i++) {
+    try {
+      await rename(tmp, defaultsPath);
+      return;
+    } catch (err) {
+      lastErr = err;
+      const code = err && err.code;
+      if (code !== "EPERM" && code !== "EACCES") break;
+      await waitMs(20 * (i + 1));
+    }
+  }
+  try { await unlink(tmp); } catch {}
+  throw lastErr;
 }
 
 function bakeEndpoint() {
@@ -78,9 +103,7 @@ function bakeEndpoint() {
               const existing = loadExistingBaked();
               const merged = mergeBaked(existing, dump);
               const text = formatDefaults(merged);
-              const tmp = defaultsPath + ".tmp";
-              await writeFile(tmp, text, "utf8");
-              await rename(tmp, defaultsPath);
+              await atomicWriteDefaults(text);
               loadExistingBaked.last = merged;
               const levelCount = merged.levels ? Object.keys(merged.levels).filter((k) => k !== "_gone").length : 0;
               console.log(`[bake] OK — wrote ${defaultsPath} (levels: ${levelCount})`);

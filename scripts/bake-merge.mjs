@@ -58,9 +58,19 @@ function mergeSprites(base, next) {
   return out;
 }
 
+/* Paint overrides for built-in tiles. Cold tabs boot without LS and would
+   POST tileGfx:{} — do not let that erase a non-empty baked set. */
+export function mergeTileGfx(base, next) {
+  if (next == null) return base || null;
+  const nextKeys = Object.keys(next);
+  if (nextKeys.length) return next;
+  if (base && Object.keys(base).length) return base;
+  return next;
+}
+
 export function mergeBaked(existing, dump) {
   const base = existing || {
-    levels: null, params: null, settings: null, score: null, mix: null, talk: null, intro: null, tiles: null, sprites: null
+    levels: null, params: null, settings: null, score: null, mix: null, talk: null, intro: null, tiles: null, tileGfx: null, sprites: null
   };
   const nextSprites = dump.sprites != null ? spriteAnchors(dump.sprites) : null;
   return {
@@ -73,6 +83,7 @@ export function mergeBaked(existing, dump) {
     talk: mergeFlat(base.talk, dump.talk),
     intro: dump.intro != null ? dump.intro : (base.intro || null),
     tiles: dump.tiles != null ? dump.tiles : (base.tiles || null),
+    tileGfx: mergeTileGfx(base.tileGfx, dump.tileGfx),
     sprites: nextSprites != null ? mergeSprites(base.sprites, nextSprites) : (base.sprites || null)
   };
 }
