@@ -62,7 +62,8 @@ export var ED = {
   color: false, grade: { hue: 0, sat: 1, bright: 0.15, contrast: 1 },
   sel: null, dragPal: null, giz: false,
   hitObj: null, pendHit: null,
-  selTiles: null, boxing: null, moving: null, ctrlGest: null, clip: null
+  selTiles: null, boxing: null, moving: null, ctrlGest: null, clip: null,
+  doorPending: null
 };
 
 /* varN — сколько ручных узоров держит тайл; повторный клик по уже стоящему тайлу того же брашка
@@ -92,6 +93,8 @@ export var ED_TILES = [
 ];
 export var ED_OBJS = [
   { name: 'Start',   kind: 'player_start' },
+  { name: 'Exit',    kind: 'level_exit' },
+  { name: 'Door',    kind: 'door' },
   { name: 'Foe 1',   kind: 'enemy0' },
   { name: 'Foe 2',   kind: 'enemy1' },
   { name: 'Foe 3',   kind: 'enemy2' },
@@ -349,6 +352,7 @@ function selectSpriteBrush(def){
 }
 
 function setTab(tab){
+  cancelDoorPending();
   ED.tab = tab;
   if (tab === 'tile' || tab === 'obj'){
     ED.tool = tab;
@@ -647,6 +651,7 @@ export function edOpen(){
   pushBake({ silent: true }).catch(function(){});
 }
 export function edClose(){
+  cancelDoorPending();
   flushLevel(world());
   pushBake({ silent: true }).catch(function(){});
   ED.on = false;
@@ -726,7 +731,67 @@ function selectSpecial(sel){
 }
 
 function isSpecialKind(kind){
-  return kind === 'sound' || kind === 'light' || kind === 'volume' || kind === 'player_start';
+  return kind === 'sound' || kind === 'light' || kind === 'volume'
+    || kind === 'player_start' || kind === 'level_exit' || kind === 'door';
+}
+
+function exitsList(){
+  var lv = G.levelSpec();
+  if (!lv) return [];
+  if (!lv.exits) lv.exits = [];
+  return lv.exits;
+}
+
+function allocExitId(list){
+  var m = -1, i;
+  for (i = 0; i < list.length; i++) if ((list[i].id | 0) > m) m = list[i].id | 0;
+  return m + 1;
+}
+
+function placeLevelExit(cell){
+  var T = G.T, list = exitsList(), lv = G.levelSpec();
+  var ex = {
+    id: allocExitId(list),
+    x: cell.c * T,
+    y: (cell.r + 1) * T,
+    toId: null
+  };
+  list.push(ex);
+  if (lv) lv.exit = list[0];
+  selectSpecial({ type: 'level_exit', obj: ex });
+  markLevelDirty();
+}
+
+function cancelDoorPending(){
+  var S = world(), pend = ED.doorPending;
+  if (!pend || !S){ ED.doorPending = null; return false; }
+  S.doors = (S.doors || []).filter(function(d){ return d !== pend && d.id !== pend.id; });
+  ED.doorPending = null;
+  if (ED.sel && ED.sel.obj === pend) selectSpecial(null);
+  markLevelDirty();
+  return true;
+}
+
+function placeDoorPair(cell){
+  var S = world(), T = G.T;
+  var x = cell.c * T, y = (cell.r + 1) * T;
+  if (!S.doors) S.doors = [];
+  if (ED.doorPending){
+    var a = ED.doorPending;
+    var b = G.mkDoorAt(S, x, y, {
+      need: a.need, consume: a.consume !== false, tag: ''
+    });
+    a.pair = b.id; b.pair = a.id;
+    if (!a.tag) a.tag = 'door' + a.id;
+    ED.doorPending = null;
+    selectSpecial({ type: 'door', obj: b });
+    markLevelDirty();
+    return;
+  }
+  var first = G.mkDoorAt(S, x, y, { need: null, consume: true, pair: -1 });
+  ED.doorPending = first;
+  selectSpecial({ type: 'door', obj: first });
+  markLevelDirty();
 }
 
 function spawnMarker(){
@@ -1138,6 +1203,9 @@ function edPlaceObject(cell){
   var kind = spec.kind;
   var cx = cell.c*T + 8, cy = cell.r*T + 8, floorY = (cell.r + 1)*T;
   if (kind === 'player_start'){ placePlayerStart(cell); return; }
+  if (kind === 'level_exit'){ placeLevelExit(cell); return; }
+  if (kind === 'door'){ placeDoorPair(cell); return; }
+  if (ED.doorPending) cancelDoorPending();
   if (kind === 'sound'){ selectSpecial({ type: 'sound', obj: G.mkSoundAt(S, cx, cy) }); return; }
   if (kind === 'light'){ selectSpecial({ type: 'light', obj: G.mkLightAt(S, cx, cy) }); return; }
   if (kind === 'volume'){ selectSpecial({ type: 'volume', obj: G.mkVolumeAt(S, cx, cy) }); return; }
@@ -1612,6 +1680,8 @@ function findObjPal(type, obj){
     if (type === 'light' && k === 'light') return i;
     if (type === 'volume' && k === 'volume') return i;
     if (type === 'player_start' && k === 'player_start') return i;
+    if (type === 'level_exit' && k === 'level_exit') return i;
+    if (type === 'door' && k === 'door') return i;
     if (type === 'boulder' && k === 'boulder') return i;
     if (type === 'npc' && k === 'npc_' + (obj.tree || 'hermit')) return i;
   }
@@ -2065,6 +2135,7 @@ addEventListener('keydown', function(e){
     e.stopImmediatePropagation();
     var te = document.getElementById('edTileEdit');
     if (te && !te.hidden){ closeTileEdit(); return; }
+    if (ED.doorPending){ cancelDoorPending(); return; }
     if (ED.selTiles){ ED.selTiles = null; return; }
     edClose();
     return;
@@ -2204,7 +2275,7 @@ window.addEventListener('drop', onEditorDrop);
 function deleteSelected(){
   var S = world();
   if (!S || !ED.sel) return;
-  var t = ED.sel.type, o = ED.sel.obj, spawn;
+  var t = ED.sel.type, o = ED.sel.obj, spawn, list, lv, pairId;
   if (t === 'light') S.lights = (S.lights || []).filter(function(x){ return x !== o; });
   else if (t === 'sound') S.sounds = (S.sounds || []).filter(function(x){ return x !== o; });
   else if (t === 'volume') S.volumes = (S.volumes || []).filter(function(x){ return x !== o; });
@@ -2212,6 +2283,17 @@ function deleteSelected(){
     spawn = spawnMarker();
     if (spawn){ spawn.x = 16; spawn.y = 6 * G.T - 22; }
     if (S.respawn){ S.respawn.x = 16; S.respawn.y = 6 * G.T - 22; }
+  } else if (t === 'level_exit'){
+    list = exitsList();
+    lv = G.levelSpec();
+    for (var i = list.length - 1; i >= 0; i--) if (list[i] === o) list.splice(i, 1);
+    if (lv) lv.exit = list[0] || null;
+  } else if (t === 'door'){
+    pairId = o.pair;
+    if (ED.doorPending === o) ED.doorPending = null;
+    S.doors = (S.doors || []).filter(function(d){
+      return d !== o && d.id !== o.id && d.id !== pairId;
+    });
   }
   selectSpecial(null);
 }

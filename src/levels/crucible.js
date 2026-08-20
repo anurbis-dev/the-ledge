@@ -5,7 +5,7 @@ import { E, ROCK, CRUMB, LADW, LADF, LADR, LADL, HTOP, BAR, SLR, SLL, WATER, FAL
 export const level = {
   id: 5, name: 'CRUCIBLE', pal: 'ember', w: 96, h: 80,
   spawn: { x: 5*16, y: 50*16 - 22 },
-  exit: { x: 88*16, y: 10*16 },
+  exit: { x: 88*16, y: 10*16, toId: null }, // конец кампании → MENU
   water: [[24, 52, 0.8]],
   build(){
     fillR(0, 0, 2, runtime.MAP_H); fillR(runtime.MAP_W - 2, 0, 2, runtime.MAP_H);

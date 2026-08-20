@@ -3,6 +3,10 @@ import { initSliders, bindResetHover } from './slider.js';
 import { touchOp } from './history.js';
 import { raiseFloat, placeFloat, hasFloatPos } from './float.js';
 import { listSpriteDefs } from '../core/spriteset.js';
+import { ITEMS } from '../entities/catalog.js';
+import GAME from '../core/game.js';
+import { findById } from '../entities/ids.js';
+import { runtime } from '../core/runtime.js';
 
 var DEF = {
   sound: { mode: 'falloff', vol: 0.4, radius: 96, freq: 220, type: 'sine' },
@@ -31,7 +35,8 @@ export function showInspect(sel){
     titleEl.textContent = sel.type === 'volume' ? 'Volume'
       : (sel.type === 'light' ? 'Light'
         : (sel.type === 'player_start' ? 'Start'
-          : 'Sound'));
+          : (sel.type === 'level_exit' ? 'Exit'
+            : (sel.type === 'door' ? 'Door' : 'Sound'))));
   }
   fillBody(sel);
   if (!hasFloatPos(root)) placeFloat(root, innerWidth - 250, 8);
@@ -81,6 +86,18 @@ function select(parent, label, opts, val, set, def){
   parent.appendChild(row);
 }
 
+function toggle(parent, label, val, set){
+  var row = document.createElement('label');
+  row.className = 'ed-field';
+  var inp = document.createElement('input');
+  inp.type = 'checkbox';
+  inp.checked = !!val;
+  inp.addEventListener('change', function(){ touchOp(); set(!!inp.checked); notify(); showInspect(current); });
+  row.appendChild(inp);
+  row.appendChild(document.createTextNode(' ' + label));
+  parent.appendChild(row);
+}
+
 function color(parent, label, val, set, def){
   var row = document.createElement('label');
   row.className = 'ed-field';
@@ -107,15 +124,77 @@ function toHex(c){
   return '#ffbe74';
 }
 
+function note(parent, text){
+  var el = document.createElement('div');
+  el.className = 'ed-tile-note';
+  el.textContent = text;
+  parent.appendChild(el);
+}
+
+function bagItemOpts(){
+  var opts = [{ id: '', name: '(none)' }], k, info;
+  for (k in ITEMS){
+    info = ITEMS[k];
+    if (!info || info.cat !== 'bag') continue;
+    opts.push({ id: k, name: info.name || k });
+  }
+  return opts;
+}
+
+function levelOpts(){
+  var opts = [{ id: '', name: '(none / MENU)' }], i, lv, levels = GAME.LEVELS || [];
+  for (i = 0; i < levels.length; i++){
+    lv = levels[i];
+    opts.push({ id: String(lv.id), name: (lv.name || ('LEVEL ' + lv.id)) + ' · id ' + lv.id });
+  }
+  return opts;
+}
+
+function syncDoorPair(o){
+  var S = runtime.W, pr;
+  if (!S || !S.doors) return;
+  pr = findById(S.doors, o.pair);
+  if (!pr) return;
+  pr.need = o.need;
+  pr.consume = o.consume;
+  pr.locked = o.locked;
+}
+
 function fillBody(sel){
   if (!body) return;
   body.textContent = '';
   var o = sel.obj;
   if (sel.type === 'player_start'){
-    var note = document.createElement('div');
-    note.className = 'ed-tile-note';
-    note.textContent = 'Level start. Only one — placing again moves it. Delete resets to the blank default.';
-    body.appendChild(note);
+    note(body, 'Level start. Only one — placing again moves it. Delete resets to the blank default.');
+    return;
+  }
+  if (sel.type === 'level_exit'){
+    note(body, 'Level transition. Multiple exits allowed. Empty target → MENU on CONTINUE.');
+    select(body, 'Target level', levelOpts(),
+      o.toId != null ? String(o.toId) : '',
+      function(v){ o.toId = v === '' ? null : +v; },
+      '');
+    return;
+  }
+  if (sel.type === 'door'){
+    note(body, o.pair >= 0
+      ? ('Paired with door id ' + o.pair + '. Delete removes both. Place pair with 2 clicks.')
+      : 'Waiting for return door — click again to place the pair. Esc cancels.');
+    select(body, 'Required item', bagItemOpts(),
+      o.need || '',
+      function(v){
+        o.need = v === '' ? null : v;
+        o.locked = !!o.need;
+        if (o.need && o.consume == null) o.consume = true;
+        syncDoorPair(o);
+      },
+      '');
+    if (o.need){
+      toggle(body, 'Consume item on activate', o.consume !== false, function(v){
+        o.consume = v;
+        syncDoorPair(o);
+      });
+    }
     return;
   }
   if (sel.type === 'sound'){

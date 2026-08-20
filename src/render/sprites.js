@@ -247,36 +247,38 @@ export function boulders(){
   popEntA();
 }
 export function caveExit(){
-  var S = world(), time = view.time;
-  var e = G.levelSpec().exit; if (!e) return;
-  var x = Math.round(e.x - cam.x), y = Math.round(e.y - cam.y);
-  if (x < -60 || x > viewW() + 60) return;
-  // скальная арка
-  setFill('#1b1430');
-  ctx.beginPath();
-  ctx.moveTo(x - 14, y);
-  ctx.quadraticCurveTo(x - 14, y - 34, x + 8, y - 36);
-  ctx.quadraticCurveTo(x + 30, y - 34, x + 30, y);
-  ctx.closePath(); ctx.fill();
-  setFill('#08060f');
-  ctx.beginPath();
-  ctx.moveTo(x - 9, y);
-  ctx.quadraticCurveTo(x - 9, y - 28, x + 8, y - 30);
-  ctx.quadraticCurveTo(x + 25, y - 28, x + 25, y);
-  ctx.closePath(); ctx.fill();
-  rc(x - 14, y - 2, 44, 3, '#3a3157');
-  for (var i = 0; i < 5; i++) rc(x - 12 + i*11, y - 6 - (i%2)*3, 3, 3, '#2a2444');
-  // манящее свечение и подсказка
-  var gl = 0.4 + Math.sin(time*2)*0.18;
-  ctx.globalAlpha = gl;
-  rc(x - 6, y - 24, 26, 22, '#3d2a5e');
-  ctx.globalAlpha = 1;
-  var near = Math.abs((S.p.x + S.p.w/2) - (e.x + 8)) < 60 && Math.abs((S.p.y + S.p.h) - e.y) < 40;
-  if (near && Math.sin(time*4) > -0.3){
-    var ay = y - 46 + Math.round(Math.sin(time*2)*2);
-    rc(x + 4, ay + 4, 8, 8, '#241a30');
-    rc(x + 7, ay, 2, 8, '#ffd9a0');
-    rc(x + 5, ay + 2, 2, 2, '#ffd9a0'); rc(x + 9, ay + 2, 2, 2, '#ffd9a0');
+  var S = world(), time = view.time, lv = G.levelSpec();
+  var list = (lv && lv.exits) || (lv && lv.exit ? [lv.exit] : []);
+  var ei, e, x, y, i, gl, near, ay;
+  for (ei = 0; ei < list.length; ei++){
+    e = list[ei];
+    x = Math.round(e.x - cam.x); y = Math.round(e.y - cam.y);
+    if (x < -60 || x > viewW() + 60) continue;
+    setFill('#1b1430');
+    ctx.beginPath();
+    ctx.moveTo(x - 14, y);
+    ctx.quadraticCurveTo(x - 14, y - 34, x + 8, y - 36);
+    ctx.quadraticCurveTo(x + 30, y - 34, x + 30, y);
+    ctx.closePath(); ctx.fill();
+    setFill('#08060f');
+    ctx.beginPath();
+    ctx.moveTo(x - 9, y);
+    ctx.quadraticCurveTo(x - 9, y - 28, x + 8, y - 30);
+    ctx.quadraticCurveTo(x + 25, y - 28, x + 25, y);
+    ctx.closePath(); ctx.fill();
+    rc(x - 14, y - 2, 44, 3, '#3a3157');
+    for (i = 0; i < 5; i++) rc(x - 12 + i * 11, y - 6 - (i % 2) * 3, 3, 3, '#2a2444');
+    gl = 0.4 + Math.sin(time * 2) * 0.18;
+    ctx.globalAlpha = gl;
+    rc(x - 6, y - 24, 26, 22, '#3d2a5e');
+    ctx.globalAlpha = 1;
+    near = Math.abs((S.p.x + S.p.w / 2) - (e.x + 8)) < 60 && Math.abs((S.p.y + S.p.h) - e.y) < 40;
+    if (near && Math.sin(time * 4) > -0.3){
+      ay = y - 46 + Math.round(Math.sin(time * 2) * 2);
+      rc(x + 4, ay + 4, 8, 8, '#241a30');
+      rc(x + 7, ay, 2, 8, '#ffd9a0');
+      rc(x + 5, ay + 2, 2, 2, '#ffd9a0'); rc(x + 9, ay + 2, 2, 2, '#ffd9a0');
+    }
   }
 }
 export function doors(){
@@ -292,22 +294,25 @@ export function doors(){
     rc(x+7, y-24, 2, 23, P.doorD);
     rc(x+2, y-20, 5, 7, P.doorD); rc(x+9, y-20, 5, 7, P.doorD);
     rc(x+12, y-12, 2, 2, P.lockD);
-    if (d.locked){
+    if (d.need || d.locked){
+      var canOpen = d.need
+        ? (d.need === 'key' ? (S.keys || 0) > 0 : !!(S.bag && S.bag[d.need] > 0))
+        : (S.keys || 0) > 0;
       rc(x+6, y-14, 4, 5, P.lockC); rc(x+7, y-16, 2, 3, P.lockD);
       rc(x+7, y-12, 2, 2, P.lockD);
-      // подсказка: нужен ключ (мигает, когда героиня рядом)
       var near = Math.abs((S.p.x + S.p.w/2) - (d.x + 8)) < 60 &&
                  Math.abs((S.p.y + S.p.h/2) - (d.y - 12)) < 46;
       if (near && Math.sin(time*4) > -0.3){
         var by2 = y - 40 + Math.round(Math.sin(time*2)*1.5);
+        var hint = canOpen ? '#7de08a' : P.lockC;
         rc(x+2, by2, 12, 12, '#241a30');
-        rc(x+5, by2+2, 5, 5, S.keys > 0 ? '#7de08a' : P.lockC);
+        rc(x+5, by2+2, 5, 5, hint);
         rc(x+6, by2+3, 3, 3, '#241a30');
-        rc(x+6, by2+7, 2, 4, S.keys > 0 ? '#7de08a' : P.lockC);
-        rc(x+8, by2+9, 2, 1, S.keys > 0 ? '#7de08a' : P.lockC);
+        rc(x+6, by2+7, 2, 4, hint);
+        rc(x+8, by2+9, 2, 1, hint);
       }
     } else {
-      rc(x+1, y-24, 14, 4, '#120d1e');    // приоткрытая тьма проёма
+      rc(x+1, y-24, 14, 4, '#120d1e');
     }
   }
   popEntA();

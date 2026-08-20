@@ -5,7 +5,7 @@ import { E, ROCK, CRUMB, LADW, LADF, LADR, LADL, HTOP, BAR, SLR, SLL, WATER, FAL
 export const level = {
   id: 4, name: 'HALLS', pal: 'moss', w: 122, h: 70,
   spawn: { x: 5*16, y: 22*16 - 22 },
-  exit: { x: 114*16, y: 22*16 },
+  exit: { x: 114*16, y: 22*16, toId: 5 },  // CRUCIBLE
   water: [[46, 32, 0.55]],
   build(){
     fillR(0, 0, 2, runtime.MAP_H); fillR(runtime.MAP_W - 2, 0, 2, runtime.MAP_H);

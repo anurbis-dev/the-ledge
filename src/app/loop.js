@@ -393,14 +393,22 @@ function levelTotals(){
   }
   return t;
 }
+function resolveExitNext(toId){
+  if (toId == null) return -1;
+  for (var j = 0; j < G.LEVELS.length; j++)
+    if (G.LEVELS[j].id === toId) return j;
+  return -1;
+}
 function finishLevel(){
   gameOver = null;
   var i = G.levelIndex();
+  var toId = S.p && S.p.warp ? S.p.warp.toId : null;
+  var next = resolveExitNext(toId);
   prog.done[i] = true;
   setOutro({ t: 0, totals: levelTotals(), bag: { coin:S.bag.coin, gem:S.bag.gem, shroom:S.bag.shroom },
-            next: i + 1 < G.LEVELS.length ? i + 1 : -1 });
+            next: next });
   beginOutro();
-  if (i + 1 < G.LEVELS.length) prog.max = Math.max(prog.max, i + 1);
+  if (next >= 0) prog.max = Math.max(prog.max, next);
   else prog.max = Math.max(prog.max, i);
   saveProgress();
 }

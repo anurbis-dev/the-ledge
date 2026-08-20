@@ -5,7 +5,7 @@ import { E, ROCK, CRUMB, LADW, LADF, LADR, LADL, HTOP, BAR, SLR, SLL, WATER, FAL
 export const level = {
   id: 3, name: 'WATERFALL', pal: 'ice', w: 84, h: 102,
   spawn: { x: 44*16, y: 68*16 - 22 },
-  exit: { x: 14*16, y: 14*16 },
+  exit: { x: 14*16, y: 14*16, toId: 4 },   // HALLS
   water: [[2, 70, 0.9]],
   build(){
     fillR(0, 0, 2, runtime.MAP_H); fillR(runtime.MAP_W - 2, 0, 2, runtime.MAP_H);

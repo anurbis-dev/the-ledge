@@ -5,7 +5,7 @@ import { E, ROCK, CRUMB, LADW, LADF, LADR, LADL, HTOP, BAR, SLR, SLL, WATER, FAL
 export const level = {
   id: 1, name: 'CAVES', pal: 'stone', w: 186, h: 72,
   spawn: { x: 60, y: 22*16 - 22 },
-  exit: { x: 178*16, y: 22*16 },          // вход в пещеру -> следующий уровень
+  exit: { x: 178*16, y: 22*16, toId: 2 },  // CLIFF
   lights: [[15,21],[28,18],[37,15],[45,11],[53,4],[57,12],[64,18],[92,21]],
   build(){
     /* ---------------- уровень ----------------

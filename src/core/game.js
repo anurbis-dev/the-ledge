@@ -19,7 +19,7 @@ import { LEVELS, loadLevel, addBlankLevel, removeLevel } from '../levels/index.j
 import { mkItems } from '../entities/items.js';
 import { mkPlats } from '../entities/plats.js';
 import { mkTorches, tryAction, dropTorch } from '../entities/torches.js';
-import { mkDoors, tryDoor, tryExit } from '../entities/doors.js';
+import { mkDoors, tryDoor, tryExit, normalizeDoor } from '../entities/doors.js';
 import { mkEnemies, attack } from '../entities/enemies.js';
 import { mkPickable } from '../entities/pickable.js';
 import { allocId } from '../entities/ids.js';
@@ -224,6 +224,21 @@ function mkChestAt(S, x, y, loot, locked, random){
     : [{ kind: 'coin', qty: 5 }];
   S.chests.push({ id:allocId(S.chests), x:x, y:y, loot:l, locked:!!locked, opened:false, t:0, random: !!random });
 }
+function mkDoorAt(S, x, y, opts){
+  opts = opts || {};
+  var d = normalizeDoor({
+    id: allocId(S.doors),
+    x: x, y: y,
+    pair: opts.pair != null ? opts.pair : -1,
+    tag: opts.tag || '',
+    need: opts.need != null ? opts.need : null,
+    consume: opts.consume !== false,
+    locked: false
+  });
+  if (!d.tag) d.tag = 'door' + d.id;
+  S.doors.push(d);
+  return d;
+}
 
 export const GAME = {
   T, C,
@@ -243,7 +258,7 @@ export const GAME = {
   setTint, tintAt, gradeAt, internGrade,
   COVER_AIR, setCover, setCoverVar, coverRaw, coverVarRaw,
   buildGates: function(S){ buildGates(S); },
-  mkItemAt, mkEnemyAt, mkFlierAt, mkSpiderAt, mkTorchAt, mkChestAt, mkTendrilAt,
+  mkItemAt, mkEnemyAt, mkFlierAt, mkSpiderAt, mkTorchAt, mkChestAt, mkDoorAt, mkTendrilAt,
   mkLightAt, mkSoundAt, mkVolumeAt, mkBoulderAt, mkNpcAt, getLayers, getActiveLayer,
   rectFree, mkWorld, step, resetPlayer,
   LEVELS, loadLevel, newBlankLevel: addBlankLevel, removeLevel, levelIndex(){ return runtime.LVI; },

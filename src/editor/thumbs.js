@@ -138,6 +138,11 @@ export function paintObjIcon(c, kind, s){
   r(0, 0, 16, 16, '#160f26');
   if (kind === 'player_start'){
     r(4, 2, 2, 12, '#3a8f5c'); r(6, 2, 7, 5, '#7dffb0'); r(3, 13, 4, 2, '#1a1220');
+  } else if (kind === 'level_exit'){
+    r(2, 2, 12, 13, '#3a2a5a'); r(3, 3, 10, 11, '#120d1e'); r(7, 1, 2, 3, '#ffd9a0');
+  } else if (kind === 'door'){
+    r(3, 1, 10, 14, '#5e3f22'); r(4, 2, 8, 12, '#9a6a3c'); r(8, 2, 1, 12, '#5e3f22');
+    r(9, 8, 2, 2, '#e0c060');
   } else if (kind === 'enemy0'){
     r(3, 5, 10, 9, P.foeB); r(4, 6, 8, 6, P.foeA); r(10, 7, 2, 2, P.foeEye);
     r(5, 3, 1, 3, P.foeA); r(8, 2, 1, 3, P.foeA); r(11, 3, 1, 3, P.foeA);

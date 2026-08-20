@@ -7,14 +7,17 @@ import { runtime, resetMap } from '../core/runtime.js';
 import { fillR } from '../core/map.js';
 import { stashLayers, restoreLayers, initDefaultLayers } from '../core/layers.js';
 import { flushLevel, forgetLevel } from '../core/persist.js';
+import { ensureLevelExits } from '../entities/doors.js';
 
 export const LEVELS = [caves, cliff, waterfall, halls, crucible];
+ensureLevelExits(LEVELS);
 
 export function loadLevel(i){
   flushLevel(runtime.W);
   stashLayers(runtime.LV);
   runtime.LVI = Math.max(0, Math.min(LEVELS.length - 1, i));
   runtime.LV = LEVELS[runtime.LVI];
+  ensureLevelExits(LEVELS);
   if (runtime.LV._stash){
     restoreLayers(runtime.LV);
   } else {
@@ -39,7 +42,8 @@ export function addBlankLevel(){
   var lv = {
     id: n, name: 'LEVEL ' + n, pal: 'stone', w: 16, h: 16, blank: true, intro: '',
     spawn: { x: 16, y: 6 * 16 - 22 },
-    exit: { x: 12 * 16, y: 8 * 16 },
+    exit: null,
+    exits: [],
     lights: [], sounds: [], volumes: [],
     items: function(){ return []; },
     enemies: [], fliers: [], spiders: [], tendrils: [],

@@ -3,6 +3,7 @@ import { runtime } from './runtime.js';
 import { stashLayers } from './layers.js';
 import { BAKED } from './defaults.js';
 import { BOULDER_DEF } from '../entities/boulders.js';
+import { ensureLevelExits } from '../entities/doors.js';
 
 var KEY = 'ledge.dev.levels';
 var SAVED_KEY = 'ledge.dev.savedAt';
@@ -126,7 +127,9 @@ function packLevel(lv){
     intro: lv.intro || '',
     gearDurability: lv.gearDurability || {},
     w: lv.w, h: lv.h,
-    spawn: lv.spawn, exit: lv.exit,
+    spawn: lv.spawn,
+    exit: (lv.exits && lv.exits[0]) || lv.exit || null,
+    exits: lv.exits || (lv.exit ? [{ id: 0, x: lv.exit.x, y: lv.exit.y, toId: lv.exit.toId != null ? lv.exit.toId : null }] : []),
     enemies: lv.enemies || [],
     fliers: lv.fliers || [],
     spiders: lv.spiders || [],
@@ -139,7 +142,14 @@ function packLevel(lv){
     sounds: lv.sounds || [],
     volumes: lv.volumes || [],
     water: lv.water || [],
-    doors: lv.doors || [],
+    doors: (lv.doors || []).map(function(d){
+      return {
+        id: d.id, x: d.x, y: d.y, pair: d.pair, tag: d.tag || '',
+        need: d.need || null,
+        consume: d.consume !== false,
+        locked: !!(d.need || d.locked)
+      };
+    }),
     lifts: lv.lifts || [],
     plats: lv.plats || [],
     dark: lv.dark || [],
@@ -168,7 +178,21 @@ function applyRecord(lv, rec){
   if (rec.volumes) lv.volumes = rec.volumes;
   if (rec.water) lv.water = rec.water;
   if (rec.spawn) lv.spawn = rec.spawn;
-  if (rec.exit) lv.exit = rec.exit;
+  if (rec.exits){
+    lv.exits = rec.exits;
+    lv.exit = lv.exits[0] || null;
+  } else if (rec.exit){
+    lv.exit = rec.exit;
+    if (lv.exits && lv.exits[0]){
+      lv.exits[0].x = rec.exit.x;
+      lv.exits[0].y = rec.exit.y;
+      if (rec.exit.toId != null) lv.exits[0].toId = rec.exit.toId;
+    } else {
+      lv.exits = null;
+    }
+  } else if (lv.exits && lv.exits[0]){
+    lv.exit = lv.exits[0];
+  }
   if (rec.intro != null) lv.intro = rec.intro;
   if (rec.gearDurability) lv.gearDurability = rec.gearDurability;
   if (rec.w) lv.w = rec.w;
@@ -193,7 +217,10 @@ function makeBlank(rec){
     intro: rec.intro || '',
     gearDurability: rec.gearDurability || {},
     spawn: rec.spawn || { x: 16, y: 6 * T - 22 },
-    exit: rec.exit || { x: 12 * T, y: 8 * T },
+    exit: rec.exit || (rec.exits && rec.exits[0]) || null,
+    exits: rec.exits || (rec.exit
+      ? [{ id: 0, x: rec.exit.x, y: rec.exit.y, toId: rec.exit.toId != null ? rec.exit.toId : null }]
+      : []),
     lights: rec.lights || [], sounds: rec.sounds || [], volumes: rec.volumes || [],
     items: function(){ return items.map(function(a){ return a.slice(); }); },
     enemies: rec.enemies || [], fliers: rec.fliers || [],
@@ -310,8 +337,15 @@ function writeObjects(lv, S){
     };
   });
   lv.doors = (S.doors || []).map(function(d){
-    return { id: d.id, x: d.x, y: d.y, locked: !!d.locked, pair: d.pair, tag: d.tag };
+    return {
+      id: d.id, x: d.x, y: d.y, pair: d.pair, tag: d.tag || '',
+      need: d.need || null,
+      consume: d.consume !== false,
+      locked: !!(d.need || d.locked)
+    };
   });
+  if (lv.exits && lv.exits.length) lv.exit = lv.exits[0];
+  else lv.exit = null;
   lv.lifts = (S.lifts || []).map(function(L){
     var floors = (L.floors || []).slice();
     return {
@@ -404,4 +438,5 @@ export function hydrateAll(levels){
     if (!rec || seen[k] || gone[k]) continue;
     if (rec.blank || rec.stash) levels.push(makeBlank(rec));
   }
+  ensureLevelExits(levels);
 }

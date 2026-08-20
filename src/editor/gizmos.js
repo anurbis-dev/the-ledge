@@ -11,6 +11,15 @@ function spawnOf(){
   return lv.spawn;
 }
 
+function exitsOf(){
+  var lv = runtime.LV;
+  if (!lv) return [];
+  if (!lv.exits) lv.exits = lv.exit
+    ? [{ id: 0, x: lv.exit.x, y: lv.exit.y, toId: lv.exit.toId != null ? lv.exit.toId : null }]
+    : [];
+  return lv.exits;
+}
+
 function near(ax, ay, bx, by, r){
   var dx = ax - bx, dy = ay - by;
   return dx * dx + dy * dy <= r * r;
@@ -22,11 +31,23 @@ export function pickSpecial(S, wx, wy){
 }
 
 export function pickAllSpecial(S, wx, wy){
-  var out = [], i, o, list, spawn;
+  var out = [], i, o, list, spawn, exits;
   if (!S) return out;
   spawn = spawnOf();
   if (spawn && near(wx, wy, spawn.x + 5, spawn.y + 11, 12))
     out.push({ type: 'player_start', obj: spawn });
+  exits = exitsOf();
+  for (i = exits.length - 1; i >= 0; i--){
+    o = exits[i];
+    if (near(wx, wy, o.x + 8, o.y - 16, 16))
+      out.push({ type: 'level_exit', obj: o });
+  }
+  list = S.doors || [];
+  for (i = list.length - 1; i >= 0; i--){
+    o = list[i];
+    if (near(wx, wy, o.x + 8, o.y - 12, 14))
+      out.push({ type: 'door', obj: o });
+  }
   list = S.lights || [];
   for (i = list.length - 1; i >= 0; i--){
     o = list[i];
@@ -79,6 +100,12 @@ export function hitGizmo(S, sel, wx, wy){
   if (t === 'player_start'){
     if (near(wx, wy, o.x + 5, o.y + 11, 12)) return { kind: 'move', type: t, obj: o };
   }
+  if (t === 'level_exit'){
+    if (near(wx, wy, o.x + 8, o.y - 16, 16)) return { kind: 'move', type: t, obj: o };
+  }
+  if (t === 'door'){
+    if (near(wx, wy, o.x + 8, o.y - 12, 14)) return { kind: 'move', type: t, obj: o };
+  }
   return null;
 }
 
@@ -96,8 +123,10 @@ export function moveGizmo(wx, wy){
   var o = drag.obj, dx = wx - drag.x0, dy = wy - drag.y0, S;
   if (drag.kind === 'move'){
     o.x = drag.ox + dx; o.y = drag.oy + dy;
-    if (drag.type === 'player_start'){
+    if (drag.type === 'player_start' || drag.type === 'level_exit' || drag.type === 'door'){
       o.x = Math.round(o.x); o.y = Math.round(o.y);
+    }
+    if (drag.type === 'player_start'){
       S = runtime.W;
       if (S && S.respawn){ S.respawn.x = o.x; S.respawn.y = o.y; }
     }
@@ -135,7 +164,7 @@ function handle(x, y, col){
 }
 
 export function drawGizmos(S, sel){
-  var i, o, list = S.volumes || [], spawn, onStart;
+  var i, o, list = S.volumes || [], spawn, onStart, exits;
   for (i = 0; i < list.length; i++){
     o = list[i];
     drawVolumeFrame(o, sel && sel.type === 'volume' && sel.obj === o);
@@ -152,6 +181,16 @@ export function drawGizmos(S, sel){
     var son = sel && sel.type === 'sound' && sel.obj === o;
     drawPoint(o, '#7ad0ff', son, son && o.mode === 'falloff');
   }
+  list = S.doors || [];
+  for (i = 0; i < list.length; i++){
+    o = list[i];
+    drawDoor(o, sel && sel.type === 'door' && sel.obj === o);
+  }
+  exits = exitsOf();
+  for (i = 0; i < exits.length; i++){
+    o = exits[i];
+    drawExit(o, sel && sel.type === 'level_exit' && sel.obj === o);
+  }
   spawn = spawnOf();
   if (spawn){
     onStart = sel && sel.type === 'player_start' && sel.obj === spawn;
@@ -166,6 +205,26 @@ function drawStart(o, on){
   rc(x + 2, y + 2, 6, 18, on ? '#7dffb0' : '#3a8f5c');
   rc(x + 8, y + 2, 10, 7, on ? '#b6ffd4' : '#5bbf7a');
   rc(x + 1, y + 19, 8, 2, '#1a1220');
+  ctx.restore();
+}
+
+function drawExit(o, on){
+  var x = o.x - cam.x, y = o.y - cam.y;
+  ctx.save();
+  ctx.globalAlpha = on ? 1 : 0.75;
+  rc(x - 2, y - 28, 20, 28, on ? '#6a4a9a' : '#3a2a5a');
+  rc(x, y - 26, 16, 24, on ? '#2a1840' : '#120d1e');
+  rc(x + 6, y - 32, 4, 6, on ? '#ffd9a0' : '#9a8ab8');
+  ctx.restore();
+}
+
+function drawDoor(o, on){
+  var x = o.x - cam.x, y = o.y - cam.y;
+  ctx.save();
+  ctx.globalAlpha = on ? 1 : 0.7;
+  rc(x - 1, y - 27, 18, 27, on ? '#c99a63' : '#5e3f22');
+  rc(x + 1, y - 24, 14, 23, on ? '#9a6a3c' : '#7a5230');
+  if (o.need || o.locked) rc(x + 6, y - 14, 4, 5, '#e0c060');
   ctx.restore();
 }
 

@@ -1,5 +1,4 @@
 # Changelog (unreleased)
 
-- Редактор: `Ctrl+D` дублирует кисть тайла палитры в новый кастом-тайл (`src`/`frames`/флаги); не выделение карты, объекты не клонируются.
-- Редактор `#edTileEdit`: `+` кадр в ряд, драг-reorder превью, Play/Stop (~8 fps); у `enemy*`/`flier*`/`spider*` открытие материализует bake во все слоты.
-- Редактор Objects: `Start` (`player_start`) — один `LV.spawn` на уровень (повтор = перенос; Delete → дефолт); маркер в гизмо, persist через `packLevel.spawn`.
+- Редактор Objects: `Exit` (`level_exit`) — несколько `LV.exits[{id,x,y,toId}]` (миграция с `LV.exit`; blank → `[]`); Inspect Target level (пусто = MENU); `tryExit` / `finishLevel` → индекс `LEVELS` или меню; persist `exits`.
+- Редактор Objects: `Door` — пара за 2 клика (`mkDoorAt`, Esc отменяет первый, Delete снимает оба); Inspect: required bag item + consume-on-activate (`locked=!!need`); persist `need`/`consume`.
