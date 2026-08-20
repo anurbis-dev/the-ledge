@@ -5,7 +5,7 @@ import {
   moveX, moveY, damage, isInvuln, updateBars, ease, updateClimb, updateHang, updateLadder,
   setStance, setH, slopeUnder, slopeUnderAt, slopeGradeUnder, grounded, autoLadder, tryBars,
   tryLadder, tryGrab, tryClimbOut, tryCrawlEdge, ladderTopUnder, attach, startLadSnap, tryDescend,
-  footCenterX, snapFeet, wallSlideDir, unstickFromWall,
+  tryMantle, footCenterX, snapFeet, wallSlideDir, unstickFromWall,
   markGap, canDescend, awayFromEdge, startFallRecover, finishFallRecover,
   finishGetup, stanceFitsAt, stanceH, applyHeroBox, applyRollBox
 } from './player.js';
@@ -297,6 +297,12 @@ export function step(S, dt, inp){
       }
       var blocked = !rectFree(p.x + p.facing*2, p.y, p.w, p.h) && slopeUnder(p) === null;
       if (blocked) p.vx = 0;                      // упор в стену — не толкаемся (на склоне не мешаем)
+      // ступень +1 тайл: только вперёд+вверх; без ↑ — упор руками
+      if (blocked && stanceBefore === 0 && p.stance === 0 &&
+          (inp.upHeld || inp.upPressed) && tryMantle(S, p, p.facing)){
+        crumbCheck(S, p); pickups(S, p);
+        return;
+      }
       if (blocked && stanceBefore === 0 && p.stance === 0) wallBlocked = true;
 
     } else {

@@ -697,6 +697,51 @@ export function awayFromEdge(p, ax){
   var d = findDescend(p, 0);
   return !!(d && ax * d.drop < 0);
 }
+/* нижняя половина тайла сплошная — ступень, не HTOP-щель у пола */
+function fullStepTile(col, row){
+  return tileBlocks(col, row, row * T + 8, 8);
+}
+/* пустые тайлы пола до col: пропасть шире 1 тайла — не мантл */
+function pitTilesTo(p, dir, col){
+  var rG = Math.floor(Math.round(p.y + p.h) / T);
+  var c = dir > 0 ? Math.floor((p.x + p.w + 1) / T) : Math.floor((p.x - 1) / T);
+  var n = 0;
+  while (c !== col){
+    if (!solidTile(c, rG)) n++;
+    c += dir;
+    if (n > 1 || Math.abs(c - col) > 8) break;
+  }
+  return n;
+}
+/* уступ +1 тайл на высоте колена; через яму >1 тайла — нет */
+function findChestStep(p, dir){
+  var rG = Math.floor(Math.round(p.y + p.h) / T);
+  for (var d = 1; d <= T + 6; d++){
+    var wallX = dir > 0 ? p.x + p.w + d : p.x - d;
+    var col = Math.floor(wallX / T);
+    if (!fullStepTile(col, rG - 1)) continue;
+    if (fullStepTile(col, rG - 2)) continue;
+    if (pitTilesTo(p, dir, col) > 1) continue;
+    return {
+      col: col,
+      cx: dir > 0 ? col * T : (col + 1) * T,
+      cy: (rG - 1) * T
+    };
+  }
+  return null;
+}
+/* залезть на ступень +1 тайл (анимация climb); вызов — только с вводом вверх */
+export function tryMantle(S, p, dir){
+  if (p.inWater) return false;
+  if (p.state !== 'normal' || p.rollT > 0 || p.stance !== 0) return false;
+  if (!p.onGround && p.coyote <= 0) return false;
+  var step1 = findChestStep(p, dir);
+  if (!step1) return false;
+  var land = bestLand(step1.cx, step1.cy, dir);
+  if (!land) return false;
+  startClimb(p, 1, step1.cx, step1.cy, dir, 'ledge', land);
+  return true;
+}
 /* --- спуск спиной с края --- */
 export function tryDescend(S, p, want){
   var d = findDescend(p, want);
