@@ -13,6 +13,8 @@ import { runtime } from './runtime.js';
 var bakeT = null;
 var inflight = false;
 var again = false;
+/** Явный Bake, кликнутый пока шёл другой POST — ждёт реальной записи. */
+var waitFull = null;
 var BAKE_MS = 700;
 
 export function collectAuto(){
@@ -47,9 +49,7 @@ export function scheduleBake(){
   }, BAKE_MS);
 }
 
-export function pushBake(opts){
-  opts = opts || {};
-  if (inflight){ again = true; return Promise.resolve({ ok: false, busy: true }); }
+function runBake(opts){
   var dump = opts.full ? collectFull() : collectAuto();
   if (!dump.savedAt) dump.savedAt = Date.now();
   var body;
@@ -71,17 +71,63 @@ export function pushBake(opts){
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return r.json();
   }).then(function(res){
-    inflight = false;
-    if (again){ again = false; scheduleBake(); }
+    // inflight держим до finishQueue — иначе в щель влезет чужой pushBake.
     if (res && res.ok) return res;
+    inflight = false;
     throw new Error(res && res.error || 'unknown error');
   }).catch(function(err){
     clearTimeout(timer);
     inflight = false;
-    if (again){ again = false; if (!opts.silent) scheduleBake(); }
     err.timedOut = timedOut;
     throw err;
   });
+}
+
+function takeQueuedFull(){
+  var q = waitFull;
+  waitFull = null;
+  return q;
+}
+
+function finishQueue(firstOpts, firstRes, firstErr){
+  var queued = takeQueuedFull();
+  var needSilent = again;
+  again = false;
+  if (queued){
+    // Full Bake покрывает silent again.
+    return runBake(queued.opts).then(function(res){
+      queued.resolve(res);
+      inflight = false;
+      if (again){ again = false; scheduleBake(); }
+      return firstErr ? Promise.reject(firstErr) : (firstOpts.full ? res : firstRes);
+    }, function(err){
+      queued.reject(err);
+      inflight = false;
+      return Promise.reject(firstErr || err);
+    });
+  }
+  inflight = false;
+  if (needSilent) scheduleBake();
+  if (firstErr) return Promise.reject(firstErr);
+  return firstRes;
+}
+
+export function pushBake(opts){
+  opts = opts || {};
+  if (inflight){
+    again = true;
+    // Autosave во время чужого POST — только again, без фейкового OK.
+    if (opts.silent) return Promise.resolve({ ok: false, busy: true });
+    if (waitFull) return waitFull.promise;
+    var resolve, reject;
+    var promise = new Promise(function(res, rej){ resolve = res; reject = rej; });
+    waitFull = { opts: opts, resolve: resolve, reject: reject, promise: promise };
+    return promise;
+  }
+  return runBake(opts).then(
+    function(res){ return finishQueue(opts, res, null); },
+    function(err){ return finishQueue(opts, null, err); }
+  );
 }
 
 export function flushAndBake(opts){

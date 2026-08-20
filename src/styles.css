@@ -265,6 +265,9 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
 #edout{position:fixed;inset:6%;z-index:20;display:none;flex-direction:column;gap:6px;
   background:#0d0a18f2;border:2px solid #4a4370;border-radius:10px;padding:8px}
 #edout.on{display:flex}
+/* Фидбек Bake — нижняя треть экрана, не на весь viewport */
+#edout.bake-fb{inset:auto 8% 4% 8%;top:66.666%;height:auto;max-height:30vh}
+#edout.bake-fb #edtext{flex:1 1 auto;min-height:4.5em;max-height:22vh}
 #edtext{flex:1;background:#150f26;color:#cfc6ff;border:1px solid #3a3460;border-radius:6px;
   font-family:ui-monospace,monospace;font-size:10px;padding:6px;resize:none}
 #menu,#menu *{font-family:'Press Start 2P','Courier New',monospace;-webkit-font-smoothing:none;font-smooth:never}

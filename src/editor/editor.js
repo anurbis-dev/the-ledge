@@ -2504,12 +2504,18 @@ if (bEdit) bEdit.addEventListener('click', function(){
   edToggle();
 });
 document.getElementById('edClose').addEventListener('click', function(){ edClose(); });
-document.getElementById('edExport').addEventListener('click', function(){
-  edText.value = edExportText();
+function showEdOut(text, bakeFb){
+  edOut.classList.toggle('bake-fb', !!bakeFb);
+  edText.value = text;
   edOut.classList.add('on');
+}
+document.getElementById('edExport').addEventListener('click', function(){
+  showEdOut(edExportText(), false);
   try { edText.select(); } catch(_){}
 });
-document.getElementById('edOk').addEventListener('click', function(){ edOut.classList.remove('on'); });
+document.getElementById('edOk').addEventListener('click', function(){
+  edOut.classList.remove('on', 'bake-fb');
+});
 function downloadBakeJson(data){
   var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   var url = URL.createObjectURL(blob);
@@ -2526,17 +2532,24 @@ var bBake = document.getElementById('edBake');
 if (bBake) bBake.addEventListener('click', function(){
   flushLevel(world());
   bBake.disabled = true;
-  pushBake({ full: true, silent: false, timeout: 4000 }).then(function(res){
+  // Окно только после реального POST /__bake (pushBake ждёт очередь, не busy-stub).
+  pushBake({ full: true, silent: false, timeout: 8000 }).then(function(res){
     bBake.disabled = false;
-    edText.value = 'Baked OK — src/core/defaults.js updated.\nLevels: ' + res.levels;
-    edOut.classList.add('on');
+    if (!res || !res.ok){
+      downloadBakeJson(collectFull());
+      showEdOut('Bake did not confirm write.\nJSON downloaded as ledge-bake.json.', true);
+      return;
+    }
+    showEdOut('Baked OK — src/core/defaults.js updated.\nLevels: ' + res.levels, true);
   }).catch(function(err){
     bBake.disabled = false;
     downloadBakeJson(collectFull());
-    edText.value = 'Live write failed (' + (err && err.timedOut ? 'timeout' : err) + ').\n' +
+    showEdOut(
+      'Live write failed (' + (err && err.timedOut ? 'timeout' : err) + ').\n' +
       'Editor already autosaves levels/params into defaults.js while the dev server runs.\n' +
-      'If this keeps failing, restart start-dev-server.bat.';
-    edOut.classList.add('on');
+      'If this keeps failing, restart start-dev-server.bat.',
+      true
+    );
   });
 });
 var bNew = document.getElementById('edNew');
