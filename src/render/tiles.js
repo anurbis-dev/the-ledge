@@ -495,6 +495,11 @@ export function invalidateAll(){
     ls[i]._coverCans = null;
   }
 }
+// HMR: старый cover-bake мог запечь воду/кадры
+(function wipeCoverCans(){
+  var ls = getLayers(), i;
+  for (i = 0; i < ls.length; i++) ls[i]._coverCans = null;
+})();
 
 function paintAny(c, r, x, y){
   paintGraded(c, r, x, y, function(px, py){
@@ -507,6 +512,10 @@ function paintAny(c, r, x, y){
 }
 function isDynId(v){
   return v === G.CRUMB || v === G.WATER || v === G.FALL || v === G.PLANK || v === G.GIVE;
+}
+/** Вода/поток/кадры — не в cover-bake, рисуются каждый кадр. */
+function isAnimId(v){
+  return !!v && (isDynId(v) || tileFrameCount(v) > 1);
 }
 function nearRoom8(L, c, r, rid){
   var dc, dr, nc, nr;
@@ -521,10 +530,10 @@ function nearRoom8(L, c, r, rid){
 }
 function paintHalo(c, r, x, y){
   var v = tAt(c, r), d = dAt(c, r);
-  if (isDynId(v)) return;
+  if (isAnimId(v)) return;
   paintGraded(c, r, x, y, function(px, py){
     if (v && !isFrontId(v)) paintTileId(v, c, r, px, py, true);
-    if (d && !isFrontId(d) && !isDynId(d)) paintTileId(d, c, r, px, py, true);
+    if (d && !isFrontId(d) && !isAnimId(d)) paintTileId(d, c, r, px, py, true);
   });
 }
 
@@ -534,7 +543,7 @@ function coverCanOf(L, rid){
   if (cans[rid]) return cans[rid];
   var w = G.MAP_W, h = G.MAP_H, oc = G.mapMinC(), or_ = G.mapMinR();
   var roomOf = L.roomOf, cov = L.cover, n = w * h;
-  var minC = w, minR = h, maxC = -1, maxR = -1, i, lc, lr, hasTile = false;
+  var minC = w, minR = h, maxC = -1, maxR = -1, i, lc, lr, hasTile = false, cv;
   for (i = 0; i < n; i++){
     if (roomOf[i] !== rid) continue;
     lc = i % w; lr = (i / w) | 0;
@@ -567,7 +576,8 @@ function coverCanOf(L, rid){
         for (lc = minC; lc <= maxC; lc++){
           if (!G.inMap(lc, lr)) continue;
           if (L.roomOf[G.mapIx(lc, lr)] === rid){
-            if (coverRaw(L, lc, lr) === COVER_AIR) continue;
+            cv = coverRaw(L, lc, lr);
+            if (cv === COVER_AIR || isAnimId(cv)) continue;
             paintAny(lc, lr, (lc - minC) * T + PAD, (lr - minR) * T + PAD);
           } else if (nearRoom8(L, lc, lr, rid)){
             paintHalo(lc, lr, (lc - minC) * T + PAD, (lr - minR) * T + PAD);
@@ -580,9 +590,39 @@ function coverCanOf(L, rid){
       _paintCover = prevP;
     }
   }
-  var out = { can: can, x: minC * T - PAD, y: minR * T - PAD };
+  var out = { can: can, x: minC * T - PAD, y: minR * T - PAD, c0: minC, r0: minR, c1: maxC, r1: maxR };
   cans[rid] = out;
   return out;
+}
+
+function paintCoverAnim(L, rid, a, camx, camy, g){
+  if (!g || a <= 0.02) return;
+  var vc0 = Math.max(g.c0, Math.floor(camx / T) - 1);
+  var vc1 = Math.min(g.c1, Math.floor((camx + viewW()) / T) + 1);
+  var vr0 = Math.max(g.r0, Math.floor(camy / T) - 1);
+  var vr1 = Math.min(g.r1, Math.floor((camy + viewH()) / T) + 1);
+  if (vc1 < vc0 || vr1 < vr0) return;
+  var prevL = _L, prevP = _paintCover, c, r, cv, z, dx, dy;
+  _L = L; _paintCover = true;
+  ctx.globalAlpha = a;
+  try {
+    for (r = vr0; r <= vr1; r++){
+      for (c = vc0; c <= vc1; c++){
+        if (!G.inMap(c, r)) continue;
+        if (L.roomOf[G.mapIx(c, r)] !== rid) continue;
+        cv = coverRaw(L, c, r);
+        if (!cv || cv === COVER_AIR || !isAnimId(cv)) continue;
+        dx = c * T - camx; dy = r * T - camy;
+        z = viewScale;
+        if (z !== 1){ dx = Math.round(dx * z) / z; dy = Math.round(dy * z) / z; }
+        paintAny(c, r, dx, dy);
+      }
+    }
+  } finally {
+    ctx.globalAlpha = 1;
+    _L = prevL;
+    _paintCover = prevP;
+  }
 }
 
 function blitCover(camx, camy){
@@ -601,6 +641,7 @@ function blitCover(camx, camy){
     ctx.globalAlpha = a;
     ctx.drawImage(g.can, dx, dy);
     ctx.globalAlpha = 1;
+    paintCoverAnim(L, rid, a, camx, camy, g);
   }
 }
 
