@@ -2021,13 +2021,13 @@ function fillBody(){
     }
 
     if (current.id === GAME.WATER){
-      var shDef = 0, wxDef = 50;
+      var shDef = 100, wxDef = 50;
       var shVal = getTileShift(GAME.WATER, shDef);
       var wxVal = getTileWaveX(GAME.WATER, wxDef);
 
       var shWrap = document.createElement('label');
       shWrap.className = 'slider-wrap';
-      shWrap.title = 'River drift: − left, + right (0 = still unless FALL nearby)';
+      shWrap.title = 'River drift: − left, + right (100 = canon, 0 = still base)';
       shWrap.innerHTML = '<div class="slider-label-overlay"><span>Shift</span><span></span></div>';
       var shInp = document.createElement('input');
       shInp.type = 'range';

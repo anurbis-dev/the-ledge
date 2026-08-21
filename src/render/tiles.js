@@ -136,9 +136,11 @@ var SLOPE_DECOR = [
 ];
 
 var WAVE_PAD = 4, WAVE_H = 20;
-var WAVE_TRAVEL_K = 2.2;
-var WAVE_FALL_D = 10;
-var wStrip = { t: NaN, c0: 0, c1: -1, lo: null, hi: null, flow: null };
+var WAVE_TRAVEL_K = 2.2; /* канон: фазовая скорость базовой волны */
+var WAVE_FALL_D = 12;    /* радиус влияния FALL в тайлах */
+var WAVE_FALL_BOOST = 0.9;
+var WAVE_FALL_RIPPLE = 1.7;
+var wStrip = { t: NaN, c0: 0, c1: -1, lo: null, hi: null, energy: null, dist: null };
 
 function reuseCan(old, w, h){
   if (old && old.width === w && old.height === h){
@@ -168,29 +170,34 @@ function falloffDist(d){
   if (d >= WAVE_FALL_D) return 0;
   return 1 - d / WAVE_FALL_D;
 }
-/* вклад FALL: волны бегут от источника, |push|≤1 */
-function fallPushAt(c, r){
-  var cL = c, cR = c, sc, push = 0, d, f;
+/* энергия FALL (0..1) и |dist| в px до ближайшего источника — для расходящейся ряби */
+function fallFieldAt(c, r){
+  var cL = c, cR = c, sc, d, f, energy = 0, best = 1e9, absD;
   while (isWaterSurfaceAt(cL - 1, r)) cL--;
   while (isWaterSurfaceAt(cR + 1, r)) cR++;
   for (sc = cL; sc <= cR; sc++){
     if (tAt(sc, r - 1) !== G.FALL) continue;
-    d = c - sc;
-    if (!d) continue;
-    f = falloffDist(Math.abs(d));
-    if (f) push += (d > 0 ? 1 : -1) * f;
+    absD = Math.abs(c - sc);
+    f = falloffDist(absD);
+    if (f > energy) energy = f;
+    d = absD * T;
+    if (d < best) best = d;
   }
   if (tAt(cL - 1, r) === G.FALL){
-    f = falloffDist(c - cL);
-    if (f) push += f;
+    absD = c - cL;
+    f = falloffDist(absD);
+    if (f > energy) energy = f;
+    d = absD * T;
+    if (d < best) best = d;
   }
   if (tAt(cR + 1, r) === G.FALL){
-    f = falloffDist(cR - c);
-    if (f) push -= f;
+    absD = cR - c;
+    f = falloffDist(absD);
+    if (f > energy) energy = f;
+    d = absD * T;
+    if (d < best) best = d;
   }
-  if (push > 1) push = 1;
-  else if (push < -1) push = -1;
-  return push;
+  return { energy: energy, dist: best < 1e9 ? best : 0 };
 }
 function topSurfaceRow(c, r0, r1){
   var r, best = null;
@@ -201,96 +208,101 @@ function topSurfaceRow(c, r0, r1){
   }
   return best;
 }
-var BOB_KX = 0.55 / T; /* bob-фаза от world X — без скачка на стыке тайлов */
+var BOB_KX = 0.55 / T; /* bob от world X — без скачка на стыке */
 function waveScale(){
   return Math.max(0, getTileWaveX(G.WATER, 50)) / 50;
 }
+/* Shift: −100..+100, default 100 = канон 2.2 вправо; 0 = стоячая база */
 function waveBaseTravel(){
-  return (getTileShift(G.WATER, 0) / 100) * WAVE_TRAVEL_K;
+  return (getTileShift(G.WATER, 100) / 100) * WAVE_TRAVEL_K;
 }
-function sampleFlow(flow, c0, worldX){
-  if (!flow || !flow.length) return 0;
+function sampleField(arr, c0, worldX){
+  if (!arr || !arr.length) return 0;
   var fc = worldX / T - c0;
   var i0 = Math.floor(fc);
   var t = fc - i0;
-  if (i0 < 0) return flow[0];
-  if (i0 >= flow.length - 1) return flow[flow.length - 1];
-  return flow[i0] + (flow[i0 + 1] - flow[i0]) * t;
+  if (i0 < 0) return arr[0];
+  if (i0 >= arr.length - 1) return arr[arr.length - 1];
+  return arr[i0] + (arr[i0 + 1] - arr[i0]) * t;
 }
-function travelAt(worldX, baseTravel, flow, c0){
-  return baseTravel + sampleFlow(flow, c0, worldX) * WAVE_TRAVEL_K;
-}
-/* непрерывная полоса по world X — стыки тайлов не рвут гребень */
-function paintWaveSpan(xBase, y, worldX0, pixelW, time, w1, baseTravel, scale, flow, flowC0){
+/*
+ * База: постоянный travel (канон) — гребень непрерывен.
+ * FALL не крутит фазу (это рвало стыки), а усиливает амплитуду
+ * и добавляет рябь sin(k·|x−src| − ωt), расходящуюся от потока.
+ */
+function paintWaveSpan(xBase, y, worldX0, pixelW, time, w1, baseTravel, scale, energy, dist, fieldC0){
   var wx, wx2;
   if (scale == null) scale = 1;
-  if (baseTravel == null) baseTravel = 0;
-  var a1 = 1.6 * scale, a2 = 0.7 * scale, a3 = 1.2 * scale;
-  var b1 = 2.1 * scale, b2 = 1.4 * scale;
-  var subK = 1.25 / WAVE_TRAVEL_K;
+  if (baseTravel == null) baseTravel = WAVE_TRAVEL_K;
+  var subTravel = baseTravel * (1.25 / WAVE_TRAVEL_K);
   for (wx = 0; wx < pixelW; wx += 2){
     var worldX = worldX0 + wx;
-    var travel = travelAt(worldX, baseTravel, flow, flowC0);
-    var bob = Math.sin(time * 2.8 + worldX * BOB_KX) * 1.5 * scale;
-    var ph2 = worldX * 0.09 - time * travel;
-    var wv = Math.round(Math.sin(ph2) * a1 + Math.sin(ph2 * 2.3) * a2 + bob);
+    var e = sampleField(energy, fieldC0, worldX);
+    var dPx = sampleField(dist, fieldC0, worldX);
+    var amp = scale * (1 + WAVE_FALL_BOOST * e);
+    var a1 = 1.6 * amp, a2 = 0.7 * amp, a3 = 1.2 * amp;
+    var bob = Math.sin(time * 2.8 + worldX * BOB_KX) * 1.5 * amp;
+    var ph2 = worldX * 0.09 - time * baseTravel;
+    var rip = e * WAVE_FALL_RIPPLE * scale * Math.sin(dPx * 0.11 - time * 2.6);
+    var wv = Math.round(Math.sin(ph2) * a1 + Math.sin(ph2 * 2.3) * a2 + bob + rip);
     rc(xBase + wx, y + 1 + wv, 2, 2, w1);
     rc(xBase + wx, y + wv, 2, 1, '#bfe6ff');
-    rc(xBase + wx, y + 7 + Math.round(Math.sin(ph2 * 1.4) * a3 + bob * 0.55), 2, 1, w1);
+    rc(xBase + wx, y + 7 + Math.round(Math.sin(ph2 * 1.4) * a3 + bob * 0.55 + rip * 0.45), 2, 1, w1);
   }
   ctx.globalAlpha = 0.4;
   for (wx2 = 0; wx2 < pixelW; wx2 += 2){
     var worldX2 = worldX0 + wx2;
-    var travel2 = travelAt(worldX2, baseTravel, flow, flowC0);
-    var bob2 = Math.sin(time * 2.8 + worldX2 * BOB_KX) * 1.5 * scale;
-    var ph3 = worldX2 * 0.062 - time * travel2 * subK + 1.9;
-    var wv2 = Math.round(Math.sin(ph3) * b1 + bob2 * 0.7);
+    var e2 = sampleField(energy, fieldC0, worldX2);
+    var dPx2 = sampleField(dist, fieldC0, worldX2);
+    var amp2 = scale * (1 + WAVE_FALL_BOOST * e2);
+    var b1 = 2.1 * amp2, b2 = 1.4 * amp2;
+    var bob2 = Math.sin(time * 2.8 + worldX2 * BOB_KX) * 1.5 * amp2;
+    var ph3 = worldX2 * 0.062 - time * subTravel + 1.9;
+    var rip2 = e2 * WAVE_FALL_RIPPLE * 0.7 * scale * Math.sin(dPx2 * 0.085 - time * 1.9 + 0.7);
+    var wv2 = Math.round(Math.sin(ph3) * b1 + bob2 * 0.7 + rip2);
     rc(xBase + wx2, y + 2 + wv2, 2, 2, '#dff2ff');
-    rc(xBase + wx2, y + 10 + Math.round(Math.sin(ph3 * 1.1) * b2 + bob2 * 0.4), 2, 1, '#9fd0ef');
+    rc(xBase + wx2, y + 10 + Math.round(Math.sin(ph3 * 1.1) * b2 + bob2 * 0.4 + rip2 * 0.35), 2, 1, '#9fd0ef');
   }
   ctx.globalAlpha = 1;
 }
-function waveParamsFor(c, r){
-  var push = (r != null) ? fallPushAt(c, r) : 0;
-  return {
-    travel: waveBaseTravel() + push * WAVE_TRAVEL_K,
-    scale: waveScale(),
-    push: push
-  };
-}
 function paintWaves(x, y, c, time, w1, travel, scale){
   paintWaveSpan(x, y, c * T, T, time, w1,
-    travel == null ? 0 : travel, scale == null ? 1 : scale, null, 0);
+    travel == null ? waveBaseTravel() : travel, scale == null ? 1 : scale, null, null, 0);
 }
-function fillWaveCan(can, c0, c1, time, w1, flow){
+function fillWaveCan(can, c0, c1, time, w1, energy, dist){
   var saved = getCtx();
   setCtx(can.getContext('2d'));
   try {
     var pixelW = Math.max(T, (c1 - c0 + 1) * T);
     paintWaveSpan(0, WAVE_PAD, c0 * T, pixelW, time, w1,
-      waveBaseTravel(), waveScale(), flow, c0);
+      waveBaseTravel(), waveScale(), energy, dist, c0);
   } finally {
     setCtx(saved);
   }
 }
-function buildFlowByC(c0, c1, r0, r1){
+function buildFallFields(c0, c1, r0, r1){
   var n = c1 - c0 + 1;
-  var flow = new Float32Array(n);
+  var energy = new Float32Array(n);
+  var dist = new Float32Array(n);
   for (var i = 0; i < n; i++){
     var row = topSurfaceRow(c0 + i, r0, r1);
-    flow[i] = row != null ? fallPushAt(c0 + i, row) : 0;
+    if (row == null) continue;
+    var f = fallFieldAt(c0 + i, row);
+    energy[i] = f.energy;
+    dist[i] = f.dist;
   }
-  return flow;
+  return { energy: energy, dist: dist };
 }
 function prepWaveStrip(time, c0, c1, r0, r1){
   if (wStrip.lo && wStrip.t === time && wStrip.c0 === c0 && wStrip.c1 === c1) return;
   var w = Math.max(T, (c1 - c0 + 1) * T);
-  var flow = buildFlowByC(c0, c1, r0, r1);
+  var fields = buildFallFields(c0, c1, r0, r1);
   wStrip.lo = reuseCan(wStrip.lo, w, WAVE_H);
   wStrip.hi = reuseCan(wStrip.hi, w, WAVE_H);
-  fillWaveCan(wStrip.lo, c0, c1, time, '#49a0cf', flow);
-  fillWaveCan(wStrip.hi, c0, c1, time, '#2f7fae', flow);
-  wStrip.t = time; wStrip.c0 = c0; wStrip.c1 = c1; wStrip.flow = flow;
+  fillWaveCan(wStrip.lo, c0, c1, time, '#49a0cf', fields.energy, fields.dist);
+  fillWaveCan(wStrip.hi, c0, c1, time, '#2f7fae', fields.energy, fields.dist);
+  wStrip.t = time; wStrip.c0 = c0; wStrip.c1 = c1;
+  wStrip.energy = fields.energy; wStrip.dist = fields.dist;
 }
 function blitWaves(c, x, y, deep){
   if (!wStrip.lo || c < wStrip.c0 || c > wStrip.c1) return false;
@@ -376,8 +388,7 @@ function paintTileId(v, c, r, x, y, dyn){
         return;
       }
       if (!blitWaves(c, x, y, false)){
-        var wp = waveParamsFor(c, r);
-        paintWaves(x, y, c, time, w1, wp.travel, wp.scale);
+        paintWaves(x, y, c, time, w1, waveBaseTravel(), waveScale());
       }
       drawWaterBubbles(c, r, x, y, time, kW);
       var shoreL = !G.isWaterV(tAt(c - 1, r));
