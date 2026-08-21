@@ -1,3 +1,7 @@
+## 0.8.0
+
+- Objects: свачи Hero (кадры, не placeable) и Start (спавн) разделены; hero-слоты Rope climb / Rope swing (ladder / ladderD + fallback; swing зеркало facing).
+
 ## 0.7.4
 
 - FX Sand: при `speed=0` `speedRand` не даёт импульс; `spread` только позиция спавна (без `vx`).
@@ -400,4 +404,3 @@
 - Р¤РёРєСЃ: `AudioContext.resume`, РїР°СѓР·Р° РЅР° `visibilitychange`, РїРёР»Р° Р»РёС„С‚Р° РіР»СѓС€РёС‚СЃСЏ.
 - Р¤РёРєСЃ: СЃРєРѕСЃ LADR СЃРѕРІРїР°РґР°РµС‚ СЃ С„РёР·РёРєРѕР№; LIGHTS С‚РѕР»СЊРєРѕ Сѓ СѓСЂ.1 / `LV.lights`.
 - Р¤РёРєСЃ: `R` РІ textarea СЌРєСЃРїРѕСЂС‚Р° РЅРµ СЃР±СЂР°СЃС‹РІР°РµС‚ СѓСЂРѕРІРµРЅСЊ; СѓРєСѓСЃ СЂС‹Р±С‹ С‡РµСЂРµР· `damage`.
-

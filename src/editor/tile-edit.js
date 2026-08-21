@@ -10,13 +10,14 @@ import {
   getAnimFrameCount, setAnimFrameCount, reorderAnimFrames,
   addSpriteDef, spriteFrameImage
 } from '../core/spriteset.js';
-import { updateObject } from '../core/objectset.js';
+import { updateObject, getObjectDef } from '../core/objectset.js';
 import { runtime } from '../core/runtime.js';
 import { bakeSpriteFrameSrc, bakeBuiltinTileSrc, clearBakeCache } from '../render/sprite-bake.js';
 import { defaultFrameAnchors } from '../render/sprite-anchors.js';
 import { raiseFloat, placeFloat, hasFloatPos } from './float.js';
 import { invalidateAll } from '../render/tiles.js';
 import { clearThumbCache, paintTileIcon } from './thumbs.js';
+import { touchOp } from './history.js';
 
 var root = document.getElementById('edTileEdit');
 var titleEl = document.getElementById('edTileEditTitle');
@@ -106,8 +107,37 @@ export function isDetailsOpen(){
 export function getDetailsObject(){ return objCurrent; }
 
 export function hitSpriteSlot(clientX, clientY){
-  if (!spriteSlotEl || !isDetailsOpen()) return false;
-  var r = spriteSlotEl.getBoundingClientRect();
+  var h = hitDetailsDrop(clientX, clientY);
+  return !!(h && h.kind === 'spriteSlot');
+}
+
+/** Hit-test palette drop targets inside Details: sprite slot or a frame thumb. */
+export function hitDetailsDrop(clientX, clientY){
+  if (!isDetailsOpen()) return null;
+  var r, list, i, el, anim, fi;
+  if (spriteSlotEl){
+    r = spriteSlotEl.getBoundingClientRect();
+    if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom)
+      return { kind: 'spriteSlot' };
+  }
+  if (stripsEl && !stripsEl.hidden){
+    list = stripsEl.querySelectorAll('.ed-tile-frame');
+    for (i = 0; i < list.length; i++){
+      el = list[i];
+      r = el.getBoundingClientRect();
+      if (clientX < r.left || clientX > r.right || clientY < r.top || clientY > r.bottom) continue;
+      anim = el.getAttribute('data-anim') || '';
+      fi = parseInt(el.getAttribute('data-i'), 10);
+      if (isNaN(fi)) fi = 0;
+      return { kind: 'frame', anim: anim, i: fi };
+    }
+  }
+  return null;
+}
+
+export function pointerOverDetails(clientX, clientY){
+  if (!isDetailsOpen() || !root) return false;
+  var r = root.getBoundingClientRect();
   return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
 }
 
@@ -239,6 +269,7 @@ export function openObjectEdit(meta, clientX, clientY){
 
 function setObjectSpriteId(spriteId){
   if (!objCurrent) return false;
+  markOp();
   if (objCurrent.custom){
     var next = updateObject(objCurrent.kind, { spriteId: spriteId || null });
     if (!next) return false;
@@ -265,6 +296,7 @@ export function applySpriteSlotPayload(payload){
   if (!objCurrent || !payload) return false;
   if (payload.spriteId) return setObjectSpriteId(payload.spriteId);
   if (payload.tileSrc){
+    markOp();
     var def = addSpriteDef({
       name: (payload.tileName || 'Icon') + ' spr',
       fw: 16, fh: 16, ox: 0, oy: 0,
@@ -272,8 +304,51 @@ export function applySpriteSlotPayload(payload){
       src: payload.tileSrc
     });
     if (!def) return false;
+    /* markOp уже в setObjectSpriteId — pending живёт */
     return setObjectSpriteId(def.id);
   }
+  return false;
+}
+
+function resolveDropSrc(payload){
+  if (!payload) return '';
+  if (payload.tileSrc) return payload.tileSrc;
+  if (payload.spriteId){
+    return getSpriteFrameSrc(payload.spriteId, 'idle', 0) ||
+      bakeSpriteFrameSrc(payload.spriteId, 'idle', 0) || '';
+  }
+  return '';
+}
+
+/** Replace one Details frame from a palette drop. */
+export function applyFrameSlotPayload(anim, i, payload){
+  if (!current || !payload || !canPaint()) return false;
+  var src = resolveDropSrc(payload);
+  if (!src) return false;
+  i = i | 0;
+  if (isSprite()){
+    var n = getAnimFrameCount(current.id, anim);
+    if (i < 0 || i >= n) return false;
+    markOp();
+    setSpriteFrame(current.id, anim, i, src, true);
+    notify();
+    selectFrame(anim, i);
+    fillBody();
+    return true;
+  }
+  var frames = tileFramesList();
+  if (i < 0 || i >= frames.length) return false;
+  frames[i] = src;
+  writeTileFrames(frames);
+  selectFrame('', i);
+  fillBody();
+  return true;
+}
+
+export function applyDetailsDrop(hit, payload){
+  if (!hit || !payload) return false;
+  if (hit.kind === 'spriteSlot') return applySpriteSlotPayload(payload);
+  if (hit.kind === 'frame') return applyFrameSlotPayload(hit.anim, hit.i, payload);
   return false;
 }
 
@@ -290,6 +365,7 @@ function fillObjectHeader(parent){
   nameInp.addEventListener('keydown', function(e){ e.stopPropagation(); });
   nameInp.addEventListener('change', function(){
     if (!objCurrent.custom) return;
+    markOp();
     var next = updateObject(objCurrent.kind, { name: nameInp.value.trim() || objCurrent.name });
     if (!next) return;
     objCurrent.name = next.name;
@@ -311,6 +387,7 @@ function fillObjectHeader(parent){
   roleSel.disabled = !objCurrent.custom;
   roleSel.addEventListener('change', function(){
     if (!objCurrent.custom) return;
+    markOp();
     var next = updateObject(objCurrent.kind, { role: roleSel.value });
     if (!next) return;
     objCurrent.role = next.role;
@@ -423,10 +500,48 @@ function builtinCollide(spec){
   return 'none';
 }
 
+function markOp(){ touchOp(); }
+
 function notify(){
   clearThumbCache();
   invalidateAll();
   if (onChange) onChange();
+}
+
+/** После undo/redo — пересобрать открытую Details. */
+export function refreshTileEdit(){
+  if (!isDetailsOpen()) return;
+  if (objCurrent && objCurrent.custom){
+    var od = getObjectDef(objCurrent.kind);
+    if (!od){ closeTileEdit(); return; }
+    objCurrent = {
+      name: od.name, kind: od.id, template: od.template,
+      role: od.role, spriteId: od.spriteId, itemKind: od.itemKind, custom: true
+    };
+    if (titleEl) titleEl.textContent = objCurrent.name || 'Object';
+  }
+  if (isObjectOnly()){
+    fillObjectBody();
+    return;
+  }
+  if (isSprite() && current){
+    current = getSpriteDef(current.id) || current;
+    if (!current){ closeTileEdit(); return; }
+    fw = current.fw || fw;
+    fh = current.fh || fh;
+    fillBody();
+    return;
+  }
+  if (current && current.id != null){
+    var td = getTileDef(current.id);
+    if (td){
+      current = {
+        name: td.name, id: td.id, color: '#6a628f',
+        overlay: !!td.overlay, custom: true, src: td.src
+      };
+    }
+    fillBody();
+  }
 }
 
 function field(label, el){
@@ -550,6 +665,7 @@ function pickAt(e){
 
 function commitSrc(){
   if (!buf || !current) return;
+  markOp();
   var src = canvasToPng(buf);
   if (isSprite()){
     setSpriteFrame(current.id, animId, frameI, src, true);
@@ -834,6 +950,7 @@ function clampCell(n, max){
 
 function commitAnchor(kind, x, y){
   if (!isSprite() || !current) return;
+  markOp();
   setFrameAnchor(current.id, animId, frameI, kind, x, y);
   notify();
   syncAnchorFields();
@@ -918,6 +1035,7 @@ function applySpriteSize(nw, nh){
   nw = clampCell(nw, SIZE_MAX); if (nw < SIZE_MIN) nw = SIZE_MIN;
   nh = clampCell(nh, SIZE_MAX); if (nh < SIZE_MIN) nh = SIZE_MIN;
   if (nw === fw && nh === fh) return;
+  markOp();
   setSpriteSize(current.id, nw, nh);
   clearBakeCache();
   current = getSpriteDef(current.id) || current;
@@ -1000,6 +1118,7 @@ function commitSpriteHitbox(){
   if (!isSprite() || !current || !pendingBox) return;
   var box = pendingBox;
   pendingBox = null;
+  markOp();
   setFrameAnchor(current.id, animId, frameI, 'origin', box.x, box.y);
   setAnimBox(current.id, animId, box.w, box.h);
   notify();
@@ -1022,6 +1141,7 @@ function applyBox(x0, y0, x1, y1){
 
 function commitBox(){
   if (!isCustomTile() || !pendingBox) return;
+  markOp();
   updateTile(current.id, { collide: 'custom', box: pendingBox });
   pendingBox = null;
   notify();
@@ -1175,6 +1295,7 @@ function tileFramesList(){
 
 function writeTileFrames(frames){
   if (!current || !frames || !frames.length) return;
+  markOp();
   if (isCustomTile()){
     updateTile(current.id, { frames: frames, src: frames[0] });
     current.src = frames[0];
@@ -1186,6 +1307,7 @@ function writeTileFrames(frames){
 
 function addAnimFrame(rowId){
   var n, src, frames, last;
+  markOp();
   if (isSprite()){
     n = getAnimFrameCount(current.id, rowId);
     last = getSpriteFrameSrc(current.id, rowId, n - 1) || bakeSpriteFrameSrc(current.id, rowId, n - 1);
@@ -1259,6 +1381,7 @@ function bindFrameDrag(th, rowId, ii, n){
     }
     if (from === to){ paintStrips(); return; }
     if (isSprite()){
+      markOp();
       reorderAnimFrames(current.id, rowId, from, to);
       if (frameI === from && animId === rowId) frameI = to;
       else if (animId === rowId){
@@ -1411,7 +1534,7 @@ function paintStrips(){
           th.setAttribute('data-i', String(ii));
           if (isSprite() && isSpriteFrameDirty(current.id, row.id, ii))
             th.classList.add('dirty');
-          th.title = row.name + ' ' + (ii + 1) + ' — drag to reorder';
+          th.title = row.name + ' ' + (ii + 1) + ' — drag to reorder · drop tile swatch to replace';
           var cx = th.getContext('2d');
           cx.imageSmoothingEnabled = false;
           fillChecker(cx, fw, fh, 1, 1);
@@ -1451,6 +1574,7 @@ function applyImportFile(file){
   loadImageFile(file).then(function(img){
     var slices = sliceSheet(img, file.name, fw, fh);
     if (!slices.length) return;
+    markOp();
     if (isSprite()){
       var a = current.anims.filter(function(x){ return x.id === animId; })[0];
       if (slices.length === 1){
@@ -1567,6 +1691,7 @@ function fillBody(){
       var n = parseInt(boxWEl.value, 10), cur;
       if (!current || isNaN(n)) { syncAnchorFields(); return; }
       cur = getAnimBox(current.id, animId);
+      markOp();
       setAnimBox(current.id, animId, n, cur.h);
       notify();
       syncAnchorFields();
@@ -1576,6 +1701,7 @@ function fillBody(){
       var n = parseInt(boxHEl.value, 10), cur;
       if (!current || isNaN(n)) { syncAnchorFields(); return; }
       cur = getAnimBox(current.id, animId);
+      markOp();
       setAnimBox(current.id, animId, cur.w, n);
       notify();
       syncAnchorFields();
@@ -1654,6 +1780,7 @@ function fillBody(){
     nameInp.addEventListener('keydown', function(e){ e.stopPropagation(); });
     nameInp.addEventListener('change', function(){
       if (!def) return;
+      markOp();
       updateTile(def.id, { name: nameInp.value.trim() || def.name });
       current.name = nameInp.value.trim() || current.name;
       notify();
@@ -1666,6 +1793,7 @@ function fillBody(){
     over.disabled = !custom;
     over.addEventListener('change', function(){
       if (!def) return;
+      markOp();
       updateTile(def.id, { overlay: over.checked, collide: over.checked ? 'none' : (def.collide === 'none' ? 'full' : def.collide) });
       current.overlay = over.checked;
       notify();
@@ -1683,6 +1811,7 @@ function fillBody(){
     front.disabled = !custom;
     front.addEventListener('change', function(){
       if (!def) return;
+      markOp();
       updateTile(def.id, { front: front.checked });
       notify();
     });
@@ -1698,6 +1827,7 @@ function fillBody(){
     climb.disabled = !custom;
     climb.addEventListener('change', function(){
       if (!def) return;
+      markOp();
       updateTile(def.id, { climb: climb.checked });
       notify();
       paintCanvas();
@@ -1714,6 +1844,7 @@ function fillBody(){
     oneWay.disabled = !custom;
     oneWay.addEventListener('change', function(){
       if (!def) return;
+      markOp();
       updateTile(def.id, { oneWay: oneWay.checked });
       notify();
     });
@@ -1742,6 +1873,7 @@ function fillBody(){
       if (sel.value === 'full') box = { x: 0, y: 0, w: 16, h: 16 };
       if (sel.value === 'none') tool = tool === 'hitbox' ? 'pencil' : tool;
       if (sel.value === 'custom') tool = 'hitbox';
+      markOp();
       updateTile(def.id, { collide: sel.value, box: box });
       notify();
       fillBody();
@@ -1787,6 +1919,7 @@ function fillBody(){
     rst.textContent = 'Reset frame';
     rst.title = 'Forget the painted frame; the game uses the old drawing again.';
     rst.addEventListener('click', function(){
+      markOp();
       clearSpriteFrame(current.id, animId, frameI);
       notify();
       loadBuf(currentSrc(), function(){
@@ -1802,6 +1935,7 @@ function fillBody(){
     rstA.textContent = 'Reset anchors';
     rstA.title = 'Forget origin, box, hands and weapon points for this action.';
     rstA.addEventListener('click', function(){
+      markOp();
       clearAnimAnchors(current.id, animId);
       notify();
       paintCanvas();
@@ -1827,6 +1961,7 @@ function fillBody(){
     rstT.className = 'edb';
     rstT.textContent = 'Reset picture';
     rstT.addEventListener('click', function(){
+      markOp();
       clearTileGfx(current.id);
       notify();
       fillBody();

@@ -233,6 +233,16 @@ export function snapshotTiles(){
   return tiles.map(normalizeTile);
 }
 
+/** Полный restore черновика тайлов + gfx (для undo). */
+export function applyTilesSnap(list, gfxMap){
+  tiles = (list || []).map(normalizeTile).filter(Boolean);
+  gfx = cloneGfx(gfxMap || {});
+  imgs = {};
+  rebuild();
+  loadAllImgs();
+  emit('replace');
+}
+
 function nextId(){
   var used = {}, i, id;
   for (i = 0; i < tiles.length; i++) used[tiles[i].id] = 1;

@@ -704,6 +704,27 @@ export function snapshotSprites(){
   return cloneSaved(saved);
 }
 
+export function snapshotSpriteDefs(){
+  return customDefs.map(normalizeCustomDef).filter(Boolean);
+}
+
+/** Полный restore ledge.dev.sprites (saved + custom defs) для undo. */
+export function applySpritesSnap(snap){
+  var defs, i, m;
+  saved = cloneSaved((snap && snap.sprites) || {});
+  defs = (snap && snap.defs) || [];
+  customDefs = defs.map(normalizeCustomDef).filter(Boolean);
+  defSeq = 1;
+  for (i = 0; i < customDefs.length; i++){
+    m = /_(\d+)$/.exec(customDefs[i].id);
+    if (m) defSeq = Math.max(defSeq, (+m[1]) + 1);
+  }
+  rebuildById();
+  imgs = {};
+  loadAll();
+  emit('replace');
+}
+
 export function snapshotSpriteAnchors(){
   var out = {}, id, anim, rec, m, a, packed;
   for (id in saved){

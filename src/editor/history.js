@@ -1,5 +1,9 @@
 import { runtime } from '../core/runtime.js';
 import { snapshotLayers, applyLayerSnap } from '../core/layers.js';
+import { snapshotTiles, snapshotGfx, applyTilesSnap } from '../core/tileset.js';
+import { snapshotSprites, snapshotSpriteDefs, applySpritesSnap } from '../core/spriteset.js';
+import { snapshotObjects, applyObjectsSnap } from '../core/objectset.js';
+import { clearBakeCache } from '../render/sprite-bake.js';
 
 var MAX = 60;
 var undo = [];
@@ -44,7 +48,13 @@ function capture(){
   return {
     layers: snapshotLayers(),
     objs: captureObjs(runtime.W),
-    water: cloneJson((runtime.LV && runtime.LV.water) || [])
+    water: cloneJson((runtime.LV && runtime.LV.water) || []),
+    spawn: cloneJson(runtime.LV && runtime.LV.spawn),
+    tiles: snapshotTiles(),
+    tileGfx: snapshotGfx(),
+    sprites: snapshotSprites(),
+    spriteDefs: snapshotSpriteDefs(),
+    objects: snapshotObjects()
   };
 }
 
@@ -52,7 +62,15 @@ function restore(snap){
   if (!snap) return;
   applyLayerSnap(snap.layers);
   applyObjs(runtime.W, snap.objs);
-  if (runtime.LV) runtime.LV.water = cloneJson(snap.water || []);
+  if (runtime.LV){
+    runtime.LV.water = cloneJson(snap.water || []);
+    if (snap.spawn) runtime.LV.spawn = cloneJson(snap.spawn);
+  }
+  /* Старые записи стека без asset-полей — не трогаем каталоги */
+  if (snap.tiles || snap.tileGfx) applyTilesSnap(snap.tiles || [], snap.tileGfx || {});
+  if (snap.sprites || snap.spriteDefs) applySpritesSnap({ sprites: snap.sprites || {}, defs: snap.spriteDefs || [] });
+  if (snap.objects) applyObjectsSnap(snap.objects);
+  clearBakeCache();
   if (onChange) onChange('restore');
 }
 

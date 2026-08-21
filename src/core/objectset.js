@@ -295,3 +295,16 @@ export function isLootOnlyRole(role){ return role === 'loot'; }
 export function snapshotObjects(){
   return customs.map(function(o){ return normalizeObject(o); });
 }
+
+/** Полный restore custom objects (для undo). */
+export function applyObjectsSnap(list){
+  customs = (list || []).map(normalizeObject).filter(Boolean);
+  seq = 1;
+  var i, m;
+  for (i = 0; i < customs.length; i++){
+    m = /_(\d+)$/.exec(customs[i].id);
+    if (m) seq = Math.max(seq, (+m[1]) + 1);
+  }
+  rebuild();
+  emit('replace');
+}
