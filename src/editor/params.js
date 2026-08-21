@@ -115,8 +115,8 @@ export var PARAM_GROUPS = [
   ]},
   { id: 'rope', name: 'Rope', items: [
     { key: 'ROPE_SEGS', label: 'Default segs', min: 4, max: 24, step: 1 },
-    { key: 'ROPE_ELAST', label: 'Elasticity', min: 0, max: 0.5, step: 0.01 },
-    { key: 'ROPE_SWING', label: 'Swing force', min: 40, max: 400, step: 5 },
+    { key: 'ROPE_ELAST', label: 'Elasticity', min: 0, max: 1, step: 0.01 },
+    { key: 'ROPE_SWING', label: 'Swing force', min: 40, max: 500, step: 5 },
     { key: 'ROPE_SWING_CD', label: 'Swing CD', min: 0.1, max: 1, step: 0.02 },
     { key: 'ROPE_DAMP', label: 'Damping', min: 0.9, max: 1, step: 0.005 },
     { key: 'ROPE_WIND', label: 'Idle wind', min: 0, max: 8, step: 0.1 },

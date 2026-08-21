@@ -7,7 +7,7 @@ import { setStance } from '../core/player.js';
 export var ROPE_DEF = {
   segs: 8,
   elasticity: 0.12,
-  swingForce: 160,
+  swingForce: 200,
   damping: 0.98,
   wind: 2.2,
   climbV: 52,
@@ -235,24 +235,35 @@ function pinEnds(r){
 }
 
 /**
- * elast≈0: equality к rest (нерастяжимо; length=span → струна, length>span → провис).
- * elast>0: slack ниже rest ок; жёсткий потолок rest*(1+elast).
+ * Всегда equality к rest (length>span → катенар; length≈span → струна).
+ * elast — только растяг: потолок rest*(1+stretch), stretch=elast²*ELAST_GAIN (0.01 ≈ незаметно).
  */
-function constrain(r, maxMul){
-  var nodes = r.nodes, rest = r.rest, maxRest = rest * maxMul;
-  var hard = maxMul <= 1.0001;
-  var i, a, b, dx, dy, d, target, diff, nx, ny;
+var ELAST_GAIN = 2.5;
+function elastStretch(elast){
+  var e = Math.max(0, elast);
+  return e * e * ELAST_GAIN;
+}
+
+function constrain(r, stretch){
+  var nodes = r.nodes, rest = r.rest, maxRest = rest * (1 + stretch);
+  var hard = stretch < 0.00005;
+  var i, a, b, dx, dy, d, target, diff, nx, ny, soft;
   for (i = 0; i < nodes.length - 1; i++){
     a = nodes[i]; b = nodes[i + 1];
     dx = b.x - a.x; dy = b.y - a.y;
     d = Math.sqrt(dx * dx + dy * dy) || 0.0001;
-    if (hard){
+    if (hard || d <= rest){
       target = rest;
+      soft = 1;
+    } else if (d > maxRest){
+      target = maxRest;
+      soft = 1;
     } else {
-      if (d <= rest) continue;
-      target = d > maxRest ? maxRest : rest;
+      /* зона растяга — мягкая пружина к rest */
+      target = rest;
+      soft = 0.35 + 0.65 * ((d - rest) / (maxRest - rest + 0.0001));
     }
-    diff = (d - target) / d;
+    diff = ((d - target) / d) * soft;
     nx = dx * 0.5 * diff; ny = dy * 0.5 * diff;
     if (!a.pinned){ a.x += nx; a.y += ny; }
     if (!b.pinned){ b.x -= nx; b.y -= ny; }
@@ -269,14 +280,24 @@ function applyRiderLoad(r, p, t){
   if (!nodes[i1].pinned){ nodes[i1].y += 2.2 * s.u * w; }
 }
 
-/** Одноразовый kick; сила в px-эквиваленте (не *dt каждый кадр). */
+/** Одноразовый kick на нажатии; сила в px-эквиваленте (не *dt каждый кадр). */
 function applySwingImpulse(r, t, dir, force){
   var s = sampleRope(r, t);
   var nodes = r.nodes;
-  var kick = force * dir * 0.018;
+  var kick = force * dir * 0.042;
   var i0 = s.i0, i1 = s.i1;
-  if (!nodes[i0].pinned){ nodes[i0].x += kick * (1 - s.u); nodes[i0].ox -= kick * (1 - s.u) * 0.45; }
-  if (!nodes[i1].pinned){ nodes[i1].x += kick * s.u; nodes[i1].ox -= kick * s.u * 0.45; }
+  var w0 = 1 - s.u, w1 = s.u;
+  if (!nodes[i0].pinned){ nodes[i0].x += kick * w0; nodes[i0].ox -= kick * w0 * 0.55; }
+  if (!nodes[i1].pinned){ nodes[i1].x += kick * w1; nodes[i1].ox -= kick * w1 * 0.55; }
+  /* чуть соседям — легче раскачать с места */
+  if (i0 > 0 && !nodes[i0 - 1].pinned){
+    nodes[i0 - 1].x += kick * w0 * 0.35;
+    nodes[i0 - 1].ox -= kick * w0 * 0.2;
+  }
+  if (i1 < nodes.length - 1 && !nodes[i1 + 1].pinned){
+    nodes[i1 + 1].x += kick * w1 * 0.35;
+    nodes[i1 + 1].ox -= kick * w1 * 0.2;
+  }
 }
 
 function verlet(r, dt, full){
@@ -288,8 +309,10 @@ function verlet(r, dt, full){
   var time = runtime.W ? runtime.W.t : 0;
   pinEnds(r);
   g = full ? C.GRAV * 0.55 : C.GRAV * 0.12;
+  var stretch = elastStretch(elast);
   /* натянутая нерастяжимая — почти без idle wind */
-  var taut = elast < 0.001 && Math.abs(ropeLength(r) - ropeSpan(r)) < 1;
+  /* length≈span + малый stretch — хорда (иначе Verlet копит провис) */
+  var taut = stretch < 0.001 && Math.abs(ropeLength(r) - ropeSpan(r)) < 1;
   for (i = 0; i < nodes.length; i++){
     n = nodes[i];
     if (n.pinned) continue;
@@ -304,10 +327,9 @@ function verlet(r, dt, full){
     n.ox = n.x; n.oy = n.y;
     n.x = nx; n.y = ny;
   }
-  var maxMul = 1 + Math.max(0, elast);
   var iters = full ? (C.ROPE_ITERS | 0) || 6 : 2;
-  if (elast < 0.001) iters = Math.max(iters, full ? 10 : 4);
-  for (i = 0; i < iters; i++) constrain(r, maxMul);
+  if (stretch < 0.00005) iters = Math.max(iters, full ? 10 : 4);
+  for (i = 0; i < iters; i++) constrain(r, stretch);
   /* H струна: length≈span + elast0 — жёстко на хорду (Verlet иначе оставляет провис) */
   if (r.orient === 'h' && taut){
     var nn = nodes.length;
@@ -337,27 +359,6 @@ function nearPlayer(r, p){
   return cx > minX - pad && cx < maxX + pad && cy > minY - pad && cy < maxY + pad;
 }
 
-/** Апекс: набор |off| после kick, затем откат — тогда re-arm (физика важнее hold). */
-function updateSwingApex(r, p){
-  var st = p.rope;
-  if (!st || st.swingArmed || !st.kickDir) return;
-  var s = sampleRope(r, st.t);
-  var nodes = r.nodes;
-  var i0 = s.i0, i1 = s.i1;
-  var vx = (nodes[i0].x - nodes[i0].ox) * (1 - s.u) + (nodes[i1].x - nodes[i1].ox) * s.u;
-  var off = (s.x - r.ax) * st.kickDir;
-  if (st._peakOff == null) st._peakOff = 0;
-  if (off > st._peakOff) st._peakOff = off;
-  if (off > 5) st._sawOut = true;
-  if (st._sawOut && st._peakOff > 6 && off < st._peakOff * 0.88 && vx * st.kickDir <= 0){
-    st.swingArmed = true;
-    st.kickDir = 0;
-    st._sawOut = false;
-    st._peakOff = 0;
-    st.pendingKick = 0;
-  }
-}
-
 export function stepRopes(S, dt){
   var list = S.ropes || [];
   var p = S.p, i, r, full, st;
@@ -375,7 +376,6 @@ export function stepRopes(S, dt){
       }
     }
     verlet(r, dt, full);
-    if (r.rider && p.rope && r.orient === 'v') updateSwingApex(r, p);
   }
 }
 
@@ -391,8 +391,7 @@ export function attachRope(S, p, r, t){
   ensureNodes(r);
   p.rope = {
     id: r.id, t: t,
-    swingArmed: true, swingCd: 0, kickDir: 0, pendingKick: 0,
-    prevDir: 0, _sawOut: false, _peakOff: 0
+    swingCd: 0, kickDir: 0, pendingKick: 0, prevDir: 0
   };
   p.state = 'rope';
   p.hang = null; p.lad = null; p.bars = null; p.climb = null; p.ride = null;
@@ -479,14 +478,11 @@ export function updateRope(S, p, dt, inp){
     if (up !== 0) st.t -= (up * climb * dt) / len;
     var dir = Math.abs(inp.x) > 0.35 ? (inp.x > 0 ? 1 : -1) : 0;
     if (dir) p.facing = dir;
-    /* edge: новое направление — один импульс; hold не качает */
-    if (dir !== 0 && dir !== st.prevDir && st.swingArmed && st.swingCd <= 0){
+    /* edge press: каждый тап в сторону добавляет импульс; hold не качает */
+    if (dir !== 0 && dir !== st.prevDir && st.swingCd <= 0){
       st.pendingKick = dir;
       st.kickDir = dir;
-      st.swingArmed = false;
-      st._sawOut = false;
-      st._peakOff = 0;
-      st.swingCd = C.ROPE_SWING_CD != null ? C.ROPE_SWING_CD : 0.32;
+      st.swingCd = C.ROPE_SWING_CD != null ? C.ROPE_SWING_CD : 0.22;
     }
     st.prevDir = dir;
     if (st.t < 0) st.t = 0;
@@ -495,6 +491,11 @@ export function updateRope(S, p, dt, inp){
       return;
     }
   } else {
+    if (inp.downPressed){
+      var dx = Math.abs(inp.x) > 0.35 ? (inp.x > 0 ? 1 : -1) : 0;
+      detachRope(S, p, { vx: dx * 40, vy: 50, event: 'offrope' });
+      return;
+    }
     var hx = Math.abs(inp.x) > 0.35 ? (inp.x > 0 ? 1 : -1) : 0;
     if (hx !== 0){
       st.t += (hx * climb * dt) / len;

@@ -1,3 +1,3 @@
 # Changelog (unreleased)
 
-- Fall rollland: урон при `fall > C.ROLL_HURT` (было `HURT*1.6`), stun `C.ROLL_HURT_T` — оба в Params → Fall / Damage.
+- Ropes: V swing — импульс на каждый edge-press L/R (без apex-gate); elast²·2.5 растяг (0.01 не даёт провис); H — отцеп по ↓.

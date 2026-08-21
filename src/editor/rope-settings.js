@@ -74,11 +74,11 @@ function fill(){
   slider(body, 'Segments', 4, 24, 1,
     r.segs != null ? r.segs : ROPE_DEF.segs,
     function(v){ r.segs = v | 0; }, ROPE_DEF.segs);
-  slider(body, 'Elasticity', 0, 0.5, 0.01,
+  slider(body, 'Elasticity', 0, 1, 0.01,
     r.elasticity != null ? r.elasticity : ROPE_DEF.elasticity,
     function(v){ r.elasticity = v; }, ROPE_DEF.elasticity);
   if (r.orient !== 'h'){
-    slider(body, 'Swing force', 40, 400, 5,
+    slider(body, 'Swing force', 40, 500, 5,
       r.swingForce != null ? r.swingForce : ROPE_DEF.swingForce,
       function(v){ r.swingForce = v; }, ROPE_DEF.swingForce);
   }

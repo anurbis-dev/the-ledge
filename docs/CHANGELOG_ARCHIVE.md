@@ -1,3 +1,7 @@
+## 0.3.1
+
+- Fall rollland: урон при `fall > C.ROLL_HURT` (было `HURT*1.6`), stun `C.ROLL_HURT_T` — оба в Params → Fall / Damage.
+
 ## 0.2.0
 
 - Ropes: `LV.ropes` / `entities/ropes.js` - vertical + horizontal Verlet ropes. Climb with up/down, swing L/R (impulse), jump/bottom detach; H sags under weight. Editor Rope V/H, dual handles, `#edRopeSettings`. Params `C.ROPE_*`.
