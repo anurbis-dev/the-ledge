@@ -3149,8 +3149,9 @@ if (bBake) bBake.addEventListener('click', function(){
     bBake.disabled = false;
     var why = err && err.timedOut ? 'timeout' : String(err && err.message || err);
     showEdOut(
-      'Bake failed to write src/core/defaults.js (' + why + ').\n' +
-      'Dev server must be running (npm run dev). No JSON download — fix the write and retry.',
+      'Bake failed (' + why + ').\n' +
+      'Need Vite at http://localhost:5174/ — start-dev-server.bat / npm run dev:74.\n' +
+      'file:// dist and other ports have no /__bake.',
       true
     );
   });

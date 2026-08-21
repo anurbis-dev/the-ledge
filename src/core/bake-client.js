@@ -45,7 +45,25 @@ export function collectFull(){
 /** Авто-бейк отключён: на диск только кнопка Bake. */
 export function scheduleBake(){}
 
+function bakeOriginError(){
+  try {
+    if (location.protocol === 'file:'){
+      return 'Open http://localhost:5174/ (Bake does not work from file:// dist).';
+    }
+    if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1'){
+      return 'Bake only works on the Vite tab (http://localhost:5174/).';
+    }
+  } catch (_){}
+  return null;
+}
+
 function runBake(opts){
+  var originErr = bakeOriginError();
+  if (originErr){
+    var early = new Error(originErr);
+    early.bakeOrigin = true;
+    return Promise.reject(early);
+  }
   var dump = opts.full ? collectFull() : collectAuto();
   if (!dump.savedAt) dump.savedAt = Date.now();
   var body;
@@ -75,6 +93,9 @@ function runBake(opts){
     clearTimeout(timer);
     inflight = false;
     err.timedOut = timedOut;
+    if (!err.bakeOrigin && err && /Failed to fetch|NetworkError|Load failed/i.test(String(err.message || err))){
+      err.message = 'Failed to fetch — use the Vite tab http://localhost:5174/ (not file://). Port busy ≠ this tab is on Vite.';
+    }
     throw err;
   });
 }
