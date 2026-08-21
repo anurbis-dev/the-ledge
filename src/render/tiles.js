@@ -2,7 +2,7 @@ import GAME from '../core/game.js';
 import { hooks } from '../core/runtime.js';
 import { COVER_AIR, coverRaw, coverVarRaw, roomCoverA, rebuildRooms } from '../core/rooms.js';
 import { getLayers, layerShown, lastCollideIndex, layerTileRaw, layerVarRaw, layerDeco, isTileLayer, wrapSize, layerCssFilter, layerGrade, gradeCssFilter } from '../core/layers.js';
-import { getTileDef, tileImage, tileFrameImage, tileFrameCount, getTileSpeed, getTileShift, getTileWaveX, getTileSplash, getTileLength, getTileWave, getTileRandom, getTileOffset, getTileFade } from '../core/tileset.js';
+import { getTileDef, tileImage, tileFrameImage, tileFrameCount, getTileSpeed, getTileShift, getTileWaveX, getTileSplash, getTileLength, getTileWave, getTileRandom, getTileOffset, getTileFade, getTileSpeed2, getTileLength2, getTileDensity2, getTileWave2 } from '../core/tileset.js';
 import { buildWater } from './fx.js';
 import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH, viewScale } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
@@ -452,8 +452,8 @@ function paintGraded(c, r, x, y, fn){
 
 /* FALL-нити: фаза по world Y — непрерывны через столбец тайлов.
  * Светлая нить: яркая снизу → плавно прозрачнее вверх (по всей length).
- * Два слоя: основной + второй со сдвигом X≈2 и фазой от Offset.
- * length/wave/random/offset/fade — tileGfx[14], 0..100. */
+ * Слой 2: speed2 (−100…100 оффсет к Speed), length2, density2, wave2.
+ * length/wave/random/offset/fade + L2 meta — tileGfx[14]. */
 function paintFallStrands(c, r, x, y, time, w1, fadeK){
   if (fadeK == null) fadeK = 0;
   var spd = getTileSpeed(G.FALL, 70);
@@ -461,39 +461,53 @@ function paintFallStrands(c, r, x, y, time, w1, fadeK){
   var waveP = getTileWave(G.FALL, 15);
   var randP = getTileRandom(G.FALL, 35);
   var offP = getTileOffset(G.FALL, 55);
+  var spd2Off = getTileSpeed2(G.FALL, -8);
+  var len2P = getTileLength2(G.FALL, 20);
+  var dens2P = getTileDensity2(G.FALL, 50);
+  var wave2P = getTileWave2(G.FALL, 20);
   var lightBase = Math.max(2, Math.round(2 + (lenP / 100) * 22));
+  var lightBase2 = Math.max(2, Math.round(2 + (len2P / 100) * 22));
   var periodBase = Math.max(lightBase + 8, 18);
+  var periodBase2 = Math.max(lightBase2 + 8, 18);
   var waveAmp = (waveP / 100) * 2.8;
+  var waveAmp2 = (wave2P / 100) * 2.8;
   var randK = randP / 100;
   var desync = offP / 100;
-  /* fade: мягкая альфа + редкие полупрозрачные прорехи, без жёсткого обрыва нити */
+  var count2 = Math.max(1, Math.min(8, Math.round(1 + (dens2P / 100) * 7)));
+  var spd2Mul = Math.max(0, 1 + spd2Off / 100);
   var baseA = 1 - fadeK * 0.78;
   var softHole = fadeK * 0.55;
   var worldY0 = r * T;
-  var layer, s, sid, h, n1, n2, n3, n4, strandSpd, phase0, lightLen, period, baseX;
-  var py, wy, u, wOff, sx, hh, hn, a, lightA, taper, prevA, layerA, xShift, phaseShift;
+  var layer, s, nStrands, sid, h, n1, n2, n3, n4, strandSpd, phase0, lightLen, period, baseX;
+  var py, wy, u, wOff, sx, hh, hn, a, lightA, taper, prevA, layerA;
+  var useLenBase, usePeriodBase, useWaveAmp, spacing, phaseShift;
   prevA = ctx.globalAlpha;
   for (layer = 0; layer < 2; layer++){
-    /* слой 1: между основными нитями, сдвиг X и фаза от Offset */
-    xShift = layer ? 2 : 0;
+    nStrands = layer ? count2 : 4;
+    spacing = T / nStrands;
     phaseShift = layer ? (40 + 80 * desync) : 0;
     layerA = layer ? 0.72 : 1;
-    for (s = 0; s < 4; s++){
-      sid = s + layer * 4;
+    useLenBase = layer ? lightBase2 : lightBase;
+    usePeriodBase = layer ? periodBase2 : periodBase;
+    useWaveAmp = layer ? waveAmp2 : waveAmp;
+    for (s = 0; s < nStrands; s++){
+      sid = s + layer * 16;
       h = ((c * 73856093) ^ (sid * 19349663) ^ 0x9e3779b9) >>> 0;
       n1 = (h & 255) / 255;
       n2 = ((h >>> 8) & 255) / 255;
       n3 = ((h >>> 16) & 255) / 255;
       n4 = ((h >>> 24) & 255) / 255;
-      strandSpd = spd * (1 + (n1 - 0.5) * 0.55 * randK) * (layer ? 0.92 : 1);
+      strandSpd = spd * (1 + (n1 - 0.5) * 0.55 * randK) * (layer ? spd2Mul : 1);
       phase0 = s * (12 + 70 * desync) + n2 * 100 * desync + n3 * 55 * randK + phaseShift;
-      lightLen = Math.max(2, Math.round(lightBase * (1 + (n3 - 0.5) * 0.45 * randK) * (layer ? 0.85 : 1)));
-      period = Math.max(lightLen + 6, Math.round(periodBase * (1 + (n4 - 0.5) * 0.25 * randK)));
-      baseX = 1 + s * 4 + xShift + (n1 - 0.5) * 2.2 * randK;
+      lightLen = Math.max(2, Math.round(useLenBase * (1 + (n3 - 0.5) * 0.45 * randK)));
+      period = Math.max(lightLen + 6, Math.round(usePeriodBase * (1 + (n4 - 0.5) * 0.25 * randK)));
+      /* слой 2: сдвиг на полшага, чтобы нити легли между слоем 1 при той же плотности */
+      baseX = spacing * (0.5 + s) + (layer ? spacing * 0.5 : 0) + (n1 - 0.5) * 2.2 * randK - 1;
       for (py = 0; py < T; py++){
         wy = worldY0 + py;
-        wOff = waveAmp * Math.sin(wy * (0.12 + n2 * 0.06 * randK) + sid * 1.35 + n4 * 2.1 + layer * 0.9);
+        wOff = useWaveAmp * Math.sin(wy * (0.12 + n2 * 0.06 * randK) + sid * 1.35 + n4 * 2.1 + layer * 0.9);
         sx = Math.round(baseX + wOff);
+        if (sx < -1 || sx > T) continue;
         hh = ((wy * 2654435761) ^ (sid * 9749) ^ ((sx + 17) * 2246822519)) >>> 0;
         hn = (hh & 255) / 255;
         a = baseA * layerA * (1 - softHole * hn * 0.85);
@@ -503,7 +517,6 @@ function paintFallStrands(c, r, x, y, time, w1, fadeK){
         u = (time * strandSpd + phase0 - wy) % period;
         if (u < 0) u += period;
         if (u < lightLen){
-          /* u→0 = низ нити (ярче), u→lightLen = верх (прозрачнее) */
           taper = 1 - u / lightLen;
           taper = taper * taper * (3 - 2 * taper);
           lightA = 0.12 + 0.88 * taper;

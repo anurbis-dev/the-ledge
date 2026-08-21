@@ -106,7 +106,11 @@ function writeLocal(){
   try { localStorage.setItem(KEY, JSON.stringify({ tiles: tiles, gfx: gfx })); } catch (_){}
 }
 
-var GFX_META = ['speed', 'shift', 'waveX', 'splash', 'length', 'wave', 'random', 'offset', 'fade'];
+var GFX_META = [
+  'speed', 'shift', 'waveX', 'splash',
+  'length', 'wave', 'random', 'offset', 'fade',
+  'speed2', 'length2', 'density2', 'wave2'
+];
 
 function copyGfxMeta(from, to){
   var i, k, v;
@@ -306,6 +310,22 @@ export function getTileOffset(id, fallback){
 
 export function getTileFade(id, fallback){
   return getTileMeta(id, 'fade', fallback);
+}
+
+export function getTileSpeed2(id, fallback){
+  return getTileMeta(id, 'speed2', fallback);
+}
+
+export function getTileLength2(id, fallback){
+  return getTileMeta(id, 'length2', fallback);
+}
+
+export function getTileDensity2(id, fallback){
+  return getTileMeta(id, 'density2', fallback);
+}
+
+export function getTileWave2(id, fallback){
+  return getTileMeta(id, 'wave2', fallback);
 }
 
 export function setTileGfx(id, patch){

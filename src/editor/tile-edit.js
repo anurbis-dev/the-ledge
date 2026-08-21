@@ -2,6 +2,7 @@ import GAME from '../core/game.js';
 import {
   getTileDef, updateTile, getTileGfx, setTileGfx, clearTileGfx, getTileSpeed,
   getTileShift, getTileWaveX, getTileSplash, getTileLength, getTileWave, getTileRandom, getTileOffset, getTileFade,
+  getTileSpeed2, getTileLength2, getTileDensity2, getTileWave2,
   getTileSpriteId, setTileSpriteId,
   tileFrameCount, tileFrameSrc, canvasToPng, loadImageFile, sliceSheet, addTile
 } from '../core/tileset.js';
@@ -1852,6 +1853,10 @@ function fillTileParamsOnly(){
     addFallSlider('Random', 'Per-strand variation of phase/speed/x/length', 'random', 35, 0, 100, getTileRandom);
     addFallSlider('Offset', 'Phase desync between strands (0 = lockstep)', 'offset', 55, 0, 100, getTileOffset);
     addFallSlider('Fade', 'Transparency: more holes + lower alpha (0 = solid)', 'fade', 0, 0, 100, getTileFade);
+    addFallSlider('L2 Speed', 'Layer-2 speed offset vs Speed (−100 = stop, 0 = same, +100 = 2×)', 'speed2', -8, -100, 100, getTileSpeed2);
+    addFallSlider('L2 Length', 'Layer-2 light strand length', 'length2', 20, 0, 100, getTileLength2);
+    addFallSlider('L2 Density', 'Layer-2 strand count (1…8)', 'density2', 50, 0, 100, getTileDensity2);
+    addFallSlider('L2 Wave', 'Layer-2 bend amount (0 = straight)', 'wave2', 20, 0, 100, getTileWave2);
   }
 
   if (current.id === GAME.WATER){
