@@ -30,9 +30,12 @@ export const C = {
   /* верёвки: Verlet, climb, swing */
   ROPE_SEGS: 8, ROPE_ELAST: 0.12, ROPE_SWING: 160, ROPE_DAMP: 0.98,
   ROPE_WIND: 2.2, ROPE_CLIMB: 52, ROPE_GRAB: 14, ROPE_ITERS: 6, ROPE_CD: 0.28,
+  ROPE_SWING_CD: 0.32,
   ROLL_V: 152, ROLL_T: 0.42, ROLL_CD: 0.14,
   LAD_V: 58, LAD_TOL: 6, LAD_XTOL: 11,
   SAFE: 46, HURT: 104, HITSTOP: 0.055,
+  /* rollland: при fall > ROLL_HURT всё ещё 1 урон (раньше HURT*1.6) */
+  ROLL_HURT: 166, ROLL_HURT_T: 0.35,
   FALL_CROUCH_T: 0.55, FALL_PRONE_T: 1.2, GETUP_T: 0.5,
   CRUMB_T: 1.05,
   PLANK_BURN: 1.6,

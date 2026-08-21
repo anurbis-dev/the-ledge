@@ -117,6 +117,7 @@ export var PARAM_GROUPS = [
     { key: 'ROPE_SEGS', label: 'Default segs', min: 4, max: 24, step: 1 },
     { key: 'ROPE_ELAST', label: 'Elasticity', min: 0, max: 0.5, step: 0.01 },
     { key: 'ROPE_SWING', label: 'Swing force', min: 40, max: 400, step: 5 },
+    { key: 'ROPE_SWING_CD', label: 'Swing CD', min: 0.1, max: 1, step: 0.02 },
     { key: 'ROPE_DAMP', label: 'Damping', min: 0.9, max: 1, step: 0.005 },
     { key: 'ROPE_WIND', label: 'Idle wind', min: 0, max: 8, step: 0.1 },
     { key: 'ROPE_CLIMB', label: 'Climb speed', min: 20, max: 120, step: 1 },
@@ -127,6 +128,8 @@ export var PARAM_GROUPS = [
   { id: 'fall', name: 'Fall / Damage', items: [
     { key: 'SAFE', label: 'Safe fall', min: 10, max: 120, step: 1 },
     { key: 'HURT', label: 'Hurt fall', min: 30, max: 220, step: 1 },
+    { key: 'ROLL_HURT', label: 'Roll hurt fall', min: 40, max: 320, step: 1, hint: 'dir-roll still damages above this' },
+    { key: 'ROLL_HURT_T', label: 'Roll hurt stun', min: 0, max: 1.5, step: 0.05, hint: 'stun when rollland still hurts' },
     { key: 'HITSTOP', label: 'Hitstop', min: 0, max: 0.2, step: 0.005 },
     { key: 'FALL_CROUCH_T', label: 'Fall crouch t', min: 0.1, max: 2, step: 0.05 },
     { key: 'FALL_PRONE_T', label: 'Fall prone t', min: 0.2, max: 3, step: 0.05 },

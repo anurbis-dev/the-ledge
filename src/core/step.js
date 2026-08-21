@@ -531,7 +531,7 @@ export function step(S, dt, inp){
           p.rollT = C.ROLL_T; applyRollBox(p); p.facing = inp.x > 0 ? 1 : -1;
           p.vx = inp.x * C.ROLL_V; S.shake = Math.max(S.shake, 2);
           p.events.push('rollland');
-          if (fall > C.HURT * 1.6) damage(S, 1, 0.35);
+          if (fall > C.ROLL_HURT) damage(S, 1, C.ROLL_HURT_T);
         } else {
           S.hitStop = Math.max(S.hitStop, C.HITSTOP);
           var high = fall > C.HURT;

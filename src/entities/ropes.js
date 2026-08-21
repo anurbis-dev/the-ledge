@@ -11,13 +11,14 @@ export var ROPE_DEF = {
   damping: 0.98,
   wind: 2.2,
   climbV: 52,
-  grabR: 14
+  grabR: 14,
+  /* H: множитель к span при создании; абсолютная length хранится в r.length */
+  slack: 1.18
 };
 
 function defOf(r, key){
   if (r[key] != null && Number.isFinite(r[key])) return r[key];
   if (C['ROPE_' + key.toUpperCase()] != null) return C['ROPE_' + key.toUpperCase()];
-  /* map camel → C keys */
   var map = {
     segs: C.ROPE_SEGS, elasticity: C.ROPE_ELAST, swingForce: C.ROPE_SWING,
     damping: C.ROPE_DAMP, wind: C.ROPE_WIND, climbV: C.ROPE_CLIMB, grabR: C.ROPE_GRAB
@@ -41,23 +42,54 @@ function normalizeEnds(r){
   }
 }
 
+/** Span между якорями; для H — нижняя граница length. */
+export function ropeSpan(r){
+  return dist(r.ax, r.ay, r.bx, r.by);
+}
+
+/** Полная длина каната (px). V = span; H = max(span, r.length). */
+export function ropeLength(r){
+  var span = ropeSpan(r);
+  if (r.orient !== 'h') return span;
+  var len = r.length != null && Number.isFinite(r.length) ? r.length : span * ROPE_DEF.slack;
+  if (len < span) len = span;
+  return len;
+}
+
 export function rebuildRope(r){
   normalizeEnds(r);
   var segs = Math.max(4, Math.min(24, (r.segs != null ? r.segs : defOf(r, 'segs')) | 0));
   r.segs = segs;
   var n = segs + 1, nodes = [], i, t, x, y;
-  var len = dist(r.ax, r.ay, r.bx, r.by);
-  var minLen = r.orient === 'h' ? T * 2 : T * 2;
-  if (len < minLen){
-    if (r.orient === 'v'){ r.bx = r.ax; r.by = r.ay + minLen; }
-    else { r.bx = r.ax + minLen; r.by = r.ay; }
-    len = minLen;
+  var span = ropeSpan(r);
+  var minSpan = T * 2;
+  if (span < minSpan){
+    if (r.orient === 'v'){ r.bx = r.ax; r.by = r.ay + minSpan; }
+    else { r.bx = r.ax + minSpan; r.by = r.ay; }
+    span = minSpan;
+  }
+  var len = span;
+  if (r.orient === 'h'){
+    if (r.length == null || !Number.isFinite(r.length) || r.length < span)
+      r.length = Math.max(span, span * ROPE_DEF.slack);
+    len = r.length;
+    if (len < span){ len = span; r.length = span; }
+  } else {
+    /* V: длина задаётся нижним хэндлом */
+    r.length = span;
   }
   r.rest = len / segs;
+  /* начальная форма: H с провисом — парабола; иначе прямая */
+  var sag = 0;
+  if (r.orient === 'h' && len > span + 0.5){
+    var half = span * 0.5;
+    var halfL = len * 0.5;
+    sag = halfL > half ? Math.sqrt(halfL * halfL - half * half) * 0.92 : (len - span) * 0.35;
+  }
   for (i = 0; i < n; i++){
     t = i / segs;
     x = r.ax + (r.bx - r.ax) * t;
-    y = r.ay + (r.by - r.ay) * t;
+    y = r.ay + (r.by - r.ay) * t + 4 * sag * t * (1 - t);
     nodes.push({
       x: x, y: y, ox: x, oy: y,
       pinned: r.orient === 'h' ? (i === 0 || i === n - 1) : (i === 0)
@@ -65,12 +97,12 @@ export function rebuildRope(r){
   }
   r.nodes = nodes;
   r.ph = (r.id || 0) * 1.37;
-  r._lenKey = segs + ':' + r.ax + ',' + r.ay + ',' + r.bx + ',' + r.by;
+  r._lenKey = segs + ':' + r.ax + ',' + r.ay + ',' + r.bx + ',' + r.by + ':' + (r.length | 0);
   return r;
 }
 
 function ensureNodes(r){
-  var key = (r.segs | 0) + ':' + r.ax + ',' + r.ay + ',' + r.bx + ',' + r.by;
+  var key = (r.segs | 0) + ':' + r.ax + ',' + r.ay + ',' + r.bx + ',' + r.by + ':' + ((r.length | 0) || 0);
   if (!r.nodes || !r.nodes.length || r._lenKey !== key) rebuildRope(r);
 }
 
@@ -84,6 +116,7 @@ function mkOne(id, orient, ax, ay, bx, by, opts){
     elasticity: opts.elasticity != null ? opts.elasticity : ROPE_DEF.elasticity,
     swingForce: opts.swingForce != null ? opts.swingForce : ROPE_DEF.swingForce,
     damping: opts.damping, wind: opts.wind, climbV: opts.climbV, grabR: opts.grabR,
+    length: opts.length,
     rider: false, active: false
   };
   return rebuildRope(r);
@@ -98,6 +131,7 @@ export function packRope(r){
     elasticity: r.elasticity,
     swingForce: r.swingForce
   };
+  if (r.orient === 'h' && r.length != null) o.length = Math.round(r.length);
   if (r.damping != null) o.damping = r.damping;
   if (r.wind != null) o.wind = r.wind;
   if (r.climbV != null) o.climbV = r.climbV;
@@ -123,7 +157,9 @@ export function mkRopeAt(S, x, y, orient){
   if (orient === 'v'){ bx = ax; by = ay + 5 * T; }
   else { bx = ax + 6 * T; by = ay; }
   if (!S.ropes) S.ropes = [];
-  var r = mkOne(allocId(S.ropes), orient, ax, ay, bx, by, {});
+  var opts = {};
+  if (orient === 'h') opts.length = dist(ax, ay, bx, by) * ROPE_DEF.slack;
+  var r = mkOne(allocId(S.ropes), orient, ax, ay, bx, by, opts);
   S.ropes.push(r);
   return r;
 }
@@ -159,7 +195,7 @@ export function sampleRope(r, t){
 
 function nearestT(r, px, py){
   ensureNodes(r);
-  var nodes = r.nodes, best = 0, bestD = 1e12, total = 0, lens = [], i, d, acc, tAcc;
+  var nodes = r.nodes, best = 0, bestD = 1e12, total = 0, lens = [], i, d, acc;
   for (i = 0; i < nodes.length - 1; i++){
     d = dist(nodes[i].x, nodes[i].y, nodes[i + 1].x, nodes[i + 1].y);
     lens.push(d); total += d;
@@ -198,13 +234,25 @@ function pinEnds(r){
   }
 }
 
-function constrain(r, stretchMul){
-  var nodes = r.nodes, rest = r.rest * stretchMul, i, a, b, dx, dy, d, diff, nx, ny;
+/**
+ * elast≈0: equality к rest (нерастяжимо; length=span → струна, length>span → провис).
+ * elast>0: slack ниже rest ок; жёсткий потолок rest*(1+elast).
+ */
+function constrain(r, maxMul){
+  var nodes = r.nodes, rest = r.rest, maxRest = rest * maxMul;
+  var hard = maxMul <= 1.0001;
+  var i, a, b, dx, dy, d, target, diff, nx, ny;
   for (i = 0; i < nodes.length - 1; i++){
     a = nodes[i]; b = nodes[i + 1];
     dx = b.x - a.x; dy = b.y - a.y;
     d = Math.sqrt(dx * dx + dy * dy) || 0.0001;
-    diff = (d - rest) / d;
+    if (hard){
+      target = rest;
+    } else {
+      if (d <= rest) continue;
+      target = d > maxRest ? maxRest : rest;
+    }
+    diff = (d - target) / d;
     nx = dx * 0.5 * diff; ny = dy * 0.5 * diff;
     if (!a.pinned){ a.x += nx; a.y += ny; }
     if (!b.pinned){ b.x -= nx; b.y -= ny; }
@@ -221,29 +269,33 @@ function applyRiderLoad(r, p, t){
   if (!nodes[i1].pinned){ nodes[i1].y += 2.2 * s.u * w; }
 }
 
-function applySwingImpulse(r, t, dir, force, dt){
+/** Одноразовый kick; сила в px-эквиваленте (не *dt каждый кадр). */
+function applySwingImpulse(r, t, dir, force){
   var s = sampleRope(r, t);
   var nodes = r.nodes;
-  var kick = force * dir * dt * 0.55;
+  var kick = force * dir * 0.018;
   var i0 = s.i0, i1 = s.i1;
-  if (!nodes[i0].pinned){ nodes[i0].x += kick * (1 - s.u); nodes[i0].ox -= kick * (1 - s.u) * 0.35; }
-  if (!nodes[i1].pinned){ nodes[i1].x += kick * s.u; nodes[i1].ox -= kick * s.u * 0.35; }
+  if (!nodes[i0].pinned){ nodes[i0].x += kick * (1 - s.u); nodes[i0].ox -= kick * (1 - s.u) * 0.45; }
+  if (!nodes[i1].pinned){ nodes[i1].x += kick * s.u; nodes[i1].ox -= kick * s.u * 0.45; }
 }
 
 function verlet(r, dt, full){
   ensureNodes(r);
   var damp = defOf(r, 'damping');
   var wind = defOf(r, 'wind');
+  var elast = defOf(r, 'elasticity');
   var nodes = r.nodes, i, n, vx, vy, nx, ny, g;
   var time = runtime.W ? runtime.W.t : 0;
   pinEnds(r);
   g = full ? C.GRAV * 0.55 : C.GRAV * 0.12;
+  /* натянутая нерастяжимая — почти без idle wind */
+  var taut = elast < 0.001 && Math.abs(ropeLength(r) - ropeSpan(r)) < 1;
   for (i = 0; i < nodes.length; i++){
     n = nodes[i];
     if (n.pinned) continue;
     vx = (n.x - n.ox) * damp;
     vy = (n.y - n.oy) * damp;
-    if (!full){
+    if (!full && !taut){
       vx += Math.sin(time * 1.7 + r.ph + i * 0.45) * wind * 0.02;
       vy += Math.cos(time * 1.3 + r.ph + i * 0.3) * wind * 0.008;
     }
@@ -252,10 +304,23 @@ function verlet(r, dt, full){
     n.ox = n.x; n.oy = n.y;
     n.x = nx; n.y = ny;
   }
-  var elast = defOf(r, 'elasticity');
-  var stretch = r.rider ? (1 + elast) : 1;
+  var maxMul = 1 + Math.max(0, elast);
   var iters = full ? (C.ROPE_ITERS | 0) || 6 : 2;
-  for (i = 0; i < iters; i++) constrain(r, stretch);
+  if (elast < 0.001) iters = Math.max(iters, full ? 10 : 4);
+  for (i = 0; i < iters; i++) constrain(r, maxMul);
+  /* H струна: length≈span + elast0 — жёстко на хорду (Verlet иначе оставляет провис) */
+  if (r.orient === 'h' && taut){
+    var nn = nodes.length;
+    for (i = 0; i < nn; i++){
+      n = nodes[i];
+      if (n.pinned) continue;
+      var u = i / (nn - 1);
+      var tx = r.ax + (r.bx - r.ax) * u;
+      var ty = r.ay + (r.by - r.ay) * u;
+      n.x = tx; n.y = ty;
+      n.ox = tx; n.oy = ty;
+    }
+  }
 }
 
 function nearPlayer(r, p){
@@ -263,7 +328,6 @@ function nearPlayer(r, p){
   var pad = T * 2.5;
   var minX = Math.min(r.ax, r.bx) - pad, maxX = Math.max(r.ax, r.bx) + pad;
   var minY = Math.min(r.ay, r.by) - pad, maxY = Math.max(r.ay, r.by) + pad;
-  /* include current sag */
   ensureNodes(r);
   for (var i = 0; i < r.nodes.length; i++){
     var n = r.nodes[i];
@@ -273,26 +337,49 @@ function nearPlayer(r, p){
   return cx > minX - pad && cx < maxX + pad && cy > minY - pad && cy < maxY + pad;
 }
 
+/** Апекс: набор |off| после kick, затем откат — тогда re-arm (физика важнее hold). */
+function updateSwingApex(r, p){
+  var st = p.rope;
+  if (!st || st.swingArmed || !st.kickDir) return;
+  var s = sampleRope(r, st.t);
+  var nodes = r.nodes;
+  var i0 = s.i0, i1 = s.i1;
+  var vx = (nodes[i0].x - nodes[i0].ox) * (1 - s.u) + (nodes[i1].x - nodes[i1].ox) * s.u;
+  var off = (s.x - r.ax) * st.kickDir;
+  if (st._peakOff == null) st._peakOff = 0;
+  if (off > st._peakOff) st._peakOff = off;
+  if (off > 5) st._sawOut = true;
+  if (st._sawOut && st._peakOff > 6 && off < st._peakOff * 0.88 && vx * st.kickDir <= 0){
+    st.swingArmed = true;
+    st.kickDir = 0;
+    st._sawOut = false;
+    st._peakOff = 0;
+    st.pendingKick = 0;
+  }
+}
+
 export function stepRopes(S, dt){
   var list = S.ropes || [];
-  var p = S.p, i, r, full;
+  var p = S.p, i, r, full, st;
   for (i = 0; i < list.length; i++){
     r = list[i];
     r.rider = !!(p.state === 'rope' && p.rope && p.rope.id === r.id);
     full = r.rider || nearPlayer(r, p);
     r.active = full;
     if (r.rider && p.rope){
-      applyRiderLoad(r, p, p.rope.t);
-      if (r.orient === 'v' && p.rope.swingDir){
-        applySwingImpulse(r, p.rope.t, p.rope.swingDir, defOf(r, 'swingForce'), dt);
+      st = p.rope;
+      applyRiderLoad(r, p, st.t);
+      if (r.orient === 'v' && st.pendingKick){
+        applySwingImpulse(r, st.t, st.pendingKick, defOf(r, 'swingForce'));
+        st.pendingKick = 0;
       }
     }
     verlet(r, dt, full);
+    if (r.rider && p.rope && r.orient === 'v') updateSwingApex(r, p);
   }
 }
 
 function placeOnRope(p, s){
-  /* руки у точки каната */
   p.x = s.x - p.w / 2;
   p.y = s.y - Math.min(10, p.h * 0.35);
   p.vx = 0; p.vy = 0; p.onGround = false;
@@ -302,7 +389,11 @@ export function attachRope(S, p, r, t){
   if (p.torch >= 0) dropTorch(S, false);
   if (p.stance !== 0) setStance(S, p, 0);
   ensureNodes(r);
-  p.rope = { id: r.id, t: t, swingDir: 0 };
+  p.rope = {
+    id: r.id, t: t,
+    swingArmed: true, swingCd: 0, kickDir: 0, pendingKick: 0,
+    prevDir: 0, _sawOut: false, _peakOff: 0
+  };
   p.state = 'rope';
   p.hang = null; p.lad = null; p.bars = null; p.climb = null; p.ride = null;
   p.vx = 0; p.vy = 0; p.onGround = false; p.jumping = false;
@@ -351,7 +442,6 @@ export function tryRope(S, p, inp){
     if (hit.dist <= grab && hit.dist < bestD){
       bestD = hit.dist; best = { r: r, t: hit.t };
     }
-    /* also probe mid body / feet */
     hit = ropeHitDist(r, cx, p.y + p.h * 0.55);
     if (hit.dist <= grab && hit.dist < bestD){
       bestD = hit.dist; best = { r: r, t: hit.t };
@@ -367,13 +457,17 @@ export function updateRope(S, p, dt, inp){
   if (!R){ detachRope(S, p, { event: 'offrope' }); return; }
   ensureNodes(R);
   var climb = defOf(R, 'climbV');
+  var st = p.rope;
   var len = 0, i;
   for (i = 0; i < R.nodes.length - 1; i++)
     len += dist(R.nodes[i].x, R.nodes[i].y, R.nodes[i + 1].x, R.nodes[i + 1].y);
   if (len < 1) len = R.rest * R.segs;
 
+  if (st.swingCd > 0) st.swingCd -= dt;
+
   if (inp.jumpPressed){
-    var jvx = inp.x * 92 + (R.orient === 'v' ? (p.rope.swingDir || 0) * 40 : 0);
+    var jvx = inp.x * 92;
+    if (R.orient === 'v' && st.kickDir) jvx += st.kickDir * 40;
     detachRope(S, p, { vx: jvx, vy: C.JUMP * 0.84, event: 'jump' });
     p.jumping = true;
     if (inp.x) p.facing = inp.x > 0 ? 1 : -1;
@@ -382,39 +476,43 @@ export function updateRope(S, p, dt, inp){
 
   if (R.orient === 'v'){
     var up = (inp.upHeld ? 1 : 0) - (inp.downHeld ? 1 : 0);
-    if (up !== 0) p.rope.t -= (up * climb * dt) / len;
-    if (Math.abs(inp.x) > 0.35){
-      p.rope.swingDir = inp.x > 0 ? 1 : -1;
-      p.facing = p.rope.swingDir;
-    } else {
-      p.rope.swingDir = 0;
+    if (up !== 0) st.t -= (up * climb * dt) / len;
+    var dir = Math.abs(inp.x) > 0.35 ? (inp.x > 0 ? 1 : -1) : 0;
+    if (dir) p.facing = dir;
+    /* edge: новое направление — один импульс; hold не качает */
+    if (dir !== 0 && dir !== st.prevDir && st.swingArmed && st.swingCd <= 0){
+      st.pendingKick = dir;
+      st.kickDir = dir;
+      st.swingArmed = false;
+      st._sawOut = false;
+      st._peakOff = 0;
+      st.swingCd = C.ROPE_SWING_CD != null ? C.ROPE_SWING_CD : 0.32;
     }
-    if (p.rope.t < 0) p.rope.t = 0;
-    if (p.rope.t >= 0.985){
-      detachRope(S, p, { vx: p.rope.swingDir * 30, vy: 20, event: 'offrope' });
+    st.prevDir = dir;
+    if (st.t < 0) st.t = 0;
+    if (st.t >= 0.985){
+      detachRope(S, p, { vx: (st.kickDir || 0) * 30, vy: 20, event: 'offrope' });
       return;
     }
   } else {
     var hx = Math.abs(inp.x) > 0.35 ? (inp.x > 0 ? 1 : -1) : 0;
     if (hx !== 0){
-      p.rope.t += (hx * climb * dt) / len;
+      st.t += (hx * climb * dt) / len;
       p.facing = hx;
     }
-    /* mild side sway on H */
-    if (hx !== 0) applySwingImpulse(R, p.rope.t, hx, defOf(R, 'swingForce') * 0.25, dt);
-    if (p.rope.t < 0.02 && hx < 0){
+    if (st.t < 0.02 && hx < 0){
       detachRope(S, p, { vx: -60, vy: -20, event: 'offrope' });
       return;
     }
-    if (p.rope.t > 0.98 && hx > 0){
+    if (st.t > 0.98 && hx > 0){
       detachRope(S, p, { vx: 60, vy: -20, event: 'offrope' });
       return;
     }
-    if (p.rope.t < 0) p.rope.t = 0;
-    if (p.rope.t > 1) p.rope.t = 1;
+    if (st.t < 0) st.t = 0;
+    if (st.t > 1) st.t = 1;
   }
 
-  placeOnRope(p, sampleRope(R, p.rope.t));
+  placeOnRope(p, sampleRope(R, st.t));
 }
 
 export function rebuildAllRopes(S){

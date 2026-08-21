@@ -116,7 +116,7 @@
 - Сундуки (`Chest`, `Locked`).
 - `Sound`, `Light`, `Volume` — у Light Details открывает спрайт фонаря, если есть def.
 - `Boulder`.
-- `Rope V` (`kind: 'rope_v'`) / `Rope H` (`kind: 'rope_h'`) — вертикальный / горизонтальный канат (`LV.ropes`). Постановка `mkRopeAt`; гизмо: handles `a`/`b` + move span; клик по канату → float `#edRopeSettings` (Segments, Elasticity, Swing force только V, Wind, Climb speed, Grab radius). Persist `packRope`; history/rooms включают ropes. Role `marker`.
+- `Rope V` (`kind: 'rope_v'`) / `Rope H` (`kind: 'rope_h'`) — вертикальный / горизонтальный канат (`LV.ropes`). Постановка `mkRopeAt`; гизмо: handles `a`/`b` + move span; клик → `#edRopeSettings` (H: Length ≥ span для провиса; Segments; Elasticity 0=струна; Swing force только V; Wind; Climb; Grab). Persist `packRope` (+`length` для H). Role `marker`.
 - NPC (`Hermit`, `Wanderer`) — Details → кадры NPC.
 - Custom kinds (после `Ctrl+D`) — в конце палитры.
 
@@ -242,6 +242,7 @@
 - `Backspace` на наведённом контроле сбрасывает к дефолту.
 - `Reset all` сбрасывает все параметры к заводским.
 - Группа `Camera` (`src/render/camera.js`): `CAM_DZ_X/Y` (мёртвая зона якоря, 10×8), `CAM_FOLLOW` (резина, выше = резче, 6.5), `CAM_SNAP` (липнет при Δ≤snap, 1px — без pixel crawl на стопе), `CAM_SUBPX` (0/1, дефолт 1 — мир `floor(cam)` на буфере 321×181, доля CSS `translate` `#c` в `#view` шагом экрана; HUD на `#h` без сдвига; 0 и редактор — старый `Math.round(cam)`), `CAM_LEAD` / `CAM_LEAD_IDLE` / `CAM_LEAD_V` / `CAM_LEAD_K` (взгляд вперёд), `CAM_LOOK_DN` / `CAM_LOOK_UP` / `CAM_LOOK_V` / `CAM_LOOK_K` (↑↓ стоя).
+- Группа `Fall / Damage`: `SAFE` / `HURT` (без переката), `ROLL_HURT` / `ROLL_HURT_T` (dir-roll на приземлении всё ещё даёт 1 урон выше порога; stun при этом).
 
 `Intro`:
 - Поле `This level` = индивидуальная фраза уровня (`LV.intro`).

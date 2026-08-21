@@ -185,6 +185,10 @@ export function moveGizmo(wx, wy){
         if (Math.abs(o.bx - o.ax) < T * 2) o.bx = o.ax + (o.bx < o.ax ? -T * 2 : T * 2);
       }
     }
+    if (o.orient === 'h'){
+      var sp = Math.sqrt((o.bx - o.ax) * (o.bx - o.ax) + (o.by - o.ay) * (o.by - o.ay));
+      if (o.length == null || o.length < sp) o.length = sp;
+    }
     rebuildRope(o);
     return;
   }
