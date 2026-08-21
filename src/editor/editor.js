@@ -50,7 +50,7 @@ function ropeHitDistSafe(r, x, y){
 import { bindAllFloats, bindMiddleScroll, placeFloat, hasFloatPos } from './float.js';
 import { pickSpecial, pickAllSpecial, hitGizmo, beginGizmo, moveGizmo, endGizmo, gizmoActive, drawGizmos } from './gizmos.js';
 import { markLevelDirty as persistDirty, flushLevel, flushAllLevelsStore, bindPersist } from '../core/persist.js';
-import { scheduleBake, pushBake, collectFull } from '../core/bake-client.js';
+import { pushBake, collectFull } from '../core/bake-client.js';
 import { beginOp, endOp, noteOp, undoOp, redoOp, canUndo, canRedo, bindHistory, clearHistory } from './history.js';
 import { invalidateAll } from '../render/tiles.js';
 import { renderLayersPanel } from './layers-panel.js';
@@ -290,7 +290,6 @@ bindMixPanel();
 bindInspect({ onChange: function(){ markLevelDirty(); }, onClose: function(){ ED.sel = null; } });
 bindTileEdit({
   onChange: function(){
-    scheduleBake();
     edRefresh();
   },
   onDeleteCustom: function(id){ return deleteCustomTileById(id); },
@@ -312,16 +311,13 @@ bindTileset({
   onChange: function(){
     clearThumbCache();
     invalidateAll();
-    scheduleBake();
     edRefresh();
   }
 });
-/* До bindSpriteset: иначе каждый baked idle дергает scheduleBake. */
 migrateEditorGraphics();
 bindSpriteset({
   onChange: function(){
     clearThumbCache();
-    scheduleBake();
     edRefresh();
   }
 });
@@ -330,7 +326,7 @@ bindBoulderSettings({ onChange: function(){ markLevelDirty(); } });
 bindRopeSettings({ onChange: function(){ markLevelDirty(); } });
 bindAllFloats();
 if (edBar) bindMiddleScroll(edBar, edPal);
-bindPersist({ water: waterExport, onFlush: scheduleBake });
+bindPersist({ water: waterExport });
 bindHistory({
   onChange: function(why){
     if (why === 'restore'){
@@ -352,7 +348,6 @@ bindHistory({
       refreshTileEdit();
       fillPal();
       persistDirty();
-      scheduleBake();
       edRefresh();
     }
     syncUndoBtns();
@@ -811,12 +806,10 @@ export function edOpen(){
   syncColorBtn();
   dispatchEvent(new Event('resize'));
   flushLevel(world());
-  pushBake({ silent: true }).catch(function(){});
 }
 export function edClose(){
   cancelDoorPending();
   flushLevel(world());
-  pushBake({ silent: true }).catch(function(){});
   ED.on = false;
   view.edit = false;
   var Sclose = world();
@@ -1293,7 +1286,6 @@ export function deleteCustomTileById(id){
     var tiles = palTiles();
     if (ED.pal >= tiles.length) ED.pal = Math.max(0, tiles.length - 1);
   }
-  scheduleBake();
   edRefresh();
   return true;
 }
@@ -3138,6 +3130,7 @@ function downloadBakeJson(data){
 var bBake = document.getElementById('edBake');
 if (bBake) bBake.addEventListener('click', function(){
   flushLevel(world());
+  flushAllLevelsStore(G.LEVELS);
   bBake.disabled = true;
   // Окно только после реального POST /__bake (pushBake ждёт очередь, не busy-stub).
   pushBake({ full: true, silent: false, timeout: 8000 }).then(function(res){
@@ -3153,7 +3146,7 @@ if (bBake) bBake.addEventListener('click', function(){
     downloadBakeJson(collectFull());
     showEdOut(
       'Live write failed (' + (err && err.timedOut ? 'timeout' : err) + ').\n' +
-      'Editor already autosaves levels/params into defaults.js while the dev server runs.\n' +
+      'Bake writes defaults.js only via this button while the dev server runs.\n' +
       'If this keeps failing, restart start-dev-server.bat.',
       true
     );
@@ -3167,12 +3160,3 @@ var bDel = document.getElementById('edDel');
 if (bDel) bDel.addEventListener('click', function(){
   if (onDelLevel) onDelLevel();
 });
-
-function flushBakeQuiet(){
-  flushLevel(world());
-  pushBake({ silent: true }).catch(function(){});
-}
-document.addEventListener('visibilitychange', function(){
-  if (document.hidden) flushBakeQuiet();
-});
-addEventListener('pagehide', flushBakeQuiet);

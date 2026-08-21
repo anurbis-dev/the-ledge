@@ -9,8 +9,10 @@ import { packPlat } from '../entities/plats.js';
 import { packLift } from '../entities/lifts.js';
 import { ensureLevelExits } from '../entities/doors.js';
 
-var KEY = 'ledge.dev.levels';
+var LEGACY_LEVELS_KEY = 'ledge.dev.levels';
 var SAVED_KEY = 'ledge.dev.savedAt';
+/** Сессионный снимок уровней (не localStorage — иначе вкладки затирают карты). */
+var memLevels = null;
 var dirty = false;
 var saveT = null;
 var waterFn = null;
@@ -40,21 +42,14 @@ export function bakedSavedAt(){
   return +BAKED.savedAt || 0;
 }
 
-/* localStorage — черновик этого origin. BAKED — то, что уедет в dist.
-   file:// без метки времени = старый overlay, его игнорируем (иначе dist
-   расходится с vite). С меткой — новее побеждает. */
+/* Черновик tiles/params/intro (не уровни): новее savedAt побеждает BAKED.
+   file:// без метки — игнор stale overlay. Уровни всегда из BAKED + mem. */
 export function preferLocal(){
   var localT = localSavedAt();
   var bakedT = bakedSavedAt();
   if (!localT){
-    var store = readStore();
-    var has = false, k;
-    if (store){
-      for (k in store) if (k !== '_gone'){ has = true; break; }
-    }
-    if (!has) return false;
     try { if (location.protocol === 'file:') return false; } catch (_){}
-    return true;
+    return false;
   }
   if (!bakedT) return true;
   return localT >= bakedT;
@@ -246,32 +241,19 @@ function makeBlank(rec){
 }
 
 function readStore(){
-  try {
-    var raw = localStorage.getItem(KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch (_){ return null; }
+  return memLevels;
 }
 
 export function levelsStoreSnapshot(){
-  return readStore();
-}
-
-function mergedStore(){
-  var baked = BAKED.levels, local = readStore();
-  if (!baked) return local;
-  if (!local) return baked;
-  var out = {}, k, gone = {};
-  for (k in baked) if (k !== '_gone') out[k] = baked[k];
-  for (k in local) if (k !== '_gone') out[k] = local[k];
-  (baked._gone || []).forEach(function(id){ gone[id] = 1; });
-  (local._gone || []).forEach(function(id){ gone[id] = 1; });
-  out._gone = Object.keys(gone);
-  return out;
+  return memLevels;
 }
 
 function writeStore(store){
-  try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (_){}
+  memLevels = store || null;
+}
+
+function clearLegacyLevelsLs(){
+  try { localStorage.removeItem(LEGACY_LEVELS_KEY); } catch (_){}
 }
 
 function writeObjects(lv, S){
@@ -401,12 +383,8 @@ export function flushLevel(S){
   var store = readStore() || {};
   store[keyOf(runtime.LV)] = packLevel(runtime.LV);
   writeStore(store);
-  var wasDirty = dirty;
   dirty = false;
-  if (wasDirty){
-    touchSavedAt();
-    if (afterFlush) afterFlush();
-  }
+  if (afterFlush) afterFlush();
 }
 
 /** Перезаписывает packLevel всех уровней (после правки чужих `_stash`). */
@@ -420,7 +398,6 @@ export function flushAllLevelsStore(levels){
     store[keyOf(lv)] = packLevel(lv);
   }
   writeStore(store);
-  touchSavedAt();
   if (afterFlush) afterFlush();
 }
 
@@ -438,7 +415,9 @@ export function forgetLevel(lv){
 
 export function hydrateAll(levels){
   if (!levels) return;
-  var store = preferLocal() ? mergedStore() : (BAKED.levels || null);
+  clearLegacyLevelsLs();
+  memLevels = null;
+  var store = BAKED.levels || null;
   if (!store) return;
   var gone = {}, seen = {}, i, k, rec;
   (store._gone || []).forEach(function(id){ gone[id] = 1; });

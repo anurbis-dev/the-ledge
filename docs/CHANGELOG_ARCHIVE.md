@@ -2,6 +2,10 @@
 
 ## 2026-08-21 (pre-commit)
 
+- Water immersion: splash/`wasWet` via `wetContact` (inWater||wading); continuous `stepHeroWaterRipples`; fish scare on wade; `drawWaterImmersion` + `immerseHero` wobble/tint below surface.
+
+## 2026-08-21 (pre-commit)
+
 - Ladder: soft mount only when approaching axis (`towardLadAxis`); leaving with vx/inp away no longer remagnetizes. Exit lerp kept.
 
 ## 2026-08-21 (pre-commit)

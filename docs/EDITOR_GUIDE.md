@@ -292,21 +292,24 @@
 
 ## 13. Сохранение, persist, bake
 
-Автосохранение:
-- Любая правка уровня помечает dirty.
-- Через debounce изменения пишутся в `localStorage` (`ledge.dev.levels`).
-- Параллельно триггерится bake-запрос к Vite (`/__bake`) для обновления `src/core/defaults.js`.
+Уровни (карты):
+- Правка помечает dirty; через debounce `flushLevel` пишет в сессионный mem-store (`memLevels` в `persist.js`), не в `localStorage`.
+- Boot: `hydrateAll` всегда из `BAKED.levels` (`defaults.js`); legacy-ключ `ledge.dev.levels` с диска удаляется.
+- Flush уровней **не** трогает `ledge.dev.savedAt` — правки карты сами по себе не включают `preferLocal` для тайлов.
+- Reload без `Bake` теряет несохранённые правки уровней (ожидаемо). Auto-bake отключён (`scheduleBake` — no-op).
 
-Что сохраняется:
-- Геометрия и слои.
-- Объекты мира редактора.
-- Вода и её shade.
-- Intro/Gear/Mix/Params (через соответствующие snapshot-части).
-- Спрайт-якоря и коробка действия (`BAKED.sprites`: origin / grab / box / size; без PNG-кадров).
+Tiles / sprites / params / intro:
+- Черновики по-прежнему в `localStorage` (`ledge.dev.tiles` / `.sprites` / `.C` / `.intro` и т.п.).
+- `preferLocal` сравнивает `ledge.dev.savedAt` с `BAKED.savedAt` **только** для этих слоёв (не для карт).
 
 Ручной bake:
-- Кнопка `Bake` запускает full dump.
+- Единственный путь на диск: кнопка `Bake` → `POST /__bake` (full dump в `src/core/defaults.js`, включая уровни из mem-store).
 - Если live-запись не удалась, редактор предлагает JSON-файл `ledge-bake.json`.
+
+Что попадает в dump:
+- Геометрия и слои, объекты мира, вода/shade.
+- Intro/Gear/Mix/Params (snapshot-части).
+- Спрайт-якоря и коробка действия (`BAKED.sprites`: origin / grab / box / size; без PNG-кадров).
 
 ## 14. Практические сценарии (как собрать игровые ситуации)
 

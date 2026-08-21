@@ -6,8 +6,8 @@ if "%PROJECT_DIR:~-1%"=="\" set "PROJECT_DIR=%PROJECT_DIR:~0,-1%"
 echo === the-LEDGE: stop dev servers, clear cache, rebuild ===
 echo Project: %PROJECT_DIR%
 echo.
-echo Switching away from the game tab flushes src\core\defaults.js (keep the
-echo editor's last edits). Waiting 1s so an in-flight bake can finish...
+echo Build packs whatever is already in src\core\defaults.js (Bake button first
+echo if you changed maps). Brief pause before killing vite...
 timeout /t 1 /nobreak >nul
 echo.
 

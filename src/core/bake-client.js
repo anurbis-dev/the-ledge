@@ -10,12 +10,10 @@ import { snapshotTiles, snapshotGfx } from './tileset.js';
 import { snapshotSpriteAnchors } from './spriteset.js';
 import { runtime } from './runtime.js';
 
-var bakeT = null;
 var inflight = false;
 var again = false;
 /** Явный Bake, кликнутый пока шёл другой POST — ждёт реальной записи. */
 var waitFull = null;
-var BAKE_MS = 700;
 
 export function collectAuto(){
   var o = {
@@ -41,13 +39,8 @@ export function collectFull(){
   return o;
 }
 
-export function scheduleBake(){
-  if (bakeT) clearTimeout(bakeT);
-  bakeT = setTimeout(function(){
-    bakeT = null;
-    pushBake({ silent: true }).catch(function(){});
-  }, BAKE_MS);
-}
+/** Авто-бейк отключён: на диск только кнопка Bake. */
+export function scheduleBake(){}
 
 function runBake(opts){
   var dump = opts.full ? collectFull() : collectAuto();
@@ -91,14 +84,11 @@ function takeQueuedFull(){
 
 function finishQueue(firstOpts, firstRes, firstErr){
   var queued = takeQueuedFull();
-  var needSilent = again;
   again = false;
   if (queued){
-    // Full Bake покрывает silent again.
     return runBake(queued.opts).then(function(res){
       queued.resolve(res);
       inflight = false;
-      if (again){ again = false; scheduleBake(); }
       return firstErr ? Promise.reject(firstErr) : (firstOpts.full ? res : firstRes);
     }, function(err){
       queued.reject(err);
@@ -107,7 +97,6 @@ function finishQueue(firstOpts, firstRes, firstErr){
     });
   }
   inflight = false;
-  if (needSilent) scheduleBake();
   if (firstErr) return Promise.reject(firstErr);
   return firstRes;
 }
@@ -116,7 +105,6 @@ export function pushBake(opts){
   opts = opts || {};
   if (inflight){
     again = true;
-    // Autosave во время чужого POST — только again, без фейкового OK.
     if (opts.silent) return Promise.resolve({ ok: false, busy: true });
     if (waitFull) return waitFull.promise;
     var resolve, reject;
@@ -132,5 +120,5 @@ export function pushBake(opts){
 
 export function flushAndBake(opts){
   flushLevel(runtime.W);
-  return pushBake(opts || { silent: true });
+  return pushBake(opts || { full: true });
 }

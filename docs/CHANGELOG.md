@@ -1,3 +1,3 @@
 # Changelog (unreleased)
 
-- Water immersion: splash/`wasWet` via `wetContact` (inWater||wading); continuous `stepHeroWaterRipples`; fish scare on wade; `drawWaterImmersion` + `immerseHero` wobble/tint below surface.
+- Persist: auto-bake off — `defaults.js` only via Bake button; levels no longer use `ledge.dev.levels` (session mem + `BAKED.levels` only).
