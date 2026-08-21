@@ -550,9 +550,14 @@ export function drawParts(dt){
   for (var i = parts.length-1; i >= 0; i--){
     var q = parts[i];
     q.t -= dt; if (q.t <= 0){ parts.splice(i,1); continue; }
-    if (q.drag) q.vx *= Math.max(0, 1 - q.drag * dt);
+    if (q.drag){
+      var damp = Math.max(0, 1 - q.drag * dt);
+      q.vx *= damp;
+      /* при нулевой гравитации гасим и vy, иначе «зависшая» пыль уезжает навсегда */
+      if (!q.g) q.vy *= damp;
+    }
     if (q.wob) q.vx += Math.sin(view.time * 7 + q.y * 0.2) * q.wob * dt;
-    q.x += q.vx*dt; q.y += q.vy*dt; q.vy += q.g*dt;
+    q.x += q.vx*dt; q.y += q.vy*dt; q.vy += (q.g || 0)*dt;
     if (q.top !== undefined && q.top !== null && q.y < q.top){   // пузырь лопнул у поверхности
       parts.splice(i, 1); continue;
     }

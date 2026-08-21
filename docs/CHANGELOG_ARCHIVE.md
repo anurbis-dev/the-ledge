@@ -1,3 +1,7 @@
+## 0.7.1
+
+- Ropes: райдер упирается головой/боками (clamp `t` + snap); спуск на землю/платформу → отцеп.
+
 ## 0.7.0
 
 - FX Sand: формы эмиттера point|square|circle|line (`shape`/`shapeSize`/`shapeAngle`); Inspect + гизмо `emitSize`; persist `packEmitter`.
