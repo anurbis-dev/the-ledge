@@ -1,7 +1,10 @@
-/* Кастомные тайлы: картинка + флаги. id 64..255 (Uint8).
+/* Кастомные тайлы: флаги + опционально spriteId (графика) / legacy src.
    Черновик — ledge.dev.tiles; в игру уезжает через Bake → BAKED.tiles / BAKED.tileGfx. */
 import { BAKED } from './defaults.js';
 import { preferLocal, notifyDraftChange } from './persist.js';
+import {
+  getSpriteDef, getAnimFrameCount, getSpriteFrameSrc, spriteFrameImage
+} from './spriteset.js';
 
 export var CUSTOM_BASE = 64;
 export var CUSTOM_MAX = 255;
@@ -30,6 +33,7 @@ export function normalizeTile(t){
     name: String(t.name || ('Tile ' + t.id)),
     overlay: !!t.overlay,
     src: t.src || '',
+    spriteId: t.spriteId ? String(t.spriteId) : null,
     collide: t.collide || (t.overlay ? 'none' : 'full'),
     box: cloneBox(t.box),
     oneWay: !!t.oneWay,
@@ -145,10 +149,48 @@ function cloneGfx(src){
       src: g.src || '',
       frames: Array.isArray(g.frames) ? g.frames.filter(Boolean) : []
     };
+    if (g.spriteId) e.spriteId = String(g.spriteId);
     copyGfxMeta(g, e);
     out[id] = e;
   }
   return out;
+}
+
+/** Anim id for tile→sprite preview/draw: prefer idle, else first row. */
+function tileSpriteAnim(sid){
+  var d = getSpriteDef(sid), i;
+  if (!d || !d.anims || !d.anims.length) return 'idle';
+  for (i = 0; i < d.anims.length; i++) if (d.anims[i].id === 'idle') return 'idle';
+  return d.anims[0].id;
+}
+
+/** spriteId на custom tile или в tileGfx (builtins). */
+export function getTileSpriteId(id){
+  id = id | 0;
+  var t = byId[id];
+  if (t && t.spriteId) return t.spriteId;
+  var g = gfx[id];
+  if (g && g.spriteId) return String(g.spriteId);
+  return null;
+}
+
+/**
+ * Привязать / снять спрайт. Custom → tile.spriteId; builtin → gfx.spriteId.
+ * При assign чистит legacy src/frames картинки (meta speed/shift/waveX остаётся).
+ */
+export function setTileSpriteId(id, spriteId){
+  id = id | 0;
+  if (id <= 0) return false;
+  var sid = spriteId ? String(spriteId) : null;
+  if (isCustomId(id) && byId[id]){
+    var patch = { spriteId: sid };
+    if (sid){ patch.src = ''; patch.frames = []; }
+    updateTile(id, patch);
+    return true;
+  }
+  return !!setTileGfx(id, sid
+    ? { spriteId: sid, src: '', frames: [] }
+    : { spriteId: null, src: '', frames: [] });
 }
 
 function boot(){
@@ -181,10 +223,17 @@ function readyImg(key){
 }
 
 export function tileImage(id){
+  var sid = getTileSpriteId(id);
+  if (sid) return spriteFrameImage(sid, tileSpriteAnim(sid), 0) || readyImg(id);
   return readyImg(id);
 }
 
 export function tileFrameImage(id, i){
+  var sid = getTileSpriteId(id), anim;
+  if (sid){
+    anim = tileSpriteAnim(sid);
+    return spriteFrameImage(sid, anim, i | 0) || spriteFrameImage(sid, anim, 0);
+  }
   return readyImg(id + ':' + (i | 0)) || readyImg(id);
 }
 
@@ -193,6 +242,8 @@ export function getTileGfx(id){
 }
 
 export function tileFrameCount(id){
+  var sid = getTileSpriteId(id);
+  if (sid) return Math.max(1, getAnimFrameCount(sid, tileSpriteAnim(sid)) | 0);
   var t = byId[id];
   if (t && t.frames && t.frames.length) return t.frames.length;
   var g = gfx[id];
@@ -202,6 +253,8 @@ export function tileFrameCount(id){
 }
 
 export function tileFrameSrc(id, i){
+  var sid = getTileSpriteId(id);
+  if (sid) return getSpriteFrameSrc(sid, tileSpriteAnim(sid), i | 0) || '';
   var t = byId[id];
   if (t && t.frames && t.frames.length)
     return t.frames[(i | 0) % t.frames.length];
@@ -239,10 +292,17 @@ export function setTileGfx(id, patch){
     src: patch && patch.src != null ? patch.src : cur.src,
     frames: patch && patch.frames ? patch.frames.filter(Boolean) : (cur.frames || [])
   };
+  if (patch && Object.prototype.hasOwnProperty.call(patch, 'spriteId')){
+    if (patch.spriteId) next.spriteId = String(patch.spriteId);
+    /* else omit — cleared */
+  } else if (cur.spriteId){
+    next.spriteId = String(cur.spriteId);
+  }
   mergeGfxMeta(cur, patch, next);
   if (next.frames && next.frames.length && !next.src) next.src = next.frames[0];
   var hasImg = !!(next.src || (next.frames && next.frames.length));
-  if (!hasImg && !gfxHasMeta(next)){
+  var hasSid = !!next.spriteId;
+  if (!hasImg && !hasSid && !gfxHasMeta(next)){
     delete gfx[id];
     delete imgs[id];
     emit('gfx');
@@ -281,7 +341,8 @@ export function customSpecs(){
       color: '#6a628f',
       overlay: !!t.overlay,
       custom: true,
-      src: t.src
+      src: t.src,
+      spriteId: t.spriteId || null
     });
   }
   return out;
@@ -323,6 +384,7 @@ export function addTile(partial){
     name: (partial && partial.name) || ('Tile ' + id),
     overlay: partial && partial.overlay != null ? !!partial.overlay : true,
     src: (partial && partial.src) || '',
+    spriteId: partial && partial.spriteId,
     collide: (partial && partial.collide) || 'none',
     box: partial && partial.box,
     oneWay: partial && partial.oneWay,

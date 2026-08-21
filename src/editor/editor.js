@@ -8,13 +8,14 @@ import { hushLift } from '../audio/sfx.js';
 import { findById } from '../entities/ids.js';
 import { BOULDER_DEF } from '../entities/boulders.js';
 import { isSlopeBrush, fitSlopeStroke } from './slopes.js';
-import { tileThumb, objThumb, paintObjIcon } from './thumbs.js';
+import { tileThumb, objThumb, spriteThumb, paintObjIcon, clearThumbCache } from './thumbs.js';
 import { renderParams, resetAllParams } from './params.js';
 import { getActiveLayer, getLayers, layerTile, layerVar, layerDeco, layerTileRaw, layerVarRaw, isTileLayer, internGrade, layerGrade, copyGrade, GRADE_DEF, stashLayers, findLevelsUsingTile, wipeTileIdEverywhere } from '../core/layers.js';
 import { initSliders } from './slider.js';
 import {
   customSpecs, addTile, loadImageFile, sliceSheet, guessOverlay, bindTileset, isCustomId,
-  getTileDef, updateTile, getTileGfx, removeTile, canvasToPng
+  getTileDef, updateTile, getTileGfx, removeTile, canvasToPng, listTiles, snapshotGfx,
+  setTileSpriteId, getTileSpriteId
 } from '../core/tileset.js';
 import {
   bindTileEdit, openTileEdit, openSpriteEdit, openObjectEdit, closeTileEdit,
@@ -22,14 +23,14 @@ import {
 } from './tile-edit.js';
 import {
   spriteDefForKind, getSpriteDef, bindSpriteset, cloneSpriteDef,
-  addSpriteDef, isSpriteFrameDirty, getSpriteFrameSrc, setSpriteFrame
+  addSpriteDef, isSpriteFrameDirty, getSpriteFrameSrc, setSpriteFrame,
+  listSpriteDefs, removeSpriteDef
 } from '../core/spriteset.js';
 import {
   allPaletteObjects, resolveObject, cloneObjectFrom, bindObjectset,
-  isLootRole, isLootOnlyRole, objectSpriteDef, updateObject
+  isLootRole, isLootOnlyRole, objectSpriteDef, updateObject, listObjects
 } from '../core/objectset.js';
 import { bakeBuiltinTileSrc, bakeSpriteFrameSrc } from '../render/sprite-bake.js';
-import { clearThumbCache } from './thumbs.js';
 import { setEditorRooms, stepRooms } from '../core/rooms.js';
 import { showLayersPanel, bindLayersPanel } from './layers-panel.js';
 import { bindIntroPanel, renderIntroPanel } from './intro-panel.js';
@@ -421,6 +422,8 @@ function setTab(tab){
   if (tab === 'tile' || tab === 'obj'){
     ED.tool = tab;
     ED.pal = 0;
+  } else if (tab === 'sprite'){
+    ED.pal = 0;
   }
   edRefresh();
 }
@@ -432,7 +435,7 @@ function syncTabs(){
   }
   var hidePal = ED.tab === 'params' || ED.tab === 'intro' || ED.tab === 'mix' || ED.tab === 'gear';
   if (edPal) edPal.hidden = hidePal;
-  if (edExtra) edExtra.hidden = hidePal;
+  if (edExtra) edExtra.hidden = hidePal || ED.tab === 'sprite';
   if (edParams) edParams.hidden = ED.tab !== 'params';
   var edIntro = document.getElementById('edIntro');
   if (edIntro) edIntro.hidden = ED.tab !== 'intro';
@@ -468,6 +471,11 @@ function swatch(parent, canvas, label, active, onPick, kind, pal, onClick){
 }
 
 function palDropPayload(dKind, dPal){
+  if (dKind === 'sprite'){
+    var spr = listSpriteDefs()[dPal];
+    if (spr && spr.id) return { spriteId: spr.id };
+    return null;
+  }
   if (dKind === 'obj'){
     var om = palObjMeta(ED_OBJS[dPal]);
     var sid = om && om.spriteId;
@@ -480,19 +488,16 @@ function palDropPayload(dKind, dPal){
       var sdO = objectSpriteDef(om.kind);
       if (sdO) sid = sdO.id;
     }
-    if (sid && spriteHasIdlePic(sid)) return { spriteId: sid };
+    /* На Sprite slot — только готовый spriteId (вкладка Sprites / объект со спрайтом). */
     if (sid && getSpriteDef(sid)) return { spriteId: sid };
-    /* Процедурный объект без кадра — bake PNG; Details создаст tile+sprite. */
-    if (om){
-      var pk = om.template || om.kind;
-      var baked = bakeObjIconSrc(pk);
-      if (baked) return { tileSrc: baked, tileName: om.name || pk, makeTile: true };
-    }
     return null;
   }
   if (dKind === 'tile'){
+    /* Frame-replace may use tile pixels; Sprite slot ignores tileSrc. */
     var tiles = palTiles();
     var tspec = tiles[dPal];
+    var tSid = tspec && tspec.id != null ? getTileSpriteId(tspec.id) : null;
+    if (tSid) return { spriteId: tSid };
     var tdef = tspec && tspec.id != null ? getTileDef(tspec.id) : null;
     var tsrc = (tdef && (tdef.src || (tdef.frames && tdef.frames[0]))) ||
       (tspec && bakeBuiltinTileSrc(tspec));
@@ -677,8 +682,38 @@ function fillPal(){
     }
     var oh = document.createElement('div');
     oh.className = 'ed-pal-hint';
-    oh.textContent = 'Double-click Details · click switches if open · drag swatch onto Sprite slot or action frames';
+    oh.textContent = 'Double-click Details · drag Sprites (or object with sprite) onto Sprite slot / frames';
     edPal.appendChild(oh);
+    edPal.scrollTop = 0;
+  } else if (ED.tab === 'sprite'){
+    clearThumbCache();
+    var defs = listSpriteDefs();
+    for (var si = 0; si < defs.length; si++){
+      (function(k){
+        var def = defs[k];
+        var sw = swatch(edPal, spriteThumb(def, ED.icon), def.name + (def.custom ? ' (custom)' : ''), ED.pal === k, function(){
+          ED.pal = k;
+        }, 'sprite', k, function(){
+          if (isDetailsOpen()) openSpriteEdit(def);
+        });
+        sw.title = def.name + ' — drag onto Tile/Object Sprite slot · double-click to edit frames';
+        sw.addEventListener('dblclick', function(e){
+          e.preventDefault(); e.stopPropagation();
+          ED.pal = k;
+          openSpriteEdit(def, e.clientX, e.clientY);
+          edRefresh();
+        });
+      })(si);
+    }
+    var atl = document.createElement('div');
+    atl.className = 'ed-pal-hint';
+    atl.textContent = 'Atlases — soon';
+    atl.style.opacity = '0.55';
+    edPal.appendChild(atl);
+    var sh = document.createElement('div');
+    sh.className = 'ed-pal-hint';
+    sh.textContent = 'Drop PNG to add sprites · double-click frames · Ctrl+D clone · Delete removes custom · drag onto Sprite slot';
+    edPal.appendChild(sh);
     edPal.scrollTop = 0;
   }
 }
@@ -1078,6 +1113,94 @@ function duplicatePalObject(){
   return true;
 }
 
+function duplicatePalSprite(){
+  if (ED.tab !== 'sprite') return false;
+  var defs = listSpriteDefs();
+  var def = defs[ED.pal];
+  if (!def) return false;
+  beginOp();
+  var cloned = cloneSpriteDef(def.id, (def.name || 'Sprite') + ' copy');
+  if (!cloned){ endOp(); return false; }
+  noteOp();
+  endOp();
+  clearThumbCache();
+  ED.tab = 'sprite';
+  fillPal();
+  var list = listSpriteDefs(), i;
+  for (i = 0; i < list.length; i++) if (list[i].id === cloned.id){ ED.pal = i; break; }
+  openSpriteEdit(cloned);
+  edRefresh();
+  return true;
+}
+
+function findSpriteUsers(sid){
+  var out = [], i, t, tiles, gfx, id, objs, lv, spawn;
+  if (!sid) return out;
+  tiles = listTiles();
+  for (i = 0; i < tiles.length; i++){
+    t = tiles[i];
+    if (t && t.spriteId === sid) out.push({ type: 'tile', name: t.name || ('Tile ' + t.id) });
+  }
+  gfx = snapshotGfx();
+  for (id in gfx){
+    if (!Object.prototype.hasOwnProperty.call(gfx, id)) continue;
+    if (gfx[id] && gfx[id].spriteId === sid)
+      out.push({ type: 'tile', name: 'Builtin #' + id });
+  }
+  objs = listObjects();
+  for (i = 0; i < objs.length; i++){
+    if (objs[i] && objs[i].spriteId === sid)
+      out.push({ type: 'obj', name: objs[i].name || objs[i].id });
+  }
+  lv = G.levelSpec && G.levelSpec();
+  spawn = lv && lv.spawn;
+  if (spawn && spawn.spriteId === sid) out.push({ type: 'spawn', name: 'Start spawn' });
+  return out;
+}
+
+function clearSpriteRefs(sid){
+  var tiles = listTiles(), i, gfx, id, objs, lv;
+  for (i = 0; i < tiles.length; i++){
+    if (tiles[i] && tiles[i].spriteId === sid) setTileSpriteId(tiles[i].id, null);
+  }
+  gfx = snapshotGfx();
+  for (id in gfx){
+    if (!Object.prototype.hasOwnProperty.call(gfx, id)) continue;
+    if (gfx[id] && gfx[id].spriteId === sid) setTileSpriteId(id | 0, null);
+  }
+  objs = listObjects();
+  for (i = 0; i < objs.length; i++){
+    if (objs[i] && objs[i].spriteId === sid) updateObject(objs[i].id, { spriteId: null });
+  }
+  lv = G.levelSpec && G.levelSpec();
+  if (lv && lv.spawn && lv.spawn.spriteId === sid) lv.spawn.spriteId = 'hero';
+}
+
+function deleteSelectedPaletteSprite(){
+  if (ED.tab !== 'sprite') return false;
+  var defs = listSpriteDefs();
+  var def = defs[ED.pal];
+  if (!def || !def.custom) return false;
+  var users = findSpriteUsers(def.id);
+  var label = def.name || def.id;
+  if (users.length){
+    var list = users.map(function(u){ return u.name; }).join(', ');
+    if (!confirm('"' + label + '" is used by: ' + list + '.\nClear links and delete the sprite?')) return false;
+  } else if (!confirm('Delete custom sprite "' + label + '"?')) return false;
+  beginOp();
+  clearSpriteRefs(def.id);
+  removeSpriteDef(def.id);
+  noteOp();
+  endOp();
+  clearThumbCache();
+  closeTileEdit();
+  defs = listSpriteDefs();
+  if (ED.pal >= defs.length) ED.pal = Math.max(0, defs.length - 1);
+  fillPal();
+  edRefresh();
+  return true;
+}
+
 function duplicatePalTile(){
   if (ED.tool !== 'tile' && ED.tab !== 'tile') return false;
   var spec = palSpec();
@@ -1094,6 +1217,7 @@ function duplicatePalTile(){
       name: name,
       src: src,
       frames: frames,
+      spriteId: def.spriteId || null,
       overlay: !!def.overlay,
       collide: def.collide || 'none',
       box: def.box ? { x: def.box.x, y: def.box.y, w: def.box.w, h: def.box.h } : undefined,
@@ -1103,7 +1227,8 @@ function duplicatePalTile(){
     };
   } else {
     var g = getTileGfx(spec.id);
-    src = (g && g.src) || bakeBuiltinTileSrc(spec);
+    var gSid = getTileSpriteId(spec.id);
+    src = (g && g.src) || (gSid ? '' : bakeBuiltinTileSrc(spec));
     frames = g && g.frames && g.frames.length ? g.frames.slice() : null;
     name = (spec.name || 'Tile') + ' copy';
     collide = 'full';
@@ -1115,12 +1240,13 @@ function duplicatePalTile(){
       name: name,
       src: src,
       frames: frames,
+      spriteId: gSid || null,
       overlay: !!spec.overlay,
       collide: collide,
       climb: collide === 'climb'
     };
   }
-  if (!patch.src && !(patch.frames && patch.frames.length)){ endOp(); return false; }
+  if (!patch.spriteId && !patch.src && !(patch.frames && patch.frames.length)){ endOp(); return false; }
   var t = addTile(patch);
   if (!t){ endOp(); return false; }
   noteOp();
@@ -2332,7 +2458,7 @@ function applyIconCss(n){
 }
 function commitIcon(){
   try { localStorage.setItem(IKEY, String(ED.icon)); } catch (_){}
-  if (ED.tab === 'tile' || ED.tab === 'obj') fillPal();
+  if (ED.tab === 'tile' || ED.tab === 'obj' || ED.tab === 'sprite') fillPal();
 }
 function bumpIcon(dir){
   var n = clampIcon(ED.icon + dir * 4);
@@ -2597,7 +2723,7 @@ cv.addEventListener('auxclick', function(e){ if (ED.on) e.preventDefault(); });
 cv.addEventListener('wheel', function(e){
   if (!ED.on) return;
   e.preventDefault();
-  if (e.ctrlKey && ED.tab === 'obj'){
+  if (e.ctrlKey && (ED.tab === 'obj' || ED.tab === 'sprite')){
     bumpIcon(e.deltaY < 0 ? 1 : -1);
     return;
   }
@@ -2608,7 +2734,7 @@ cv.addEventListener('wheel', function(e){
 if (edBar){
   edBar.addEventListener('wheel', function(e){
     if (!ED.on) return;
-    if (e.ctrlKey && (ED.tab === 'obj' || ED.tab === 'tile')){
+    if (e.ctrlKey && (ED.tab === 'obj' || ED.tab === 'tile' || ED.tab === 'sprite')){
       e.preventDefault();
       bumpIcon(e.deltaY < 0 ? 1 : -1);
     }
@@ -2618,7 +2744,7 @@ if (edBar){
   });
   edBar.addEventListener('pointerdown', function(e){
     if (!ED.on) return;
-    if ((e.ctrlKey || e.metaKey) && e.button === 2 && (ED.tab === 'obj' || ED.tab === 'tile')){
+    if ((e.ctrlKey || e.metaKey) && e.button === 2 && (ED.tab === 'obj' || ED.tab === 'tile' || ED.tab === 'sprite')){
       e.preventDefault();
       e.stopPropagation();
       startIconScale(e);
@@ -2729,7 +2855,7 @@ addEventListener('keydown', function(e){
   }
   if (ED.on && (e.key === 'Delete' || e.key === 'Backspace') && !ED.selTiles && !(ED.sel && ED.sel.obj)){
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-    if (deleteSelectedPaletteTile()){
+    if (deleteSelectedPaletteSprite() || deleteSelectedPaletteTile()){
       e.preventDefault();
       return;
     }
@@ -2748,7 +2874,7 @@ addEventListener('keydown', function(e){
   }
   if (ED.on && (e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')){
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-    if (duplicatePalObject() || duplicatePalTile()){
+    if (duplicatePalSprite() || duplicatePalObject() || duplicatePalTile()){
       e.preventDefault();
       return;
     }
@@ -2774,6 +2900,7 @@ function importImageFiles(files){
   var list = [], i;
   for (i = 0; i < files.length; i++) if (isImageFile(files[i])) list.push(files[i]);
   if (!list.length) return Promise.resolve();
+  if (ED.tab === 'sprite') return importSpriteFiles(list);
   setTab('tile');
   var chain = Promise.resolve(), added = [];
   list.forEach(function(file){
@@ -2810,6 +2937,54 @@ function importImageFiles(files){
       name: added[0].name, id: added[0].id, custom: true,
       overlay: added[0].overlay, src: added[0].src
     });
+  }).catch(function(){});
+}
+
+function importSpriteFiles(list){
+  var chain = Promise.resolve(), added = [];
+  list.forEach(function(file){
+    chain = chain.then(function(){
+      return loadImageFile(file).then(function(img){
+        var slices = sliceSheet(img, file.name);
+        var j, sl, frames, def;
+        if (slices.length > 1){
+          frames = slices.map(function(s){ return s.src; });
+          def = addSpriteDef({
+            name: (slices[0].name || file.name || 'Sprite').replace(/\s+\d+$/, ''),
+            fw: 16, fh: 16, ox: 0, oy: 0,
+            anims: [{ id: 'idle', name: 'Idle', n: frames.length }],
+            src: frames[0]
+          });
+          if (def){
+            setSpriteFrame(def.id, 'idle', 0, frames[0], true);
+            for (j = 1; j < frames.length; j++) setSpriteFrame(def.id, 'idle', j, frames[j], true);
+            added.push(def);
+          }
+        } else {
+          sl = slices[0];
+          def = addSpriteDef({
+            name: (sl && sl.name) || file.name || 'Sprite',
+            fw: 16, fh: 16, ox: 0, oy: 0,
+            anims: [{ id: 'idle', name: 'Idle', n: 1 }],
+            src: sl && sl.src
+          });
+          if (def) added.push(def);
+        }
+      });
+    });
+  });
+  return chain.then(function(){
+    if (!added.length) return;
+    beginOp();
+    noteOp();
+    endOp();
+    clearThumbCache();
+    ED.tab = 'sprite';
+    fillPal();
+    var defs = listSpriteDefs(), i;
+    for (i = 0; i < defs.length; i++) if (defs[i].id === added[0].id){ ED.pal = i; break; }
+    openSpriteEdit(added[0]);
+    edRefresh();
   }).catch(function(){});
 }
 function onEditorDragOver(e){

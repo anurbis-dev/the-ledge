@@ -1,7 +1,7 @@
 import GAME from '../core/game.js';
 import {
   getTileDef, updateTile, getTileGfx, setTileGfx, clearTileGfx, getTileSpeed,
-  getTileShift, getTileWaveX,
+  getTileShift, getTileWaveX, getTileSpriteId, setTileSpriteId,
   tileFrameCount, tileFrameSrc, canvasToPng, loadImageFile, sliceSheet, addTile
 } from '../core/tileset.js';
 import { initSliders } from './slider.js';
@@ -172,7 +172,15 @@ export function closeTileEdit(){
 function isSprite(){ return mode === 'sprite'; }
 function isObjectOnly(){ return mode === 'object'; }
 function isCustomTile(){ return mode === 'tile' && current && current.custom; }
-function canPaint(){ return isSprite() || isCustomTile() || (mode === 'tile' && current && current.id); }
+function tileHasLinkedSprite(){
+  if (mode !== 'tile' || !current || current.id == null) return false;
+  return !!(getTileSpriteId(current.id) || current.spriteId);
+}
+function canPaint(){
+  if (isSprite()) return true;
+  if (tileHasLinkedSprite()) return false;
+  return isCustomTile() || (mode === 'tile' && current && current.id);
+}
 
 export function openTileEdit(spec, clientX, clientY){
   if (!root || !spec) return;
@@ -182,7 +190,9 @@ export function openTileEdit(spec, clientX, clientY){
   fw = 16; fh = 16;
   animId = '';
   frameI = 0;
-  current = spec;
+  current = Object.assign({}, spec, {
+    spriteId: (spec.id != null ? getTileSpriteId(spec.id) : null) || spec.spriteId || null
+  });
   root.classList.remove('ed-sprite');
   root.classList.remove('ed-object');
   root.hidden = false;
@@ -295,33 +305,19 @@ function setObjectSpriteId(spriteId){
   return true;
 }
 
-/** Assign sprite from palette drop onto the sprite slot. payload: { spriteId } | { tileSrc, tileName, makeTile? } */
+/** Assign sprite from Sprites tab onto Tile or Object sprite slot. Only { spriteId }. */
 export function applySpriteSlotPayload(payload){
-  if (!objCurrent || !payload) return false;
-  if (payload.spriteId) return setObjectSpriteId(payload.spriteId);
-  if (payload.tileSrc){
+  if (!payload || !payload.spriteId) return false;
+  if (mode === 'tile' && current && current.id != null){
     markOp();
-    var src = payload.tileSrc;
-    if (payload.makeTile){
-      var tile = addTile({
-        name: (payload.tileName || 'Icon') + ' icon',
-        src: src,
-        collide: 'none',
-        overlay: true
-      });
-      if (tile && tile.src) src = tile.src;
-    }
-    var def = addSpriteDef({
-      name: (payload.tileName || 'Icon') + ' spr',
-      fw: 16, fh: 16, ox: 0, oy: 0,
-      anims: [{ id: 'idle', name: 'Idle', n: 1 }],
-      src: src
-    });
-    if (!def) return false;
-    /* markOp уже в setObjectSpriteId — pending живёт */
-    return setObjectSpriteId(def.id);
+    setTileSpriteId(current.id, payload.spriteId);
+    current.spriteId = payload.spriteId;
+    notify();
+    fillBody();
+    return true;
   }
-  return false;
+  if (!objCurrent) return false;
+  return setObjectSpriteId(payload.spriteId);
 }
 
 function resolveDropSrc(payload){
@@ -414,7 +410,7 @@ function fillObjectHeader(parent){
   var slot = document.createElement('div');
   slot.className = 'ed-sprite-slot';
   slot.title = objCurrent.custom || objCurrent.kind === 'player_start'
-    ? 'Drop a Tiles/Objects swatch here to set the sprite'
+    ? 'Drop a Sprites swatch here to set the sprite'
     : 'Built-in sprite — Ctrl+D to clone, then replace';
   spriteSlotEl = slot;
   var sid = objCurrent.spriteId;
@@ -499,8 +495,99 @@ function fillObjectBody(){
   fillObjectHeader(body);
   var hint = document.createElement('div');
   hint.className = 'ed-tile-note';
-  hint.textContent = 'No sprite yet — drop a tile or object swatch onto the Sprite slot to attach one, then edit frames.';
+  hint.textContent = 'No sprite yet — drop a Sprites swatch onto the Sprite slot, then edit frames.';
   body.appendChild(hint);
+}
+
+function paintSlotThumb(ctx, sid){
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = '#2a2640';
+  ctx.fillRect(0, 0, 32, 32);
+  if (!sid){
+    ctx.strokeStyle = '#6a628f';
+    ctx.strokeRect(4.5, 4.5, 23, 23);
+    ctx.fillStyle = '#8a8399';
+    ctx.font = '9px sans-serif';
+    ctx.fillText('drop', 6, 20);
+    return;
+  }
+  var sd = getSpriteDef(sid);
+  var anim0 = sd && sd.anims && sd.anims[0] ? sd.anims[0].id : 'idle';
+  var img = spriteFrameImage(sid, anim0, 0);
+  if (img){ ctx.drawImage(img, 0, 0, 32, 32); return; }
+  var src = getSpriteFrameSrc(sid, anim0, 0) || bakeSpriteFrameSrc(sid, anim0, 0);
+  if (!src){
+    ctx.fillStyle = '#6a628f';
+    ctx.fillRect(8, 8, 16, 16);
+    return;
+  }
+  var im = new Image();
+  im.onload = function(){
+    ctx.clearRect(0, 0, 32, 32);
+    ctx.fillStyle = '#2a2640';
+    ctx.fillRect(0, 0, 32, 32);
+    ctx.drawImage(im, 0, 0, 32, 32);
+  };
+  im.src = src;
+}
+
+/** Sprite slot for tile Details — graphics only, from Sprites tab. */
+function fillTileSpriteSlot(parent){
+  if (!current || current.id == null) return;
+  var sid = getTileSpriteId(current.id) || current.spriteId || null;
+  var slot = document.createElement('div');
+  slot.className = 'ed-sprite-slot';
+  slot.title = 'Drop a Sprites swatch here · double-click to edit frames';
+  spriteSlotEl = slot;
+  var thumb = document.createElement('canvas');
+  thumb.width = 32; thumb.height = 32;
+  thumb.className = 'ed-sprite-slot-img';
+  paintSlotThumb(thumb.getContext('2d'), sid);
+  slot.appendChild(thumb);
+  slot.addEventListener('dblclick', function(e){
+    e.preventDefault();
+    var id = getTileSpriteId(current.id);
+    if (!id) return;
+    var sd = getSpriteDef(id);
+    if (sd) openSpriteEdit(sd, e.clientX, e.clientY);
+  });
+  var slotLab = document.createElement('div');
+  slotLab.className = 'ed-field';
+  var sp = document.createElement('span');
+  sp.textContent = 'Sprite';
+  slotLab.appendChild(sp);
+  slotLab.appendChild(slot);
+  if (sid){
+    var editBtn = document.createElement('button');
+    editBtn.type = 'button';
+    editBtn.className = 'edb';
+    editBtn.textContent = 'Edit';
+    editBtn.title = 'Open sprite frames';
+    editBtn.addEventListener('click', function(){
+      var sd = getSpriteDef(sid);
+      if (sd) openSpriteEdit(sd);
+    });
+    slotLab.appendChild(editBtn);
+    var clr = document.createElement('button');
+    clr.type = 'button';
+    clr.className = 'edb';
+    clr.textContent = 'Clear';
+    clr.addEventListener('click', function(){
+      markOp();
+      setTileSpriteId(current.id, null);
+      current.spriteId = null;
+      notify();
+      fillBody();
+    });
+    slotLab.appendChild(clr);
+  }
+  parent.appendChild(slotLab);
+  if (sid){
+    var note = document.createElement('div');
+    note.className = 'ed-tile-note';
+    note.textContent = 'Picture comes from the linked sprite. Edit frames on Sprites tab (or Edit). Collision flags stay on the tile.';
+    parent.appendChild(note);
+  }
 }
 
 function builtinCollide(spec){
@@ -551,8 +638,11 @@ export function refreshTileEdit(){
     if (td){
       current = {
         name: td.name, id: td.id, color: '#6a628f',
-        overlay: !!td.overlay, custom: true, src: td.src
+        overlay: !!td.overlay, custom: true, src: td.src,
+        spriteId: td.spriteId || getTileSpriteId(td.id) || null
       };
+    } else {
+      current.spriteId = getTileSpriteId(current.id) || current.spriteId || null;
     }
     fillBody();
   }
@@ -583,6 +673,8 @@ function currentSrc(){
     if (saved) return saved;
     return bakeSpriteFrameSrc(current.id, animId, frameI);
   }
+  if (mode === 'tile' && current && current.id != null && getTileSpriteId(current.id))
+    return tileFrameSrc(current.id, frameI) || '';
   if (isCustomTile()){
     var def = getTileDef(current.id);
     if (def && def.frames && def.frames.length) return def.frames[frameI] || def.src;
@@ -1651,9 +1743,14 @@ function fillBody(){
   var custom = isCustomTile();
   var def = custom ? getTileDef(current.id) : null;
   var sprite = isSprite();
+  var linked = false;
   spriteSlotEl = null;
 
   if (objCurrent && sprite) fillObjectHeader(body);
+  if (mode === 'tile' && current && current.id != null){
+    fillTileSpriteSlot(body);
+    linked = tileHasLinkedSprite();
+  }
 
   stripsEl = document.createElement('div');
   stripsEl.className = 'ed-tile-strips';
@@ -1742,43 +1839,50 @@ function fillBody(){
 
   toolsEl = document.createElement('div');
   toolsEl.className = 'ed-tile-tools';
-  var t, list = TOOLS;
-  for (t = 0; t < list.length; t++){
-    (function(specT){
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'edb';
-      b.setAttribute('data-tool', specT.id);
-      b.textContent = specT.name;
-      b.title = specT.title;
-      b.addEventListener('click', function(){
-        tool = specT.id;
-        syncTools();
-      });
-      toolsEl.appendChild(b);
-    })(list[t]);
+  if (!linked){
+    var t, list = TOOLS;
+    for (t = 0; t < list.length; t++){
+      (function(specT){
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'edb';
+        b.setAttribute('data-tool', specT.id);
+        b.textContent = specT.name;
+        b.title = specT.title;
+        b.addEventListener('click', function(){
+          tool = specT.id;
+          syncTools();
+        });
+        toolsEl.appendChild(b);
+      })(list[t]);
+    }
+    body.appendChild(toolsEl);
+
+    hintEl = document.createElement('div');
+    hintEl.className = 'ed-tile-note';
+    body.appendChild(hintEl);
+
+    colorInp = document.createElement('input');
+    colorInp.type = 'color';
+    colorInp.value = color;
+    colorInp.title = 'Paint color';
+    colorInp.addEventListener('input', function(){
+      color = colorInp.value;
+      tool = 'pencil';
+      syncTools();
+      fillSwatches();
+    });
+    field('Color', colorInp);
+
+    swatchEl = document.createElement('div');
+    swatchEl.className = 'ed-tile-swatches';
+    body.appendChild(swatchEl);
+  } else {
+    toolsEl = null;
+    hintEl = null;
+    colorInp = null;
+    swatchEl = null;
   }
-  body.appendChild(toolsEl);
-
-  hintEl = document.createElement('div');
-  hintEl.className = 'ed-tile-note';
-  body.appendChild(hintEl);
-
-  colorInp = document.createElement('input');
-  colorInp.type = 'color';
-  colorInp.value = color;
-  colorInp.title = 'Paint color';
-  colorInp.addEventListener('input', function(){
-    color = colorInp.value;
-    tool = 'pencil';
-    syncTools();
-    fillSwatches();
-  });
-  field('Color', colorInp);
-
-  swatchEl = document.createElement('div');
-  swatchEl.className = 'ed-tile-swatches';
-  body.appendChild(swatchEl);
 
   if (sprite){
     var sNote = document.createElement('div');
@@ -1958,7 +2062,7 @@ function fillBody(){
       initSliders(wxWrap);
     }
 
-    if (!custom){
+    if (!custom && !linked){
       var bNote = document.createElement('div');
       bNote.className = 'ed-tile-note';
       bNote.textContent = 'Paint replaces the picture with a sprite. Built-in collision stays. Reset picture goes back to the old drawing.';
@@ -1980,15 +2084,17 @@ function fillBody(){
   });
   actions.appendChild(fileInp);
 
-  var reimp = document.createElement('button');
-  reimp.type = 'button';
-  reimp.className = 'edb wide';
-  reimp.textContent = 'Re-import PNG';
-  reimp.title = sprite
-    ? 'Replace this frame, or a whole row if the sheet is a strip of frames.'
-    : 'Replace this tile’s picture. A sheet becomes animation frames. Flags stay.';
-  reimp.addEventListener('click', function(){ fileInp.click(); });
-  actions.appendChild(reimp);
+  if (!linked){
+    var reimp = document.createElement('button');
+    reimp.type = 'button';
+    reimp.className = 'edb wide';
+    reimp.textContent = 'Re-import PNG';
+    reimp.title = sprite
+      ? 'Replace this frame, or a whole row if the sheet is a strip of frames.'
+      : 'Replace this tile’s picture. A sheet becomes animation frames. Flags stay.';
+    reimp.addEventListener('click', function(){ fileInp.click(); });
+    actions.appendChild(reimp);
+  }
 
   if (sprite){
     var rst = document.createElement('button');
@@ -2033,7 +2139,7 @@ function fillBody(){
       closeTileEdit();
     });
     actions.appendChild(del);
-  } else {
+  } else if (!linked){
     var rstT = document.createElement('button');
     rstT.type = 'button';
     rstT.className = 'edb';
@@ -2050,7 +2156,7 @@ function fillBody(){
 
   paintStrips();
   loadBuf(currentSrc(), function(){
-    fillSwatches();
+    if (!linked) fillSwatches();
     syncTools();
   });
   bindPreview(can);

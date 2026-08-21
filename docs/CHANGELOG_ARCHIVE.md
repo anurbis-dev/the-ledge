@@ -1,3 +1,7 @@
+## 0.11.3
+
+- Water waves: continuous world-X phase/bob + lerped FALL travel across the strip (no crest tear at tile edges).
+
 ## 0.11.2
 
 - Plat descend/hang: слезание с края платформы; лаз обратно на неё; отцеп сбрасывает `ride`; защемление виса о solid → урон+падение.
