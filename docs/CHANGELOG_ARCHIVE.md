@@ -1,3 +1,8 @@
+## 0.11.2
+
+- Plat descend/hang: слезание с края платформы; лаз обратно на неё; отцеп сбрасывает `ride`; защемление виса о solid → урон+падение.
+- Air pose: в воздухе всегда `fall` (не jump по `vy`).
+
 ## 0.11.1
 
 - Object palette swatches: `objThumb` always returns a unique canvas (no shared-DOM steal when Coin + Coin copy share template); cache key = palKind + spriteId; dirty idle0 overrides procedural `paintObjIcon`; slot assign refreshes thumbs (`clearThumbCache` + `fillPal` via `onObjectChange`).

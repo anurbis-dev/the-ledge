@@ -201,51 +201,74 @@ function topSurfaceRow(c, r0, r1){
   }
   return best;
 }
+var BOB_KX = 0.55 / T; /* bob-фаза от world X — без скачка на стыке тайлов */
+function waveScale(){
+  return Math.max(0, getTileWaveX(G.WATER, 50)) / 50;
+}
+function waveBaseTravel(){
+  return (getTileShift(G.WATER, 0) / 100) * WAVE_TRAVEL_K;
+}
+function sampleFlow(flow, c0, worldX){
+  if (!flow || !flow.length) return 0;
+  var fc = worldX / T - c0;
+  var i0 = Math.floor(fc);
+  var t = fc - i0;
+  if (i0 < 0) return flow[0];
+  if (i0 >= flow.length - 1) return flow[flow.length - 1];
+  return flow[i0] + (flow[i0 + 1] - flow[i0]) * t;
+}
+function travelAt(worldX, baseTravel, flow, c0){
+  return baseTravel + sampleFlow(flow, c0, worldX) * WAVE_TRAVEL_K;
+}
+/* непрерывная полоса по world X — стыки тайлов не рвут гребень */
+function paintWaveSpan(xBase, y, worldX0, pixelW, time, w1, baseTravel, scale, flow, flowC0){
+  var wx, wx2;
+  if (scale == null) scale = 1;
+  if (baseTravel == null) baseTravel = 0;
+  var a1 = 1.6 * scale, a2 = 0.7 * scale, a3 = 1.2 * scale;
+  var b1 = 2.1 * scale, b2 = 1.4 * scale;
+  var subK = 1.25 / WAVE_TRAVEL_K;
+  for (wx = 0; wx < pixelW; wx += 2){
+    var worldX = worldX0 + wx;
+    var travel = travelAt(worldX, baseTravel, flow, flowC0);
+    var bob = Math.sin(time * 2.8 + worldX * BOB_KX) * 1.5 * scale;
+    var ph2 = worldX * 0.09 - time * travel;
+    var wv = Math.round(Math.sin(ph2) * a1 + Math.sin(ph2 * 2.3) * a2 + bob);
+    rc(xBase + wx, y + 1 + wv, 2, 2, w1);
+    rc(xBase + wx, y + wv, 2, 1, '#bfe6ff');
+    rc(xBase + wx, y + 7 + Math.round(Math.sin(ph2 * 1.4) * a3 + bob * 0.55), 2, 1, w1);
+  }
+  ctx.globalAlpha = 0.4;
+  for (wx2 = 0; wx2 < pixelW; wx2 += 2){
+    var worldX2 = worldX0 + wx2;
+    var travel2 = travelAt(worldX2, baseTravel, flow, flowC0);
+    var bob2 = Math.sin(time * 2.8 + worldX2 * BOB_KX) * 1.5 * scale;
+    var ph3 = worldX2 * 0.062 - time * travel2 * subK + 1.9;
+    var wv2 = Math.round(Math.sin(ph3) * b1 + bob2 * 0.7);
+    rc(xBase + wx2, y + 2 + wv2, 2, 2, '#dff2ff');
+    rc(xBase + wx2, y + 10 + Math.round(Math.sin(ph3 * 1.1) * b2 + bob2 * 0.4), 2, 1, '#9fd0ef');
+  }
+  ctx.globalAlpha = 1;
+}
 function waveParamsFor(c, r){
-  var shift = getTileShift(G.WATER, 0);
-  var waveX = getTileWaveX(G.WATER, 50);
   var push = (r != null) ? fallPushAt(c, r) : 0;
   return {
-    travel: (shift / 100) * WAVE_TRAVEL_K + push * WAVE_TRAVEL_K,
-    scale: Math.max(0, waveX) / 50,
+    travel: waveBaseTravel() + push * WAVE_TRAVEL_K,
+    scale: waveScale(),
     push: push
   };
 }
 function paintWaves(x, y, c, time, w1, travel, scale){
-  var wx, wx2;
-  if (travel == null) travel = 0;
-  if (scale == null) scale = 1;
-  var bob = Math.sin(time * 2.8 + c * 0.55) * 1.5 * scale;
-  var a1 = 1.6 * scale, a2 = 0.7 * scale, a3 = 1.2 * scale;
-  var b1 = 2.1 * scale, b2 = 1.4 * scale;
-  for (wx = 0; wx < T; wx += 2){
-    var ph2 = (c*T + wx) * 0.09 - time * travel;
-    var wv = Math.round(Math.sin(ph2) * a1 + Math.sin(ph2*2.3) * a2 + bob);
-    rc(x + wx, y + 1 + wv, 2, 2, w1);
-    rc(x + wx, y + wv, 2, 1, '#bfe6ff');
-    rc(x + wx, y + 7 + Math.round(Math.sin(ph2*1.4)*a3 + bob * 0.55), 2, 1, w1);
-  }
-  ctx.globalAlpha = 0.4;
-  for (wx2 = 0; wx2 < T; wx2 += 2){
-    var ph3 = (c*T + wx2) * 0.062 - time * travel * (1.25 / WAVE_TRAVEL_K) + 1.9;
-    var wv2 = Math.round(Math.sin(ph3) * b1 + bob * 0.7);
-    rc(x + wx2, y + 2 + wv2, 2, 2, '#dff2ff');
-    rc(x + wx2, y + 10 + Math.round(Math.sin(ph3*1.1)*b2 + bob * 0.4), 2, 1, '#9fd0ef');
-  }
-  ctx.globalAlpha = 1;
+  paintWaveSpan(x, y, c * T, T, time, w1,
+    travel == null ? 0 : travel, scale == null ? 1 : scale, null, 0);
 }
 function fillWaveCan(can, c0, c1, time, w1, flow){
   var saved = getCtx();
   setCtx(can.getContext('2d'));
   try {
-    var shift = getTileShift(G.WATER, 0);
-    var scale = Math.max(0, getTileWaveX(G.WATER, 50)) / 50;
-    var baseTravel = (shift / 100) * WAVE_TRAVEL_K;
-    for (var c = c0; c <= c1; c++){
-      var push = flow ? flow[c - c0] : 0;
-      paintWaves((c - c0) * T, WAVE_PAD, c, time, w1,
-        baseTravel + push * WAVE_TRAVEL_K, scale);
-    }
+    var pixelW = Math.max(T, (c1 - c0 + 1) * T);
+    paintWaveSpan(0, WAVE_PAD, c0 * T, pixelW, time, w1,
+      waveBaseTravel(), waveScale(), flow, c0);
   } finally {
     setCtx(saved);
   }
