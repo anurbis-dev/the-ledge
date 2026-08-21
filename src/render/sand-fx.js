@@ -36,11 +36,11 @@ export function emitSand(x, y, opts){
     : (opts.colors || d.colors || ['#e8d8b4', '#cbb892', P.crumL, P.crumD]);
   var parts = view.parts, i, spd, life, vx, vy;
   for (i = 0; i < n; i++){
-    spd = speed + Math.random() * speedRand;
-    /* g=0 и speed=0: не разгоняем через один speedRand — иначе «падают» при нулях */
-    if (g <= 0 && speed <= 0 && lift <= 0) spd = 0;
+    /* speedRand только поверх speed>0 — один rand без базы не даёт импульс */
+    spd = speed > 0 ? speed + Math.random() * speedRand : 0;
     life = Math.max(0.08, life0 + Math.random() * lifeRand);
-    vx = (Math.random() - 0.5) * spread * 2;
+    /* spread: позиция всегда; vx только если есть speed (иначе «плывут» вбок при speed=0) */
+    vx = speed > 0 ? (Math.random() - 0.5) * spread * 2 : 0;
     /* g>0: песок вниз; g=0: speed без одностороннего падения */
     if (lift > 0) vy = -(Math.random() * lift) + spd * 0.25;
     else if (g > 0) vy = spd * (0.35 + Math.random() * 0.65);

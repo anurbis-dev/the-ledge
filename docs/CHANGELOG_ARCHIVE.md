@@ -1,3 +1,7 @@
+## 0.7.3
+
+- Editor floats: ПКМ-drag окна через capture поверх кнопок/инпутов; canvas/tilegeo по-прежнему со своей RMB-семантикой.
+
 ## 0.7.2
 
 - FX Sand: `gravity=0` + `speed=0` больше не дают падения из‑за `speedRand`; при `g=0` drag гасит и `vy`.
