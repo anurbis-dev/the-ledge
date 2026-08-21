@@ -2,7 +2,7 @@ import GAME from '../core/game.js';
 import { hooks } from '../core/runtime.js';
 import { COVER_AIR, coverRaw, coverVarRaw, roomCoverA, rebuildRooms } from '../core/rooms.js';
 import { getLayers, layerShown, lastCollideIndex, layerTileRaw, layerVarRaw, layerDeco, isTileLayer, wrapSize, layerCssFilter, layerGrade, gradeCssFilter } from '../core/layers.js';
-import { getTileDef, tileImage, tileFrameImage, tileFrameCount, getTileSpeed, getTileShift, getTileWaveX, getTileSplash, getTileLength, getTileWave, getTileRandom, getTileOffset, getTileFade, getTileSpeed2, getTileLength2, getTileDensity2, getTileWave2, getTileFoam, getTileSpray, getTileFoamSize, getTileFoamRandom, getTileFoamSpeed, getTileSpraySpeed } from '../core/tileset.js';
+import { getTileDef, tileImage, tileFrameImage, tileFrameCount, getTileSpeed, getTileShift, getTileWaveX, getTileSplash, getTileLength, getTileWave, getTileRandom, getTileOffset, getTileFade, getTileSpeed2, getTileLength2, getTileDensity2, getTileWave2, getTileFoam, getTileSpray, getTileFoamSize, getTileFoamRandom, getTileFoamSpeed, getTileSpraySpeed, getTileTaper, getTileTaperLen } from '../core/tileset.js';
 import { buildWater } from './fx.js';
 import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH, viewScale } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
@@ -505,10 +505,23 @@ function paintGraded(c, r, x, y, fn){
   ctx.drawImage(b, Math.round(x - p), Math.round(y - p));
 }
 
+/* Низ столбца FALL: tipR, kind 'air'|'hit' (под низом пусто или любой тайл). */
+function fallColumnTip(c, r){
+  var tip = r;
+  while (tAt(c, tip + 1) === G.FALL) tip++;
+  return tip;
+}
+function fallTipKind(c, tipR){
+  var b = tAt(c, tipR + 1);
+  if (!b) return 'air';
+  if (b === G.FALL) return 'fall';
+  return 'hit';
+}
 /* FALL-нити: фаза по world Y — непрерывны через столбец тайлов.
  * Светлая нить: яркая снизу → плавно прозрачнее вверх (по всей length).
  * Слой 2: speed2 (−100…100 оффсет к Speed), length2, density2, wave2.
- * length/wave/random/offset/fade + L2 meta — tileGfx[14]. */
+ * Висячий кончик: taper/taperLen — края→точки→пропаж, центр дольше линией.
+ * length/wave/random/offset/fade + L2 + taper meta — tileGfx[14]. */
 function paintFallStrands(c, r, x, y, time, w1, fadeK){
   if (fadeK == null) fadeK = 0;
   var spd = getTileSpeed(G.FALL, 70);
@@ -520,6 +533,8 @@ function paintFallStrands(c, r, x, y, time, w1, fadeK){
   var len2P = getTileLength2(G.FALL, 20);
   var dens2P = getTileDensity2(G.FALL, 50);
   var wave2P = getTileWave2(G.FALL, 20);
+  var taperP = getTileTaper(G.FALL, 60);
+  var taperLenP = getTileTaperLen(G.FALL, 3);
   var lightBase = Math.max(2, Math.round(2 + (lenP / 100) * 22));
   var lightBase2 = Math.max(2, Math.round(2 + (len2P / 100) * 22));
   var periodBase = Math.max(lightBase + 8, 18);
@@ -533,9 +548,14 @@ function paintFallStrands(c, r, x, y, time, w1, fadeK){
   var baseA = 1 - fadeK * 0.78;
   var softHole = fadeK * 0.55;
   var worldY0 = r * T;
+  var hangAmtK = Math.max(0, Math.min(1, taperP / 100));
+  var tipR = hangAmtK > 0.001 ? fallColumnTip(c, r) : r;
+  var hanging = hangAmtK > 0.001 && fallTipKind(c, tipR) === 'air';
+  var taperSpan = Math.max(1, taperLenP | 0) * T;
   var layer, s, nStrands, sid, h, n1, n2, n3, n4, strandSpd, phase0, lightLen, period, baseX;
   var py, wy, u, wOff, sx, hh, hn, a, lightA, taper, prevA, layerA;
   var useLenBase, usePeriodBase, useWaveAmp, spacing, phaseShift;
+  var mid, edgeF, hangT, amount, kill, pxW, cx, drawDot, distPx;
   prevA = ctx.globalAlpha;
   for (layer = 0; layer < 2; layer++){
     nStrands = layer ? count2 : 4;
@@ -545,6 +565,7 @@ function paintFallStrands(c, r, x, y, time, w1, fadeK){
     useLenBase = layer ? lightBase2 : lightBase;
     usePeriodBase = layer ? periodBase2 : periodBase;
     useWaveAmp = layer ? waveAmp2 : waveAmp;
+    mid = (nStrands - 1) * 0.5;
     for (s = 0; s < nStrands; s++){
       sid = s + layer * 16;
       h = ((c * 73856093) ^ (sid * 19349663) ^ 0x9e3779b9) >>> 0;
@@ -558,25 +579,42 @@ function paintFallStrands(c, r, x, y, time, w1, fadeK){
       period = Math.max(lightLen + 6, Math.round(usePeriodBase * (1 + (n4 - 0.5) * 0.25 * randK)));
       /* слой 2: сдвиг на полшага, чтобы нити легли между слоем 1 при той же плотности */
       baseX = spacing * (0.5 + s) + (layer ? spacing * 0.5 : 0) + (n1 - 0.5) * 2.2 * randK - 1;
+      edgeF = nStrands <= 1 ? 0 : Math.abs(s - mid) / Math.max(0.5, mid);
       for (py = 0; py < T; py++){
+        if (hanging){
+          distPx = (tipR - r) * T + (T - 1 - py);
+          hangT = distPx >= taperSpan ? 0 : 1 - distPx / taperSpan;
+        } else hangT = 0;
+        amount = hangT * hangAmtK;
+        kill = amount * (0.28 + 0.72 * edgeF);
+        if (kill >= 0.92) continue;
         wy = worldY0 + py;
         wOff = useWaveAmp * Math.sin(wy * (0.12 + n2 * 0.06 * randK) + sid * 1.35 + n4 * 2.1 + layer * 0.9);
-        sx = Math.round(baseX + wOff);
+        cx = T * 0.5;
+        sx = Math.round(cx + (baseX + wOff - cx) * (1 - amount * 0.8));
         if (sx < -1 || sx > T) continue;
         hh = ((wy * 2654435761) ^ (sid * 9749) ^ ((sx + 17) * 2246822519)) >>> 0;
         hn = (hh & 255) / 255;
-        a = baseA * layerA * (1 - softHole * hn * 0.85);
+        drawDot = kill > 0.42;
+        if (drawDot){
+          /* крайние: сначала редкие точки, потом пропажа */
+          if (hn < 0.35 + kill * 0.55) continue;
+          if (((wy + sid * 5) & (kill > 0.7 ? 7 : 3)) !== 0) continue;
+        }
+        a = baseA * layerA * (1 - softHole * hn * 0.85) * (1 - amount * (0.25 + 0.45 * edgeF));
         if (a < 0.05) continue;
+        pxW = kill > 0.22 ? 1 : 2;
         ctx.globalAlpha = prevA * a;
-        rc(x + sx, y + py, 2, 1, w1);
+        rc(x + sx, y + py, pxW, 1, w1);
         u = (time * strandSpd + phase0 - wy) % period;
         if (u < 0) u += period;
         if (u < lightLen){
           taper = 1 - u / lightLen;
           taper = taper * taper * (3 - 2 * taper);
           lightA = 0.12 + 0.88 * taper;
+          if (drawDot) lightA *= 0.55;
           ctx.globalAlpha = prevA * a * lightA;
-          if (ctx.globalAlpha > 0.04) rc(x + sx, y + py, 2, 1, '#bfe6ff');
+          if (ctx.globalAlpha > 0.04) rc(x + sx, y + py, pxW, 1, '#bfe6ff');
         }
       }
     }
@@ -584,7 +622,7 @@ function paintFallStrands(c, r, x, y, time, w1, fadeK){
   ctx.globalAlpha = prevA;
 }
 
-/* Шапка пены на верхнем FALL; пена/брызги внизу, если под тайлом WATER.
+/* Шапка пены на верхнем FALL; пена/брызги внизу при ударе в любой тайл (вода/земля).
  * foam/foamSize/foamRandom/foamSpeed; spray/spraySpeed (tileGfx[14]). */
 function paintFallFoamWave(x, yBase, time, c, foamP, foamSizeP, foamRandP, foamSpdP, aMul, prevA, dir){
   /* dir: 1 = шапка вниз от yBase, -1 = удар вверх от yBase */
@@ -664,17 +702,19 @@ function paintFallEnds(c, r, x, y, time, fadeK){
   var foamSpdP = getTileFoamSpeed(G.FALL, 100);
   var spraySpdP = getTileSpraySpeed(G.FALL, 100);
   var isTop = tAt(c, r - 1) !== G.FALL;
-  var hitWater = G.isWaterV(tAt(c, r + 1));
-  if (!isTop && !hitWater) return;
+  /* удар: под FALL любой тайл (вода, земля, склон…) — не пусто и не продолжение FALL */
+  var below = tAt(c, r + 1);
+  var hitTile = !!below && below !== G.FALL;
+  if (!isTop && !hitTile) return;
   var prevA = ctx.globalAlpha;
   var aMul = 1 - fadeK * 0.55;
   if (isTop && foamP > 0)
     paintFallFoamWave(x, y + 1, time, c, foamP, foamSizeP, foamRandP, foamSpdP, aMul, prevA, 1);
   if (isTop && sprayP > 0)
     paintFallSpray(x, y + 1, time, c, sprayP, spraySpdP, aMul, prevA);
-  if (hitWater && foamP > 0)
+  if (hitTile && foamP > 0)
     paintFallFoamWave(x, y + T - 2, time + 0.7, c, foamP, foamSizeP, foamRandP, foamSpdP, aMul, prevA, -1);
-  if (hitWater && sprayP > 0)
+  if (hitTile && sprayP > 0)
     paintFallSpray(x, y + T - 1, time + 1.1, c, sprayP, spraySpdP, aMul, prevA);
   ctx.globalAlpha = prevA;
 }
@@ -701,10 +741,34 @@ function paintTileId(v, c, r, x, y, dyn){
     if (v === G.FALL){                                   // поток: нити по world Y
       var fadeK = Math.max(0, Math.min(1, getTileFade(G.FALL, 0) / 100));
       var prevFallA = ctx.globalAlpha;
+      var taperPFill = getTileTaper(G.FALL, 60);
+      var taperLenFill = getTileTaperLen(G.FALL, 3);
+      var hangAmtFill = Math.max(0, Math.min(1, taperPFill / 100));
+      var tipFill = hangAmtFill > 0.001 ? fallColumnTip(c, r) : r;
+      var hangFill = hangAmtFill > 0.001 && fallTipKind(c, tipFill) === 'air';
+      var taperSpanF = Math.max(1, taperLenFill | 0) * T;
       if (fadeK < 0.995){
-        if (fadeK > 0.01) ctx.globalAlpha = prevFallA * (1 - fadeK * 0.85);
-        rc(x, y, T, T, w0);
-        ctx.globalAlpha = prevFallA;
+        /* висячий кончик: заливка сужается к центру по пикселям */
+        var pyF, hangTF, amtF, insetF, aFill, distF;
+        if (!hangFill){
+          if (fadeK > 0.01) ctx.globalAlpha = prevFallA * (1 - fadeK * 0.85);
+          rc(x, y, T, T, w0);
+          ctx.globalAlpha = prevFallA;
+        } else {
+          for (pyF = 0; pyF < T; pyF++){
+            distF = (tipFill - r) * T + (T - 1 - pyF);
+            hangTF = distF >= taperSpanF ? 0 : 1 - distF / taperSpanF;
+            amtF = hangTF * hangAmtFill;
+            if (amtF > 0.97) continue;
+            insetF = Math.round(amtF * (T * 0.42));
+            aFill = 1 - amtF * 0.55;
+            if (fadeK > 0.01) aFill *= (1 - fadeK * 0.85);
+            if (aFill < 0.04) continue;
+            ctx.globalAlpha = prevFallA * aFill;
+            rc(x + insetF, y + pyF, Math.max(1, T - 2 * insetF), 1, w0);
+          }
+          ctx.globalAlpha = prevFallA;
+        }
       }
       paintFallStrands(c, r, x, y, time, w1, fadeK);
       paintFallEnds(c, r, x, y, time, fadeK);

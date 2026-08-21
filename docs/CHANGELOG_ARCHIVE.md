@@ -2,6 +2,11 @@
 
 ## 2026-08-21 (pre-commit)
 
+- Bake: clear error if tab is `file://` / not localhost — `/__bake` only on Vite `http://localhost:5174/`.
+- Dev: `start-dev-server.bat` / `npm run dev:74` всегда поднимает Vite на **5174** (`strictPort --open`).
+
+## 2026-08-21 (pre-commit)
+
 - Sprites: LS overlay only when `preferLocal`; Bake pulls LS frames before dump; world/loot/icons use baked sprite frames (e.g. coin) before procedural fallback.
 
 ## 2026-08-21 (pre-commit)

@@ -110,7 +110,8 @@ var GFX_META = [
   'speed', 'shift', 'waveX', 'splash',
   'length', 'wave', 'random', 'offset', 'fade',
   'speed2', 'length2', 'density2', 'wave2',
-  'foam', 'spray', 'foamSize', 'foamRandom', 'foamSpeed', 'spraySpeed'
+  'foam', 'spray', 'foamSize', 'foamRandom', 'foamSpeed', 'spraySpeed',
+  'taper', 'taperLen'
 ];
 
 function copyGfxMeta(from, to){
@@ -443,6 +444,14 @@ export function getTileFoamSpeed(id, fallback){
 
 export function getTileSpraySpeed(id, fallback){
   return getTileMeta(id, 'spraySpeed', fallback);
+}
+
+export function getTileTaper(id, fallback){
+  return getTileMeta(id, 'taper', fallback);
+}
+
+export function getTileTaperLen(id, fallback){
+  return getTileMeta(id, 'taperLen', fallback);
 }
 
 export function setTileGfx(id, patch){

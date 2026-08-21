@@ -4,6 +4,7 @@ import {
   getTileShift, getTileWaveX, getTileSplash, getTileLength, getTileWave, getTileRandom, getTileOffset, getTileFade,
   getTileSpeed2, getTileLength2, getTileDensity2, getTileWave2, getTileFoam, getTileSpray,
   getTileFoamSize, getTileFoamRandom, getTileFoamSpeed, getTileSpraySpeed,
+  getTileTaper, getTileTaperLen,
   getTileSpriteId, setTileSpriteId,
   tileFrameCount, tileFrameSrc, canvasToPng, loadImageFile, sliceSheet, addTile
 } from '../core/tileset.js';
@@ -1864,6 +1865,8 @@ function fillTileParamsOnly(){
     addFallSlider('Foam Speed', 'Foam wave scroll speed (0 = frozen)', 'foamSpeed', 100, 0, 200, getTileFoamSpeed);
     addFallSlider('Spray', 'Spray droplet strength at foam ends (0 = none)', 'spray', 55, 0, 100, getTileSpray);
     addFallSlider('Spray Speed', 'Spray flight / respawn speed (0 = frozen)', 'spraySpeed', 100, 0, 200, getTileSpraySpeed);
+    addFallSlider('Taper', 'Hanging fall thin amount (edges→center; 0 = none)', 'taper', 60, 0, 100, getTileTaper);
+    addFallSlider('Taper Len', 'Tiles of vertical run until max thinness', 'taperLen', 3, 1, 8, getTileTaperLen);
   }
 
   if (current.id === GAME.WATER){
