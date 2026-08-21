@@ -1,3 +1,7 @@
+## 0.12.5
+
+- Water waves: base travel again matches canon (Shift default 100); FALL boosts amplitude and adds expanding ripples instead of spatially-varying phase (fixes torn crests).
+
 ## 0.12.2
 
 - docs: repair CHANGELOG archive for Sprites tab release notes.

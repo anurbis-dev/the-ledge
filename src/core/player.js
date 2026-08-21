@@ -872,15 +872,20 @@ export function updateHang(S, p, dt, inp){
 }
 export function tryClimbUp(p){
   if (p.hang.kind === 'lad'){ startClimb(p, 1, p.hang.cx, p.hang.cy, p.facing, 'lad'); return true; }
-  var land = null, q, b, x, y, sb;
+  var land = null, q, b, x, y, st;
   if (p.hang.plat){                                   // палуба plat — не bestLand по тайлам под ней
-    q = p.hang.plat; b = stanceBox(0);
-    sb = standBox(p.hang.cx, p.hang.cy, p.facing);
-    x = sb.x;
-    if (x < q.x) x = q.x;
-    if (x + b.w > q.x + q.w) x = q.x + q.w - b.w;
-    y = q.y - b.h;
-    if (rectFree(x, y, b.w, b.h)) land = { x: x, y: y, w: b.w, h: b.h, stance: 0 };
+    q = p.hang.plat;
+    /* губа = живой край палубы по facing (вис лицом к plat) */
+    p.hang.cx = p.facing > 0 ? q.x : q.x + q.w;
+    p.hang.cy = q.y;
+    for (st = 0; st <= 2; st++){
+      b = landBox(p.hang.cx, p.hang.cy, p.facing, st);
+      x = b.x;
+      if (x < q.x) x = q.x;
+      if (x + b.w > q.x + q.w) x = q.x + q.w - b.w;
+      y = q.y - b.h;
+      if (rectFree(x, y, b.w, b.h)){ land = { x: x, y: y, w: b.w, h: b.h, stance: st }; break; }
+    }
   } else {
     land = bestLand(p.hang.cx, p.hang.cy, p.facing);
   }
@@ -903,9 +908,12 @@ export function updateClimb(S, p, dt){
       attach(p, tileAt(lc, lr) || LADW, lc, 0, 0);
       p.lad.tc = lc; p.lad.tr = lr;
     } else if (cl.dir > 0){
-      if (cl.stance > 0){
-        p.stanceFrom = 0; p.stance = cl.stance;
-        p.w = stanceW(cl.stance); p.h = stanceH(cl.stance);
+      /* to посчитан под stanceBox — иначе ноги висят над палубой (h от hang), platUnder/bars срывают */
+      var st = cl.stance || 0;
+      p.stance = st;
+      p.w = stanceW(st); p.h = stanceH(st);
+      if (st > 0){
+        p.stanceFrom = 0;
         p.stanceT = C.STANCE_T;
         p.gapCrawl = true;
       }
