@@ -502,11 +502,9 @@ export function autoLadder(S, p, prevBottom){
       var ny = diag ? (r*T + T/2 - p.h/2) : p.y;
       if (!rectFree(nx, ny, p.w, p.h)) continue;
       if (p.rollT > 0){ p.rollT = 0; setStance(S, p, 0); }   // подкат прерывается
-      p.x = nx; p.y = ny;
-      attach(p, v, col, diag ? (col*T + T/2) - (nx + p.w/2) : 0,
-                          diag ? (r*T + T/2) - (ny + p.h/2) : 0);
-      p.lad.tc = col; p.lad.tr = r;
-      return true;
+      var ox = diag ? (col*T + T/2) - (nx + p.w/2) : 0;
+      var oy = diag ? (r*T + T/2) - (ny + p.h/2) : 0;
+      return mountLad(p, nx, ny, v, col, ox, oy, col, r);
     }
   }
   return false;
@@ -987,10 +985,7 @@ export function tryLadder(S, p, inp){
     if (diag){ ox = (col*T + T/2) - (nx + p.w/2); oy = (row*T + T/2) - (p.y + p.h/2); }
     else { ox = 0; oy = py - (p.y + p.h/2); if (oy > 11) oy = 11; if (oy < -11) oy = -11; }
     if (!ladKindAt(nx + p.w/2 + ox, p.y + p.h/2 + oy)) continue;
-    p.x = nx;
-    attach(p, k, col, ox, oy);
-    p.lad.tc = col; p.lad.tr = row;
-    return true;
+    return mountLad(p, nx, p.y, k, col, ox, oy, col, row);
   }
   return false;
 }
@@ -1009,6 +1004,18 @@ export function startLadSnap(p, tx, ty, opts){
   p.ladCd = opts.ladCd != null ? opts.ladCd : 0.3;
   if (opts.event !== false) p.events.push(opts.event || 'offladder');
   return true;
+}
+/* заход на лестницу: близко — attach, иначе ease-snap + toLad */
+export function mountLad(p, tx, ty, kind, col, ox, oy, tc, tr){
+  if (Math.abs(tx - p.x) < 0.5 && Math.abs(ty - p.y) < 0.5){
+    attach(p, kind, col, ox, oy);
+    p.lad.tc = tc; p.lad.tr = tr;
+    return true;
+  }
+  return startLadSnap(p, tx, ty, {
+    event: false, ladCd: 0,
+    toLad: { kind: kind, col: col, ox: ox, oy: oy, tc: tc, tr: tr }
+  });
 }
 export function exitTop(S, p, col, row, prefer){
   var ty = row * T - p.h, tx = p.x;

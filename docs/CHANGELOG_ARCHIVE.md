@@ -1,5 +1,9 @@
 # Changelog archive
 
+## 2026-08-21 (pre-commit)
+
+- Fall Details: **Foam Size** / **Foam Random** / **Foam Speed** / **Spray Speed** → `tileGfx[14].foamSize|foamRandom|foamSpeed|spraySpeed` (defs 40/40/100/100).
+
 ## 0.18.2
 
 - FALL ends: пена — частая многослойная волна (`paintFallFoamWave`), брызги — веер капель разного размера/направления (`paintFallSpray`); Foam/Spray по-прежнему 0–100.
