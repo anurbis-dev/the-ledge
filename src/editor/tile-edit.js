@@ -1,7 +1,8 @@
 import GAME from '../core/game.js';
 import {
   getTileDef, updateTile, getTileGfx, setTileGfx, clearTileGfx, getTileSpeed,
-  tileFrameCount, tileFrameSrc, canvasToPng, loadImageFile, sliceSheet
+  getTileShift, getTileWaveX,
+  tileFrameCount, tileFrameSrc, canvasToPng, loadImageFile, sliceSheet, addTile
 } from '../core/tileset.js';
 import { initSliders } from './slider.js';
 import {
@@ -194,7 +195,9 @@ export function openTileEdit(spec, clientX, clientY){
 }
 
 function isFoeSprite(id){
-  return /^(enemy|flier|spider)\d+$/.test(id || '');
+  var def = getSpriteDef(id);
+  var k = (def && def.kind) || id || '';
+  return /^(enemy|flier|spider)\d+$/.test(k);
 }
 
 function materializeBakes(id){
@@ -292,17 +295,27 @@ function setObjectSpriteId(spriteId){
   return true;
 }
 
-/** Assign sprite from palette drop onto the sprite slot. payload: { spriteId } | { tileSrc, tileName } */
+/** Assign sprite from palette drop onto the sprite slot. payload: { spriteId } | { tileSrc, tileName, makeTile? } */
 export function applySpriteSlotPayload(payload){
   if (!objCurrent || !payload) return false;
   if (payload.spriteId) return setObjectSpriteId(payload.spriteId);
   if (payload.tileSrc){
     markOp();
+    var src = payload.tileSrc;
+    if (payload.makeTile){
+      var tile = addTile({
+        name: (payload.tileName || 'Icon') + ' icon',
+        src: src,
+        collide: 'none',
+        overlay: true
+      });
+      if (tile && tile.src) src = tile.src;
+    }
     var def = addSpriteDef({
       name: (payload.tileName || 'Icon') + ' spr',
       fw: 16, fh: 16, ox: 0, oy: 0,
       anims: [{ id: 'idle', name: 'Idle', n: 1 }],
-      src: payload.tileSrc
+      src: src
     });
     if (!def) return false;
     /* markOp уже в setObjectSpriteId — pending живёт */
@@ -1901,6 +1914,48 @@ function fillBody(){
       spdWrap.appendChild(spdInp);
       body.appendChild(spdWrap);
       initSliders(spdWrap);
+    }
+
+    if (current.id === GAME.WATER){
+      var shDef = 0, wxDef = 50;
+      var shVal = getTileShift(GAME.WATER, shDef);
+      var wxVal = getTileWaveX(GAME.WATER, wxDef);
+
+      var shWrap = document.createElement('label');
+      shWrap.className = 'slider-wrap';
+      shWrap.title = 'River drift: − left, + right (0 = still unless FALL nearby)';
+      shWrap.innerHTML = '<div class="slider-label-overlay"><span>Shift</span><span></span></div>';
+      var shInp = document.createElement('input');
+      shInp.type = 'range';
+      shInp.min = -100; shInp.max = 100; shInp.step = 1;
+      shInp.value = shVal;
+      shInp.dataset.default = String(shDef);
+      shInp.addEventListener('input', function(){
+        markOp();
+        setTileGfx(GAME.WATER, { shift: +shInp.value });
+        notify();
+      });
+      shWrap.appendChild(shInp);
+      body.appendChild(shWrap);
+      initSliders(shWrap);
+
+      var wxWrap = document.createElement('label');
+      wxWrap.className = 'slider-wrap';
+      wxWrap.title = 'Wave crest / bob amplitude (0 = flat)';
+      wxWrap.innerHTML = '<div class="slider-label-overlay"><span>Wave X</span><span></span></div>';
+      var wxInp = document.createElement('input');
+      wxInp.type = 'range';
+      wxInp.min = 0; wxInp.max = 100; wxInp.step = 1;
+      wxInp.value = wxVal;
+      wxInp.dataset.default = String(wxDef);
+      wxInp.addEventListener('input', function(){
+        markOp();
+        setTileGfx(GAME.WATER, { waveX: +wxInp.value });
+        notify();
+      });
+      wxWrap.appendChild(wxInp);
+      body.appendChild(wxWrap);
+      initSliders(wxWrap);
     }
 
     if (!custom){

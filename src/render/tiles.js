@@ -2,7 +2,7 @@ import GAME from '../core/game.js';
 import { hooks } from '../core/runtime.js';
 import { COVER_AIR, coverRaw, coverVarRaw, roomCoverA, rebuildRooms } from '../core/rooms.js';
 import { getLayers, layerShown, lastCollideIndex, layerTileRaw, layerVarRaw, layerDeco, isTileLayer, wrapSize, layerCssFilter, layerGrade, gradeCssFilter } from '../core/layers.js';
-import { getTileDef, tileImage, tileFrameImage, tileFrameCount, getTileSpeed } from '../core/tileset.js';
+import { getTileDef, tileImage, tileFrameImage, tileFrameCount, getTileSpeed, getTileShift, getTileWaveX } from '../core/tileset.js';
 import { buildWater } from './fx.js';
 import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH, viewScale } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
@@ -136,7 +136,9 @@ var SLOPE_DECOR = [
 ];
 
 var WAVE_PAD = 4, WAVE_H = 20;
-var wStrip = { t: NaN, c0: 0, c1: -1, lo: null, hi: null };
+var WAVE_TRAVEL_K = 2.2;
+var WAVE_FALL_D = 10;
+var wStrip = { t: NaN, c0: 0, c1: -1, lo: null, hi: null, flow: null };
 
 function reuseCan(old, w, h){
   if (old && old.width === w && old.height === h){
@@ -152,44 +154,120 @@ function reuseCan(old, w, h){
   g2.imageSmoothingEnabled = false;
   return c;
 }
-function paintWaves(x, y, c, time, w1){
+function isWaterSurfaceAt(c, r){
+  if (tAt(c, r) !== G.WATER) return false;
+  if (G.isWaterV(tAt(c, r - 1))) return false;
+  if (sAt(c, r - 1)){
+    var rr = r - 2;
+    while (rr >= 0 && sAt(c, rr)) rr--;
+    if (rr >= 0 && G.isWaterV(tAt(c, rr))) return false;
+  }
+  return true;
+}
+function falloffDist(d){
+  if (d >= WAVE_FALL_D) return 0;
+  return 1 - d / WAVE_FALL_D;
+}
+/* вклад FALL: волны бегут от источника, |push|≤1 */
+function fallPushAt(c, r){
+  var cL = c, cR = c, sc, push = 0, d, f;
+  while (isWaterSurfaceAt(cL - 1, r)) cL--;
+  while (isWaterSurfaceAt(cR + 1, r)) cR++;
+  for (sc = cL; sc <= cR; sc++){
+    if (tAt(sc, r - 1) !== G.FALL) continue;
+    d = c - sc;
+    if (!d) continue;
+    f = falloffDist(Math.abs(d));
+    if (f) push += (d > 0 ? 1 : -1) * f;
+  }
+  if (tAt(cL - 1, r) === G.FALL){
+    f = falloffDist(c - cL);
+    if (f) push += f;
+  }
+  if (tAt(cR + 1, r) === G.FALL){
+    f = falloffDist(cR - c);
+    if (f) push -= f;
+  }
+  if (push > 1) push = 1;
+  else if (push < -1) push = -1;
+  return push;
+}
+function topSurfaceRow(c, r0, r1){
+  var r, best = null;
+  var lo = r0 != null ? r0 : G.mapMinR();
+  var hi = r1 != null ? r1 : G.mapMaxR() - 1;
+  for (r = lo; r <= hi; r++){
+    if (isWaterSurfaceAt(c, r)){ best = r; break; }
+  }
+  return best;
+}
+function waveParamsFor(c, r){
+  var shift = getTileShift(G.WATER, 0);
+  var waveX = getTileWaveX(G.WATER, 50);
+  var push = (r != null) ? fallPushAt(c, r) : 0;
+  return {
+    travel: (shift / 100) * WAVE_TRAVEL_K + push * WAVE_TRAVEL_K,
+    scale: Math.max(0, waveX) / 50,
+    push: push
+  };
+}
+function paintWaves(x, y, c, time, w1, travel, scale){
   var wx, wx2;
-  /* сдвиг по X (фаза) + общий вертикальный bob амплитуды гребня */
-  var bob = Math.sin(time * 2.8 + c * 0.55) * 1.5;
+  if (travel == null) travel = 0;
+  if (scale == null) scale = 1;
+  var bob = Math.sin(time * 2.8 + c * 0.55) * 1.5 * scale;
+  var a1 = 1.6 * scale, a2 = 0.7 * scale, a3 = 1.2 * scale;
+  var b1 = 2.1 * scale, b2 = 1.4 * scale;
   for (wx = 0; wx < T; wx += 2){
-    var ph2 = (c*T + wx) * 0.09 - time * 2.2;
-    var wv = Math.round(Math.sin(ph2) * 1.6 + Math.sin(ph2*2.3) * 0.7 + bob);
+    var ph2 = (c*T + wx) * 0.09 - time * travel;
+    var wv = Math.round(Math.sin(ph2) * a1 + Math.sin(ph2*2.3) * a2 + bob);
     rc(x + wx, y + 1 + wv, 2, 2, w1);
     rc(x + wx, y + wv, 2, 1, '#bfe6ff');
-    rc(x + wx, y + 7 + Math.round(Math.sin(ph2*1.4)*1.2 + bob * 0.55), 2, 1, w1);
+    rc(x + wx, y + 7 + Math.round(Math.sin(ph2*1.4)*a3 + bob * 0.55), 2, 1, w1);
   }
   ctx.globalAlpha = 0.4;
   for (wx2 = 0; wx2 < T; wx2 += 2){
-    var ph3 = (c*T + wx2) * 0.062 - time * 1.25 + 1.9;
-    var wv2 = Math.round(Math.sin(ph3) * 2.1 + bob * 0.7);
+    var ph3 = (c*T + wx2) * 0.062 - time * travel * (1.25 / WAVE_TRAVEL_K) + 1.9;
+    var wv2 = Math.round(Math.sin(ph3) * b1 + bob * 0.7);
     rc(x + wx2, y + 2 + wv2, 2, 2, '#dff2ff');
-    rc(x + wx2, y + 10 + Math.round(Math.sin(ph3*1.1)*1.4 + bob * 0.4), 2, 1, '#9fd0ef');
+    rc(x + wx2, y + 10 + Math.round(Math.sin(ph3*1.1)*b2 + bob * 0.4), 2, 1, '#9fd0ef');
   }
   ctx.globalAlpha = 1;
 }
-function fillWaveCan(can, c0, c1, time, w1){
+function fillWaveCan(can, c0, c1, time, w1, flow){
   var saved = getCtx();
   setCtx(can.getContext('2d'));
   try {
-    for (var c = c0; c <= c1; c++)
-      paintWaves((c - c0) * T, WAVE_PAD, c, time, w1);
+    var shift = getTileShift(G.WATER, 0);
+    var scale = Math.max(0, getTileWaveX(G.WATER, 50)) / 50;
+    var baseTravel = (shift / 100) * WAVE_TRAVEL_K;
+    for (var c = c0; c <= c1; c++){
+      var push = flow ? flow[c - c0] : 0;
+      paintWaves((c - c0) * T, WAVE_PAD, c, time, w1,
+        baseTravel + push * WAVE_TRAVEL_K, scale);
+    }
   } finally {
     setCtx(saved);
   }
 }
-function prepWaveStrip(time, c0, c1){
+function buildFlowByC(c0, c1, r0, r1){
+  var n = c1 - c0 + 1;
+  var flow = new Float32Array(n);
+  for (var i = 0; i < n; i++){
+    var row = topSurfaceRow(c0 + i, r0, r1);
+    flow[i] = row != null ? fallPushAt(c0 + i, row) : 0;
+  }
+  return flow;
+}
+function prepWaveStrip(time, c0, c1, r0, r1){
   if (wStrip.lo && wStrip.t === time && wStrip.c0 === c0 && wStrip.c1 === c1) return;
   var w = Math.max(T, (c1 - c0 + 1) * T);
+  var flow = buildFlowByC(c0, c1, r0, r1);
   wStrip.lo = reuseCan(wStrip.lo, w, WAVE_H);
   wStrip.hi = reuseCan(wStrip.hi, w, WAVE_H);
-  fillWaveCan(wStrip.lo, c0, c1, time, '#49a0cf');
-  fillWaveCan(wStrip.hi, c0, c1, time, '#2f7fae');
-  wStrip.t = time; wStrip.c0 = c0; wStrip.c1 = c1;
+  fillWaveCan(wStrip.lo, c0, c1, time, '#49a0cf', flow);
+  fillWaveCan(wStrip.hi, c0, c1, time, '#2f7fae', flow);
+  wStrip.t = time; wStrip.c0 = c0; wStrip.c1 = c1; wStrip.flow = flow;
 }
 function blitWaves(c, x, y, deep){
   if (!wStrip.lo || c < wStrip.c0 || c > wStrip.c1) return false;
@@ -274,7 +352,10 @@ function paintTileId(v, c, r, x, y, dyn){
         drawWaterBubbles(c, r, x, y, time, kW);
         return;
       }
-      if (!blitWaves(c, x, y, false)) paintWaves(x, y, c, time, w1);
+      if (!blitWaves(c, x, y, false)){
+        var wp = waveParamsFor(c, r);
+        paintWaves(x, y, c, time, w1, wp.travel, wp.scale);
+      }
       drawWaterBubbles(c, r, x, y, time, kW);
       var shoreL = !G.isWaterV(tAt(c - 1, r));
       var shoreR = !G.isWaterV(tAt(c + 1, r));
@@ -736,7 +817,7 @@ function blitLayer(camx, camy){
       ctx.drawImage(chunkOf(cx, cy), dx, dy);
     }
   }
-  prepWaveStrip(view.time, c0, c1);
+  prepWaveStrip(view.time, c0, c1, r0, r1);
   for (r = r0; r <= r1; r++){
     for (c = c0; c <= c1; c++){
       vd = tAt(c, r);

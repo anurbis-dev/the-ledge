@@ -102,6 +102,38 @@ function writeLocal(){
   try { localStorage.setItem(KEY, JSON.stringify({ tiles: tiles, gfx: gfx })); } catch (_){}
 }
 
+var GFX_META = ['speed', 'shift', 'waveX'];
+
+function copyGfxMeta(from, to){
+  var i, k, v;
+  for (i = 0; i < GFX_META.length; i++){
+    k = GFX_META[i];
+    v = from[k];
+    if (v != null && isFinite(+v)) to[k] = +v;
+  }
+  return to;
+}
+
+function mergeGfxMeta(cur, patch, next){
+  var i, k;
+  for (i = 0; i < GFX_META.length; i++){
+    k = GFX_META[i];
+    if (patch && Object.prototype.hasOwnProperty.call(patch, k)){
+      if (patch[k] == null || patch[k] === ''){ /* drop */ }
+      else if (isFinite(+patch[k])) next[k] = +patch[k];
+    } else if (cur[k] != null && isFinite(+cur[k])){
+      next[k] = +cur[k];
+    }
+  }
+}
+
+function gfxHasMeta(g){
+  var i;
+  for (i = 0; i < GFX_META.length; i++)
+    if (g[GFX_META[i]] != null) return true;
+  return false;
+}
+
 function cloneGfx(src){
   var out = {}, id, g, e;
   if (!src) return out;
@@ -113,7 +145,7 @@ function cloneGfx(src){
       src: g.src || '',
       frames: Array.isArray(g.frames) ? g.frames.filter(Boolean) : []
     };
-    if (g.speed != null && isFinite(+g.speed)) e.speed = +g.speed;
+    copyGfxMeta(g, e);
     out[id] = e;
   }
   return out;
@@ -181,10 +213,22 @@ export function tileFrameSrc(id, i){
   return '';
 }
 
-export function getTileSpeed(id, fallback){
+export function getTileMeta(id, key, fallback){
   var g = gfx[id | 0];
-  if (g && g.speed != null && isFinite(+g.speed)) return +g.speed;
+  if (g && g[key] != null && isFinite(+g[key])) return +g[key];
   return fallback;
+}
+
+export function getTileSpeed(id, fallback){
+  return getTileMeta(id, 'speed', fallback);
+}
+
+export function getTileShift(id, fallback){
+  return getTileMeta(id, 'shift', fallback);
+}
+
+export function getTileWaveX(id, fallback){
+  return getTileMeta(id, 'waveX', fallback);
 }
 
 export function setTileGfx(id, patch){
@@ -195,16 +239,10 @@ export function setTileGfx(id, patch){
     src: patch && patch.src != null ? patch.src : cur.src,
     frames: patch && patch.frames ? patch.frames.filter(Boolean) : (cur.frames || [])
   };
-  if (patch && Object.prototype.hasOwnProperty.call(patch, 'speed')){
-    if (patch.speed == null || patch.speed === ''){ /* drop */ }
-    else if (isFinite(+patch.speed)) next.speed = +patch.speed;
-  } else if (cur.speed != null && isFinite(+cur.speed)){
-    next.speed = +cur.speed;
-  }
+  mergeGfxMeta(cur, patch, next);
   if (next.frames && next.frames.length && !next.src) next.src = next.frames[0];
   var hasImg = !!(next.src || (next.frames && next.frames.length));
-  var hasMeta = next.speed != null;
-  if (!hasImg && !hasMeta){
+  if (!hasImg && !gfxHasMeta(next)){
     delete gfx[id];
     delete imgs[id];
     emit('gfx');
@@ -221,9 +259,9 @@ export function clearTileGfx(id){
   id = id | 0;
   var g = gfx[id];
   if (!g) return false;
-  var keepSpeed = (g.speed != null && isFinite(+g.speed)) ? +g.speed : null;
+  var kept = copyGfxMeta(g, {});
   delete imgs[id];
-  if (keepSpeed != null) gfx[id] = { src: '', frames: [], speed: keepSpeed };
+  if (gfxHasMeta(kept)) gfx[id] = Object.assign({ src: '', frames: [] }, kept);
   else delete gfx[id];
   emit('gfx');
   return true;

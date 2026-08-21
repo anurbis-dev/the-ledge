@@ -42,7 +42,7 @@
 - `Esc` закрыть редактор.
 - `Ctrl+Z` undo.
 - `Ctrl+Y` или `Ctrl+Shift+Z` redo.
-- `Ctrl+D` — дубль кисти палитры: на **Tiles** → новый кастом-тайл (`src` / `frames` / флаги); на **Objects** → новый custom kind в `ledge.dev.objects` (+ клон sprite def в `ledge.dev.sprites`, если был). Не map-sel.
+- `Ctrl+D` — дубль кисти палитры: на **Tiles** → новый кастом-тайл (`src` / `frames` / флаги); на **Objects** → новый custom kind (+ sprite: клон каталога или bake tile+sprite для процедурки — см. §5). Не map-sel.
 - `Delete` / `Backspace` (вкладка Tiles, кисть на кастом-тайле, без map-sel и без выбранного объекта) — `deleteCustomTileById` (см. §4).
 - `G` включить/выключить Geo overlay.
 - `0` сброс зума в `1:1`.
@@ -77,7 +77,8 @@
 Особенности:
 - Повторный клик той же кистью по той же клетке у тайлов с `varN` переключает вариант (`Auto/1..N`).
 - Для `Water` доступны пресеты оттенка воды.
-- Для `Fall` в Details — слайдер **Speed** (0–200, дефолт 70): скорость процедурных струй; пишется в `tileGfx[14].speed` (Reset picture скорость не сбрасывает).
+- Для `Fall` в Details — слайдер **Speed** (0–200, дефолт 70): скорость процедурных струй; пишется в `tileGfx[14].speed` (Reset picture meta не сбрасывает).
+- Для `Water` в Details — **Shift** (−100…100, дефолт 0): дрейф реки (знак = направление); **Wave X** (0–100, дефолт 50): амплитуда гребня/bob. Без Shift и без соседнего `Fall` волны стоячие. `Fall` сверху или с края поверхности даёт автосдвиг от источника с затуханием. Meta в `tileGfx[13].shift` / `waveX`.
 - Если в клетке уже вода, повторный клик водой меняет только shade.
 - `Color` не `varN` и не Cover: тот же тайл, другой grade на клетке.
 - Overlay-тайлы (зелёная точка на сваче) пишутся в канал `deco` поверх `base`. Коллизия остаётся у основного тайла. RMB сначала стирает декор, потом грунт.
@@ -130,7 +131,7 @@
 - Открывается **даблкликом** по любому Objects-свачу. Если окно уже открыто — **одиночный клик** переключает цель (то же для Tiles).
 - С привязанным спрайтом — редактор кадров/якорей (как раньше).
 - Без спрайта — шапка Name / Type(role) / Sprite slot; пиксельный холст появляется после привязки sprite.
-- **Sprite slot / frames**: драг свача из палитры Tiles или Objects на слот назначает sprite (`applySpriteSlotPayload`); на превью кадра action — замена кадра (`applyFrameSlotPayload`). Одиночный клик по свачу (если Details открыт) переключает цель; драг — нет. Менять sprite slot можно у **customs** и у `Start`; прочие builtins — сначала `Ctrl+D` (клон), затем replace. У custom — Clear снимает `spriteId`.
+- **Sprite slot / frames**: драг свача из палитры Tiles или Objects на слот назначает sprite (`applySpriteSlotPayload`); на превью кадра action — замена кадра (`applyFrameSlotPayload`). Одиночный клик по свачу (если Details открыт) переключает цель; драг — нет. Менять sprite slot можно у **customs** и у `Start`; прочие builtins — сначала `Ctrl+D` (клон), затем replace. У custom — Clear снимает `spriteId`. Дроп **процедурного** Objects-свача (нет dirty idle0) → payload `{ tileSrc, makeTile:true }` — Details создаёт tile ("… icon", collide none) + sprite; дроп с **Tiles** — `tileSrc` без `makeTile`. После assign слота thumbs палитры обновляются (`clearThumbCache` + `fillPal`).
 
 ### Role / Type
 
@@ -139,8 +140,12 @@
 
 ### Ctrl+D (Objects)
 
-- Клонирует кисть в новый custom kind (`cloneObjectFrom` → `ledge.dev.objects`) и при наличии спрайта — `cloneSpriteDef` → `ledge.dev.sprites`.
+- Клонирует кисть в новый custom kind (`cloneObjectFrom` → `ledge.dev.objects`).
+- **Каталожный** sprite (`enemy`/`hero`/…) — `cloneSpriteDef` + bake пустых кадров **только в клон** (каталожные id не трогает).
+- **Процедурный** kind без dirty idle0 — bake иконки → `addTile` (name "… icon", collide none) + `addSpriteDef` с idle0 dataURL; custom-оригинал без своей картинки тоже получает `spriteId`.
+- `builtinSpriteId` смотрит только каталог `SPRITE_DEFS` — у custom sprite `kind` не ставить template вроде `coin`, иначе засорит lookup.
 - Клон `Hero` → sprite `family: 'hero'`. У `Start` sprite slot пишет `LV.spawn.spriteId` (playable через `activeHeroId`).
+- Свачи палитры: `objThumb(palKind, size, spriteId, paintKind)` всегда отдаёт **новый** canvas (иначе Coin и Coin copy делят DOM); кэш по palKind+spriteId; dirty idle0 перекрывает процедурную `paintObjIcon`.
 
 ### Редактор спрайтов (из Objects)
 
