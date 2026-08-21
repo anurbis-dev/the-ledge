@@ -208,7 +208,7 @@ function reuseCan(old, w, h){
   return c;
 }
 function isWaterSurfaceAt(c, r){
-  if (tAt(c, r) !== G.WATER) return false;
+  if (!G.isWaterV(tAt(c, r))) return false;
   if (G.isWaterV(tAt(c, r - 1))) return false;
   if (sAt(c, r - 1)){
     var rr = r - 2;
@@ -227,16 +227,16 @@ function fallEnergyAt(c, r){
   while (isWaterSurfaceAt(cL - 1, r)) cL--;
   while (isWaterSurfaceAt(cR + 1, r)) cR++;
   for (sc = cL; sc <= cR; sc++){
-    if (tAt(sc, r - 1) !== G.FALL) continue;
+    if (!G.isFlowV(tAt(sc, r - 1))) continue;
     absD = Math.abs(c - sc);
     f = falloffDist(absD);
     if (f > energy) energy = f;
   }
-  if (tAt(cL - 1, r) === G.FALL){
+  if (G.isFlowV(tAt(cL - 1, r))){
     f = falloffDist(c - cL);
     if (f > energy) energy = f;
   }
-  if (tAt(cR + 1, r) === G.FALL){
+  if (G.isFlowV(tAt(cR + 1, r))){
     f = falloffDist(cR - c);
     if (f > energy) energy = f;
   }
@@ -261,17 +261,17 @@ function collectFallSources(c0, c1, r0, r1){
     while (isWaterSurfaceAt(cL - 1, row)) cL--;
     while (isWaterSurfaceAt(cR + 1, row)) cR++;
     for (sc = cL; sc <= cR; sc++){
-      if (tAt(sc, row - 1) !== G.FALL) continue;
+      if (!G.isFlowV(tAt(sc, row - 1))) continue;
       key = sc + ':' + row;
       if (seen[key]) continue;
       seen[key] = 1;
       src.push(sc * T + T * 0.5);
     }
-    if (tAt(cL - 1, row) === G.FALL){
+    if (G.isFlowV(tAt(cL - 1, row))){
       key = (cL - 1) + ':' + row;
       if (!seen[key]){ seen[key] = 1; src.push((cL - 1) * T + T * 0.5); }
     }
-    if (tAt(cR + 1, row) === G.FALL){
+    if (G.isFlowV(tAt(cR + 1, row))){
       key = (cR + 1) + ':' + row;
       if (!seen[key]){ seen[key] = 1; src.push((cR + 1) * T + T * 0.5); }
     }
@@ -315,16 +315,16 @@ function fallChurnAt(worldX, time, e, scale, phOff){
   );
 }
 var BOB_KX = 0.55 / T; /* bob от world X — без скачка на стыке */
-function waveScale(){
-  return Math.max(0, getTileWaveX(G.WATER, 50)) / 50;
+function waveScale(id){
+  return Math.max(0, getTileWaveX(id != null ? id : G.WATER, 50)) / 50;
 }
 /* Splash: 0..100, дефолт 80 — сила ряби от героя (вход/выход) */
-function waveSplashScale(){
-  return Math.max(0, getTileSplash(G.WATER, 80)) / 40;
+function waveSplashScale(id){
+  return Math.max(0, getTileSplash(id != null ? id : G.WATER, 80)) / 40;
 }
 /* Shift: −100..+100, default 100 = канон 2.2 вправо; 0 = стоячая база */
-function waveBaseTravel(){
-  return (getTileShift(G.WATER, 100) / 100) * WAVE_TRAVEL_K;
+function waveBaseTravel(id){
+  return (getTileShift(id != null ? id : G.WATER, 100) / 100) * WAVE_TRAVEL_K;
 }
 function sampleField(arr, c0, worldX){
   if (!arr || !arr.length) return 0;
@@ -508,13 +508,13 @@ function paintGraded(c, r, x, y, fn){
 /* Низ столбца FALL: tipR, kind 'air'|'hit' (под низом пусто или любой тайл). */
 function fallColumnTip(c, r){
   var tip = r;
-  while (tAt(c, tip + 1) === G.FALL) tip++;
+  while (G.isFlowV(tAt(c, tip + 1))) tip++;
   return tip;
 }
 function fallTipKind(c, tipR){
   var b = tAt(c, tipR + 1);
   if (!b) return 'air';
-  if (b === G.FALL) return 'fall';
+  if (G.isFlowV(b)) return 'fall';
   return 'hit';
 }
 /* FALL-нити: фаза по world Y — непрерывны через столбец тайлов.
@@ -534,7 +534,7 @@ function paintFallStrands(c, r, x, y, time, w1, fadeK){
   var dens2P = getTileDensity2(G.FALL, 50);
   var wave2P = getTileWave2(G.FALL, 20);
   var taperP = getTileTaper(G.FALL, 60);
-  var taperLenP = getTileTaperLen(G.FALL, 3);
+  var taperLenP = getTileTaperLen(G.FALL, 6);
   var lightBase = Math.max(2, Math.round(2 + (lenP / 100) * 22));
   var lightBase2 = Math.max(2, Math.round(2 + (len2P / 100) * 22));
   var periodBase = Math.max(lightBase + 8, 18);
@@ -742,7 +742,7 @@ function paintTileId(v, c, r, x, y, dyn){
       var fadeK = Math.max(0, Math.min(1, getTileFade(G.FALL, 0) / 100));
       var prevFallA = ctx.globalAlpha;
       var taperPFill = getTileTaper(G.FALL, 60);
-      var taperLenFill = getTileTaperLen(G.FALL, 3);
+      var taperLenFill = getTileTaperLen(G.FALL, 6);
       var hangAmtFill = Math.max(0, Math.min(1, taperPFill / 100));
       var tipFill = hangAmtFill > 0.001 ? fallColumnTip(c, r) : r;
       var hangFill = hangAmtFill > 0.001 && fallTipKind(c, tipFill) === 'air';

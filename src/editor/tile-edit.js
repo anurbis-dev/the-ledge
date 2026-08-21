@@ -5,7 +5,7 @@ import {
   getTileSpeed2, getTileLength2, getTileDensity2, getTileWave2, getTileFoam, getTileSpray,
   getTileFoamSize, getTileFoamRandom, getTileFoamSpeed, getTileSpraySpeed,
   getTileTaper, getTileTaperLen,
-  getTileSpriteId, setTileSpriteId,
+  getTileSpriteId, setTileSpriteId, tileBaseId,
   tileFrameCount, tileFrameSrc, canvasToPng, loadImageFile, sliceSheet, addTile
 } from '../core/tileset.js';
 import { initSliders } from './slider.js';
@@ -1827,7 +1827,9 @@ function fillTileParamsOnly(){
   });
   field('Collision', sel);
 
-  if (current.id === GAME.FALL){
+  var behId = tileBaseId(current.id);
+  if (behId === GAME.FALL){
+    var fallId = current.id;
     function addFallSlider(label, title, key, def, min, max, getter){
       var wrap = document.createElement('label');
       wrap.className = 'slider-wrap';
@@ -1836,13 +1838,13 @@ function fillTileParamsOnly(){
       var inp = document.createElement('input');
       inp.type = 'range';
       inp.min = min; inp.max = max; inp.step = 1;
-      inp.value = getter(GAME.FALL, def);
+      inp.value = getter(fallId, def);
       inp.dataset.default = String(def);
       inp.addEventListener('input', function(){
         markOp();
         var patch = {};
         patch[key] = +inp.value;
-        setTileGfx(GAME.FALL, patch);
+        setTileGfx(fallId, patch);
         notify();
       });
       wrap.appendChild(inp);
@@ -1866,14 +1868,15 @@ function fillTileParamsOnly(){
     addFallSlider('Spray', 'Spray droplet strength at foam ends (0 = none)', 'spray', 55, 0, 100, getTileSpray);
     addFallSlider('Spray Speed', 'Spray flight / respawn speed (0 = frozen)', 'spraySpeed', 100, 0, 200, getTileSpraySpeed);
     addFallSlider('Taper', 'Hanging fall thin amount (edges→center; 0 = none)', 'taper', 60, 0, 100, getTileTaper);
-    addFallSlider('Taper Len', 'Tiles of vertical run until max thinness', 'taperLen', 3, 1, 8, getTileTaperLen);
+    addFallSlider('Taper Len', 'Tiles of vertical run until max thinness', 'taperLen', 6, 1, 12, getTileTaperLen);
   }
 
-  if (current.id === GAME.WATER){
+  if (behId === GAME.WATER){
+    var waterId = current.id;
     var shDef = 100, wxDef = 50, spDef = 80;
-    var shVal = getTileShift(GAME.WATER, shDef);
-    var wxVal = getTileWaveX(GAME.WATER, wxDef);
-    var spVal = getTileSplash(GAME.WATER, spDef);
+    var shVal = getTileShift(waterId, shDef);
+    var wxVal = getTileWaveX(waterId, wxDef);
+    var spVal = getTileSplash(waterId, spDef);
 
     var shWrap = document.createElement('label');
     shWrap.className = 'slider-wrap';
@@ -1886,7 +1889,7 @@ function fillTileParamsOnly(){
     shInp.dataset.default = String(shDef);
     shInp.addEventListener('input', function(){
       markOp();
-      setTileGfx(GAME.WATER, { shift: +shInp.value });
+      setTileGfx(waterId, { shift: +shInp.value });
       notify();
     });
     shWrap.appendChild(shInp);
@@ -1904,7 +1907,7 @@ function fillTileParamsOnly(){
     wxInp.dataset.default = String(wxDef);
     wxInp.addEventListener('input', function(){
       markOp();
-      setTileGfx(GAME.WATER, { waveX: +wxInp.value });
+      setTileGfx(waterId, { waveX: +wxInp.value });
       notify();
     });
     wxWrap.appendChild(wxInp);
@@ -1922,7 +1925,7 @@ function fillTileParamsOnly(){
     spInp.dataset.default = String(spDef);
     spInp.addEventListener('input', function(){
       markOp();
-      setTileGfx(GAME.WATER, { splash: +spInp.value });
+      setTileGfx(waterId, { splash: +spInp.value });
       notify();
     });
     spWrap.appendChild(spInp);
