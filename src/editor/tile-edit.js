@@ -1,8 +1,9 @@
 import GAME from '../core/game.js';
 import {
-  getTileDef, updateTile, getTileGfx, setTileGfx, clearTileGfx,
+  getTileDef, updateTile, getTileGfx, setTileGfx, clearTileGfx, getTileSpeed,
   tileFrameCount, tileFrameSrc, canvasToPng, loadImageFile, sliceSheet
 } from '../core/tileset.js';
+import { initSliders } from './slider.js';
 import {
   getSpriteDef, getSpriteFrameSrc, setSpriteFrame, clearSpriteFrame,
   isSpriteFrameDirty, getFrameAnchor, setFrameAnchor, setSpriteSize,
@@ -1879,6 +1880,28 @@ function fillBody(){
       fillBody();
     });
     field('Collision', sel);
+
+    if (current.id === GAME.FALL){
+      var fallDef = 70;
+      var fallSpd = getTileSpeed(GAME.FALL, fallDef);
+      var spdWrap = document.createElement('label');
+      spdWrap.className = 'slider-wrap';
+      spdWrap.title = 'Procedural waterfall scroll speed (0 = frozen)';
+      spdWrap.innerHTML = '<div class="slider-label-overlay"><span>Speed</span><span></span></div>';
+      var spdInp = document.createElement('input');
+      spdInp.type = 'range';
+      spdInp.min = 0; spdInp.max = 200; spdInp.step = 1;
+      spdInp.value = fallSpd;
+      spdInp.dataset.default = String(fallDef);
+      spdInp.addEventListener('input', function(){
+        markOp();
+        setTileGfx(GAME.FALL, { speed: +spdInp.value });
+        notify();
+      });
+      spdWrap.appendChild(spdInp);
+      body.appendChild(spdWrap);
+      initSliders(spdWrap);
+    }
 
     if (!custom){
       var bNote = document.createElement('div');

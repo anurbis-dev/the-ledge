@@ -1,4 +1,4 @@
 # Changelog (unreleased)
 
-- Palette swatch: одиночный клик переключает открытый Details; клик-драг не меняет цель и дропает на Sprite slot / кадр action (`hitDetailsDrop`).
-- Editor undo: Details (tileset/spriteset/objectset + spawn.spriteId) в общем стеке Ctrl+Z / Undo·Redo.
+- Water waves: к горизонтальному сдвигу фазы добавлен вертикальный bob гребня (`paintWaves`).
+- Fall tile Details: слайдер Speed (0–200, дефолт 70) → `tileGfx[14].speed`; `getTileSpeed`; Reset picture сохраняет speed.

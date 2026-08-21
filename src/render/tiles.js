@@ -2,7 +2,7 @@ import GAME from '../core/game.js';
 import { hooks } from '../core/runtime.js';
 import { COVER_AIR, coverRaw, coverVarRaw, roomCoverA, rebuildRooms } from '../core/rooms.js';
 import { getLayers, layerShown, lastCollideIndex, layerTileRaw, layerVarRaw, layerDeco, isTileLayer, wrapSize, layerCssFilter, layerGrade, gradeCssFilter } from '../core/layers.js';
-import { getTileDef, tileImage, tileFrameImage, tileFrameCount } from '../core/tileset.js';
+import { getTileDef, tileImage, tileFrameImage, tileFrameCount, getTileSpeed } from '../core/tileset.js';
 import { buildWater } from './fx.js';
 import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH, viewScale } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
@@ -154,19 +154,21 @@ function reuseCan(old, w, h){
 }
 function paintWaves(x, y, c, time, w1){
   var wx, wx2;
+  /* сдвиг по X (фаза) + общий вертикальный bob амплитуды гребня */
+  var bob = Math.sin(time * 2.8 + c * 0.55) * 1.5;
   for (wx = 0; wx < T; wx += 2){
     var ph2 = (c*T + wx) * 0.09 - time * 2.2;
-    var wv = Math.round(Math.sin(ph2) * 1.6 + Math.sin(ph2*2.3) * 0.7);
+    var wv = Math.round(Math.sin(ph2) * 1.6 + Math.sin(ph2*2.3) * 0.7 + bob);
     rc(x + wx, y + 1 + wv, 2, 2, w1);
     rc(x + wx, y + wv, 2, 1, '#bfe6ff');
-    rc(x + wx, y + 7 + Math.round(Math.sin(ph2*1.4)*1.2), 2, 1, w1);
+    rc(x + wx, y + 7 + Math.round(Math.sin(ph2*1.4)*1.2 + bob * 0.55), 2, 1, w1);
   }
   ctx.globalAlpha = 0.4;
   for (wx2 = 0; wx2 < T; wx2 += 2){
     var ph3 = (c*T + wx2) * 0.062 - time * 1.25 + 1.9;
-    var wv2 = Math.round(Math.sin(ph3) * 2.1);
+    var wv2 = Math.round(Math.sin(ph3) * 2.1 + bob * 0.7);
     rc(x + wx2, y + 2 + wv2, 2, 2, '#dff2ff');
-    rc(x + wx2, y + 10 + Math.round(Math.sin(ph3*1.1)*1.4), 2, 1, '#9fd0ef');
+    rc(x + wx2, y + 10 + Math.round(Math.sin(ph3*1.1)*1.4 + bob * 0.4), 2, 1, '#9fd0ef');
   }
   ctx.globalAlpha = 1;
 }
@@ -253,8 +255,10 @@ function paintTileId(v, c, r, x, y, dyn){
     var w1 = v === G.WATER ? mixHex('#49a0cf', '#16344c', kW) : (deepW ? '#2f7fae' : '#49a0cf');
     rc(x, y, T, T, w0);
     if (v === G.FALL){                                   // поток: вертикальные струи
+      var fallSpd = getTileSpeed(G.FALL, 70);
       for (var s2 = 0; s2 < 4; s2++){
-        var off = Math.round((time*70 + s2*23 + c*11) % T);
+        var off = Math.round((time * fallSpd + s2*23 + c*11) % T);
+        if (off < 0) off += T;
         rc(x + 1 + s2*4, y + off - T, 2, T, w1);
         rc(x + 1 + s2*4, y + ((off + 8) % T), 2, 3, '#bfe6ff');
       }

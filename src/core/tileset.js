@@ -103,16 +103,18 @@ function writeLocal(){
 }
 
 function cloneGfx(src){
-  var out = {}, id, g;
+  var out = {}, id, g, e;
   if (!src) return out;
   for (id in src){
     if (!Object.prototype.hasOwnProperty.call(src, id)) continue;
     g = src[id];
     if (!g) continue;
-    out[id] = {
+    e = {
       src: g.src || '',
       frames: Array.isArray(g.frames) ? g.frames.filter(Boolean) : []
     };
+    if (g.speed != null && isFinite(+g.speed)) e.speed = +g.speed;
+    out[id] = e;
   }
   return out;
 }
@@ -179,32 +181,50 @@ export function tileFrameSrc(id, i){
   return '';
 }
 
+export function getTileSpeed(id, fallback){
+  var g = gfx[id | 0];
+  if (g && g.speed != null && isFinite(+g.speed)) return +g.speed;
+  return fallback;
+}
+
 export function setTileGfx(id, patch){
   id = id | 0;
   if (id <= 0) return null;
   var cur = gfx[id] || { src: '', frames: [] };
   var next = {
     src: patch && patch.src != null ? patch.src : cur.src,
-    frames: patch && patch.frames ? patch.frames.filter(Boolean) : cur.frames
+    frames: patch && patch.frames ? patch.frames.filter(Boolean) : (cur.frames || [])
   };
+  if (patch && Object.prototype.hasOwnProperty.call(patch, 'speed')){
+    if (patch.speed == null || patch.speed === ''){ /* drop */ }
+    else if (isFinite(+patch.speed)) next.speed = +patch.speed;
+  } else if (cur.speed != null && isFinite(+cur.speed)){
+    next.speed = +cur.speed;
+  }
   if (next.frames && next.frames.length && !next.src) next.src = next.frames[0];
-  if (!next.src && !(next.frames && next.frames.length)){
+  var hasImg = !!(next.src || (next.frames && next.frames.length));
+  var hasMeta = next.speed != null;
+  if (!hasImg && !hasMeta){
     delete gfx[id];
     delete imgs[id];
     emit('gfx');
     return null;
   }
   gfx[id] = next;
-  loadGfx(id);
+  if (hasImg) loadGfx(id);
+  else delete imgs[id];
   emit('gfx');
   return next;
 }
 
 export function clearTileGfx(id){
   id = id | 0;
-  if (!gfx[id]) return false;
-  delete gfx[id];
+  var g = gfx[id];
+  if (!g) return false;
+  var keepSpeed = (g.speed != null && isFinite(+g.speed)) ? +g.speed : null;
   delete imgs[id];
+  if (keepSpeed != null) gfx[id] = { src: '', frames: [], speed: keepSpeed };
+  else delete gfx[id];
   emit('gfx');
   return true;
 }
