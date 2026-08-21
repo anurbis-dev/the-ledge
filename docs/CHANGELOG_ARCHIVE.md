@@ -2,7 +2,7 @@
 
 ## 2026-08-21 (pre-commit)
 
-- Fall Details: **Foam Size** / **Foam Random** / **Foam Speed** / **Spray Speed** → `tileGfx[14].foamSize|foamRandom|foamSpeed|spraySpeed` (defs 40/40/100/100).
+- Ladder mount (`tryLadder` / `autoLadder` / top ↓): soft `mountLad` ease-snap instead of hard teleport onto rail.
 
 ## 0.18.2
 

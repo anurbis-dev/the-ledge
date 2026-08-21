@@ -500,6 +500,7 @@ export function autoLadder(S, p, prevBottom){
       if (Math.abs(col*T + T/2 - cx) > 12) continue;
       var nx = diag ? p.x : col*T + T/2 - p.w/2;
       var ny = diag ? (r*T + T/2 - p.h/2) : p.y;
+      if (!diag && !towardLadAxis(p, col, 0)) continue;
       if (!rectFree(nx, ny, p.w, p.h)) continue;
       if (p.rollT > 0){ p.rollT = 0; setStance(S, p, 0); }   // подкат прерывается
       var ox = diag ? (col*T + T/2) - (nx + p.w/2) : 0;
@@ -959,6 +960,14 @@ export function attach(p, kind, col, ox, oy){
   p.state = 'ladder'; p.vx = 0; p.vy = 0; p.onGround = false; p.ride = null;
   p.events.push('onladder');
 }
+/* true если не уходим от оси лестницы (vx / inp.x против toward) */
+export function towardLadAxis(p, col, inpX){
+  var toward = col * T + T / 2 - (p.x + p.w / 2);
+  if (Math.abs(toward) <= 2) return true;
+  if (Math.abs(p.vx) > 40 && toward * p.vx < 0) return false;
+  if (inpX && toward * inpX < 0) return false;
+  return true;
+}
 export function tryLadder(S, p, inp){
   if (p.rollT > 0 || (p.ladCd || 0) > 0) return false;
   var up = inp.upPressed || inp.upHeld, dn = inp.downPressed || inp.downHeld;
@@ -980,6 +989,7 @@ export function tryLadder(S, p, inp){
     if (!k) continue;
     var col = Math.floor(px / T), diag = (k === LADR || k === LADL);
     var nx = diag ? p.x : col*T + T/2 - p.w/2;
+    if (!diag && !towardLadAxis(p, col, inp.x)) continue;
     if (!rectFree(nx, p.y, p.w, p.h)) continue;
     var row = Math.floor(py / T), ox, oy;
     if (diag){ ox = (col*T + T/2) - (nx + p.w/2); oy = (row*T + T/2) - (p.y + p.h/2); }
@@ -989,7 +999,7 @@ export function tryLadder(S, p, inp){
   }
   return false;
 }
-/* мягкий сход/липкость: lerp в state=snap (ease), без резкого телепорта */
+/* lerp snap: заход (toLad) или мягкий сход; не для remagnetize против ухода */
 export function startLadSnap(p, tx, ty, opts){
   opts = opts || {};
   p.snap = {
@@ -1005,7 +1015,7 @@ export function startLadSnap(p, tx, ty, opts){
   if (opts.event !== false) p.events.push(opts.event || 'offladder');
   return true;
 }
-/* заход на лестницу: близко — attach, иначе ease-snap + toLad */
+/* заход на ось: близко — attach, иначе ease + toLad */
 export function mountLad(p, tx, ty, kind, col, ox, oy, tc, tr){
   if (Math.abs(tx - p.x) < 0.5 && Math.abs(ty - p.y) < 0.5){
     attach(p, kind, col, ox, oy);

@@ -4,7 +4,7 @@ import { tileAt, rectFree, isWaterV, waterSurfaceY, ladderTile } from './map.js'
 import {
   moveX, moveY, damage, isInvuln, updateBars, ease, updateClimb, updateHang, updateLadder,
   setStance, setH, slopeUnder, slopeUnderAt, slopeGradeUnder, grounded, autoLadder, tryBars,
-  tryLadder, tryGrab, tryClimbOut, tryCrawlEdge, ladderTopUnder, attach, mountLad, tryDescend,
+  tryLadder, tryGrab, tryClimbOut, tryCrawlEdge, ladderTopUnder, attach, mountLad, towardLadAxis, tryDescend,
   tryMantle, footCenterX, snapFeet, wallSlideDir, unstickFromWall,
   markGap, canDescend, awayFromEdge, startFallRecover, finishFallRecover,
   finishGetup, stanceFitsAt, stanceH, applyHeroBox, applyRollBox
@@ -553,7 +553,7 @@ export function step(S, dt, inp){
       if (lt !== null && (inp.downPressed || inp.downHeld) && p.stance === 0){
         var lc = Math.floor((p.x + p.w/2) / T);
         var lr = Math.floor((lt + 2) / T);
-        if (ladderTile(lc, lr)){
+        if (ladderTile(lc, lr) && towardLadAxis(p, lc, inp.x)){
           mountLad(p, lc * T + T / 2 - p.w / 2, lt - Math.round(p.h / 2),
             tileAt(lc, lr), lc, 0, 0, lc, lr);
           return;
