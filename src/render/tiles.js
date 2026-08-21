@@ -537,11 +537,6 @@ function paintTileId(v, c, r, x, y, dyn){
         ctx.globalAlpha = prevFallA;
       }
       paintFallStrands(c, r, x, y, time, w1, fadeK);
-      if (fadeK < 0.9){
-        if (fadeK > 0.01) ctx.globalAlpha = prevFallA * (1 - fadeK * 0.7);
-        rc(x, y, T, 1, '#8fd0ef');
-        ctx.globalAlpha = prevFallA;
-      }
     } else {                                             // спокойная вода: бегущая волна
       rc(x, y, T, T, w0);
       var top = !G.isWaterV(tAt(c, r - 1));
