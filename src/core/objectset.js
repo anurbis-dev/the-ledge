@@ -1,7 +1,7 @@
 /* Кастомные объекты редактора: kind + template + role + spriteId.
    Черновик — ledge.dev.objects (LS). Поведение берётся из template (builtin kind). */
 import { preferLocal, notifyDraftChange } from './persist.js';
-import { spriteDefForKind, getSpriteDef } from './spriteset.js';
+import { spriteDefForKind, getSpriteDef, SPRITE_DEFS } from './spriteset.js';
 
 var KEY = 'ledge.dev.objects';
 var ROLES = ['actor', 'pickup', 'loot', 'prop', 'marker'];
@@ -109,8 +109,13 @@ export function builtinSpriteId(kind){
   if (kind === 'hero') return 'hero';
   if (kind === 'player_start') return null; /* спавн — маркер; спрайт уровня в LV.spawn.spriteId */
   if (kind === 'light') return 'lantern';
-  var sd = spriteDefForKind(kind);
-  return sd ? sd.id : null;
+  /* Только каталог SPRITE_DEFS — custom с kind:'coin' не подменять builtin. */
+  var i, d;
+  for (i = 0; i < SPRITE_DEFS.length; i++){
+    d = SPRITE_DEFS[i];
+    if (d.kind === kind || d.id === kind) return d.id;
+  }
+  return null;
 }
 
 export function normalizeObject(o){

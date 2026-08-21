@@ -5,7 +5,7 @@ import { K } from './poses.js';
 import { HERO_POSES } from './sprite-anchors.js';
 import { paintTileIcon, paintObjIcon } from '../editor/thumbs.js';
 import { canvasToPng } from '../core/tileset.js';
-import { getSpriteDef, getSpriteFrameSrc, isSpriteFrameDirty } from '../core/spriteset.js';
+import { getSpriteDef, getSpriteFrameSrc, isSpriteFrameDirty, isHeroSprite } from '../core/spriteset.js';
 
 var FRONTAL = { ladderF: 1 };
 
@@ -17,8 +17,8 @@ function makeCan(w, h){
   return c;
 }
 
-export function bakeHeroFrame(animId, frameI){
-  var def = getSpriteDef('hero');
+export function bakeHeroFrame(animId, frameI, spriteId){
+  var def = getSpriteDef(spriteId || 'hero') || getSpriteDef('hero');
   var poses = HERO_POSES[animId];
   var pose = poses && poses[frameI | 0];
   if (!def || !pose) return makeCan(def ? def.fw : 40, def ? def.fh : 48);
@@ -43,6 +43,7 @@ export function bakeHeroFrame(animId, frameI){
 export function bakeKindFrame(kind, animId, frameI){
   var def = getSpriteDef(kind);
   var w = def ? def.fw : 16, h = def ? def.fh : 16;
+  var paintKind = (def && def.kind) || kind;
   var can = makeCan(w, h);
   var cx = can.getContext('2d');
   var hop = (frameI | 0) % 2;
@@ -50,14 +51,14 @@ export function bakeKindFrame(kind, animId, frameI){
     cx.save();
     cx.translate(0, -1);
   }
-  paintObjIcon(cx, kind, w);
+  paintObjIcon(cx, paintKind, w);
   if (hop) cx.restore();
   void animId;
   return can;
 }
 
 export function bakeSpriteFrame(id, animId, frameI){
-  if (id === 'hero') return bakeHeroFrame(animId, frameI);
+  if (id === 'hero' || isHeroSprite(id)) return bakeHeroFrame(animId, frameI, id);
   return bakeKindFrame(id, animId, frameI);
 }
 
@@ -99,11 +100,11 @@ export function spriteThumb(def, size){
     if (img.complete && img.naturalWidth) img.onload();
     return can;
   }
-  if (def.id === 'hero'){
-    var fr = bakeHeroFrame('idle', 0);
+  if (def.id === 'hero' || isHeroSprite(def.id)){
+    var fr = bakeHeroFrame('idle', 0, def.id);
     cx.drawImage(fr, 0, 0, def.fw, def.fh, 0, 0, size, size);
     return can;
   }
-  paintObjIcon(cx, def.kind, size);
+  paintObjIcon(cx, def.kind || def.id, size);
   return can;
 }

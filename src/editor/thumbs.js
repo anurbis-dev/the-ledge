@@ -1,5 +1,6 @@
 import { P } from '../render/palette.js';
 import { getTileGfx } from '../core/tileset.js';
+import { getSpriteFrameSrc, isSpriteFrameDirty } from '../core/spriteset.js';
 
 function px(c, x, y, w, h, col){
   c.fillStyle = col;
@@ -302,15 +303,48 @@ export function tileThumb(spec, size){
   return cv;
 }
 
-export function objThumb(kind, size){
-  var key = kind + ':' + size;
-  if (objCache[key]) return objCache[key];
+/**
+ * Превью объекта. Всегда новый canvas (один DOM-узел нельзя в два свотча).
+ * palKind — уникальный id палитры; paintKind — template для процедурки;
+ * spriteId — dirty idle0 перекрывает процедурную иконку.
+ */
+export function objThumb(palKind, size, spriteId, paintKind){
+  paintKind = paintKind || palKind;
+  var sid = spriteId || '';
+  var src = (sid && isSpriteFrameDirty(sid, 'idle', 0)) ? (getSpriteFrameSrc(sid, 'idle', 0) || '') : '';
+  var key = palKind + ':' + sid + ':' + size + ':' + (src ? src.length : 0);
   var cv = document.createElement('canvas');
   cv.width = size; cv.height = size;
   var ctx = cv.getContext('2d');
   ctx.imageSmoothingEnabled = false;
-  paintObjIcon(ctx, kind, size);
-  objCache[key] = cv;
+  var cached = objCache[key];
+  if (cached && cached._ready){
+    ctx.drawImage(cached, 0, 0);
+    return cv;
+  }
+  if (src){
+    paintObjIcon(ctx, paintKind, size);
+    var img = new Image();
+    img.onload = function(){
+      ctx.clearRect(0, 0, size, size);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(img, 0, 0, img.naturalWidth || 16, img.naturalHeight || 16, 0, 0, size, size);
+      var dump = document.createElement('canvas');
+      dump.width = size; dump.height = size;
+      dump.getContext('2d').drawImage(cv, 0, 0);
+      dump._ready = true;
+      objCache[key] = dump;
+    };
+    img.src = src;
+    if (img.complete && img.naturalWidth) img.onload();
+    return cv;
+  }
+  paintObjIcon(ctx, paintKind, size);
+  var base = document.createElement('canvas');
+  base.width = size; base.height = size;
+  base.getContext('2d').drawImage(cv, 0, 0);
+  base._ready = true;
+  objCache[key] = base;
   return cv;
 }
 

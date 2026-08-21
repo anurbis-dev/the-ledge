@@ -14,18 +14,21 @@ import { getActiveLayer, getLayers, layerTile, layerVar, layerDeco, layerTileRaw
 import { initSliders } from './slider.js';
 import {
   customSpecs, addTile, loadImageFile, sliceSheet, guessOverlay, bindTileset, isCustomId,
-  getTileDef, updateTile, getTileGfx, removeTile
+  getTileDef, updateTile, getTileGfx, removeTile, canvasToPng
 } from '../core/tileset.js';
 import {
   bindTileEdit, openTileEdit, openSpriteEdit, openObjectEdit, closeTileEdit,
   isDetailsOpen, hitDetailsDrop, pointerOverDetails, applyDetailsDrop, refreshTileEdit
 } from './tile-edit.js';
-import { spriteDefForKind, getSpriteDef, bindSpriteset, cloneSpriteDef } from '../core/spriteset.js';
+import {
+  spriteDefForKind, getSpriteDef, bindSpriteset, cloneSpriteDef,
+  addSpriteDef, isSpriteFrameDirty, getSpriteFrameSrc, setSpriteFrame
+} from '../core/spriteset.js';
 import {
   allPaletteObjects, resolveObject, cloneObjectFrom, bindObjectset,
-  isLootRole, isLootOnlyRole, objectSpriteDef
+  isLootRole, isLootOnlyRole, objectSpriteDef, updateObject
 } from '../core/objectset.js';
-import { bakeBuiltinTileSrc } from '../render/sprite-bake.js';
+import { bakeBuiltinTileSrc, bakeSpriteFrameSrc } from '../render/sprite-bake.js';
 import { clearThumbCache } from './thumbs.js';
 import { setEditorRooms, stepRooms } from '../core/rooms.js';
 import { showLayersPanel, bindLayersPanel } from './layers-panel.js';
@@ -291,6 +294,7 @@ bindTileEdit({
   onDeleteCustom: function(id){ return deleteCustomTileById(id); },
   onObjectChange: function(){
     rebuildEdObjs();
+    clearThumbCache();
     markLevelDirty();
     edRefresh();
   }
@@ -476,7 +480,14 @@ function palDropPayload(dKind, dPal){
       var sdO = objectSpriteDef(om.kind);
       if (sdO) sid = sdO.id;
     }
-    if (sid) return { spriteId: sid };
+    if (sid && spriteHasIdlePic(sid)) return { spriteId: sid };
+    if (sid && getSpriteDef(sid)) return { spriteId: sid };
+    /* Процедурный объект без кадра — bake PNG; Details создаст tile+sprite. */
+    if (om){
+      var pk = om.template || om.kind;
+      var baked = bakeObjIconSrc(pk);
+      if (baked) return { tileSrc: baked, tileName: om.name || pk, makeTile: true };
+    }
     return null;
   }
   if (dKind === 'tile'){
@@ -485,7 +496,7 @@ function palDropPayload(dKind, dPal){
     var tdef = tspec && tspec.id != null ? getTileDef(tspec.id) : null;
     var tsrc = (tdef && (tdef.src || (tdef.frames && tdef.frames[0]))) ||
       (tspec && bakeBuiltinTileSrc(tspec));
-    if (tsrc) return { tileSrc: tsrc, tileName: (tspec && tspec.name) || 'Tile' };
+    if (tsrc) return { tileSrc: tsrc, tileName: (tspec && tspec.name) || 'Tile', tileId: tspec && tspec.id };
   }
   return null;
 }
@@ -640,7 +651,12 @@ function fillPal(){
         var spec = ED_OBJS[k];
         var meta = palObjMeta(spec);
         var thumbKind = (meta && meta.template) || spec.kind;
-        var sw = swatch(edPal, objThumb(thumbKind, ED.icon), spec.name, ED.pal === k, function(){
+        var thumbSid = meta && meta.spriteId;
+        if (!thumbSid && thumbKind === 'player_start'){
+          var spThumb = G.levelSpec && G.levelSpec();
+          thumbSid = (spThumb && spThumb.spawn && spThumb.spawn.spriteId) || '';
+        }
+        var sw = swatch(edPal, objThumb(spec.kind, ED.icon, thumbSid, thumbKind), spec.name, ED.pal === k, function(){
           ED.tool = 'obj';
           ED.pal = k;
         }, 'obj', k, function(){
@@ -927,6 +943,116 @@ function placePlayerStart(cell, spriteId){
   selectSpecial({ type: 'player_start', obj: spawn });
 }
 
+/** PNG процедурной иконки объекта (16×16). */
+function bakeObjIconSrc(paintKind){
+  var can = document.createElement('canvas');
+  can.width = 16; can.height = 16;
+  var cx = can.getContext('2d');
+  cx.imageSmoothingEnabled = false;
+  paintObjIcon(cx, paintKind, 16);
+  return canvasToPng(can);
+}
+
+function spriteHasIdlePic(sid){
+  return !!(sid && isSpriteFrameDirty(sid, 'idle', 0) && getSpriteFrameSrc(sid, 'idle', 0));
+}
+
+function isCatalogSpriteId(id){
+  if (!id) return false;
+  if (id === 'hero' || id === 'lantern') return true;
+  return /^(enemy|flier|spider)\d+$/.test(id) || id.indexOf('npc_') === 0;
+}
+
+/** Прописать bake во все пустые кадры спрайта (клон, не каталог). */
+function materializeBakesInto(id){
+  var def = getSpriteDef(id), r, a, i, n;
+  if (!def || !def.anims || isCatalogSpriteId(id)) return;
+  for (r = 0; r < def.anims.length; r++){
+    a = def.anims[r];
+    n = a.n | 0;
+    for (i = 0; i < n; i++){
+      if (isSpriteFrameDirty(id, a.id, i)) continue;
+      setSpriteFrame(id, a.id, i, bakeSpriteFrameSrc(id, a.id, i), true);
+    }
+  }
+}
+
+function addIconTileAndSprite(label, paintKind, src){
+  var tile = addTile({
+    name: label + ' icon',
+    src: src,
+    collide: 'none',
+    overlay: true
+  });
+  var tileSrc = (tile && tile.src) || src;
+  /* kind = id спрайта, не template: иначе spriteDefForKind('coin') находит custom. */
+  return addSpriteDef({
+    name: label,
+    fw: 16, fh: 16, ox: 0, oy: 0,
+    anims: [{ id: 'idle', name: 'Idle', n: 1 }],
+    src: tileSrc
+  });
+}
+
+/**
+ * Материализует визуал для дубля: custom tile + sprite frame (dataURL).
+ * Каталожный спрайт с кадрами → cloneSpriteDef (+ bake в клон если пусто).
+ * Процедурный без спрайта → addTile + addSpriteDef.
+ * Custom-оригинал без своей картинки получает свой spriteId.
+ */
+function materializeObjVisual(meta, nameSuffix){
+  if (!meta) return null;
+  var paintKind = meta.template || meta.kind;
+  var label = meta.name || paintKind || 'Object';
+  var suffix = nameSuffix != null ? nameSuffix : ' copy';
+  var srcSid = meta.spriteId;
+  if (!srcSid && (paintKind === 'hero' || meta.kind === 'hero')) srcSid = 'hero';
+  if (!srcSid && paintKind === 'player_start'){
+    var sp = G.levelSpec && G.levelSpec();
+    srcSid = (sp && sp.spawn && sp.spawn.spriteId) || 'hero';
+  }
+  if (!srcSid){
+    var sd0 = objectSpriteDef(meta.kind) || spriteDefForKind(paintKind);
+    if (sd0) srcSid = sd0.id;
+  }
+  if (srcSid && getSpriteDef(srcSid)){
+    /* Custom без собственного спрайта (ссылка на каталог / пусто) — закрепить копию на оригинал. */
+    if (meta.custom && (!meta.spriteId || isCatalogSpriteId(meta.spriteId) || !spriteHasIdlePic(meta.spriteId))){
+      var own = cloneSpriteDef(srcSid, label);
+      if (own){
+        materializeBakesInto(own.id);
+        if (!spriteHasIdlePic(own.id)){
+          var ownSrc = bakeObjIconSrc(paintKind);
+          setSpriteFrame(own.id, 'idle', 0, ownSrc, true);
+          addTile({ name: label + ' icon', src: ownSrc, collide: 'none', overlay: true });
+        }
+        updateObject(meta.kind, { spriteId: own.id });
+        meta.spriteId = own.id;
+        srcSid = own.id;
+      }
+    }
+    var cloned = cloneSpriteDef(srcSid, label + suffix);
+    if (!cloned) return null;
+    materializeBakesInto(cloned.id);
+    if (!spriteHasIdlePic(cloned.id)){
+      var cSrc = bakeObjIconSrc(paintKind);
+      setSpriteFrame(cloned.id, 'idle', 0, cSrc, true);
+      addTile({ name: label + suffix + ' icon', src: cSrc, collide: 'none', overlay: true });
+    }
+    return cloned;
+  }
+  var src = bakeObjIconSrc(paintKind);
+  if (!src) return null;
+  if (meta.custom && !spriteHasIdlePic(meta.spriteId)){
+    var ensured = addIconTileAndSprite(label, paintKind, src);
+    if (ensured){
+      updateObject(meta.kind, { spriteId: ensured.id });
+      meta.spriteId = ensured.id;
+    }
+  }
+  return addIconTileAndSprite(label + suffix, paintKind, src);
+}
+
 function duplicatePalObject(){
   if (ED.tab !== 'obj' && ED.tool !== 'obj') return false;
   var spec = ED_OBJS[ED.pal];
@@ -934,26 +1060,14 @@ function duplicatePalObject(){
   var meta = palObjMeta(spec);
   if (!meta) return false;
   beginOp();
-  var srcSid = meta.spriteId;
-  if (!srcSid && (meta.template === 'hero' || meta.kind === 'hero')) srcSid = 'hero';
-  if (!srcSid && meta.template === 'player_start'){
-    var spDup = G.levelSpec && G.levelSpec();
-    srcSid = (spDup && spDup.spawn && spDup.spawn.spriteId) || 'hero';
-  }
-  if (!srcSid){
-    var sd = objectSpriteDef(meta.kind) || spriteDefForKind(meta.template);
-    if (sd) srcSid = sd.id;
-  }
-  var newSid = null;
-  if (srcSid){
-    var cloned = cloneSpriteDef(srcSid, (meta.name || 'Sprite') + ' copy');
-    if (cloned) newSid = cloned.id;
-  }
+  var clonedSpr = materializeObjVisual(meta, ' copy');
+  var newSid = clonedSpr ? clonedSpr.id : null;
   var obj = cloneObjectFrom(meta.kind, newSid);
   if (!obj){ endOp(); return false; }
   noteOp();
   endOp();
   rebuildEdObjs();
+  clearThumbCache();
   ED.tool = 'obj';
   ED.tab = 'obj';
   fillPal();
