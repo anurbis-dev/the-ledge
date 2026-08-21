@@ -1,12 +1,12 @@
 import { T, C } from '../core/constants.js';
 import { runtime } from '../core/runtime.js';
 import {
-  solidAt, rectFree, tileAt, isSlopeV, isHalfV, isBarV, slopeSurfaceY
+  solidAt, rectFree, tileAt, isSlopeV, isHalfV, isBarV, slopeSurfaceY, groundYAt
 } from '../core/map.js';
 import { getTileDef } from '../core/tileset.js';
 import { allocId, findById } from './ids.js';
 import { dropTorch } from './torches.js';
-import { setStance, activeHeroId } from '../core/player.js';
+import { setStance, activeHeroId, grounded, snapFeet } from '../core/player.js';
 import { getAnimBox } from '../core/spriteset.js';
 import { heroGrabOffset } from '../core/sprite-grab.js';
 
@@ -362,29 +362,60 @@ function collideRopeNodes(r){
   pinEnds(r);
 }
 
-/** AABB героя на верёвке не оставлять в стене. */
-function unstickRopeRider(p){
-  if (rectFree(p.x, p.y, p.w, p.h)) return;
-  var ox = p.x, oy = p.y, tx, ty;
+function riderPoseFree(p){
+  return rectFree(p.x, p.y, p.w, p.h);
+}
+
+/** Упор боками / головой (потолок). Пол не выталкиваем вверх — для земли есть detach. */
+function unstickRopeRiderSidesHead(p){
+  if (riderPoseFree(p)) return;
+  var tx, ty;
   tx = Math.floor((p.x + p.w) / T) * T - p.w;
-  if (rectFree(tx, p.y, p.w, p.h)){ p.x = tx; return; }
-  tx = Math.floor(p.x / T) * T + T;
-  if (rectFree(tx, p.y, p.w, p.h)){ p.x = tx; return; }
+  if (rectFree(tx, p.y, p.w, p.h)){ p.x = tx; }
+  else {
+    tx = Math.floor(p.x / T) * T + T;
+    if (rectFree(tx, p.y, p.w, p.h)) p.x = tx;
+  }
+  if (riderPoseFree(p)) return;
+  /* потолок: сдвинуть вниз от верхней грани тайла */
   ty = Math.floor(p.y / T) * T + T;
-  if (rectFree(p.x, ty, p.w, p.h)){ p.y = ty; return; }
-  ty = Math.floor((p.y + p.h) / T) * T - p.h;
-  if (rectFree(p.x, ty, p.w, p.h)){ p.y = ty; return; }
-  /* угол: комбинация X затем Y */
-  p.x = Math.floor((ox + p.w) / T) * T - p.w;
-  if (!rectFree(p.x, p.y, p.w, p.h)) p.x = Math.floor(ox / T) * T + T;
-  if (!rectFree(p.x, p.y, p.w, p.h)){
-    p.x = ox;
-    p.y = Math.floor(oy / T) * T + T;
+  if (rectFree(p.x, ty, p.w, p.h)) p.y = ty;
+}
+
+/**
+ * После сдвига t: если AABB в solid — откатить t (binsearch к prevT),
+ * затем упор боками/головой.
+ */
+function resolveRopeRiderPose(p, R, st, prevT){
+  function place(t){
+    placeOnRope(p, sampleRope(R, t), R.orient);
+    return riderPoseFree(p);
   }
-  if (!rectFree(p.x, p.y, p.w, p.h)){
-    p.y = Math.floor((oy + p.h) / T) * T - p.h;
+  if (place(st.t)) return;
+  var a = prevT, b = st.t, k, m;
+  if (Math.abs(b - a) > 1e-6){
+    if (place(a)){
+      for (k = 0; k < 10; k++){
+        m = (a + b) * 0.5;
+        if (place(m)) a = m; else b = m;
+      }
+      st.t = a;
+      place(st.t);
+    } else {
+      st.t = prevT;
+      place(st.t);
+    }
   }
-  if (!rectFree(p.x, p.y, p.w, p.h)){ p.x = ox; p.y = oy; }
+  if (!riderPoseFree(p)) unstickRopeRiderSidesHead(p);
+}
+
+/** Земля / платформа под ступнями (для отцепа при спуске). */
+function ropeFeetOnGround(S, p){
+  var cx = p.x + p.w * 0.5, fy = p.y + p.h;
+  if (solidAt(cx, fy) || solidAt(cx, fy + 1)) return true;
+  var gy = groundYAt(cx, fy + 2);
+  if (gy != null && fy >= gy - 0.5 && fy <= gy + 2.5) return true;
+  return grounded(S, p, true);
 }
 
 function constrain(r, stretch){
@@ -593,7 +624,7 @@ export function attachRope(S, p, r, t){
   var box = getAnimBox(activeHeroId(), r.orient === 'h' ? 'bars' : 'hang');
   if (box){ p.w = box.w; p.h = box.h; }
   placeOnRope(p, sampleRope(r, t), r.orient);
-  unstickRopeRider(p);
+  unstickRopeRiderSidesHead(p);
   /* V: лёгкий боковой импульс — не висеть идеально ровно */
   if (r.orient === 'v'){
     var wob = ROPE_DEF.attachWobble;
@@ -660,6 +691,7 @@ export function updateRope(S, p, dt, inp){
   ensureNodes(R);
   var climb = defOf(R, 'climbV');
   var st = p.rope;
+  var prevT = st.t;
   var len = 0, i;
   for (i = 0; i < R.nodes.length - 1; i++)
     len += dist(R.nodes[i].x, R.nodes[i].y, R.nodes[i + 1].x, R.nodes[i + 1].y);
@@ -676,12 +708,14 @@ export function updateRope(S, p, dt, inp){
     return;
   }
 
+  var descending = false;
   if (R.orient === 'v'){
     var up = (inp.upHeld ? 1 : 0) - (inp.downHeld ? 1 : 0);
     if (st.climbLock){
       if (up === 0) st.climbLock = false;
     } else if (up !== 0){
       st.t -= (up * climb * dt) / len;
+      if (up < 0) descending = true;
     }
     var dir = Math.abs(inp.x) > 0.35 ? (inp.x > 0 ? 1 : -1) : 0;
     if (dir) p.facing = dir;
@@ -721,8 +755,18 @@ export function updateRope(S, p, dt, inp){
     if (st.t > 1) st.t = 1;
   }
 
-  placeOnRope(p, sampleRope(R, st.t), R.orient);
-  unstickRopeRider(p);
+  resolveRopeRiderPose(p, R, st, prevT);
+
+  /* земля под ногами: V — при спуске; H — если провисли до пола */
+  var onFloor = ropeFeetOnGround(S, p);
+  var vLand = R.orient === 'v' && !st.climbLock && (descending || st.t > prevT + 1e-5);
+  var hLand = R.orient === 'h';
+  if (onFloor && (vLand || hLand)){
+    detachRope(S, p, { vx: 0, vy: 0, cd: 0.12, event: 'offrope' });
+    p.onGround = true;
+    p.coyote = C.COYOTE;
+    snapFeet(p);
+  }
 }
 
 export function rebuildAllRopes(S){

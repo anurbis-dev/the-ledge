@@ -1,3 +1,7 @@
+## 0.7.0
+
+- FX Sand: формы эмиттера point|square|circle|line (`shape`/`shapeSize`/`shapeAngle`); Inspect + гизмо `emitSize`; persist `packEmitter`.
+
 ## 0.6.0
 
 - Objects: `Plat H` / `Plat V` / `Lift` в палитре + Inspect/гизмо; `plats.js`/`lifts.js` params (travel/loop/trigger/onLeave, floors); persist `packPlat`/`packLift`.
