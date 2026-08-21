@@ -116,7 +116,7 @@
 - Сундуки (`Chest`, `Locked`).
 - `Sound`, `Light`, `Volume` — у Light Details открывает спрайт фонаря, если есть def.
 - `Boulder`.
-- `Rope V` (`kind: 'rope_v'`) / `Rope H` (`kind: 'rope_h'`) — вертикальный / горизонтальный канат (`LV.ropes`). Постановка `mkRopeAt`; гизмо: handles `a`/`b` + move span; клик → `#edRopeSettings` (H: Length ≥ span для провиса; Segments; Elasticity 0=струна, плавный chordPull; Swing force только V; Wind; Climb; Grab). Play: V — тап L/R импульс, анимация hang; H — bars-анимация как у гориз. лестницы, ↓ отцеп. Persist `packRope` (+`length` для H). Role `marker`.
+- `Rope V` (`kind: 'rope_v'`) / `Rope H` (`kind: 'rope_h'`) — вертикальный / горизонтальный канат (`LV.ropes`). Постановка `mkRopeAt`; гизмо: handles `a`/`b` + move span; клик → `#edRopeSettings` (H: Length+ 0=длина=span, сдвиг добавляет px; Segments; Elasticity 0..1 с кривой ^2.6; Swing force только V; Wind; Climb; Grab). Play: V — лёгкий wobble при хвате, ↑↓ после отпускания захвата, тап L/R; H — bars, ↓ отцеп. Persist `packRope` (`lengthExtra`/`length` для H). Role `marker`.
 - NPC (`Hermit`, `Wanderer`) — Details → кадры NPC.
 - Custom kinds (после `Ctrl+D`) — в конце палитры.
 

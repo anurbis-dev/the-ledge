@@ -1,7 +1,7 @@
 import { touchOp } from './history.js';
 import { placeFloat, hasFloatPos, raiseFloat } from './float.js';
 import { initSliders } from './slider.js';
-import { ROPE_DEF, rebuildRope, ropeSpan } from '../entities/ropes.js';
+import { ROPE_DEF, rebuildRope, ropeSpan, ropeLengthExtra } from '../entities/ropes.js';
 
 var root = document.getElementById('edRopeSettings');
 var body = document.getElementById('edRopeSettingsBody');
@@ -65,11 +65,14 @@ function fill(){
   var r = current;
   var span = Math.max(1, Math.round(ropeSpan(r)));
   if (r.orient === 'h'){
-    var len = r.length != null ? r.length : Math.round(span * ROPE_DEF.slack);
-    if (len < span) len = span;
-    slider(body, 'Length', span, Math.max(span + 8, Math.round(span * 2.5)), 1,
-      Math.round(len),
-      function(v){ r.length = Math.max(span, v | 0); }, Math.round(span * ROPE_DEF.slack));
+    var extra = Math.round(ropeLengthExtra(r));
+    var maxEx = Math.max(24, Math.round(span * 1.5));
+    slider(body, 'Length +', 0, maxEx, 1,
+      extra,
+      function(v){
+        r.lengthExtra = Math.max(0, v | 0);
+        r.length = span + r.lengthExtra;
+      }, ROPE_DEF.lengthExtra | 0);
   }
   slider(body, 'Segments', 4, 24, 1,
     r.segs != null ? r.segs : ROPE_DEF.segs,

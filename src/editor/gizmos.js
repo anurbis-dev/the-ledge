@@ -138,11 +138,19 @@ export function hitGizmo(S, sel, wx, wy){
 
 export function beginGizmo(hit, wx, wy){
   var o = hit.obj;
+  var ropeEx = 0;
+  if (hit.type === 'rope' && o && o.orient === 'h'){
+    var sp0 = Math.sqrt((o.bx - o.ax) * (o.bx - o.ax) + (o.by - o.ay) * (o.by - o.ay)) || 1;
+    ropeEx = o.lengthExtra != null && Number.isFinite(o.lengthExtra)
+      ? Math.max(0, o.lengthExtra)
+      : Math.max(0, (o.length != null ? o.length : sp0) - sp0);
+  }
   drag = {
     kind: hit.kind, type: hit.type, obj: o, sign: hit.sign || 1,
     x0: wx, y0: wy,
     ox: o.x, oy: o.y, ow: o.w, oh: o.h, or: o.rot || 0, rad: o.radius || 80,
-    ax: o.ax, ay: o.ay, bx: o.bx, by: o.by
+    ax: o.ax, ay: o.ay, bx: o.bx, by: o.by,
+    lengthExtra: ropeEx
   };
 }
 
@@ -187,7 +195,9 @@ export function moveGizmo(wx, wy){
     }
     if (o.orient === 'h'){
       var sp = Math.sqrt((o.bx - o.ax) * (o.bx - o.ax) + (o.by - o.ay) * (o.by - o.ay));
-      if (o.length == null || o.length < sp) o.length = sp;
+      var ex = drag.lengthExtra != null ? Math.max(0, drag.lengthExtra) : 0;
+      o.lengthExtra = ex;
+      o.length = sp + ex;
     }
     rebuildRope(o);
     return;
