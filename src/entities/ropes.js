@@ -2,7 +2,9 @@ import { T, C } from '../core/constants.js';
 import { runtime } from '../core/runtime.js';
 import { allocId, findById } from './ids.js';
 import { dropTorch } from './torches.js';
-import { setStance } from '../core/player.js';
+import { setStance, activeHeroId } from '../core/player.js';
+import { getAnimBox } from '../core/spriteset.js';
+import { heroGrabOffset } from '../core/sprite-grab.js';
 
 export var ROPE_DEF = {
   segs: 8,
@@ -235,13 +237,19 @@ function pinEnds(r){
 }
 
 /**
- * Всегда equality к rest (length>span → катенар; length≈span → струна).
- * elast — только растяг: потолок rest*(1+stretch), stretch=elast²*ELAST_GAIN (0.01 ≈ незаметно).
+ * stretch-потолок (линейно): 0.01→0.5%, 0.03→1.5%, 0.12→6%, 0.5→25%.
+ * При H length≈span: elast=0 → жёсткая хорда; иначе g и iters масштабируются
+ * плавно (без скачка 0.01↔0.03 от вкл/выкл project).
  */
-var ELAST_GAIN = 2.5;
+var ELAST_STRETCH = 0.5;
+var ELAST_G_REF = 0.18;
 function elastStretch(elast){
+  return Math.max(0, elast) * ELAST_STRETCH;
+}
+/** 0..1: насколько «мягкая» короткой H (0=струна). */
+function elastSoft(elast){
   var e = Math.max(0, elast);
-  return e * e * ELAST_GAIN;
+  return e / (e + ELAST_G_REF);
 }
 
 function constrain(r, stretch){
@@ -259,9 +267,8 @@ function constrain(r, stretch){
       target = maxRest;
       soft = 1;
     } else {
-      /* зона растяга — мягкая пружина к rest */
       target = rest;
-      soft = 0.35 + 0.65 * ((d - rest) / (maxRest - rest + 0.0001));
+      soft = 0.45 + 0.55 * ((d - rest) / (maxRest - rest + 0.0001));
     }
     diff = ((d - target) / d) * soft;
     nx = dx * 0.5 * diff; ny = dy * 0.5 * diff;
@@ -273,7 +280,8 @@ function constrain(r, stretch){
 
 function applyRiderLoad(r, p, t){
   var s = sampleRope(r, t);
-  var w = 0.55;
+  var soft = elastSoft(defOf(r, 'elasticity'));
+  var w = 0.35 + 1.1 * soft;
   var nodes = r.nodes;
   var i0 = s.i0, i1 = s.i1;
   if (!nodes[i0].pinned){ nodes[i0].y += 2.2 * (1 - s.u) * w; }
@@ -308,19 +316,21 @@ function verlet(r, dt, full){
   var nodes = r.nodes, i, n, vx, vy, nx, ny, g;
   var time = runtime.W ? runtime.W.t : 0;
   pinEnds(r);
-  g = full ? C.GRAV * 0.55 : C.GRAV * 0.12;
   var stretch = elastStretch(elast);
-  /* натянутая нерастяжимая — почти без idle wind */
-  /* length≈span + малый stretch — хорда (иначе Verlet копит провис) */
-  var taut = stretch < 0.001 && Math.abs(ropeLength(r) - ropeSpan(r)) < 1;
+  var soft = elastSoft(elast);
+  var shortH = r.orient === 'h' && Math.abs(ropeLength(r) - ropeSpan(r)) < 1;
+  var hardString = shortH && elast < 0.002;
+  /* короткая H: низкий elast → слабая g (меньше ложного провиса), высокий → полная */
+  var gMul = shortH ? (0.12 + 0.88 * soft) : 1;
+  g = (full ? C.GRAV * 0.55 : C.GRAV * 0.12) * gMul;
   for (i = 0; i < nodes.length; i++){
     n = nodes[i];
     if (n.pinned) continue;
     vx = (n.x - n.ox) * damp;
     vy = (n.y - n.oy) * damp;
-    if (!full && !taut){
-      vx += Math.sin(time * 1.7 + r.ph + i * 0.45) * wind * 0.02;
-      vy += Math.cos(time * 1.3 + r.ph + i * 0.3) * wind * 0.008;
+    if (!full && !hardString){
+      vx += Math.sin(time * 1.7 + r.ph + i * 0.45) * wind * 0.02 * (0.25 + 0.75 * soft);
+      vy += Math.cos(time * 1.3 + r.ph + i * 0.3) * wind * 0.008 * (0.25 + 0.75 * soft);
     }
     nx = n.x + vx;
     ny = n.y + vy + g * dt * dt;
@@ -328,10 +338,10 @@ function verlet(r, dt, full){
     n.x = nx; n.y = ny;
   }
   var iters = full ? (C.ROPE_ITERS | 0) || 6 : 2;
-  if (stretch < 0.00005) iters = Math.max(iters, full ? 10 : 4);
+  if (hardString) iters = Math.max(iters, full ? 12 : 5);
+  else if (shortH && soft < 0.45) iters = Math.max(iters, full ? 10 : 4);
   for (i = 0; i < iters; i++) constrain(r, stretch);
-  /* H струна: length≈span + elast0 — жёстко на хорду (Verlet иначе оставляет провис) */
-  if (r.orient === 'h' && taut){
+  if (hardString){
     var nn = nodes.length;
     for (i = 0; i < nn; i++){
       n = nodes[i];
@@ -379,9 +389,14 @@ export function stepRopes(S, dt){
   }
 }
 
-function placeOnRope(p, s){
+function placeOnRope(p, s, orient){
   p.x = s.x - p.w / 2;
-  p.y = s.y - Math.min(10, p.h * 0.35);
+  if (orient === 'h'){
+    var hy = heroGrabOffset(p).y;
+    p.y = s.y - (hy > 0 ? hy : C.HAND);
+  } else {
+    p.y = s.y - Math.min(10, p.h * 0.35);
+  }
   p.vx = 0; p.vy = 0; p.onGround = false;
 }
 
@@ -390,14 +405,16 @@ export function attachRope(S, p, r, t){
   if (p.stance !== 0) setStance(S, p, 0);
   ensureNodes(r);
   p.rope = {
-    id: r.id, t: t,
-    swingCd: 0, kickDir: 0, pendingKick: 0, prevDir: 0
+    id: r.id, t: t, orient: r.orient,
+    ph: 0, swingCd: 0, kickDir: 0, pendingKick: 0, prevDir: 0
   };
   p.state = 'rope';
   p.hang = null; p.lad = null; p.bars = null; p.climb = null; p.ride = null;
   p.vx = 0; p.vy = 0; p.onGround = false; p.jumping = false;
   r.rider = true;
-  placeOnRope(p, sampleRope(r, t));
+  var box = getAnimBox(activeHeroId(), r.orient === 'h' ? 'bars' : 'hang');
+  if (box){ p.w = box.w; p.h = box.h; }
+  placeOnRope(p, sampleRope(r, t), r.orient);
   p.events.push('onrope');
 }
 
@@ -499,6 +516,7 @@ export function updateRope(S, p, dt, inp){
     var hx = Math.abs(inp.x) > 0.35 ? (inp.x > 0 ? 1 : -1) : 0;
     if (hx !== 0){
       st.t += (hx * climb * dt) / len;
+      st.ph = (st.ph || 0) + climb * dt * 0.12;
       p.facing = hx;
     }
     if (st.t < 0.02 && hx < 0){
@@ -513,7 +531,7 @@ export function updateRope(S, p, dt, inp){
     if (st.t > 1) st.t = 1;
   }
 
-  placeOnRope(p, sampleRope(R, st.t));
+  placeOnRope(p, sampleRope(R, st.t), R.orient);
 }
 
 export function rebuildAllRopes(S){

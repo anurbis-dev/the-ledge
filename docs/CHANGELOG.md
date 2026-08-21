@@ -1,3 +1,3 @@
 # Changelog (unreleased)
 
-- Ropes: V swing — импульс на каждый edge-press L/R (без apex-gate); elast²·2.5 растяг (0.01 не даёт провис); H — отцеп по ↓.
+- Ropes: elast — линейный stretch + soft-шкала g/rider (без скачка 0.01/0.03); H — анимация/box `bars` как у гориз. лестницы.

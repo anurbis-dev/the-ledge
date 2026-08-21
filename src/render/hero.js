@@ -55,7 +55,11 @@ export function heroClip(p){
     if (p.lad.v === G.LADR || p.lad.v === G.LADL) return ['ladderD', f];
     return ['ladder', f];
   }
-  if (p.state === 'rope') return ['hang', Math.sin(view.time * 3.1) > 0 ? 0 : 1];
+  if (p.state === 'rope'){
+    if (p.rope && p.rope.orient === 'h')
+      return ['bars', Math.sin((p.rope.ph || 0) * 2.4) > 0 ? 0 : 1];
+    return ['hang', Math.sin(view.time * 3.1) > 0 ? 0 : 1];
+  }
   if (p.state === 'hang' && p.hang.kind === 'lad') return ['hangLad', 0];
   if (p.state === 'climb' && p.climb.kind === 'lad') return ['ladder', 0];
   if (p.state === 'hang' && p.hang.kind === 'ledge') return ['hang', Math.sin(view.time * 2.2) > 0 ? 0 : 1];
@@ -211,7 +215,11 @@ export function boxPose(p){
     if (p.lad.v === G.LADR || p.lad.v === G.LADL) return f ? LADD0 : LADD1;  // диагональ: наклон корпуса
     return f ? LADP0 : LADP1;
   }
-  if (p.state === 'rope') return (Math.sin(animT * 3.1) > 0) ? HANG_A : HANG_B;
+  if (p.state === 'rope'){
+    if (p.rope && p.rope.orient === 'h')
+      return (Math.sin((p.rope.ph || 0) * 2.4) > 0) ? BARS0 : BARS1;
+    return (Math.sin(animT * 3.1) > 0) ? HANG_A : HANG_B;
+  }
   if (p.state === 'hang' && p.hang.kind === 'lad') return HANGL;
   if (p.state === 'climb' && p.climb.kind === 'lad')
     return lerpPose(HANGL, (p.lad && p.lad.v === G.LADF) ? LADF0 : LADP0, p.climb.p);

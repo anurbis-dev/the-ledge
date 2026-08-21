@@ -41,7 +41,7 @@ export function heroBoxAnim(p){
     if (p.lad && (p.lad.v === LADR || p.lad.v === LADL)) return 'ladderD';
     return 'ladder';
   }
-  if (p.state === 'rope') return 'hang';
+  if (p.state === 'rope') return (p.rope && p.rope.orient === 'h') ? 'bars' : 'hang';
   if (p.state === 'hang' && p.hang && p.hang.kind === 'lad') return 'hangLad';
   if (p.state === 'climb' && p.climb && p.climb.kind === 'lad') return 'ladder';
   if (p.state === 'hang') return 'hang';
@@ -61,6 +61,7 @@ function clipForGrab(p){
   if (p.state === 'hang') return p.hang && p.hang.kind === 'lad' ? 'hangLad' : 'hang';
   if (p.state === 'climb') return p.climb && p.climb.kind === 'lad' ? 'ladder' : 'climb';
   if (p.state === 'bars') return 'bars';
+  if (p.state === 'rope') return (p.rope && p.rope.orient === 'h') ? 'bars' : 'hang';
   if (p.inWater) return 'swim';
   if (!p.onGround){
     if (p.sliding) return 'slide';
