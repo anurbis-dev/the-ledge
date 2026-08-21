@@ -255,12 +255,12 @@ function pinEnds(r){
 }
 
 /**
- * Slider elast 0..1 → eff через экспоненту (низ мягкий, верх набирает).
- * stretch-потолок = eff·ELAST_STRETCH; soft = eff/(eff+G_REF) для g/rider.
+ * Slider elast 0..1 → eff^ELAST_EXP (низ мягкий).
+ * stretch = eff·ELAST_STRETCH; soft = eff/(eff+G_REF) для g/rider.
  */
-var ELAST_STRETCH = 0.55;
-var ELAST_G_REF = 0.22;
-var ELAST_EXP = 2.6;
+var ELAST_STRETCH = 0.85;
+var ELAST_G_REF = 0.28;
+var ELAST_EXP = 2.2;
 function elastEff(elast){
   var e = Math.max(0, Math.min(1, elast));
   if (e <= 0) return 0;
@@ -278,22 +278,29 @@ function elastSoft(elast){
 function constrain(r, stretch){
   var nodes = r.nodes, rest = r.rest, maxRest = rest * (1 + stretch);
   var hard = stretch < 0.00005;
-  var i, a, b, dx, dy, d, target, diff, nx, ny, soft;
+  var i, a, b, dx, dy, d, target, diff, nx, ny, k, over;
   for (i = 0; i < nodes.length - 1; i++){
     a = nodes[i]; b = nodes[i + 1];
     dx = b.x - a.x; dy = b.y - a.y;
     d = Math.sqrt(dx * dx + dy * dy) || 0.0001;
-    if (hard || d <= rest){
+    if (hard){
       target = rest;
-      soft = 1;
-    } else if (d > maxRest){
-      target = maxRest;
-      soft = 1;
+      k = 1;
+    } else if (d <= rest){
+      target = rest;
+      k = 1;
+    } else if (d <= maxRest){
+      /* зона растяга — мягкая пружина к rest, без резкого упора */
+      target = rest;
+      over = (d - rest) / (maxRest - rest + 0.0001);
+      k = 0.22 + 0.38 * over;
     } else {
-      target = rest;
-      soft = 0.45 + 0.55 * ((d - rest) / (maxRest - rest + 0.0001));
+      /* за потолком — пружина, не кирпич (иначе «обрыв» и ровные крылья) */
+      target = maxRest;
+      over = Math.min(1.8, (d - maxRest) / (rest * 0.35 + 0.0001));
+      k = 0.35 + 0.4 * over;
     }
-    diff = ((d - target) / d) * soft;
+    diff = ((d - target) / d) * k;
     nx = dx * 0.5 * diff; ny = dy * 0.5 * diff;
     if (!a.pinned){ a.x += nx; a.y += ny; }
     if (!b.pinned){ b.x -= nx; b.y -= ny; }
@@ -302,15 +309,22 @@ function constrain(r, stretch){
 }
 
 function applyRiderLoad(r, p, t){
-  var s = sampleRope(r, t);
   var soft = elastSoft(defOf(r, 'elasticity'));
-  /* без пола: малый elast почти не продавливает */
-  var w = 1.55 * soft;
+  var w = 1.35 * soft;
   if (w < 0.0005) return;
-  var nodes = r.nodes;
-  var i0 = s.i0, i1 = s.i1;
-  if (!nodes[i0].pinned){ nodes[i0].y += 2.2 * (1 - s.u) * w; }
-  if (!nodes[i1].pinned){ nodes[i1].y += 2.2 * s.u * w; }
+  ensureNodes(r);
+  var nodes = r.nodes, n = nodes.length;
+  if (n < 2) return;
+  /* размазать вес по нескольким узлам — плавная яма, не V */
+  var mid = t * (n - 1);
+  var i, dist, fall, push;
+  for (i = 0; i < n; i++){
+    if (nodes[i].pinned) continue;
+    dist = Math.abs(i - mid);
+    fall = Math.exp(-dist * dist / 2.8);
+    push = 2.4 * w * fall;
+    if (push > 0.001) nodes[i].y += push;
+  }
 }
 
 /** Одноразовый kick на нажатии; сила в px-эквиваленте (не *dt каждый кадр). */
@@ -345,9 +359,8 @@ function verlet(r, dt, full){
   var soft = elastSoft(elast);
   var shortH = r.orient === 'h' && Math.abs(ropeLength(r) - ropeSpan(r)) < 1;
   var hardString = shortH && elastEff(elast) < 0.00008;
-  /* короткая H: низкий elast → слабая g (меньше ложного провиса), высокий → полная */
-  /* короткая H: g ∝ soft² — низкий elast почти без провиса */
-  var gMul = shortH ? Math.max(0.04, soft * soft * 1.35) : 1;
+  /* короткая H: g ∝ soft — без резкого «вкл/выкл» провиса */
+  var gMul = shortH ? Math.max(0.06, 0.15 + 0.85 * soft) : 1;
   g = (full ? C.GRAV * 0.55 : C.GRAV * 0.12) * gMul;
   for (i = 0; i < nodes.length; i++){
     n = nodes[i];
@@ -355,7 +368,7 @@ function verlet(r, dt, full){
     vx = (n.x - n.ox) * damp;
     vy = (n.y - n.oy) * damp;
     if (!full && !hardString){
-      var wm = soft * soft;
+      var wm = 0.2 + 0.8 * soft;
       vx += Math.sin(time * 1.7 + r.ph + i * 0.45) * wind * 0.02 * wm;
       vy += Math.cos(time * 1.3 + r.ph + i * 0.3) * wind * 0.008 * wm;
     }
@@ -365,13 +378,13 @@ function verlet(r, dt, full){
     n.x = nx; n.y = ny;
   }
   var iters = full ? (C.ROPE_ITERS | 0) || 6 : 2;
-  if (hardString || (shortH && soft < 0.08)) iters = Math.max(iters, full ? 12 : 5);
-  else if (shortH && soft < 0.35) iters = Math.max(iters, full ? 10 : 4);
+  if (hardString) iters = Math.max(iters, full ? 12 : 5);
+  else if (shortH && soft < 0.25) iters = Math.max(iters, full ? 9 : 4);
   for (i = 0; i < iters; i++) constrain(r, stretch);
-  /* хорда: жёстко при eff≈0; иначе слабый blend ∝ (1-soft) */
-  if (shortH){
-    var pull = hardString ? 1 : Math.pow(1 - soft, 2.2) * 0.22;
-    if (pull > 0.01){
+  /* хорда только у почти-струны; с rider — слабее, чтобы яма не сплющивалась */
+  if (shortH && !r.rider){
+    var pull = hardString ? 1 : Math.pow(1 - soft, 1.6) * 0.12;
+    if (pull > 0.015){
       var nn = nodes.length;
       for (i = 0; i < nn; i++){
         n = nodes[i];
@@ -388,6 +401,16 @@ function verlet(r, dt, full){
           n.oy += (ty - n.oy) * pull;
         }
       }
+    }
+  } else if (hardString){
+    var nn2 = nodes.length;
+    for (i = 0; i < nn2; i++){
+      n = nodes[i];
+      if (n.pinned) continue;
+      var u2 = i / (nn2 - 1);
+      var tx2 = r.ax + (r.bx - r.ax) * u2;
+      var ty2 = r.ay + (r.by - r.ay) * u2;
+      n.x = tx2; n.y = ty2; n.ox = tx2; n.oy = ty2;
     }
   }
 }

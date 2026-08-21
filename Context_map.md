@@ -36,7 +36,7 @@
 
 Пауки (`entities/spiders.js`): если потолок над ними пропадает (хрупкий `CRUMB` в `S.gone`) — падают и убегают (`fall`/`flee`, без лута). Паутину на спуске можно порвать палкой или гарпуном — тот же срыв. Нить рисуется чередованием светлого/тёмного, не сплошной верёвкой.
 
-Канаты (`entities/ropes.js`): `LV.ropes` / `S.ropes` — `{id, orient:'v'|'h', ax,ay,bx,by, segs, elasticity, swingForce, length(H), optional damping/wind/climbV/grabR}`; runtime — Verlet `nodes` (`mkRopes`/`mkRopeAt`, `rebuildRope`, `packRope`). Constraint: equality к rest; slider elast→`eff=elast^2.6`, stretch=eff·0.55, soft=eff/(eff+0.22). H: `lengthExtra` (0=длина=span, >0 добавка); elast≈0+extra0 → хорда. V: attach wobble; climbLock до отпускания ↑; L/R edge-impulse; hang. H: bars; ↓ отцеп. `p.rope={id,t,orient,ph,climbLock,…}`. `C.ROPE_*`.
+Канаты (`entities/ropes.js`): `LV.ropes` / `S.ropes` — `{id, orient:'v'|'h', ax,ay,bx,by, segs, elasticity, swingForce, length(H), optional damping/wind/climbV/grabR}`; runtime — Verlet `nodes` (`mkRopes`/`mkRopeAt`, `rebuildRope`, `packRope`). Constraint: equality к rest; elast→`eff^2.2`, stretch=eff·0.85 (мягкая пружина, не hard clamp); soft=eff/(eff+0.28); rider load gaussian. H: `lengthExtra` (0=span); хорда в основном без rider. V: wobble+climbLock; hang. H: bars; ↓ отцеп. `C.ROPE_*`.
 
 Гарпун (`p.gear.harpoon`, рука `p.hand`): в воде — болт как лук (`fireHarpoon`, без подтяга, стрелы подбираются). На суше — крюк (`fireGrapple`): 45° вперёд, при удержании ↑ — строго вверх; длина `C.HARPOON_LEN`, тяга `C.HARPOON_PULL`, отстёгивается за `C.HARPOON_DETACH` и летит по импульсу+гравитации. Смена руки (палка/лук/гарпун): Q или тап по иконке оружия в HUD (`cycleHand`).
 

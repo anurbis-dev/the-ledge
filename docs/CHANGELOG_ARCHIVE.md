@@ -1,3 +1,7 @@
+## 0.3.4
+
+- Ropes: V attach wobble + climbLock (↑↓ после отпускания); H Length+ (0=span); elast^2.6.
+
 ## 0.3.3
 
 - Ropes: elast — линейный stretch + soft-шкала g/rider (без скачка 0.01/0.03); H — анимация/box `bars` как у гориз. лестницы.
