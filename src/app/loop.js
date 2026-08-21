@@ -8,7 +8,7 @@ import {
   beginIntro, skipIntro, dismissIntro, stepIntro, isIntroReady,
   beginOutro, skipOutro, pickOutro, stepOutro, hitOutro, isOutroReady,
   setOutroFocus, outroFocus,
-  applyPal, buildWater, stepWater, invalidateAll, fore, rc, getFish, spark, landDust, bonkDust, emitSand,
+  applyPal, buildWater, stepWater, invalidateAll, addWaterRipple, clearWaterRipples, fore, rc, getFish, spark, landDust, bonkDust, emitSand,
   resetCam, followCam, pushCamRender, popCamRender, clearCamPan, paintHud, clearHud,
   setViewScale, applyVolumes, drawCollideOverlay,
   isInvOpen, invInspecting, openInv, closeInv, toggleInv, stepInv, drawInventory, handleInvPointer, handleInvWheel, handleInvKey,
@@ -132,6 +132,7 @@ function onEvent(ev){
       parts.push({ x: p.x + 5 + (Math.random()-0.5)*14, y: sy5,
                    vx: (Math.random()-0.5)*110, vy: -40 - Math.random()*90,
                    t: 0.35 + Math.random()*0.3, c: '#bfe6ff', g: 260 });
+    addWaterRipple(p.x + p.w * 0.5, Math.min(2.4, 1.05 + Math.abs(p.vy) / 100));
   }
   else if (k === 'bubble'){
     var bn = Math.random() < 0.28 ? 2 : 1;
@@ -361,6 +362,7 @@ function hardReset(){
   clearHistory();
   setS(G.mkWorld(G.levelIndex()));
   parts.length = 0; view.flash = 0.6;
+  clearWaterRipples();
   applyPal(); buildWater(); invalidateAll();
 }
 
@@ -372,6 +374,7 @@ function startLevel(idx){
   introT = 1;                                  // плашка с названием, игра ждёт касания
   paused = false; gameOver = null; setOutro(null);
   parts.length = 0; view.flash = 0.7; view.warpJump = true;
+  clearWaterRipples();
   resetCam(S.p);
   applyPal(); buildWater(); invalidateAll();
   setMenu(false);
