@@ -3132,22 +3132,25 @@ if (bBake) bBake.addEventListener('click', function(){
   flushLevel(world());
   flushAllLevelsStore(G.LEVELS);
   bBake.disabled = true;
-  // Окно только после реального POST /__bake (pushBake ждёт очередь, не busy-stub).
-  pushBake({ full: true, silent: false, timeout: 8000 }).then(function(res){
+  // Только POST /__bake → src/core/defaults.js. JSON-файл не качаем (это не цель Bake).
+  pushBake({ full: true, silent: false, timeout: 60000 }).then(function(res){
     bBake.disabled = false;
     if (!res || !res.ok){
-      downloadBakeJson(collectFull());
-      showEdOut('Bake did not confirm write.\nJSON downloaded as ledge-bake.json.', true);
+      showEdOut(
+        'Bake did not write defaults.js' +
+        (res && res.error ? ' (' + res.error + ')' : '') +
+        '.\nKeep the Vite dev server running and retry.',
+        true
+      );
       return;
     }
     showEdOut('Baked OK — src/core/defaults.js updated.\nLevels: ' + res.levels, true);
   }).catch(function(err){
     bBake.disabled = false;
-    downloadBakeJson(collectFull());
+    var why = err && err.timedOut ? 'timeout' : String(err && err.message || err);
     showEdOut(
-      'Live write failed (' + (err && err.timedOut ? 'timeout' : err) + ').\n' +
-      'Bake writes defaults.js only via this button while the dev server runs.\n' +
-      'If this keeps failing, restart start-dev-server.bat.',
+      'Bake failed to write src/core/defaults.js (' + why + ').\n' +
+      'Dev server must be running (npm run dev). No JSON download — fix the write and retry.',
       true
     );
   });

@@ -1,3 +1,3 @@
 # Changelog (unreleased)
 
-- Persist: auto-bake off — `defaults.js` only via Bake button; levels no longer use `ledge.dev.levels` (session mem + `BAKED.levels` only).
+- Bake: `BAKED.sprites` includes PNG frames (+ `spriteDefs` for clones); no JSON download fallback on Bake failure.

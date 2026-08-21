@@ -164,7 +164,7 @@
 ### Редактор спрайтов (Sprites tab / Edit со слота)
 
 - Каталог и импорт PNG / Paint — вкладка **Sprites**; из Objects/Tiles Details — только через Edit / dblclick Sprite slot → `openSpriteEdit` (тот же `#edTileEdit` в sprite-mode).
-- Каждая анимация — своя строка кадров; сепаратор увеличивает высоту. `+` / драг-reorder / Play·Stop. У врагов/птиц/пауков открытие материализует bake во все слоты. Клик по кадру — пиксели. Красная коробка — хитбокс (Box / Hit); origin верх-лево; Hands золотой; weapon пурпурный. Reset anchors / Reset frame. Size — `fw×fh`. Origin/box/Hands → Bake `BAKED.sprites`; кадры → `ledge.dev.sprites`.
+- Каждая анимация — своя строка кадров; сепаратор увеличивает высоту. `+` / драг-reorder / Play·Stop. У врагов/птиц/пауков открытие материализует bake во все слоты. Клик по кадру — пиксели. Красная коробка — хитбокс (Box / Hit); origin верх-лево; Hands золотой; weapon пурпурный. Reset anchors / Reset frame. Size — `fw×fh`. Bake пишет в `BAKED.sprites` якоря **и** PNG-кадры (+ `BAKED.spriteDefs`); черновик по-прежнему в `ledge.dev.sprites`.
 - Сущности (items / enemies / fliers / npcs) могут нести `spriteId` при постановке — draw/persist.
 
 ### Логика постановки
@@ -303,13 +303,13 @@ Tiles / sprites / params / intro:
 - `preferLocal` сравнивает `ledge.dev.savedAt` с `BAKED.savedAt` **только** для этих слоёв (не для карт).
 
 Ручной bake:
-- Единственный путь на диск: кнопка `Bake` → `POST /__bake` (full dump в `src/core/defaults.js`, включая уровни из mem-store).
-- Если live-запись не удалась, редактор предлагает JSON-файл `ledge-bake.json`.
+- Единственный путь на диск: кнопка `Bake` → `POST /__bake` → `src/core/defaults.js` (уровни из mem-store, тайлы, спрайты).
+- При ошибке записи JSON **не** скачивается — нужен живой Vite и повтор Bake.
 
 Что попадает в dump:
 - Геометрия и слои, объекты мира, вода/shade.
 - Intro/Gear/Mix/Params (snapshot-части).
-- Спрайт-якоря и коробка действия (`BAKED.sprites`: origin / grab / box / size; без PNG-кадров).
+- Спрайты: якоря + PNG-кадры (`BAKED.sprites`) и кастом-defs (`BAKED.spriteDefs`).
 
 ## 14. Практические сценарии (как собрать игровые ситуации)
 

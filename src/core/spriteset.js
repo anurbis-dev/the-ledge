@@ -1,6 +1,6 @@
 /* Каталог спрайтов персонажей: строки анимаций, кадры — PNG.
-   Черновик — ledge.dev.sprites (кадры + якоря). Bake пишет origin/grab/box в BAKED.sprites.
-   Пустой кадр = рисуем по-старому (скелет / rc). */
+   Черновик — ledge.dev.sprites (кадры + якоря). Bake → BAKED.sprites (якоря + frames)
+   и BAKED.spriteDefs (кастом-клоны). Пустой кадр = скелет / rc. */
 import { BAKED } from './defaults.js';
 import { C } from './constants.js';
 
@@ -351,22 +351,27 @@ function normalizeCustomDef(d){
   };
 }
 
+function applyCustomDefs(list){
+  if (!list || !list.length) return;
+  customDefs = list.map(normalizeCustomDef).filter(Boolean);
+  var i, m;
+  for (i = 0; i < customDefs.length; i++){
+    m = /_(\d+)$/.exec(customDefs[i].id);
+    if (m) defSeq = Math.max(defSeq, (+m[1]) + 1);
+  }
+}
+
 function boot(){
   saved = {};
   customDefs = [];
   overlaySprites(saved, (BAKED && BAKED.sprites) || {});
+  if (BAKED && BAKED.spriteDefs && BAKED.spriteDefs.length)
+    applyCustomDefs(BAKED.spriteDefs);
   var loc = readLocal();
   if (loc){
     if (loc.sprites) overlaySprites(saved, loc.sprites);
     else overlaySprites(saved, loc);
-    if (loc.defs && loc.defs.length){
-      customDefs = loc.defs.map(normalizeCustomDef).filter(Boolean);
-      var i, m;
-      for (i = 0; i < customDefs.length; i++){
-        m = /_(\d+)$/.exec(customDefs[i].id);
-        if (m) defSeq = Math.max(defSeq, (+m[1]) + 1);
-      }
-    }
+    if (loc.defs && loc.defs.length) applyCustomDefs(loc.defs);
   }
   rebuildById();
   loadAll();
@@ -787,7 +792,7 @@ export function applySpritesSnap(snap){
 }
 
 export function snapshotSpriteAnchors(){
-  var out = {}, id, anim, rec, m, a, packed;
+  var out = {}, id, anim, rec, m, a, packed, hasPic;
   for (id in saved){
     if (!Object.prototype.hasOwnProperty.call(saved, id)) continue;
     packed = {};
@@ -800,11 +805,17 @@ export function snapshotSpriteAnchors(){
       rec = saved[id][anim];
       if (!rec) continue;
       a = {};
+      hasPic = !!(rec.frames && rec.frames.length);
+      if (hasPic){
+        a.frames = rec.frames.slice();
+        a.dirty = (rec.dirty || []).slice();
+      }
+      if (rec.n != null) a.n = rec.n | 0;
       if (rec.origin) a.origin = cloneOrigin(rec.origin);
       if (rec.grab) a.grab = cloneOrigin(rec.grab);
       if (rec.weapon && rec.weapon.length) a.weapon = clonePts(rec.weapon);
       if (rec.box) a.box = cloneBox(rec.box);
-      if (a.origin || a.grab || a.weapon || a.box) packed[anim] = a;
+      if (hasPic || a.origin || a.grab || a.weapon || a.box || rec.n != null) packed[anim] = a;
     }
     if (Object.keys(packed).length) out[id] = packed;
   }
