@@ -451,7 +451,7 @@ function paintGraded(c, r, x, y, fn){
 }
 
 /* FALL-нити: фаза по world Y — непрерывны через столбец тайлов.
- * Светлая нить: яркая сверху → плавно прозрачнее вниз (по всей length).
+ * Светлая нить: яркая снизу → плавно прозрачнее вверх (по всей length).
  * length/wave/random/offset/fade — tileGfx[14], 0..100. */
 function paintFallStrands(c, r, x, y, time, w1, fadeK){
   if (fadeK == null) fadeK = 0;
@@ -497,8 +497,8 @@ function paintFallStrands(c, r, x, y, time, w1, fadeK){
       u = (time * strandSpd + phase0 - wy) % period;
       if (u < 0) u += period;
       if (u < lightLen){
-        /* u→lightLen = верх нити (ярче), u→0 = низ (прозрачнее) */
-        taper = u / lightLen;
+        /* u→0 = низ нити (ярче), u→lightLen = верх (прозрачнее) */
+        taper = 1 - u / lightLen;
         taper = taper * taper * (3 - 2 * taper); /* smoothstep */
         lightA = 0.12 + 0.88 * taper;
         ctx.globalAlpha = prevA * a * lightA;
