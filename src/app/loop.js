@@ -132,7 +132,7 @@ function onEvent(ev){
       parts.push({ x: p.x + 5 + (Math.random()-0.5)*14, y: sy5,
                    vx: (Math.random()-0.5)*110, vy: -40 - Math.random()*90,
                    t: 0.35 + Math.random()*0.3, c: '#bfe6ff', g: 260 });
-    addWaterRipple(p.x + p.w * 0.5, Math.min(2.4, 1.05 + Math.abs(p.vy) / 100));
+    addWaterRipple(p.x + p.w * 0.5, Math.min(3.6, 1.6 + Math.abs(p.vy) / 70));
   }
   else if (k === 'bubble'){
     var bn = Math.random() < 0.28 ? 2 : 1;

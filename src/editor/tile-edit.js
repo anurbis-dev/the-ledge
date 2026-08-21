@@ -1,7 +1,7 @@
 import GAME from '../core/game.js';
 import {
   getTileDef, updateTile, getTileGfx, setTileGfx, clearTileGfx, getTileSpeed,
-  getTileShift, getTileWaveX, getTileSpriteId, setTileSpriteId,
+  getTileShift, getTileWaveX, getTileSplash, getTileSpriteId, setTileSpriteId,
   tileFrameCount, tileFrameSrc, canvasToPng, loadImageFile, sliceSheet, addTile
 } from '../core/tileset.js';
 import { initSliders } from './slider.js';
@@ -1846,9 +1846,10 @@ function fillTileParamsOnly(){
   }
 
   if (current.id === GAME.WATER){
-    var shDef = 0, wxDef = 50;
+    var shDef = 100, wxDef = 50, spDef = 80;
     var shVal = getTileShift(GAME.WATER, shDef);
     var wxVal = getTileWaveX(GAME.WATER, wxDef);
+    var spVal = getTileSplash(GAME.WATER, spDef);
 
     var shWrap = document.createElement('label');
     shWrap.className = 'slider-wrap';
@@ -1885,6 +1886,24 @@ function fillTileParamsOnly(){
     wxWrap.appendChild(wxInp);
     body.appendChild(wxWrap);
     initSliders(wxWrap);
+
+    var spWrap = document.createElement('label');
+    spWrap.className = 'slider-wrap';
+    spWrap.title = 'Player enter/exit splash strength on surface (0 = none)';
+    spWrap.innerHTML = '<div class="slider-label-overlay"><span>Splash</span><span></span></div>';
+    var spInp = document.createElement('input');
+    spInp.type = 'range';
+    spInp.min = 0; spInp.max = 100; spInp.step = 1;
+    spInp.value = spVal;
+    spInp.dataset.default = String(spDef);
+    spInp.addEventListener('input', function(){
+      markOp();
+      setTileGfx(GAME.WATER, { splash: +spInp.value });
+      notify();
+    });
+    spWrap.appendChild(spInp);
+    body.appendChild(spWrap);
+    initSliders(spWrap);
   }
 
   if (!tileHasLinkedSprite()){

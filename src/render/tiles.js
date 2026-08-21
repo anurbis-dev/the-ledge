@@ -2,7 +2,7 @@ import GAME from '../core/game.js';
 import { hooks } from '../core/runtime.js';
 import { COVER_AIR, coverRaw, coverVarRaw, roomCoverA, rebuildRooms } from '../core/rooms.js';
 import { getLayers, layerShown, lastCollideIndex, layerTileRaw, layerVarRaw, layerDeco, isTileLayer, wrapSize, layerCssFilter, layerGrade, gradeCssFilter } from '../core/layers.js';
-import { getTileDef, tileImage, tileFrameImage, tileFrameCount, getTileSpeed, getTileShift, getTileWaveX } from '../core/tileset.js';
+import { getTileDef, tileImage, tileFrameImage, tileFrameCount, getTileSpeed, getTileShift, getTileWaveX, getTileSplash } from '../core/tileset.js';
 import { buildWater } from './fx.js';
 import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH, viewScale } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
@@ -139,7 +139,8 @@ var WAVE_PAD = 4, WAVE_H = 20;
 var WAVE_TRAVEL_K = 2.2; /* канон: фазовая скорость базовой волны */
 var WAVE_FALL_D = 14;    /* радиус разбега FALL в тайлах */
 var WAVE_FALL_RIPPLE = 4.2; /* амплитуда расходящейся ряби от потока */
-var WAVE_FALL_RIVER = 0.88; /* сколько речного дрейфа гасим у FALL (0..1) */
+var WAVE_FALL_RIVER = 0.88; /* гасим только речной travel у FALL (0..1), не амплитуды слоёв */
+var WAVE_FALL_CHURN = 2.8; /* бурление прямо под потоком */
 var SPLASH_LIFE = 1.65;
 var splashRipples = []; /* { x, t0, amp, life } — рябь от игрока */
 var wStrip = { t: NaN, c0: 0, c1: -1, lo: null, hi: null, energy: null, sources: null };
@@ -159,7 +160,7 @@ function pruneSplashRipples(time){
     if (time - splashRipples[i].t0 > splashRipples[i].life) splashRipples.splice(i, 1);
   }
 }
-/* расходящееся кольцо: sin(k·|x−src|−ω·age)·гашение */
+/* расходящееся кольцо; сила снаружи × waveSplashScale */
 function splashAt(worldX, time){
   var sum = 0, i, r, age, d, fade, env, front;
   for (i = 0; i < splashRipples.length; i++){
@@ -169,10 +170,10 @@ function splashAt(worldX, time){
     fade = 1 - age / r.life;
     fade *= fade;
     d = Math.abs(worldX - r.x);
-    front = age * 95;
-    env = Math.exp(-((d - front) * (d - front)) / (32 * 32));
-    env += 0.28 * Math.exp(-d / 55) * fade;
-    sum += r.amp * fade * env * Math.sin(d * 0.2 - age * 10);
+    front = age * 110;
+    env = Math.exp(-((d - front) * (d - front)) / (40 * 40));
+    env += 0.4 * Math.exp(-d / 70) * fade;
+    sum += r.amp * fade * env * Math.sin(d * 0.175 - age * 9.5) * 1.35;
   }
   return sum;
 }
@@ -270,8 +271,9 @@ function collectFallSources(c0, c1, r0, r1){
   return out;
 }
 /* sin(k·|x−src|−ωt): гребни уходят влево и вправо от каждого потока */
-function fallExpandAt(worldX, time, sources, scale){
+function fallExpandAt(worldX, time, sources, scale, phOff){
   if (!sources || !sources.length) return 0;
+  if (phOff == null) phOff = 0;
   var sum = 0, i, d, tiles, e;
   for (i = 0; i < sources.length; i++){
     d = Math.abs(worldX - sources[i]);
@@ -280,15 +282,30 @@ function fallExpandAt(worldX, time, sources, scale){
     e = 1 - tiles / WAVE_FALL_D;
     e *= e;
     sum += e * (
-      Math.sin(d * 0.145 - time * 3.35) +
-      0.55 * Math.sin(d * 0.078 - time * 2.15 + 1.05)
+      Math.sin(d * 0.145 - time * 3.35 + phOff) +
+      0.55 * Math.sin(d * 0.078 - time * 2.15 + 1.05 + phOff * 0.7)
     );
   }
   return sum * WAVE_FALL_RIPPLE * scale;
 }
+/* бурление у удара потока: быстрый шум, сильнее при e→1 */
+function fallChurnAt(worldX, time, e, scale, phOff){
+  if (e <= 0.02) return 0;
+  if (phOff == null) phOff = 0;
+  var boil = e * e * (0.55 + 0.45 * e);
+  return boil * WAVE_FALL_CHURN * scale * (
+    Math.sin(time * 11.2 + worldX * 0.38 + phOff) * 0.72 +
+    Math.sin(time * 17.6 + worldX * 0.61 + phOff * 1.3) * 0.48 +
+    Math.sin(time * 23.4 + worldX * 0.22 + phOff * 0.5) * 0.28
+  );
+}
 var BOB_KX = 0.55 / T; /* bob от world X — без скачка на стыке */
 function waveScale(){
   return Math.max(0, getTileWaveX(G.WATER, 50)) / 50;
+}
+/* Splash: 0..100, дефолт 80 — сила ряби от героя (вход/выход) */
+function waveSplashScale(){
+  return Math.max(0, getTileSplash(G.WATER, 80)) / 40;
 }
 /* Shift: −100..+100, default 100 = канон 2.2 вправо; 0 = стоячая база */
 function waveBaseTravel(){
@@ -304,42 +321,52 @@ function sampleField(arr, c0, worldX){
   return arr[i0] + (arr[i0 + 1] - arr[i0]) * t;
 }
 /*
- * База: постоянный travel (канон). У FALL речной дрейф гасится,
- * доминирует расходящаяся рябь sin(k·|x−src|−ωt) в обе стороны.
- * Всплески игрока — те же кольца, затухающие по времени.
+ * База: канон — два слоя с разной фазой/скоростью (ph2 vs ph3).
+ * У FALL гасим только речной travel, амплитуды слоёв оставляем —
+ * иначе слои слипаются в один пласт. Expand + churn у потока.
+ * Всплески героя — кольца, сила через tileGfx.splash.
  */
 function paintWaveSpan(xBase, y, worldX0, pixelW, time, w1, baseTravel, scale, energy, sources, fieldC0){
   var wx, wx2;
   if (scale == null) scale = 1;
   if (baseTravel == null) baseTravel = WAVE_TRAVEL_K;
   var subTravel = baseTravel * (1.25 / WAVE_TRAVEL_K);
+  var a1 = 1.6 * scale, a2 = 0.7 * scale, a3 = 1.2 * scale;
+  var b1 = 2.1 * scale, b2 = 1.4 * scale;
+  var splashMul = waveSplashScale();
   for (wx = 0; wx < pixelW; wx += 2){
     var worldX = worldX0 + wx;
     var e = sampleField(energy, fieldC0, worldX);
     var river = 1 - WAVE_FALL_RIVER * e;
-    var a1 = 1.6 * scale * river, a2 = 0.7 * scale * river, a3 = 1.2 * scale * river;
     var bob = Math.sin(time * 2.8 + worldX * BOB_KX) * 1.5 * scale;
-    var ph2 = worldX * 0.09 - time * baseTravel;
-    var expand = fallExpandAt(worldX, time, sources, scale);
-    var splash = splashAt(worldX, time) * scale;
-    var wv = Math.round(Math.sin(ph2) * a1 + Math.sin(ph2 * 2.3) * a2 + bob + expand + splash);
+    var bobMid = Math.sin(time * 2.35 + worldX * BOB_KX * 1.15 + 0.9) * 1.15 * scale;
+    var ph2 = worldX * 0.09 - time * baseTravel * river;
+    var expand = fallExpandAt(worldX, time, sources, scale, 0);
+    var churn = fallChurnAt(worldX, time, e, scale, 0);
+    var splash = splashAt(worldX, time) * scale * splashMul;
+    var wv = Math.round(Math.sin(ph2) * a1 + Math.sin(ph2 * 2.3) * a2 + bob + expand + churn + splash);
     rc(xBase + wx, y + 1 + wv, 2, 2, w1);
     rc(xBase + wx, y + wv, 2, 1, '#bfe6ff');
-    rc(xBase + wx, y + 7 + Math.round(Math.sin(ph2 * 1.4) * a3 + bob * 0.55 + expand * 0.55 + splash * 0.5), 2, 1, w1);
+    var expandMid = fallExpandAt(worldX, time, sources, scale, 1.1) * 0.42;
+    var churnMid = fallChurnAt(worldX, time, e, scale, 1.4) * 0.7;
+    rc(xBase + wx, y + 7 + Math.round(Math.sin(ph2 * 1.4) * a3 + bobMid * 0.55 + expandMid + churnMid + splash * 0.4), 2, 1, w1);
   }
   ctx.globalAlpha = 0.4;
   for (wx2 = 0; wx2 < pixelW; wx2 += 2){
     var worldX2 = worldX0 + wx2;
     var e2 = sampleField(energy, fieldC0, worldX2);
     var river2 = 1 - WAVE_FALL_RIVER * e2;
-    var b1 = 2.1 * scale * river2, b2 = 1.4 * scale * river2;
-    var bob2 = Math.sin(time * 2.8 + worldX2 * BOB_KX) * 1.5 * scale;
-    var ph3 = worldX2 * 0.062 - time * subTravel + 1.9;
-    var expand2 = fallExpandAt(worldX2, time, sources, scale) * 0.7;
-    var splash2 = splashAt(worldX2, time) * 0.65 * scale;
-    var wv2 = Math.round(Math.sin(ph3) * b1 + bob2 * 0.7 + expand2 + splash2);
+    var bob2 = Math.sin(time * 2.05 + worldX2 * BOB_KX * 0.72 + 1.7) * 1.35 * scale;
+    var bobLo = Math.sin(time * 1.7 + worldX2 * BOB_KX * 0.5 + 2.4) * 1.05 * scale;
+    var ph3 = worldX2 * 0.062 - time * subTravel * river2 + 1.9;
+    var expand2 = fallExpandAt(worldX2, time, sources, scale, 2.05) * 0.55;
+    var churn2 = fallChurnAt(worldX2, time, e2, scale, 2.2) * 0.55;
+    var splash2 = splashAt(worldX2, time) * 0.55 * scale * splashMul;
+    var wv2 = Math.round(Math.sin(ph3) * b1 + bob2 * 0.7 + expand2 + churn2 + splash2);
     rc(xBase + wx2, y + 2 + wv2, 2, 2, '#dff2ff');
-    rc(xBase + wx2, y + 10 + Math.round(Math.sin(ph3 * 1.1) * b2 + bob2 * 0.4 + expand2 * 0.4 + splash2 * 0.35), 2, 1, '#9fd0ef');
+    var expandLo = fallExpandAt(worldX2, time, sources, scale, 2.8) * 0.32;
+    var churnLo = fallChurnAt(worldX2, time, e2, scale, 3.1) * 0.4;
+    rc(xBase + wx2, y + 10 + Math.round(Math.sin(ph3 * 1.1) * b2 + bobLo * 0.4 + expandLo + churnLo + splash2 * 0.3), 2, 1, '#9fd0ef');
   }
   ctx.globalAlpha = 1;
 }
