@@ -110,6 +110,11 @@ function isChrome(t){
   return !!(t && t.closest && t.closest('button, .edb, input, textarea, select, .eye, .bn-field, a, canvas, .ed-tilegeo, .ed-tile-chip, .ed-tile-frame, .ed-tile-split'));
 }
 
+/* Зоны со своей семантикой ПКМ (erase/paint) — float move их не перехватывает. */
+function ownsRmb(t){
+  return !!(t && t.closest && t.closest('canvas, .ed-tilegeo, .ed-tile-chip, .ed-tile-frame, .ed-tile-split'));
+}
+
 function canScroll(el){
   if (!el || el.nodeType !== 1) return false;
   var cs;
@@ -213,6 +218,15 @@ export function bindFloat(root){
     unhookWin();
   }
 
+  /* ПКМ-drag окна: capture поверх кнопок/инпутов; canvas/tilegeo оставляем себе. */
+  root.addEventListener('pointerdown', function(e){
+    if (root.hidden || e.button !== 2 || ownsRmb(e.target)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    raiseFloat(root);
+    startMove(e);
+  }, true);
+
   root.addEventListener('pointerdown', function(e){
     if (root.hidden) return;
     raiseFloat(root);
@@ -220,13 +234,6 @@ export function bindFloat(root){
       e.preventDefault();
       e.stopPropagation();
       startSize(e);
-      return;
-    }
-    if (e.button === 2){
-      if (isChrome(e.target)) return;
-      e.preventDefault();
-      e.stopPropagation();
-      startMove(e);
       return;
     }
     if (e.button === 1){
@@ -242,7 +249,11 @@ export function bindFloat(root){
     }
   });
 
-  root.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+  root.addEventListener('contextmenu', function(e){
+    if (ownsRmb(e.target)) return;
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
   root.addEventListener('auxclick', function(e){ if (e.button === 1) e.preventDefault(); });
   root.addEventListener('mousedown', function(e){ if (e.button === 1) e.preventDefault(); });
 
