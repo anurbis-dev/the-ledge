@@ -3,7 +3,9 @@ import { volCenter, volWorld, volLocal, pointInVolume } from '../entities/volume
 import { runtime } from '../core/runtime.js';
 import { findById } from '../entities/ids.js';
 import { rebuildRope, ropeHitDist } from '../entities/ropes.js';
+import { syncLiftFloors } from '../entities/lifts.js';
 import { T } from '../core/constants.js';
+import GAME from '../core/game.js';
 
 var drag = null;
 var PAIR_COLS = ['#7de08a', '#7ad0ff', '#ffcf7a', '#ff7ab0', '#c9a0ff', '#e0c060', '#ff9a6a', '#6ad0c8'];
@@ -89,6 +91,29 @@ export function pickAllSpecial(S, wx, wy){
         || ropeHitDist(o, wx, wy).dist < 8)
       out.push({ type: 'rope', obj: o });
   }
+  list = S.plats || [];
+  for (i = list.length - 1; i >= 0; i--){
+    o = list[i];
+    if (wx >= o.x - 2 && wx <= o.x + o.w + 2 && wy >= o.y - 4 && wy <= o.y + o.h + 6)
+      out.push({ type: 'plat', obj: o });
+    else if (near(wx, wy, o.vert ? o.x + o.w / 2 : o.x0, o.vert ? o.y0 : o.y, 10)
+          || near(wx, wy, o.vert ? o.x + o.w / 2 : o.x1, o.vert ? o.y1 : o.y, 10))
+      out.push({ type: 'plat', obj: o });
+  }
+  list = S.lifts || [];
+  for (i = list.length - 1; i >= 0; i--){
+    o = list[i];
+    if (wx >= o.x - 2 && wx <= o.x + o.w + 2 && wy >= o.y - o.hh - 4 && wy <= o.y + 8)
+      out.push({ type: 'lift', obj: o });
+    else {
+      for (var fi = 0; fi < (o.floors || []).length; fi++){
+        if (near(wx, wy, o.x + o.w / 2, o.floors[fi], 10)){
+          out.push({ type: 'lift', obj: o });
+          break;
+        }
+      }
+    }
+  }
   return out;
 }
 
@@ -141,6 +166,24 @@ export function hitGizmo(S, sel, wx, wy){
     if (near(wx, wy, o.bx, o.by, 9)) return { kind: 'ropeB', type: t, obj: o };
     if (ropeHitDist(o, wx, wy).dist < 8) return { kind: 'ropeMove', type: t, obj: o };
   }
+  if (t === 'plat'){
+    var pax = o.vert ? o.x + o.w / 2 : o.x0;
+    var pay = o.vert ? o.y0 : o.y + o.h / 2;
+    var pbx = o.vert ? o.x + o.w / 2 : o.x1 + o.w;
+    var pby = o.vert ? o.y1 : o.y + o.h / 2;
+    if (near(wx, wy, pax, pay, 9)) return { kind: 'platA', type: t, obj: o };
+    if (near(wx, wy, pbx, pby, 9)) return { kind: 'platB', type: t, obj: o };
+    if (wx >= o.x - 2 && wx <= o.x + o.w + 2 && wy >= o.y - 4 && wy <= o.y + o.h + 6)
+      return { kind: 'move', type: t, obj: o };
+  }
+  if (t === 'lift'){
+    for (var fj = 0; fj < (o.floors || []).length; fj++){
+      if (near(wx, wy, o.x + o.w / 2, o.floors[fj], 9))
+        return { kind: 'liftFloor', type: t, obj: o, floorIdx: fj };
+    }
+    if (wx >= o.x - 2 && wx <= o.x + o.w + 2 && wy >= o.y - o.hh - 4 && wy <= o.y + 8)
+      return { kind: 'move', type: t, obj: o };
+  }
   return null;
 }
 
@@ -158,7 +201,10 @@ export function beginGizmo(hit, wx, wy){
     x0: wx, y0: wy,
     ox: o.x, oy: o.y, ow: o.w, oh: o.h, or: o.rot || 0, rad: o.radius || 80,
     ax: o.ax, ay: o.ay, bx: o.bx, by: o.by,
-    lengthExtra: ropeEx
+    lengthExtra: ropeEx,
+    floorIdx: hit.floorIdx,
+    x0p: o.x0, x1p: o.x1, y0p: o.y0, y1p: o.y1,
+    floors0: o.floors ? o.floors.slice() : null
   };
 }
 
@@ -173,6 +219,57 @@ export function moveGizmo(wx, wy){
     if (drag.type === 'player_start'){
       S = runtime.W;
       if (S && S.respawn){ S.respawn.x = o.x; S.respawn.y = o.y; }
+    }
+    if (drag.type === 'plat'){
+      o.x0 = drag.x0p + dx; o.x1 = drag.x1p + dx;
+      o.y0 = drag.y0p + dy; o.y1 = drag.y1p + dy;
+      if (!o.vert){ o.y0 = o.y; o.y1 = o.y; }
+      else { o.x0 = o.x; o.x1 = o.x; }
+    }
+    if (drag.type === 'lift'){
+      o.x = Math.round(drag.ox + dx);
+      o.y = Math.round(drag.oy + dy);
+      if (drag.floors0){
+        o.floors = drag.floors0.map(function(fy){ return Math.round(fy + dy); });
+        syncLiftFloors(o);
+      }
+      S = runtime.W; if (S) GAME.buildGates(S);
+    }
+    return;
+  }
+  if (drag.kind === 'platA' || drag.kind === 'platB'){
+    if (o.vert){
+      if (drag.kind === 'platA') o.y0 = Math.round(wy);
+      else o.y1 = Math.round(wy);
+      if (o.y1 < o.y0){ var ty = o.y0; o.y0 = o.y1; o.y1 = ty; }
+      if (o.y < o.y0) o.y = o.y0;
+      if (o.y > o.y1) o.y = o.y1;
+      o.x0 = o.x; o.x1 = o.x;
+    } else {
+      if (drag.kind === 'platA') o.x0 = Math.round(wx);
+      else o.x1 = Math.round(wx - o.w);
+      if (o.x1 < o.x0){ var tx = o.x0; o.x0 = o.x1; o.x1 = tx; }
+      if (o.x < o.x0) o.x = o.x0;
+      if (o.x > o.x1) o.x = o.x1;
+      o.y0 = o.y; o.y1 = o.y;
+    }
+    return;
+  }
+  if (drag.kind === 'liftFloor'){
+    var fi = drag.floorIdx | 0;
+    if (o.floors && o.floors[fi] != null){
+      o.floors[fi] = Math.round(wy);
+      var val = o.floors[fi];
+      var wasIdx = o.idx;
+      syncLiftFloors(o);
+      drag.floorIdx = o.floors.indexOf(val);
+      if (drag.floorIdx < 0) drag.floorIdx = fi;
+      /* если двигали текущий этаж — держим кабину на нём */
+      if (wasIdx === fi || o.floors[o.idx] === val){
+        o.idx = drag.floorIdx;
+        if (o.st === 'dwell') o.y = o.floors[o.idx];
+      }
+      S = runtime.W; if (S) GAME.buildGates(S);
     }
     return;
   }
@@ -242,6 +339,16 @@ export function drawGizmos(S, sel){
   for (i = 0; i < list.length; i++){
     o = list[i];
     drawRopeGizmo(o, sel && sel.type === 'rope' && sel.obj === o);
+  }
+  list = S.plats || [];
+  for (i = 0; i < list.length; i++){
+    o = list[i];
+    drawPlatGizmo(o, sel && sel.type === 'plat' && sel.obj === o);
+  }
+  list = S.lifts || [];
+  for (i = 0; i < list.length; i++){
+    o = list[i];
+    drawLiftGizmo(o, sel && sel.type === 'lift' && sel.obj === o);
   }
   list = S.lights || [];
   for (i = 0; i < list.length; i++){
@@ -383,6 +490,54 @@ function drawRopeGizmo(o, on){
   ctx.restore();
   handle(ax, ay, on ? '#7dffb0' : '#3a8f5c');
   handle(bx, by, on ? '#ffd9a0' : '#9a8ab8');
+}
+
+function drawPlatGizmo(o, on){
+  var ax = (o.vert ? o.x + o.w / 2 : o.x0) - cam.x;
+  var ay = (o.vert ? o.y0 : o.y + o.h / 2) - cam.y;
+  var bx = (o.vert ? o.x + o.w / 2 : o.x1 + o.w) - cam.x;
+  var by = (o.vert ? o.y1 : o.y + o.h / 2) - cam.y;
+  ctx.save();
+  ctx.globalAlpha = on ? 0.9 : 0.35;
+  ctx.strokeStyle = on ? '#7ad0ff' : '#4a7088';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  ctx.moveTo(ax, ay);
+  ctx.lineTo(bx, by);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  if (on){
+    ctx.strokeStyle = '#ffd9a0';
+    ctx.strokeRect(o.x - cam.x - 1, o.y - cam.y - 1, o.w + 2, o.h + 2);
+  }
+  ctx.restore();
+  handle(ax, ay, on ? '#7dffb0' : '#3a8f5c');
+  handle(bx, by, on ? '#ff9a6a' : '#8a5a40');
+}
+
+function drawLiftGizmo(o, on){
+  var i, fy, x = o.x - cam.x, y = o.y - cam.y;
+  ctx.save();
+  ctx.globalAlpha = on ? 0.9 : 0.35;
+  ctx.strokeStyle = on ? '#c9a0ff' : '#6a5888';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 3]);
+  if (o.floors && o.floors.length){
+    var top = Math.min.apply(null, o.floors);
+    var bot = Math.max.apply(null, o.floors);
+    ctx.beginPath();
+    ctx.moveTo(x + o.w / 2, top - cam.y);
+    ctx.lineTo(x + o.w / 2, bot - cam.y);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  if (on) ctx.strokeRect(x - 2, y - o.hh - 4, o.w + 4, o.hh + 10);
+  ctx.restore();
+  for (i = 0; i < (o.floors || []).length; i++){
+    fy = o.floors[i];
+    handle(o.x + o.w / 2 - cam.x, fy - cam.y, on ? (i === (o.homeIdx | 0) ? '#7dffb0' : '#ffd9a0') : '#6a5888');
+  }
 }
 
 function drawPoint(o, col, on, ring){

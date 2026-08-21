@@ -1,3 +1,7 @@
+## 0.5.0
+
+- Ropes: коллизия Verlet-нод с solid-тайлами (`solidAt` в constrain loop) + unstick AABB райдера; `C.ROPE_COL_EPS`.
+
 ## 0.4.0
 
 - FX Sand: placeable Objects `fx_sand` → `LV.emitters` / `S.emitters` (`entities/emitters.js`: `mkEmitters` / `mkEmitterAt` / `stepEmitters` / `packEmitter`); Inspect density/speed/speedRand/color/life/lifeRand/gravity/size/spread/drag/lift; позиция = x,y (гизмо move); persist/history/rooms.

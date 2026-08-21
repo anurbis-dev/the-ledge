@@ -1,5 +1,7 @@
 import { VOLUME_MASKS } from '../entities/volumes.js';
 import { SAND_EMIT_DEF } from '../entities/emitters.js';
+import { PLAT_DEF } from '../entities/plats.js';
+import { LIFT_DEF, syncLiftFloors } from '../entities/lifts.js';
 import { initSliders, bindResetHover } from './slider.js';
 import { touchOp } from './history.js';
 import { raiseFloat, placeFloat, hasFloatPos } from './float.js';
@@ -8,12 +10,15 @@ import { ITEMS } from '../entities/catalog.js';
 import GAME from '../core/game.js';
 import { findById } from '../entities/ids.js';
 import { runtime } from '../core/runtime.js';
+import { C, T } from '../core/constants.js';
 
 var DEF = {
   sound: { mode: 'falloff', vol: 0.4, radius: 96, freq: 220, type: 'sine' },
   light: { color: '#ffbe74', intensity: 1, radius: 82, sprite: 'lantern' },
   volume: { mode: 'color', mask: 'circle', hue: 0, sat: 1, bright: 0, contrast: 1, tint: '#88a0ff', tintAmt: 0.15 },
-  fx_sand: SAND_EMIT_DEF
+  fx_sand: SAND_EMIT_DEF,
+  plat: PLAT_DEF,
+  lift: LIFT_DEF
 };
 
 var root = document.getElementById('edInspect');
@@ -37,9 +42,11 @@ export function showInspect(sel){
     titleEl.textContent = sel.type === 'volume' ? 'Volume'
       : (sel.type === 'light' ? 'Light'
         : (sel.type === 'fx_sand' ? 'FX Sand'
-          : (sel.type === 'player_start' ? 'Start'
-            : (sel.type === 'level_exit' ? 'Exit'
-              : (sel.type === 'door' ? 'Door' : 'Sound')))));
+          : (sel.type === 'plat' ? (sel.obj && sel.obj.vert ? 'Plat V' : 'Plat H')
+            : (sel.type === 'lift' ? 'Lift'
+              : (sel.type === 'player_start' ? 'Start'
+                : (sel.type === 'level_exit' ? 'Exit'
+                  : (sel.type === 'door' ? 'Door' : 'Sound')))))));
   }
   fillBody(sel);
   if (!hasFloatPos(root)) placeFloat(root, innerWidth - 250, 8);
@@ -252,6 +259,92 @@ function fillBody(sel){
     slider(body, 'Spread', 0, 40, 1, o.spread != null ? o.spread : df.spread, function(v){ o.spread = v; }, df.spread);
     slider(body, 'Drag', 0, 8, 0.1, o.drag != null ? o.drag : df.drag, function(v){ o.drag = v; }, df.drag);
     slider(body, 'Lift', 0, 40, 1, o.lift != null ? o.lift : df.lift, function(v){ o.lift = v; }, df.lift);
+  } else if (sel.type === 'plat'){
+    var dp = DEF.plat;
+    note(body, 'A/B — гизмо-ручки концов. A=min, B=max. Drag корпуса сдвигает весь путь.');
+    slider(body, 'Width', 16, 96, 1, o.w != null ? o.w : dp.w, function(v){ o.w = v; }, dp.w);
+    slider(body, 'Height', 4, 24, 1, o.h != null ? o.h : dp.h, function(v){ o.h = v; }, dp.h);
+    slider(body, 'Speed', 8, 120, 1, o.v != null ? o.v : dp.v, function(v){ o.v = v; }, dp.v);
+    slider(body, 'Pause A', 0, 5, 0.05, o.pause0 != null ? o.pause0 : dp.pause0, function(v){ o.pause0 = v; }, dp.pause0);
+    slider(body, 'Pause B', 0, 5, 0.05, o.pause1 != null ? o.pause1 : dp.pause1, function(v){ o.pause1 = v; }, dp.pause1);
+    select(body, 'Travel', [
+      { id: 'pingpong', name: 'Two-way' },
+      { id: 'oneway', name: 'One-way A→B' }
+    ], o.travel || dp.travel, function(v){ o.travel = v; }, dp.travel);
+    select(body, 'Loop', [
+      { id: 'infinite', name: 'Infinite' },
+      { id: 'once', name: 'Once' }
+    ], o.loop || dp.loop, function(v){ o.loop = v; o.done = false; }, dp.loop);
+    select(body, 'Trigger', [
+      { id: 'auto', name: 'Auto' },
+      { id: 'ride', name: 'Only when stood on' }
+    ], o.trigger || dp.trigger, function(v){ o.trigger = v; }, dp.trigger);
+    select(body, 'On leave', [
+      { id: 'continue', name: 'Keep moving' },
+      { id: 'return', name: 'Return to A' },
+      { id: 'stop', name: 'Stop where left' }
+    ], o.onLeave || dp.onLeave, function(v){ o.onLeave = v; }, dp.onLeave);
+  } else if (sel.type === 'lift'){
+    var dl = DEF.lift;
+    var defV = C.LIFT_V, defD = C.LIFT_DWELL;
+    note(body, 'Этажи — ручки на шахте. Call = ↑↓ в кабине / вызов с этажа.');
+    slider(body, 'Width', 32, 80, 1, o.w != null ? o.w : dl.w, function(v){ o.w = v; }, dl.w);
+    slider(body, 'Cabin H', 24, 56, 1, o.hh != null ? o.hh : dl.hh, function(v){ o.hh = v; }, dl.hh);
+    slider(body, 'Speed', 12, 100, 1, o.v != null ? o.v : defV, function(v){ o.v = v; }, defV);
+    slider(body, 'Dwell', 0, 5, 0.05, o.dwell != null ? o.dwell : defD, function(v){ o.dwell = v; }, defD);
+    select(body, 'Travel', [
+      { id: 'pingpong', name: 'Two-way' },
+      { id: 'oneway', name: 'One-way up' }
+    ], o.travel || dl.travel, function(v){ o.travel = v; }, dl.travel);
+    select(body, 'Loop', [
+      { id: 'infinite', name: 'Infinite' },
+      { id: 'once', name: 'Once' }
+    ], o.loop || dl.loop, function(v){ o.loop = v; o.done = false; }, dl.loop);
+    select(body, 'Trigger', [
+      { id: 'call', name: 'Call (↑↓)' },
+      { id: 'auto', name: 'Auto' },
+      { id: 'ride', name: 'Only with rider' }
+    ], o.trigger || dl.trigger, function(v){ o.trigger = v; }, dl.trigger);
+    select(body, 'On leave', [
+      { id: 'stay', name: 'Stay' },
+      { id: 'return', name: 'Return home' }
+    ], o.onLeave || dl.onLeave, function(v){ o.onLeave = v; }, dl.onLeave);
+    var floorOpts = [];
+    for (var fi = 0; fi < (o.floors || []).length; fi++)
+      floorOpts.push({ id: String(fi), name: 'Floor ' + fi + ' (y ' + Math.round(o.floors[fi]) + ')' });
+    if (!floorOpts.length) floorOpts.push({ id: '0', name: 'Floor 0' });
+    select(body, 'Home floor', floorOpts,
+      String(o.homeIdx != null ? o.homeIdx : 0),
+      function(v){ o.homeIdx = +v; },
+      '0');
+    var row = document.createElement('div');
+    row.className = 'ed-field';
+    var addBtn = document.createElement('button');
+    addBtn.type = 'button'; addBtn.className = 'edb'; addBtn.textContent = '+ Floor';
+    addBtn.addEventListener('click', function(){
+      touchOp();
+      var fl = o.floors || [];
+      var top = fl.length ? Math.min.apply(null, fl) : o.y;
+      fl.push(top - (dl.floorSpan || 6) * T);
+      o.floors = fl;
+      syncLiftFloors(o);
+      var S = runtime.W; if (S) GAME.buildGates(S);
+      notify(); showInspect(current);
+    });
+    var rmBtn = document.createElement('button');
+    rmBtn.type = 'button'; rmBtn.className = 'edb'; rmBtn.textContent = '− Floor';
+    rmBtn.addEventListener('click', function(){
+      if (!o.floors || o.floors.length <= 2) return;
+      touchOp();
+      o.floors.pop();
+      syncLiftFloors(o);
+      var S2 = runtime.W; if (S2) GAME.buildGates(S2);
+      notify(); showInspect(current);
+    });
+    row.appendChild(addBtn);
+    row.appendChild(document.createTextNode(' '));
+    row.appendChild(rmBtn);
+    body.appendChild(row);
   }
 }
 

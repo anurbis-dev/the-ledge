@@ -37,6 +37,8 @@ import { bindNpcTalk, openNpcTalk, closeNpcTalk } from './npc-talk.js';
 import { bindBoulderSettings, openBoulderSettings, closeBoulderSettings } from './boulder-settings.js';
 import { bindRopeSettings, openRopeSettings, closeRopeSettings } from './rope-settings.js';
 import { rebuildRope, packRope, ropeHitDist } from '../entities/ropes.js';
+import { packPlat } from '../entities/plats.js';
+import { packLift } from '../entities/lifts.js';
 function ropeHitDistSafe(r, x, y){
   try { return ropeHitDist(r, x, y).dist; } catch (_){ return 999; }
 }
@@ -331,6 +333,7 @@ bindHistory({
       if (Srest && Srest.ropes){
         for (var ri = 0; ri < Srest.ropes.length; ri++) rebuildRope(Srest.ropes[ri]);
       }
+      if (Srest) G.buildGates(Srest);
       if (ED.sel && ED.sel.obj){
         var still = findByIdRestored(ED.sel);
         if (still) selectSpecial(still);
@@ -350,6 +353,8 @@ function findByIdRestored(sel){
     : sel.type === 'volume' ? S.volumes
     : sel.type === 'fx_sand' ? S.emitters
     : sel.type === 'rope' ? S.ropes
+    : sel.type === 'plat' ? S.plats
+    : sel.type === 'lift' ? S.lifts
     : null;
   if (!arr) return null;
   var id = sel.obj.id, i;
@@ -803,7 +808,9 @@ function selectSpecial(sel){
 function isSpecialKind(kind){
   return kind === 'sound' || kind === 'light' || kind === 'volume' || kind === 'fx_sand'
     || kind === 'player_start' || kind === 'level_exit' || kind === 'door'
-    || kind === 'rope' || kind === 'rope_v' || kind === 'rope_h';
+    || kind === 'rope' || kind === 'rope_v' || kind === 'rope_h'
+    || kind === 'plat' || kind === 'plat_h' || kind === 'plat_v'
+    || kind === 'lift';
 }
 
 function exitsList(){
@@ -1278,7 +1285,13 @@ export function edApply(cell, isClick){
     if (ospec && isSpecialKind(ospec.kind)){
       if (!isClick) return;
       var hit = pickSpecial(S, cell.x, cell.y);
-      if (hit && hit.type === ospec.kind){ selectSpecial(hit); return; }
+      var hk = ospec.kind;
+      var same = hit && (hit.type === hk
+        || ((hk === 'plat_h' || hk === 'plat_v') && hit.type === 'plat'
+            && !!hit.obj.vert === (hk === 'plat_v'))
+        || ((hk === 'rope_v' || hk === 'rope_h') && hit.type === 'rope')
+        || (hk === 'lift' && hit.type === 'lift'));
+      if (same){ selectSpecial(hit); return; }
     }
     edPlaceObject(cell);
     markLevelDirty();
@@ -1334,6 +1347,16 @@ function edEraseObjects(cell){
       && !(Math.abs(r.bx - ox) < 14 && Math.abs(r.by - oy) < 18)
       && ropeHitDistSafe(r, ox, oy) >= 10;
   });
+  if (S.plats) S.plats = S.plats.filter(function(q){
+    return !(ox >= q.x - 4 && ox <= q.x + q.w + 4 && oy >= q.y - 8 && oy <= q.y + q.h + 10);
+  });
+  if (S.lifts){
+    var beforeL = S.lifts.length;
+    S.lifts = S.lifts.filter(function(L){
+      return !(ox >= L.x - 4 && ox <= L.x + L.w + 4 && oy >= L.y - L.hh - 4 && oy <= L.y + 10);
+    });
+    if (S.lifts.length !== beforeL) G.buildGates(S);
+  }
   /* двери: попадание по створке + снос пары */
   list = S.doors || [];
   drop = {};
@@ -1376,6 +1399,9 @@ function kindCellKey(kind, o, T){
   if (kind === 'player_start') return Math.floor((o.x + 5) / T) + ':' + Math.floor((o.y + 11) / T);
   if (kind === 'sound' || kind === 'light' || kind === 'fx_sand') return Math.floor(o.x / T) + ':' + Math.floor(o.y / T);
   if (kind === 'volume') return Math.floor((o.x + o.w / 2) / T) + ':' + Math.floor((o.y + o.h / 2) / T);
+  if (kind === 'plat_h' || kind === 'plat_v' || kind === 'plat')
+    return Math.floor((o.x + o.w / 2) / T) + ':' + Math.floor(o.y / T);
+  if (kind === 'lift') return Math.floor((o.x + o.w / 2) / T) + ':' + Math.floor(o.y / T);
   if (kind.indexOf('enemy') === 0 || kind.indexOf('flier') === 0)
     return Math.floor((o.x + o.w / 2) / T) + ':' + Math.floor((o.y + o.h / 2) / T);
   if (kind.indexOf('spider') === 0) return Math.floor(o.hx / T) + ':' + Math.floor((o.hy - 8) / T);
@@ -1425,6 +1451,20 @@ function occupiedByKind(kind, cell, skip){
   if (kind === 'fx_sand'){
     list = S.emitters || [];
     for (i = 0; i < list.length; i++) if (list[i] !== skip && kindCellKey('fx_sand', list[i], T) === key) return true;
+    return false;
+  }
+  if (kind === 'plat_h' || kind === 'plat_v'){
+    list = S.plats || [];
+    for (i = 0; i < list.length; i++){
+      o = list[i]; if (o === skip) continue;
+      if (!!o.vert !== (kind === 'plat_v')) continue;
+      if (kindCellKey(kind, o, T) === key) return true;
+    }
+    return false;
+  }
+  if (kind === 'lift'){
+    list = S.lifts || [];
+    for (i = 0; i < list.length; i++) if (list[i] !== skip && kindCellKey('lift', list[i], T) === key) return true;
     return false;
   }
   if (kind.indexOf('enemy') === 0){
@@ -1519,6 +1559,16 @@ function edPlaceObject(cell){
     var rope = G.mkRopeAt(S, cx, cy, kind === 'rope_h' ? 'h' : 'v');
     ED.sel = { type: 'rope', obj: rope };
     showInspect(null);
+    return;
+  }
+  if (kind === 'plat_h' || kind === 'plat_v'){
+    selectSpecial({ type: 'plat', obj: G.mkPlatAt(S, cx, floorY - 8, kind === 'plat_v') });
+    return;
+  }
+  if (kind === 'lift'){
+    var lift = G.mkLiftAt(S, cx, floorY);
+    G.buildGates(S);
+    selectSpecial({ type: 'lift', obj: lift });
     return;
   }
   if (palIsLooty(spec) || LOOT_KINDS[kind]){
@@ -1636,6 +1686,12 @@ export function edExportText(){
   }).join(',') + '],');
   out.push('ropes: [' + (S.ropes || []).map(function(r){
     return JSON.stringify(packRope(r));
+  }).join(',') + '],');
+  out.push('plats: [' + (S.plats || []).map(function(q){
+    return JSON.stringify(packPlat(q));
+  }).join(',') + '],');
+  out.push('lifts: [' + (S.lifts || []).map(function(L){
+    return JSON.stringify(packLift(L));
   }).join(',') + '],');
   out.push('torches: [' + S.torches.map(function(t){
     return '[' + Math.floor(t.x / T) + ',' + (Math.floor(t.y / T) - 1) + ']';
@@ -2622,6 +2678,11 @@ function deleteSelected(){
   else if (t === 'volume') S.volumes = (S.volumes || []).filter(function(x){ return x !== o; });
   else if (t === 'fx_sand') S.emitters = (S.emitters || []).filter(function(x){ return x !== o; });
   else if (t === 'rope') S.ropes = (S.ropes || []).filter(function(x){ return x !== o; });
+  else if (t === 'plat') S.plats = (S.plats || []).filter(function(x){ return x !== o; });
+  else if (t === 'lift'){
+    S.lifts = (S.lifts || []).filter(function(x){ return x !== o; });
+    G.buildGates(S);
+  }
   else if (t === 'player_start'){
     spawn = spawnMarker();
     if (spawn){ spawn.x = 16; spawn.y = 6 * G.T - 22; }

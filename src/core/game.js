@@ -17,13 +17,13 @@ import { getAnimBox } from './spriteset.js';
 import { step } from './step.js';
 import { LEVELS, loadLevel, addBlankLevel, removeLevel } from '../levels/index.js';
 import { mkItems } from '../entities/items.js';
-import { mkPlats } from '../entities/plats.js';
+import { mkPlats, mkPlatAt } from '../entities/plats.js';
 import { mkTorches, tryAction, dropTorch } from '../entities/torches.js';
 import { mkDoors, tryDoor, tryExit, normalizeDoor } from '../entities/doors.js';
 import { mkEnemies, attack } from '../entities/enemies.js';
 import { mkPickable } from '../entities/pickable.js';
 import { allocId } from '../entities/ids.js';
-import { mkLifts, buildGates, inLift, liftSideOpen } from '../entities/lifts.js';
+import { mkLifts, mkLiftAt, buildGates, inLift, liftSideOpen } from '../entities/lifts.js';
 import { mkFliers } from '../entities/fliers.js';
 import { mkSpiders } from '../entities/spiders.js';
 import { mkDark, inDark, lightAt } from '../entities/dark.js';
@@ -270,7 +270,7 @@ export const GAME = {
   COVER_AIR, setCover, setCoverVar, coverRaw, coverVarRaw,
   buildGates: function(S){ buildGates(S); },
   mkItemAt, mkEnemyAt, mkFlierAt, mkSpiderAt, mkTorchAt, mkChestAt, mkDoorAt, mkTendrilAt,
-  mkRopeAt,
+  mkRopeAt, mkPlatAt, mkLiftAt,
   mkLightAt, mkSoundAt, mkVolumeAt, mkEmitterAt, mkBoulderAt, mkNpcAt, getLayers, getActiveLayer,
   rectFree, mkWorld, step, resetPlayer, isInvuln, toggleInvuln, setInvuln,
   LEVELS, loadLevel, newBlankLevel: addBlankLevel, removeLevel, levelIndex(){ return runtime.LVI; },

@@ -219,6 +219,17 @@ export function paintObjIcon(c, kind, s){
   } else if (kind === 'rope_h'){
     r(1, 7, 2, 2, '#7dffb0'); r(3, 7, 10, 2, '#8a6a3c'); r(13, 7, 2, 2, '#ffd9a0');
     r(5, 8, 1, 1, '#c4a06a'); r(9, 8, 1, 1, '#c4a06a');
+  } else if (kind === 'plat_h'){
+    r(1, 9, 14, 3, P.woodD); r(1, 9, 14, 1, P.woodL);
+    r(2, 12, 2, 2, P.rockX); r(12, 12, 2, 2, P.rockX);
+    r(1, 7, 2, 2, '#7dffb0'); r(13, 7, 2, 2, '#ff9a6a');
+  } else if (kind === 'plat_v'){
+    r(7, 1, 2, 6, '#2a2444'); r(3, 7, 10, 3, P.liftB); r(3, 7, 10, 1, P.liftC);
+    r(6, 5, 4, 2, P.liftA); r(7, 1, 2, 2, '#7dffb0'); r(7, 13, 2, 2, '#ff9a6a');
+  } else if (kind === 'lift'){
+    r(3, 1, 10, 2, P.liftB); r(3, 13, 10, 2, P.liftB);
+    r(3, 3, 2, 10, P.liftB); r(11, 3, 2, 10, P.liftB);
+    r(5, 4, 6, 8, '#241d3d'); r(7, 2, 2, 1, '#ffd06a');
   } else if (kind === 'npc_hermit' || kind === 'npc_wanderer'){
     var cloak = kind === 'npc_wanderer' ? '#3a5a4a' : '#4a3a68';
     var cloakD = kind === 'npc_wanderer' ? '#243830' : '#2e2446';

@@ -82,6 +82,8 @@ export function step(S, dt, inp){
   }
   for (var li = 0; li < S.lifts.length; li++){
     var LL = S.lifts[li], PP = S.p;
+    var trig = LL.trigger || 'call';
+    if (trig !== 'call') continue;
     if (inLift(PP, LL) && LL.st === 'dwell'){
       if (inp.upPressed) LL.want = 1;
       else if (inp.downPressed) LL.want = -1;

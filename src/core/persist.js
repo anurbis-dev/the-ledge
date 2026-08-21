@@ -5,6 +5,8 @@ import { BAKED } from './defaults.js';
 import { BOULDER_DEF } from '../entities/boulders.js';
 import { packEmitter } from '../entities/emitters.js';
 import { packRope } from '../entities/ropes.js';
+import { packPlat } from '../entities/plats.js';
+import { packLift } from '../entities/lifts.js';
 import { ensureLevelExits } from '../entities/doors.js';
 
 var KEY = 'ledge.dev.levels';
@@ -363,23 +365,8 @@ function writeObjects(lv, S){
   });
   if (lv.exits && lv.exits.length) lv.exit = lv.exits[0];
   else lv.exit = null;
-  lv.lifts = (S.lifts || []).map(function(L){
-    var floors = (L.floors || []).slice();
-    return {
-      x: L.x, w: L.w, hh: L.hh,
-      y: floors.length ? floors[0] : L.y,
-      floors: floors
-    };
-  });
-  lv.plats = (S.plats || []).map(function(q){
-    return {
-      x: q.vert ? q.x : (q.x0 != null ? q.x0 : q.x),
-      y: q.vert ? (q.y0 != null ? q.y0 : q.y) : q.y,
-      w: q.w, h: q.h,
-      x0: q.x0, x1: q.x1, y0: q.y0, y1: q.y1,
-      v: q.v, dir: q.dir, vert: !!q.vert
-    };
-  });
+  lv.lifts = (S.lifts || []).map(packLift);
+  lv.plats = (S.plats || []).map(packPlat);
   lv.dark = (S.dark || []).map(function(d){
     return { x0: d.x0, y0: d.y0, x1: d.x1, y1: d.y1, doorId: d.doorId, lit: d.lit };
   });

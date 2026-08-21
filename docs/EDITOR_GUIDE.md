@@ -118,6 +118,8 @@
 - `FX Sand` (`kind: 'fx_sand'`) — непрерывный песчаный эмиттер (`LV.emitters` / `S.emitters`, `mkEmitterAt`); role `marker`. Постановка сразу выбирает объект и открывает Inspect/гизмо `move` (позиция = `x,y`). Те же частицы, что у CRUMB (`emitSand` / `SAND_DEF`).
 - `Boulder`.
 - `Rope V` (`kind: 'rope_v'`) / `Rope H` (`kind: 'rope_h'`) — вертикальный / горизонтальный канат (`LV.ropes`). Постановка `mkRopeAt`; гизмо: handles `a`/`b` + move span; клик → `#edRopeSettings` (H: Length+ 0=длина=span, сдвиг добавляет px; Segments; Elasticity 0..1 с кривой ^2.6; Swing force только V; Wind; Climb; Grab). Play: V — лёгкий wobble при хвате, ↑↓ после отпускания захвата, тап L/R; H — bars, ↓ отцеп. В Play канат сталкивается с solid-тайлами (новых контролов в редакторе нет). Persist `packRope` (`lengthExtra`/`length` для H). Role `marker`.
+- `Plat H` (`kind: 'plat_h'`) / `Plat V` (`kind: 'plat_v'`) — движущаяся платформа (`LV.plats` / `S.plats`, `mkPlatAt`; `vert` из kind). Role `marker`. Постановка сразу выбирает объект и открывает Inspect; гизмо `move` (сдвиг всего пути) + ручки `platA`/`platB` (концы A=min / B=max). Persist `packPlat`. History `OBJ_KEYS` включает `plats`.
+- `Lift` (`kind: 'lift'`) — лифт по этажам (`LV.lifts` / `S.lifts`, `mkLiftAt` + `syncLiftFloors` / `buildGates`). Role `marker`. Постановка сразу выбирает объект и открывает Inspect; гизмо `move` + ручки `liftFloor` по `floors[]`. Persist `packLift`. History включает `lifts`. Call-кнопки на этажах работают только при `trigger==='call'`.
 - NPC (`Hermit`, `Wanderer`) — Details → кадры NPC.
 - Custom kinds (после `Ctrl+D`) — в конце палитры.
 
@@ -130,7 +132,7 @@
 
 ### Role / Type
 
-- Роли: `actor` | `pickup` | `loot` | `prop` | `marker` (`objectset.ROLES`). У custom — селект Type в Details; у builtins — inferred (`builtinRole`: coin/gem/…=`pickup`, key/gear=`loot`, foes/NPC/Start=`actor`, chest/boulder/light=`prop`, Exit/Door/Sound/Volume/FX Sand/Rope V/Rope H=`marker`, …).
+- Роли: `actor` | `pickup` | `loot` | `prop` | `marker` (`objectset.ROLES`). У custom — селект Type в Details; у builtins — inferred (`builtinRole`: coin/gem/…=`pickup`, key/gear=`loot`, foes/NPC/Start=`actor`, chest/boulder/light=`prop`, Exit/Door/Sound/Volume/FX Sand/Rope V/Rope H/Plat H/Plat V/Lift=`marker`, …).
 - Влияет на постановку: `loot`/`pickup` — drag на сундук/врага/птицу; `loot` only — не ставится как мировой объект (только содержимое).
 
 ### Ctrl+D (Objects)
@@ -149,7 +151,7 @@
 - `Exit`: несколько точек в `LV.exits: [{id,x,y,toId}]` (миграция со старого `LV.exit`; blank → `exits:[]`). Маркер в гизмо; `Delete` убирает выбранный. Persist — `packLevel.exits` (+ legacy `exit` = первый).
 - `Door`: всегда пара — **2 клика** (`mkDoorAt`); первый ждёт return (`doorPending`), второй связывает `pair` по id. `Esc` отменяет первый (удаляет pending). `Delete` / `RMB` снимают **оба** конца пары. В гизмо: общий цвет/бейдж номера пары + линия между концами (ярче при выборе). Поля `need` / `consume` / `locked=!!need` пишутся в persist.
 - Антидубль: нельзя поставить второй экземпляр **того же** template/kind в ту же клетку. Разные kind в одной клетке — можно. Start — один (повтор = перенос).
-- Для `Sound/Light/Volume/FX Sand` сразу выбирается объект и открывается Inspect/гизмо.
+- Для `Sound/Light/Volume/FX Sand/Plat H/Plat V/Lift` сразу выбирается объект и открывается Inspect/гизмо.
 - Для `pickup`/`loot` drag на сундук/врага/птицу открывает окно количества (`1..99`).
 - Builtin loot-only (и custom role=`loot`): только содержимое лута — `key`, `helmet`, `shield`, `sword`, `scuba`, `flippers`, `harpoon`, `bow`.
 
@@ -187,10 +189,10 @@
 
 Позиция и размер сохраняются в `localStorage` ключ `ledge.ed.float`.
 
-## 8. Inspect и гизмо (Hero/Start / Exit / Door / Sound / Light / Volume / FX Sand)
+## 8. Inspect и гизмо (Hero/Start / Exit / Door / Sound / Light / Volume / FX Sand / Plat / Lift)
 
 Выбор:
-- Клик по объекту (включая маркеры `Hero / Start` / `Exit` / `Door` / `FX Sand`).
+- Клик по объекту (включая маркеры `Hero / Start` / `Exit` / `Door` / `FX Sand` / `Plat` / `Lift`).
 - Для overlapping-объектов клик циклически перебирает попадание.
 
 Изменение:
@@ -200,10 +202,14 @@
 - `Door`: **Required item** (bag kind или none); при выбранном предмете — **Consume item on activate** (`consume`, дефолт true). `locked = !!need`; значения синкаются на пару. Позиция — гизмо `move`.
 - Light: `Color` / `Intensity` / `Radius` / `Sprite` (какой спрайт висит в точке света; `Lantern` — факел по умолчанию, без PNG рисуется процедурный; `None` — только свечение). Постановка Light сразу ставит факел (`sprite:'lantern'`).
 - `FX Sand`: `Density` / `Speed` / `Speed rand` / `Color` / `Life` / `Life rand` / `Gravity` / `Size` / `Spread` / `Drag` / `Lift` (дефолты `SAND_EMIT_DEF`); позиция — гизмо `move` (`x,y`). Persist `packEmitter`.
+- `Plat H` / `Plat V`: `Width` / `Height` / `Speed` / `Pause A` / `Pause B`; `Travel` (`pingpong`|`oneway`); `Loop` (`infinite`|`once`); `Trigger` (`auto`|`ride`); `On leave` (`continue`|`return`|`stop`). Гизмо: `move` + `platA`/`platB`. Persist `packPlat` (`PLAT_DEF`).
+- `Lift`: `Width` / `Cabin H` / `Speed` / `Dwell` (пусто → `C.LIFT_V` / `C.LIFT_DWELL`); `Travel` (`pingpong`|`oneway`); `Loop` (`infinite`|`once`); `Trigger` (`call`|`auto`|`ride`); `On leave` (`stay`|`return`); `Home floor` + кнопки `+ Floor` / `− Floor` (минимум 2 этажа). Гизмо: `move` + `liftFloor`. Persist `packLift` (`LIFT_DEF`).
 - Через гизмо на канве:
 - `move`
 - `radius` (для света и sound falloff)
 - `rotate`, `scaleX`, `scaleY` (для volume)
+- `platA` / `platB` (концы платформы)
+- `liftFloor` (этажи лифта)
 
 Удаление выбранного special-объекта:
 - Клавиша `Delete` (`Start` не удаляется — сброс `LV.spawn` на дефолт; `Door` — оба конца пары).
@@ -340,6 +346,6 @@
 
 ## 14. Что сейчас не покрыто UI редактора
 
-На уровне persist в данных уровня хранятся `lifts`, `plats`, `dark`, `stick`, `key`, но текущая палитра `Objects` не даёт отдельной кисти для их постановки/редактирования.
+На уровне persist ещё лежат `dark`, `stick`, `key` без отдельных кистей Objects / Inspect.
 
-Если эти сущности уже есть в уровне, они сохраняются через persist, но их редактирование не входит в текущий UI-поток `Tiles/Objects/Inspect`. (`Exit` / `Door` — уже в Objects + Inspect.)
+`lifts` / `plats` — уже в палитре (`Plat H` / `Plat V` / `Lift`) + Inspect/гизмо. `Exit` / `Door` — тоже Objects + Inspect.
