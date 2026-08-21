@@ -530,15 +530,8 @@ export function tryGrab(S, p){
   if (p.vy < C.GRAB_VY) return false;
   var handY = heroHandY(p), dir = p.facing, dy;
 
-  var led = findLedge(p, dir, 0);                           // кромка уступа
-  if (led){
-    var hb = hangBox(led.cx, led.top, dir, 'ledge', p);
-    if (rectFree(hb.x, hb.y, hb.w, hb.h)){
-      grabTo(p, led.cx, led.top, dir, 'ledge', led.wc, led.tr);
-      return true;
-    }
-  }
-  for (var pi = 0; pi < runtime.W.plats.length; pi++){              // кромка движущейся платформы
+  /* plat раньше тайлов: иначе findLedge берёт губу клетки под/у палубы (~T смещение) */
+  for (var pi = 0; pi < runtime.W.plats.length; pi++){
     var q = runtime.W.plats[pi];
     if (Math.abs(handY - q.y) > 9) continue;
     var bestSide = 0, bestFace = 0, bestDist = 1e9, si, face, cxq, dEdge, hbq;
@@ -559,6 +552,14 @@ export function tryGrab(S, p){
     p.hang.keepAx = bestFace;                             // удержанный ход к краю не уводит сразу в climb
     p.hang.keepUp = true;                                 // то же для удержанного ↑
     return true;
+  }
+  var led = findLedge(p, dir, 0);                           // кромка уступа
+  if (led){
+    var hb = hangBox(led.cx, led.top, dir, 'ledge', p);
+    if (rectFree(hb.x, hb.y, hb.w, hb.h)){
+      grabTo(p, led.cx, led.top, dir, 'ledge', led.wc, led.tr);
+      return true;
+    }
   }
   var pcx = p.x + p.w/2, c0 = Math.floor(pcx / T);          // низ висячей лестницы
   for (var c = c0 - 1; c <= c0 + 1; c++){
@@ -704,11 +705,8 @@ function findDescendTile(p, want){
 }
 /* слезание с края движущейся платформы (не лифта) */
 function findDescendPlat(p, want){
-  var S = runtime.W;
-  if (!S) return null;
-  var q = p.ride;
-  if (!q || q.floors) q = platUnder(S, { x: footCenterX(p) - 1, y: p.y, w: 2, h: p.h }, p.y + p.h + 1);
-  if (!q || q.floors) return null;                         // lifts имеют floors
+  var q = ridingPlatDeck(p);
+  if (!q) return null;
   var midX = p.x + p.w / 2;
   if (midX < q.x || midX > q.x + q.w) return null;
   var order = want ? [want, -want] : [p.facing, -p.facing];
@@ -724,8 +722,18 @@ function findDescendPlat(p, want){
   }
   return null;
 }
+function ridingPlatDeck(p){
+  var S = runtime.W, q;
+  if (!S) return null;
+  q = p.ride;
+  if (q && !q.floors) return q;
+  q = platUnder(S, { x: footCenterX(p) - 1, y: p.y, w: 2, h: p.h }, p.y + p.h + 1);
+  return (q && !q.floors) ? q : null;
+}
 function findDescend(p, want){
-  return findDescendTile(p, want) || findDescendPlat(p, want);
+  /* на палубе plat не брать тайловую губу под платформой — иначе смещение ~T внутрь */
+  if (ridingPlatDeck(p)) return findDescendPlat(p, want);
+  return findDescendTile(p, want);
 }
 export function canDescend(p, want){
   return !!findDescend(p, want);
@@ -864,14 +872,17 @@ export function updateHang(S, p, dt, inp){
 }
 export function tryClimbUp(p){
   if (p.hang.kind === 'lad'){ startClimb(p, 1, p.hang.cx, p.hang.cy, p.facing, 'lad'); return true; }
-  var land = bestLand(p.hang.cx, p.hang.cy, p.facing);
-  if (!land && p.hang.plat){                          // верх платформы — не тайл
-    var q = p.hang.plat, b = stanceBox(0);
-    var x = p.hang.cx + p.facing * C.STAND_OFF - b.w / 2;
+  var land = null, q, b, x, y, sb;
+  if (p.hang.plat){                                   // палуба plat — не bestLand по тайлам под ней
+    q = p.hang.plat; b = stanceBox(0);
+    sb = standBox(p.hang.cx, p.hang.cy, p.facing);
+    x = sb.x;
     if (x < q.x) x = q.x;
     if (x + b.w > q.x + q.w) x = q.x + q.w - b.w;
-    var y = q.y - b.h;
+    y = q.y - b.h;
     if (rectFree(x, y, b.w, b.h)) land = { x: x, y: y, w: b.w, h: b.h, stance: 0 };
+  } else {
+    land = bestLand(p.hang.cx, p.hang.cy, p.facing);
   }
   if (!land) return false;
   startClimb(p, 1, p.hang.cx, p.hang.cy, p.facing, 'ledge', land);
