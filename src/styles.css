@@ -67,7 +67,9 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
 .ed-head-acts{display:flex;gap:4px;flex-shrink:0}
 .ed-body{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding:6px}
 .ed-pal{display:flex;gap:4px;flex-wrap:wrap;align-content:flex-start;
-  overflow:auto;flex:1;min-height:0}
+  overflow:auto;flex:1;min-height:0;scrollbar-width:none;-ms-overflow-style:none}
+.ed-pal::-webkit-scrollbar{width:0;height:0;display:none}
+#edbar.is-pan,#edbar.is-pan *{cursor:all-scroll!important}
 .ed-extra{display:flex;gap:4px;flex-wrap:wrap;padding-top:4px;align-items:center}
 .ed-extra .ed-color-sl,.ed-extra .bn-slider{width:132px;flex:1 1 120px;height:26px}
 .ed-extra:empty,.ed-pal:empty,.ed-pal[hidden],.ed-extra[hidden]{display:none!important}
@@ -80,7 +82,9 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
 .ed-param-bar{display:flex;gap:6px;flex-shrink:0}
 #edParamQ{flex:1;min-width:0;height:26px;border-radius:6px;border:1px solid #3a3460;
   background:#150f26;color:#e9e4ff;font:inherit;font-size:11px;padding:0 8px}
-#edParamList{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:10px}
+#edParamList{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:10px;
+  scrollbar-width:none;-ms-overflow-style:none}
+#edParamList::-webkit-scrollbar,#edIntro::-webkit-scrollbar,#edMix::-webkit-scrollbar,#edGear::-webkit-scrollbar{width:0;height:0;display:none}
 .ed-pg{display:flex;flex-direction:column;gap:4px}
 .ed-pg-title{font-size:10px;letter-spacing:.12em;color:#8f88bb;text-transform:uppercase}
 .ed-pg-empty{font-size:11px;color:#6a628f;padding:8px}
@@ -89,7 +93,7 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
 .ed-intro-row{display:flex;gap:4px;align-items:center}
 .ed-intro-in{flex:1;min-width:0;height:26px;border-radius:6px;border:1px solid #3a3460;
   background:#150f26;color:#e9e4ff;font:inherit;font-size:11px;padding:0 8px}
-#edIntro,#edMix{overflow:auto;gap:10px}
+#edIntro,#edMix,#edGear{overflow:auto;gap:10px;scrollbar-width:none;-ms-overflow-style:none}
 .ed-mix-acts{display:flex;gap:6px;margin-top:4px}
 .ed-mix-row{display:flex;align-items:center;gap:4px}
 .ed-mix-name{width:42px;flex-shrink:0;font-size:11px;color:#cfc6ff}

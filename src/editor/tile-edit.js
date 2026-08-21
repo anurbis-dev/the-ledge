@@ -1,6 +1,6 @@
 import GAME from '../core/game.js';
 import {
-  getTileDef, updateTile, removeTile, getTileGfx, setTileGfx, clearTileGfx,
+  getTileDef, updateTile, getTileGfx, setTileGfx, clearTileGfx,
   tileFrameCount, tileFrameSrc, canvasToPng, loadImageFile, sliceSheet
 } from '../core/tileset.js';
 import {
@@ -11,7 +11,6 @@ import {
 } from '../core/spriteset.js';
 import { bakeSpriteFrameSrc, bakeBuiltinTileSrc, clearBakeCache } from '../render/sprite-bake.js';
 import { defaultFrameAnchors } from '../render/sprite-anchors.js';
-import { wipeTileId } from '../core/layers.js';
 import { raiseFloat, placeFloat, hasFloatPos } from './float.js';
 import { invalidateAll } from '../render/tiles.js';
 import { clearThumbCache, paintTileIcon } from './thumbs.js';
@@ -25,6 +24,7 @@ var fw = 16, fh = 16;
 var animId = '';
 var frameI = 0;
 var onChange = null;
+var onDeleteCustom = null;
 
 var TOOLS = [
   { id: 'pencil', name: 'Paint', title: 'Paint pixels (LMB). RMB erases.' },
@@ -89,6 +89,7 @@ try {
 
 export function bindTileEdit(hooks){
   onChange = hooks && hooks.onChange;
+  onDeleteCustom = hooks && hooks.onDeleteCustom;
 }
 
 function stopPlay(){
@@ -1571,10 +1572,10 @@ function fillBody(){
     del.type = 'button';
     del.className = 'edb';
     del.textContent = 'Delete';
+    del.title = 'Delete this custom tile. Warns if it is used on any level.';
     del.addEventListener('click', function(){
-      if (!def) return;
-      wipeTileId(def.id);
-      removeTile(def.id);
+      if (!def || !onDeleteCustom) return;
+      if (!onDeleteCustom(def.id)) return;
       notify();
       closeTileEdit();
     });

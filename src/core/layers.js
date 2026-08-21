@@ -492,21 +492,90 @@ export function ensureDeco(L){
   }
 }
 
-export function wipeTileId(id){
-  if (!id) return;
-  var ls = getLayers(), i, L, j;
-  function scrub(b){
-    if (!b) return;
-    for (j = 0; j < b.length; j++) if (b[j] === id) b[j] = 0;
+/* Буферы, где лежит id тайла (не vary/tint — там индексы вариантов/grade). */
+var TILE_ID_BUFS = ['base', 'deco', 'cover', 'stamp', 'stampDeco'];
+var TILE_ID_PAIR = { base: 'vary', cover: 'coverVary', stamp: 'stampVar' };
+
+function scrubTileLayer(L, id){
+  if (!L) return 0;
+  var n = 0, i, key, pair, j, buf, pb;
+  for (i = 0; i < TILE_ID_BUFS.length; i++){
+    key = TILE_ID_BUFS[i];
+    buf = L[key];
+    if (!buf || !buf.length) continue;
+    pair = TILE_ID_PAIR[key];
+    pb = pair ? L[pair] : null;
+    for (j = 0; j < buf.length; j++){
+      if (buf[j] !== id) continue;
+      buf[j] = 0;
+      if (pb && j < pb.length) pb[j] = 0;
+      n++;
+    }
   }
-  for (i = 0; i < ls.length; i++){
-    L = ls[i];
-    if (!L) continue;
-    scrub(L.base); scrub(L.vary); scrub(L.deco);
-    scrub(L.stamp); scrub(L.stampVar); scrub(L.stampDeco);
+  if (n){
     L._chunks = {};
     L._stampCan = null;
   }
+  return n;
+}
+
+function countTileBuf(b, id){
+  if (!b || !b.length) return 0;
+  var n = 0, j;
+  for (j = 0; j < b.length; j++) if (b[j] === id) n++;
+  return n;
+}
+
+export function countTileInLayers(layers, id){
+  if (!layers || !id) return 0;
+  var n = 0, i, b;
+  for (i = 0; i < layers.length; i++){
+    if (!layers[i]) continue;
+    for (b = 0; b < TILE_ID_BUFS.length; b++)
+      n += countTileBuf(layers[i][TILE_ID_BUFS[b]], id);
+  }
+  return n;
+}
+
+/** Уровни, где id стоит в слоях (текущий — live runtime, остальные — `_stash`). */
+export function findLevelsUsingTile(id, levels, currentLv){
+  var out = [], i, lv, n;
+  if (!id || !levels) return out;
+  for (i = 0; i < levels.length; i++){
+    lv = levels[i];
+    if (!lv) continue;
+    if (lv === currentLv) n = countTileInLayers(getLayers(), id);
+    else n = lv._stash ? countTileInLayers(lv._stash.layers, id) : 0;
+    if (n) out.push({ id: lv.id, name: lv.name || lv.id || ('#' + i), count: n });
+  }
+  return out;
+}
+
+export function wipeTileId(id){
+  if (!id) return 0;
+  var ls = getLayers(), i, n = 0;
+  for (i = 0; i < ls.length; i++) n += scrubTileLayer(ls[i], id);
+  return n;
+}
+
+/** Стирает id с текущего уровня и из `_stash` всех уровней. */
+export function wipeTileIdEverywhere(id, levels, currentLv){
+  if (!id) return 0;
+  var n = wipeTileId(id), i, lv, j, L;
+  if (currentLv && currentLv._stash && currentLv._stash.layers){
+    for (j = 0; j < currentLv._stash.layers.length; j++)
+      n += scrubTileLayer(currentLv._stash.layers[j], id);
+  }
+  if (!levels) return n;
+  for (i = 0; i < levels.length; i++){
+    lv = levels[i];
+    if (!lv || lv === currentLv || !lv._stash || !lv._stash.layers) continue;
+    for (j = 0; j < lv._stash.layers.length; j++){
+      L = lv._stash.layers[j];
+      n += scrubTileLayer(L, id);
+    }
+  }
+  return n;
 }
 
 function copyBuf(src){

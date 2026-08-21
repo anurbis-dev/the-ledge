@@ -9,16 +9,15 @@ import { findById } from '../entities/ids.js';
 import { BOULDER_DEF } from '../entities/boulders.js';
 import { isSlopeBrush, fitSlopeStroke } from './slopes.js';
 import { tileThumb, objThumb, paintObjIcon } from './thumbs.js';
-import { spriteThumb } from '../render/sprite-bake.js';
 import { renderParams, resetAllParams } from './params.js';
-import { getActiveLayer, getLayers, layerTile, layerVar, layerDeco, layerTileRaw, layerVarRaw, isTileLayer, internGrade, layerGrade, copyGrade, GRADE_DEF } from '../core/layers.js';
+import { getActiveLayer, getLayers, layerTile, layerVar, layerDeco, layerTileRaw, layerVarRaw, isTileLayer, internGrade, layerGrade, copyGrade, GRADE_DEF, stashLayers, findLevelsUsingTile, wipeTileIdEverywhere } from '../core/layers.js';
 import { initSliders } from './slider.js';
 import {
   customSpecs, addTile, loadImageFile, sliceSheet, guessOverlay, bindTileset, isCustomId,
-  getTileDef, updateTile, getTileGfx
+  getTileDef, updateTile, getTileGfx, removeTile
 } from '../core/tileset.js';
 import { bindTileEdit, openTileEdit, openSpriteEdit, closeTileEdit } from './tile-edit.js';
-import { listSpriteDefs, spriteDefForKind, getSpriteDef, bindSpriteset } from '../core/spriteset.js';
+import { spriteDefForKind, getSpriteDef, bindSpriteset } from '../core/spriteset.js';
 import { bakeBuiltinTileSrc } from '../render/sprite-bake.js';
 import { clearThumbCache } from './thumbs.js';
 import { setEditorRooms, stepRooms } from '../core/rooms.js';
@@ -29,9 +28,9 @@ import { bindGearPanel, renderGearPanel } from './gear-settings.js';
 import { showInspect, bindInspect } from './inspect.js';
 import { bindNpcTalk, openNpcTalk, closeNpcTalk } from './npc-talk.js';
 import { bindBoulderSettings, openBoulderSettings, closeBoulderSettings } from './boulder-settings.js';
-import { bindAllFloats, placeFloat, hasFloatPos } from './float.js';
+import { bindAllFloats, bindMiddleScroll, placeFloat, hasFloatPos } from './float.js';
 import { pickSpecial, pickAllSpecial, hitGizmo, beginGizmo, moveGizmo, endGizmo, gizmoActive, drawGizmos } from './gizmos.js';
-import { markLevelDirty as persistDirty, flushLevel, bindPersist } from '../core/persist.js';
+import { markLevelDirty as persistDirty, flushLevel, flushAllLevelsStore, bindPersist } from '../core/persist.js';
 import { scheduleBake, pushBake, collectFull } from '../core/bake-client.js';
 import { beginOp, endOp, noteOp, undoOp, redoOp, canUndo, canRedo, bindHistory, clearHistory } from './history.js';
 import { invalidateAll } from '../render/tiles.js';
@@ -272,7 +271,8 @@ bindTileEdit({
   onChange: function(){
     scheduleBake();
     edRefresh();
-  }
+  },
+  onDeleteCustom: function(id){ return deleteCustomTileById(id); }
 });
 bindTileset({
   onChange: function(){
@@ -292,6 +292,7 @@ bindSpriteset({
 bindNpcTalk({ onChange: function(){ markLevelDirty(); } });
 bindBoulderSettings({ onChange: function(){ markLevelDirty(); } });
 bindAllFloats();
+if (edBar) bindMiddleScroll(edBar, edPal);
 bindPersist({ water: waterExport, onFlush: scheduleBake });
 bindHistory({
   onChange: function(why){
@@ -518,31 +519,9 @@ function fillPal(){
         });
       })(j);
     }
-    var spr = listSpriteDefs();
-    if (spr.length){
-      var slab = document.createElement('div');
-      slab.className = 'ed-pal-hint';
-      slab.textContent = 'Sprites — click to stamp; double-click to edit frames';
-      edPal.appendChild(slab);
-      var si;
-      for (si = 0; si < spr.length; si++){
-        (function(def){
-          var stamp = objPalForKind(def.kind) >= 0;
-          var on = ED.tool === 'obj' && ED_OBJS[ED.pal] && ED_OBJS[ED.pal].kind === def.kind;
-          var sw = swatch(edPal, spriteThumb(def, ED.icon), def.name, on, function(){
-            selectSpriteBrush(def);
-          }, 'sprite', def.id);
-          sw.title = def.name + (stamp ? ' — click/drag to stamp · double-click to edit' : ' — double-click to edit frames');
-          sw.addEventListener('dblclick', function(e){
-            e.preventDefault(); e.stopPropagation();
-            openSpriteEdit(def, e.clientX, e.clientY);
-          });
-        })(spr[si]);
-      }
-    }
     var hint = document.createElement('div');
     hint.className = 'ed-pal-hint';
-    hint.textContent = 'Drop PNG to add tiles · double-click to edit · Ctrl+drag selects a block';
+    hint.textContent = 'Drop PNG to add tiles · double-click to edit · Ctrl+D clone · Delete removes custom · Ctrl+drag selects a block';
     edPal.appendChild(hint);
   } else if (ED.tab === 'obj'){
     for (var m = 0; m < ED_OBJS.length; m++){
@@ -550,8 +529,14 @@ function fillPal(){
         var spec = ED_OBJS[k];
         var sw = swatch(edPal, objThumb(spec.kind, ED.icon), spec.name, ED.pal === k, function(){ ED.pal = k; }, 'obj', k);
         if (LOOT_ONLY_KINDS[spec.kind]) sw.title = spec.name + ' — drag onto a chest, enemy or bird';
+        else if (spec.kind === 'player_start') sw.title = 'Start — place spawn · double-click edits Hero frames';
+        else {
+          var sd0 = spriteDefForKind(spec.kind);
+          if (sd0) sw.title = spec.name + ' — stamp · double-click edits frames';
+        }
         sw.addEventListener('dblclick', function(e){
           var sd = spriteDefForKind(spec.kind);
+          if (!sd && spec.kind === 'player_start') sd = getSpriteDef('hero');
           if (!sd) return;
           e.preventDefault(); e.stopPropagation();
           openSpriteEdit(sd, e.clientX, e.clientY);
@@ -865,6 +850,41 @@ function duplicatePalTile(){
   for (i = 0; i < tiles.length; i++) if (tiles[i].id === t.id){ ED.pal = i; break; }
   edRefresh();
   return true;
+}
+
+/** Удаляет кастом-тайл: предупреждает, если id есть на любом уровне. */
+export function deleteCustomTileById(id){
+  id = id | 0;
+  if (!id || !isCustomId(id)) return false;
+  var def = getTileDef(id);
+  if (!def) return false;
+  var lv = G.levelSpec();
+  if (lv) stashLayers(lv);
+  var used = findLevelsUsingTile(id, G.LEVELS, lv);
+  var label = def.name || ('Tile ' + id);
+  if (used.length){
+    var list = used.map(function(u){ return u.name + ' (' + u.count + ')'; }).join(', ');
+    if (!confirm('"' + label + '" is used on: ' + list + '.\nRemove from all levels and delete the tile?')) return false;
+  } else if (!confirm('Delete custom tile "' + label + '"?')) return false;
+  wipeTileIdEverywhere(id, G.LEVELS, lv);
+  removeTile(id);
+  flushAllLevelsStore(G.LEVELS);
+  invalidateAll();
+  clearThumbCache();
+  if (ED.tool === 'tile'){
+    var tiles = palTiles();
+    if (ED.pal >= tiles.length) ED.pal = Math.max(0, tiles.length - 1);
+  }
+  scheduleBake();
+  edRefresh();
+  return true;
+}
+
+function deleteSelectedPaletteTile(){
+  if (ED.tab !== 'tile' || ED.tool !== 'tile') return false;
+  var spec = palSpec();
+  if (!spec || spec.id == null || !(spec.custom || isCustomId(spec.id))) return false;
+  return deleteCustomTileById(spec.id);
 }
 
 function palTiles(){ return ED_TILES.concat(customSpecs()); }
@@ -2321,6 +2341,14 @@ addEventListener('keydown', function(e){
     deleteSelected();
     markLevelDirty();
     endOp();
+    return;
+  }
+  if (ED.on && (e.key === 'Delete' || e.key === 'Backspace') && !ED.selTiles && !(ED.sel && ED.sel.obj)){
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (deleteSelectedPaletteTile()){
+      e.preventDefault();
+      return;
+    }
   }
   if (ED.on && (e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C') && ED.selTiles){
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;

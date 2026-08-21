@@ -268,6 +268,71 @@ export function bindAllFloats(){
   }
 }
 
+/** СКМ-драг панорама скролла для нижней панели / любых root без float chrome. */
+export function bindMiddleScroll(root, fallbackScroller){
+  if (!root || root._edMidScroll) return;
+  root._edMidScroll = true;
+  var mode = null, pid = -1, ox = 0, oy = 0, sTop = 0, sLeft = 0, panEl = null;
+
+  function hookWin(){
+    addEventListener('pointermove', onMove, true);
+    addEventListener('pointerup', onUp, true);
+    addEventListener('pointercancel', onUp, true);
+  }
+  function unhookWin(){
+    removeEventListener('pointermove', onMove, true);
+    removeEventListener('pointerup', onUp, true);
+    removeEventListener('pointercancel', onUp, true);
+  }
+  function onMove(e){
+    if (!mode || e.pointerId !== pid || !panEl) return;
+    e.preventDefault();
+    e.stopPropagation();
+    panEl.scrollTop = sTop - (e.clientY - oy);
+    panEl.scrollLeft = sLeft - (e.clientX - ox);
+  }
+  function onUp(e){
+    if (e && e.pointerId !== pid) return;
+    mode = null;
+    pid = -1;
+    panEl = null;
+    root.classList.remove('is-pan');
+    unhookWin();
+  }
+
+  root.addEventListener('pointerdown', function(e){
+    if (e.button !== 1) return;
+    e.preventDefault();
+    e.stopPropagation();
+    mode = 'scroll';
+    pid = e.pointerId;
+    ox = e.clientX;
+    oy = e.clientY;
+    panEl = scrollableOf(e.target, root, fallbackScroller || root);
+    sTop = panEl.scrollTop;
+    sLeft = panEl.scrollLeft;
+    root.classList.add('is-pan');
+    try { root.setPointerCapture(e.pointerId); } catch (_){}
+    hookWin();
+  });
+  root.addEventListener('auxclick', function(e){ if (e.button === 1) e.preventDefault(); });
+  root.addEventListener('mousedown', function(e){ if (e.button === 1) e.preventDefault(); });
+  root.addEventListener('wheel', function(e){
+    if (e.ctrlKey || e.metaKey) return;
+    var t = scrollableOf(e.target, root, fallbackScroller || root);
+    if (!canScroll(t) && t === (fallbackScroller || root)) return;
+    var dx = e.deltaX, dy = e.deltaY;
+    if (Math.abs(dy) > Math.abs(dx) && t.scrollWidth > t.clientWidth + 1 && t.scrollHeight <= t.clientHeight + 1)
+      t.scrollLeft += dy;
+    else {
+      t.scrollTop += dy;
+      t.scrollLeft += dx;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+  }, { passive: false });
+}
+
 addEventListener('resize', function(){
   for (var i = 0; i < bound.length; i++){
     var el = bound[i];

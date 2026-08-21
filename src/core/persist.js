@@ -405,6 +405,21 @@ export function flushLevel(S){
   }
 }
 
+/** Перезаписывает packLevel всех уровней (после правки чужих `_stash`). */
+export function flushAllLevelsStore(levels){
+  if (!levels || !levels.length) return;
+  if (runtime.LV) stashLayers(runtime.LV);
+  var store = readStore() || {}, i, lv;
+  for (i = 0; i < levels.length; i++){
+    lv = levels[i];
+    if (!lv) continue;
+    store[keyOf(lv)] = packLevel(lv);
+  }
+  writeStore(store);
+  touchSavedAt();
+  if (afterFlush) afterFlush();
+}
+
 export function forgetLevel(lv){
   if (!lv) return;
   var store = readStore() || {};
