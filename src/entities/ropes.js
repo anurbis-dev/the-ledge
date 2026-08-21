@@ -1,5 +1,9 @@
 import { T, C } from '../core/constants.js';
 import { runtime } from '../core/runtime.js';
+import {
+  solidAt, rectFree, tileAt, isSlopeV, isHalfV, isBarV, slopeSurfaceY
+} from '../core/map.js';
+import { getTileDef } from '../core/tileset.js';
 import { allocId, findById } from './ids.js';
 import { dropTorch } from './torches.js';
 import { setStance, activeHeroId } from '../core/player.js';
@@ -275,6 +279,114 @@ function elastSoft(elast){
   return e / (e + ELAST_G_REF);
 }
 
+/** Бокс solid в клетке точки (null если free). Скос — {slope,y}. */
+function solidHitBox(px, py){
+  if (!solidAt(px, py)) return null;
+  var c = Math.floor(px / T), r = Math.floor(py / T);
+  var v = tileAt(c, r);
+  if (isSlopeV(v)){
+    var sy = slopeSurfaceY(c, r, px);
+    if (sy == null) sy = r * T;
+    return { slope: true, y: sy };
+  }
+  var bx = c * T, by = r * T, bw = T, bh = T;
+  var d = getTileDef(v);
+  if (d){
+    if (d.collide === 'half') bh = 8;
+    else if (d.collide === 'bar') bh = 3;
+    else if (d.collide === 'custom' && d.box){
+      bx = c * T + d.box.x; by = r * T + d.box.y;
+      bw = d.box.w; bh = d.box.h;
+    }
+  } else if (isHalfV(v)) bh = 8;
+  else if (isBarV(v)) bh = 3;
+  return { bx: bx, by: by, bw: bw, bh: bh };
+}
+
+function colEps(){
+  var e = C.ROPE_COL_EPS;
+  return e != null ? e : 0.75;
+}
+
+/** Вытолкнуть одну ноду из solid; pinned не трогаем. */
+function resolveRopeNode(n){
+  if (n.pinned || !solidAt(n.x, n.y)) return;
+  var eps = colEps();
+  var hit = solidHitBox(n.x, n.y);
+  var moved = false;
+  if (hit && hit.slope){
+    n.y = hit.y - eps;
+    moved = true;
+  } else if (hit){
+    var pl = n.x - hit.bx;
+    var pr = hit.bx + hit.bw - n.x;
+    var pt = n.y - hit.by;
+    var pb = hit.by + hit.bh - n.y;
+    var m = Math.min(pl, pr, pt, pb);
+    if (m === pl) n.x = hit.bx - eps;
+    else if (m === pr) n.x = hit.bx + hit.bw + eps;
+    else if (m === pt) n.y = hit.by - eps;
+    else n.y = hit.by + hit.bh + eps;
+    moved = true;
+  }
+  /* fallback: шаг к предыдущей свободной / по осям */
+  if (solidAt(n.x, n.y)){
+    var x0 = n.x, y0 = n.y, s, done = false;
+    if (!solidAt(n.ox, n.oy)){
+      for (s = 1; s <= 8; s++){
+        var f = s / 8;
+        var mx = x0 + (n.ox - x0) * f, my = y0 + (n.oy - y0) * f;
+        if (!solidAt(mx, my)){ n.x = mx; n.y = my; done = true; break; }
+      }
+    }
+    if (!done){
+      for (s = 1; s <= T && !done; s++){
+        if (!solidAt(x0 - s, y0)){ n.x = x0 - s - eps; done = true; }
+        else if (!solidAt(x0 + s, y0)){ n.x = x0 + s + eps; done = true; }
+        else if (!solidAt(x0, y0 - s)){ n.y = y0 - s - eps; done = true; }
+        else if (!solidAt(x0, y0 + s)){ n.y = y0 + s + eps; done = true; }
+      }
+    }
+    moved = moved || done;
+  }
+  if (moved){
+    /* срез скорости внутрь препятствия */
+    n.ox += (n.x - n.ox) * 0.45;
+    n.oy += (n.y - n.oy) * 0.45;
+  }
+}
+
+function collideRopeNodes(r){
+  var nodes = r.nodes, i;
+  for (i = 0; i < nodes.length; i++) resolveRopeNode(nodes[i]);
+  pinEnds(r);
+}
+
+/** AABB героя на верёвке не оставлять в стене. */
+function unstickRopeRider(p){
+  if (rectFree(p.x, p.y, p.w, p.h)) return;
+  var ox = p.x, oy = p.y, tx, ty;
+  tx = Math.floor((p.x + p.w) / T) * T - p.w;
+  if (rectFree(tx, p.y, p.w, p.h)){ p.x = tx; return; }
+  tx = Math.floor(p.x / T) * T + T;
+  if (rectFree(tx, p.y, p.w, p.h)){ p.x = tx; return; }
+  ty = Math.floor(p.y / T) * T + T;
+  if (rectFree(p.x, ty, p.w, p.h)){ p.y = ty; return; }
+  ty = Math.floor((p.y + p.h) / T) * T - p.h;
+  if (rectFree(p.x, ty, p.w, p.h)){ p.y = ty; return; }
+  /* угол: комбинация X затем Y */
+  p.x = Math.floor((ox + p.w) / T) * T - p.w;
+  if (!rectFree(p.x, p.y, p.w, p.h)) p.x = Math.floor(ox / T) * T + T;
+  if (!rectFree(p.x, p.y, p.w, p.h)){
+    p.x = ox;
+    p.y = Math.floor(oy / T) * T + T;
+  }
+  if (!rectFree(p.x, p.y, p.w, p.h)){
+    p.y = Math.floor((oy + p.h) / T) * T - p.h;
+  }
+  if (!rectFree(p.x, p.y, p.w, p.h)){ p.x = ox; p.y = oy; }
+}
+
 function constrain(r, stretch){
   var nodes = r.nodes, rest = r.rest, maxRest = rest * (1 + stretch);
   var hard = stretch < 0.00005;
@@ -380,7 +492,11 @@ function verlet(r, dt, full){
   var iters = full ? (C.ROPE_ITERS | 0) || 6 : 2;
   if (hardString) iters = Math.max(iters, full ? 12 : 5);
   else if (shortH && soft < 0.25) iters = Math.max(iters, full ? 9 : 4);
-  for (i = 0; i < iters; i++) constrain(r, stretch);
+  for (i = 0; i < iters; i++){
+    constrain(r, stretch);
+    /* solid только рядом с героем / на rider — idle far пропускаем */
+    if (full) collideRopeNodes(r);
+  }
   /* хорда только у почти-струны; с rider — слабее, чтобы яма не сплющивалась */
   if (shortH && !r.rider){
     var pull = hardString ? 1 : Math.pow(1 - soft, 1.6) * 0.12;
@@ -477,6 +593,7 @@ export function attachRope(S, p, r, t){
   var box = getAnimBox(activeHeroId(), r.orient === 'h' ? 'bars' : 'hang');
   if (box){ p.w = box.w; p.h = box.h; }
   placeOnRope(p, sampleRope(r, t), r.orient);
+  unstickRopeRider(p);
   /* V: лёгкий боковой импульс — не висеть идеально ровно */
   if (r.orient === 'v'){
     var wob = ROPE_DEF.attachWobble;
@@ -605,6 +722,7 @@ export function updateRope(S, p, dt, inp){
   }
 
   placeOnRope(p, sampleRope(R, st.t), R.orient);
+  unstickRopeRider(p);
 }
 
 export function rebuildAllRopes(S){

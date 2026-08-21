@@ -31,6 +31,8 @@ export const C = {
   ROPE_SEGS: 8, ROPE_ELAST: 0.25, ROPE_SWING: 200, ROPE_DAMP: 0.98,
   ROPE_WIND: 2.2, ROPE_CLIMB: 52, ROPE_GRAB: 14, ROPE_ITERS: 6, ROPE_CD: 0.28,
   ROPE_SWING_CD: 0.22,
+  /* отступ ноды от solid после выталкивания */
+  ROPE_COL_EPS: 0.75,
   ROLL_V: 152, ROLL_T: 0.42, ROLL_CD: 0.14,
   LAD_V: 58, LAD_TOL: 6, LAD_XTOL: 11,
   SAFE: 46, HURT: 104, HITSTOP: 0.055,
