@@ -1,3 +1,7 @@
+## 0.15.1
+
+- Params: detailed hover tooltips for all `C` sliders; clarify `PLAT_GRAB` (X hand→lip) vs `PLAT_GRAB_Y` (Y hand→deck).
+
 ## 0.15.0
 
 - Water waves: keep full layer amplitudes under FALL (dampen river travel only); per-layer bob/expand phase offsets so crests no longer lock as one sheet; `fallChurnAt` boils under impact.

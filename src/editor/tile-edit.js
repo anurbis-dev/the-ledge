@@ -1,7 +1,8 @@
 import GAME from '../core/game.js';
 import {
   getTileDef, updateTile, getTileGfx, setTileGfx, clearTileGfx, getTileSpeed,
-  getTileShift, getTileWaveX, getTileSplash, getTileSpriteId, setTileSpriteId,
+  getTileShift, getTileWaveX, getTileSplash, getTileLength, getTileWave, getTileRandom, getTileOffset, getTileFade,
+  getTileSpriteId, setTileSpriteId,
   tileFrameCount, tileFrameSrc, canvasToPng, loadImageFile, sliceSheet, addTile
 } from '../core/tileset.js';
 import { initSliders } from './slider.js';
@@ -1824,25 +1825,33 @@ function fillTileParamsOnly(){
   field('Collision', sel);
 
   if (current.id === GAME.FALL){
-    var fallDef = 70;
-    var fallSpd = getTileSpeed(GAME.FALL, fallDef);
-    var spdWrap = document.createElement('label');
-    spdWrap.className = 'slider-wrap';
-    spdWrap.title = 'Procedural waterfall scroll speed (0 = frozen)';
-    spdWrap.innerHTML = '<div class="slider-label-overlay"><span>Speed</span><span></span></div>';
-    var spdInp = document.createElement('input');
-    spdInp.type = 'range';
-    spdInp.min = 0; spdInp.max = 200; spdInp.step = 1;
-    spdInp.value = fallSpd;
-    spdInp.dataset.default = String(fallDef);
-    spdInp.addEventListener('input', function(){
-      markOp();
-      setTileGfx(GAME.FALL, { speed: +spdInp.value });
-      notify();
-    });
-    spdWrap.appendChild(spdInp);
-    body.appendChild(spdWrap);
-    initSliders(spdWrap);
+    function addFallSlider(label, title, key, def, min, max, getter){
+      var wrap = document.createElement('label');
+      wrap.className = 'slider-wrap';
+      wrap.title = title;
+      wrap.innerHTML = '<div class="slider-label-overlay"><span>' + label + '</span><span></span></div>';
+      var inp = document.createElement('input');
+      inp.type = 'range';
+      inp.min = min; inp.max = max; inp.step = 1;
+      inp.value = getter(GAME.FALL, def);
+      inp.dataset.default = String(def);
+      inp.addEventListener('input', function(){
+        markOp();
+        var patch = {};
+        patch[key] = +inp.value;
+        setTileGfx(GAME.FALL, patch);
+        notify();
+      });
+      wrap.appendChild(inp);
+      body.appendChild(wrap);
+      initSliders(wrap);
+    }
+    addFallSlider('Speed', 'Procedural waterfall scroll speed (0 = frozen)', 'speed', 70, 0, 200, getTileSpeed);
+    addFallSlider('Length', 'Light strand length along the fall (world-continuous)', 'length', 25, 0, 100, getTileLength);
+    addFallSlider('Wave', 'How much each strand bends (0 = straight)', 'wave', 15, 0, 100, getTileWave);
+    addFallSlider('Random', 'Per-strand variation of phase/speed/x/length', 'random', 35, 0, 100, getTileRandom);
+    addFallSlider('Offset', 'Phase desync between strands (0 = lockstep)', 'offset', 55, 0, 100, getTileOffset);
+    addFallSlider('Fade', 'Transparency: more holes + lower alpha (0 = solid)', 'fade', 0, 0, 100, getTileFade);
   }
 
   if (current.id === GAME.WATER){

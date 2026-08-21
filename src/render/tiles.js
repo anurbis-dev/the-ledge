@@ -2,7 +2,7 @@ import GAME from '../core/game.js';
 import { hooks } from '../core/runtime.js';
 import { COVER_AIR, coverRaw, coverVarRaw, roomCoverA, rebuildRooms } from '../core/rooms.js';
 import { getLayers, layerShown, lastCollideIndex, layerTileRaw, layerVarRaw, layerDeco, isTileLayer, wrapSize, layerCssFilter, layerGrade, gradeCssFilter } from '../core/layers.js';
-import { getTileDef, tileImage, tileFrameImage, tileFrameCount, getTileSpeed, getTileShift, getTileWaveX, getTileSplash } from '../core/tileset.js';
+import { getTileDef, tileImage, tileFrameImage, tileFrameCount, getTileSpeed, getTileShift, getTileWaveX, getTileSplash, getTileLength, getTileWave, getTileRandom, getTileOffset, getTileFade } from '../core/tileset.js';
 import { buildWater } from './fx.js';
 import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH, viewScale } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
@@ -450,6 +450,65 @@ function paintGraded(c, r, x, y, fn){
   ctx.drawImage(b, Math.round(x - p), Math.round(y - p));
 }
 
+/* FALL-нити: фаза по world Y — непрерывны через столбец тайлов.
+ * Светлая нить: яркая сверху → плавно прозрачнее вниз (по всей length).
+ * length/wave/random/offset/fade — tileGfx[14], 0..100. */
+function paintFallStrands(c, r, x, y, time, w1, fadeK){
+  if (fadeK == null) fadeK = 0;
+  var spd = getTileSpeed(G.FALL, 70);
+  var lenP = getTileLength(G.FALL, 25);
+  var waveP = getTileWave(G.FALL, 15);
+  var randP = getTileRandom(G.FALL, 35);
+  var offP = getTileOffset(G.FALL, 55);
+  var lightBase = Math.max(2, Math.round(2 + (lenP / 100) * 22));
+  var periodBase = Math.max(lightBase + 8, 18);
+  var waveAmp = (waveP / 100) * 2.8;
+  var randK = randP / 100;
+  var desync = offP / 100;
+  /* fade: мягкая альфа + редкие полупрозрачные прорехи, без жёсткого обрыва нити */
+  var baseA = 1 - fadeK * 0.78;
+  var softHole = fadeK * 0.55;
+  var worldY0 = r * T;
+  var s, h, n1, n2, n3, n4, strandSpd, phase0, lightLen, period, baseX;
+  var py, wy, u, wOff, sx, hh, hn, a, lightA, taper, prevA;
+  prevA = ctx.globalAlpha;
+  for (s = 0; s < 4; s++){
+    h = ((c * 73856093) ^ (s * 19349663) ^ 0x9e3779b9) >>> 0;
+    n1 = (h & 255) / 255;
+    n2 = ((h >>> 8) & 255) / 255;
+    n3 = ((h >>> 16) & 255) / 255;
+    n4 = ((h >>> 24) & 255) / 255;
+    strandSpd = spd * (1 + (n1 - 0.5) * 0.55 * randK);
+    phase0 = s * (12 + 70 * desync) + n2 * 100 * desync + n3 * 55 * randK;
+    lightLen = Math.max(2, Math.round(lightBase * (1 + (n3 - 0.5) * 0.45 * randK)));
+    period = Math.max(lightLen + 6, Math.round(periodBase * (1 + (n4 - 0.5) * 0.25 * randK)));
+    baseX = 1 + s * 4 + (n1 - 0.5) * 2.2 * randK;
+    for (py = 0; py < T; py++){
+      wy = worldY0 + py;
+      wOff = waveAmp * Math.sin(wy * (0.12 + n2 * 0.06 * randK) + s * 1.35 + n4 * 2.1);
+      sx = Math.round(baseX + wOff);
+      hh = ((wy * 2654435761) ^ (s * 9749) ^ ((sx + 17) * 2246822519)) >>> 0;
+      hn = (hh & 255) / 255;
+      /* мягкая модуляция: не continue — нить не рвётся */
+      a = baseA * (1 - softHole * hn * 0.85);
+      if (a < 0.05) continue;
+      ctx.globalAlpha = prevA * a;
+      rc(x + sx, y + py, 2, 1, w1);
+      u = (time * strandSpd + phase0 - wy) % period;
+      if (u < 0) u += period;
+      if (u < lightLen){
+        /* u→lightLen = верх нити (ярче), u→0 = низ (прозрачнее) */
+        taper = u / lightLen;
+        taper = taper * taper * (3 - 2 * taper); /* smoothstep */
+        lightA = 0.12 + 0.88 * taper;
+        ctx.globalAlpha = prevA * a * lightA;
+        if (ctx.globalAlpha > 0.04) rc(x + sx, y + py, 2, 1, '#bfe6ff');
+      }
+    }
+  }
+  ctx.globalAlpha = prevA;
+}
+
 export function drawTile(c, r, x, y, dyn){
   paintGraded(c, r, x, y, function(px, py){
     var v = tAt(c, r);
@@ -469,17 +528,22 @@ function paintTileId(v, c, r, x, y, dyn){
     var kW = v === G.WATER ? waterDepthK(c, r) : 0;
     var w0 = v === G.WATER ? mixHex('#2a78a8', '#040910', kW) : (deepW ? '#1d5a86' : '#2a78a8');
     var w1 = v === G.WATER ? mixHex('#49a0cf', '#16344c', kW) : (deepW ? '#2f7fae' : '#49a0cf');
-    rc(x, y, T, T, w0);
-    if (v === G.FALL){                                   // поток: вертикальные струи
-      var fallSpd = getTileSpeed(G.FALL, 70);
-      for (var s2 = 0; s2 < 4; s2++){
-        var off = Math.round((time * fallSpd + s2*23 + c*11) % T);
-        if (off < 0) off += T;
-        rc(x + 1 + s2*4, y + off - T, 2, T, w1);
-        rc(x + 1 + s2*4, y + ((off + 8) % T), 2, 3, '#bfe6ff');
+    if (v === G.FALL){                                   // поток: нити по world Y
+      var fadeK = Math.max(0, Math.min(1, getTileFade(G.FALL, 0) / 100));
+      var prevFallA = ctx.globalAlpha;
+      if (fadeK < 0.995){
+        if (fadeK > 0.01) ctx.globalAlpha = prevFallA * (1 - fadeK * 0.85);
+        rc(x, y, T, T, w0);
+        ctx.globalAlpha = prevFallA;
       }
-      rc(x, y, T, 1, '#8fd0ef');
+      paintFallStrands(c, r, x, y, time, w1, fadeK);
+      if (fadeK < 0.9){
+        if (fadeK > 0.01) ctx.globalAlpha = prevFallA * (1 - fadeK * 0.7);
+        rc(x, y, T, 1, '#8fd0ef');
+        ctx.globalAlpha = prevFallA;
+      }
     } else {                                             // спокойная вода: бегущая волна
+      rc(x, y, T, T, w0);
       var top = !G.isWaterV(tAt(c, r - 1));
       if (top && sAt(c, r - 1)){                 // камень над водой
         var rr = r - 2;

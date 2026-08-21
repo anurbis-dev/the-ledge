@@ -106,7 +106,7 @@ function writeLocal(){
   try { localStorage.setItem(KEY, JSON.stringify({ tiles: tiles, gfx: gfx })); } catch (_){}
 }
 
-var GFX_META = ['speed', 'shift', 'waveX', 'splash'];
+var GFX_META = ['speed', 'shift', 'waveX', 'splash', 'length', 'wave', 'random', 'offset', 'fade'];
 
 function copyGfxMeta(from, to){
   var i, k, v;
@@ -176,7 +176,7 @@ export function getTileSpriteId(id){
 
 /**
  * Привязать / снять спрайт. Custom → tile.spriteId; builtin → gfx.spriteId.
- * При assign чистит legacy src/frames картинки (meta speed/shift/waveX/splash остаётся).
+ * При assign чистит legacy src/frames картинки (GFX_META остаётся).
  */
 export function setTileSpriteId(id, spriteId){
   id = id | 0;
@@ -286,6 +286,26 @@ export function getTileWaveX(id, fallback){
 
 export function getTileSplash(id, fallback){
   return getTileMeta(id, 'splash', fallback);
+}
+
+export function getTileLength(id, fallback){
+  return getTileMeta(id, 'length', fallback);
+}
+
+export function getTileWave(id, fallback){
+  return getTileMeta(id, 'wave', fallback);
+}
+
+export function getTileRandom(id, fallback){
+  return getTileMeta(id, 'random', fallback);
+}
+
+export function getTileOffset(id, fallback){
+  return getTileMeta(id, 'offset', fallback);
+}
+
+export function getTileFade(id, fallback){
+  return getTileMeta(id, 'fade', fallback);
 }
 
 export function setTileGfx(id, patch){
