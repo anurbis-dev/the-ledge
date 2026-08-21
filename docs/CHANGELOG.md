@@ -1,4 +1,4 @@
 # Changelog (unreleased)
 
-- Water waves: к горизонтальному сдвигу фазы добавлен вертикальный bob гребня (`paintWaves`).
-- Fall tile Details: слайдер Speed (0–200, дефолт 70) → `tileGfx[14].speed`; `getTileSpeed`; Reset picture сохраняет speed.
+- Moving plat edge grab: hang (not instant climb); face by edge side; suppress held toward/↑ until release (`keepAx`/`keepUp`).
+

@@ -1,3 +1,8 @@
+## 0.9.1
+
+- Water waves: к горизонтальному сдвигу фазы добавлен вертикальный bob гребня (`paintWaves`).
+- Fall tile Details: слайдер Speed (0–200, дефолт 70) → `tileGfx[14].speed`; `getTileSpeed`; Reset picture сохраняет speed.
+
 ## 0.9.0
 
 - Palette swatch: одиночный клик переключает открытый Details; клик-драг не меняет цель и дропает на Sprite slot / кадр action (`hitDetailsDrop`).

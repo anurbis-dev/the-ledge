@@ -540,16 +540,23 @@ export function tryGrab(S, p){
   }
   for (var pi = 0; pi < runtime.W.plats.length; pi++){              // кромка движущейся платформы
     var q = runtime.W.plats[pi];
-    var side = (p.x + p.w/2 < q.x + q.w/2) ? -1 : 1;
-    if (side !== dir) continue;
-    if (platSeam(runtime.W.plats, q, side)) continue;      // платформы встык — тут уже не край, хват не даём
-    var cxq = side > 0 ? q.x + q.w : q.x;
-    if (Math.abs((dir > 0 ? p.x + p.w : p.x) - cxq) > 12) continue;
     if (Math.abs(handY - q.y) > 9) continue;
-    var hbq = hangBox(cxq, q.y, dir, 'ledge', p);
-    if (!rectFree(hbq.x, hbq.y, hbq.w, hbq.h)) continue;
-    grabTo(p, cxq, q.y, dir, 'ledge', -1, -1);
+    var bestSide = 0, bestDist = 1e9, si, cxq, dEdge, hbq;
+    for (si = -1; si <= 1; si += 2){                      // оба края; facing = ориентир края
+      if (platSeam(runtime.W.plats, q, si)) continue;      // платформы встык — тут уже не край
+      cxq = si > 0 ? q.x + q.w : q.x;
+      dEdge = Math.min(Math.abs(p.x - cxq), Math.abs(p.x + p.w - cxq));
+      if (dEdge > 12 || dEdge >= bestDist) continue;
+      hbq = hangBox(cxq, q.y, si, 'ledge', p);
+      if (!rectFree(hbq.x, hbq.y, hbq.w, hbq.h)) continue;
+      bestDist = dEdge; bestSide = si;
+    }
+    if (!bestSide) continue;
+    cxq = bestSide > 0 ? q.x + q.w : q.x;
+    grabTo(p, cxq, q.y, bestSide, 'ledge', -1, -1);
     p.hang.plat = q;
+    p.hang.keepAx = bestSide;                             // удержанный ход к краю не уводит сразу в climb
+    p.hang.keepUp = true;                                 // то же для удержанного ↑
     return true;
   }
   var pcx = p.x + p.w/2, c0 = Math.floor(pcx / T);          // низ висячей лестницы
@@ -793,12 +800,17 @@ export function updateHang(S, p, dt, inp){
   }
   var ax = Math.abs(inp.x) > 0.35 ? (inp.x > 0 ? 1 : -1) : 0;
   if (p.hang.keepAx){
-    if (ax === p.hang.keepAx) ax = 0;                  // ещё держат ход, с которым слезли
+    if (ax === p.hang.keepAx) ax = 0;                  // ещё держат ход, с которым слезли/схватились
     else p.hang.keepAx = 0;
   }
   var away = (ax && ax !== p.facing) ? ax : 0;
   var toward = ax === p.facing;
   if (p.hang.kind === 'lad') away = 0;
+  var wantUp = inp.upPressed || inp.upHeld;
+  if (p.hang.keepUp){
+    if (wantUp) wantUp = false;                       // удержанный ↑ после хвата — сначала вис
+    else p.hang.keepUp = false;
+  }
   if (inp.jumpPressed){
     if (away){                                       // прыжок спиной от стены
       p.state = 'normal'; p.hang = null; p.grabCd = C.GRAB_CD;
@@ -808,7 +820,7 @@ export function updateHang(S, p, dt, inp){
     }
     if (tryClimbUp(p)) return;
   }
-  if (inp.upPressed || inp.upHeld || toward){
+  if (wantUp || toward){
     if (tryClimbUp(p)) return;
   }
   if (inp.downPressed){ releaseHang(p, 0); return; }
