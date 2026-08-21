@@ -541,21 +541,22 @@ export function tryGrab(S, p){
   for (var pi = 0; pi < runtime.W.plats.length; pi++){              // кромка движущейся платформы
     var q = runtime.W.plats[pi];
     if (Math.abs(handY - q.y) > 9) continue;
-    var bestSide = 0, bestDist = 1e9, si, cxq, dEdge, hbq;
-    for (si = -1; si <= 1; si += 2){                      // оба края; facing = ориентир края
+    var bestSide = 0, bestFace = 0, bestDist = 1e9, si, face, cxq, dEdge, hbq;
+    for (si = -1; si <= 1; si += 2){                      // si: -1 левый край, +1 правый
       if (platSeam(runtime.W.plats, q, si)) continue;      // платформы встык — тут уже не край
       cxq = si > 0 ? q.x + q.w : q.x;
+      face = -si;                                         // лицом к платформе (как у tile ledge)
       dEdge = Math.min(Math.abs(p.x - cxq), Math.abs(p.x + p.w - cxq));
       if (dEdge > 12 || dEdge >= bestDist) continue;
-      hbq = hangBox(cxq, q.y, si, 'ledge', p);
+      hbq = hangBox(cxq, q.y, face, 'ledge', p);
       if (!rectFree(hbq.x, hbq.y, hbq.w, hbq.h)) continue;
-      bestDist = dEdge; bestSide = si;
+      bestDist = dEdge; bestSide = si; bestFace = face;
     }
     if (!bestSide) continue;
     cxq = bestSide > 0 ? q.x + q.w : q.x;
-    grabTo(p, cxq, q.y, bestSide, 'ledge', -1, -1);
+    grabTo(p, cxq, q.y, bestFace, 'ledge', -1, -1);
     p.hang.plat = q;
-    p.hang.keepAx = bestSide;                             // удержанный ход к краю не уводит сразу в climb
+    p.hang.keepAx = bestFace;                             // удержанный ход к краю не уводит сразу в climb
     p.hang.keepUp = true;                                 // то же для удержанного ↑
     return true;
   }

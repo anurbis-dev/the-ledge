@@ -1,3 +1,7 @@
+## 0.9.2
+
+- Moving plat edge grab: hang (not instant climb); face by edge side; suppress held toward/↑ until release (`keepAx`/`keepUp`).
+
 ## 0.9.1
 
 - Water waves: к горизонтальному сдвигу фазы добавлен вертикальный bob гребня (`paintWaves`).
