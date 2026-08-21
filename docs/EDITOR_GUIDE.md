@@ -56,7 +56,7 @@
 - `Ctrl + LMB` без движения: пипетка (тайл/объект; если есть декорация — её). В Cover — только cover-тайл. В Color — grade клетки в слайдеры.
 - `Ctrl + drag` на тайловом слое: рамка выделения. LMB внутри — перенос куска, Shift+LMB — копия, `Ctrl+C`/`Ctrl+V` — буфер, `Delete` стирает. `Esc` сначала снимает выделение.
 - Даблклик по тайлу (палитра или канва): окно картинки и коллизии. Paint/Pick правят пиксели (LMB красит, RMB стирает, отдельной кнопки Erase нет). Пока Pick включён (или зажат Alt) — курсор-пипетка. Прозрачные клетки — плоская серая шахматка, без сетки. Встроенный тайл тоже красится — картинка становится спрайтом, коллизия остаётся заводской; Reset picture возвращает старый рисунок. Hit — красная рамка, в которую упирается герой (не пиксели). Re-import PNG меняет картинку (широкий шит = кадры анимации), флаги остаются. Drop PNG на окно — тоже ре-импорт.
-- Details (`#edTileEdit`): даблклик по свачу палитры (Tiles или Objects). Если окно уже открыто — одиночный клик по свачу **переключает** цель. Objects без связанного спрайта — Name / Type(role) / Sprite slot (без пиксельного холста, пока не привязан sprite). Спрайты персонажей — из **Objects** (не Tiles): при наличии def открываются кадры; у `Hero / Start` — `spawn.spriteId` / `hero`. Каждая анимация — **одна строка кадров**. Полоса по умолчанию высотой в одну строку; сепаратор тянется вниз. СКМ-драг / колесо панорамируют строки. Клик по кадру — пиксельный редактор. `+` в конце ряда добавляет кадр (спрайты: `setAnimFrameCount`; тайлы: append в `frames[]`). Драг превью кадра меняет порядок в ряду. **Play** / Stop (~8 fps). У `enemy*` / `flier*` / `spider*` при открытии bake-кадры материализуются во все слоты. Reset frame забывает правку. Пока кадр не красили (кроме материализации врагов), игра не переключается на спрайт.
+- Details (`#edTileEdit`): даблклик по свачу палитры (Tiles или Objects). Если окно уже открыто — одиночный клик по свачу **переключает** цель. Objects без связанного спрайта — Name / Type(role) / Sprite slot (без пиксельного холста, пока не привязан sprite). Спрайты персонажей — из **Objects** (не Tiles): свач `Hero` открывает кадры (`hero`); у `Start` — sprite slot → `spawn.spriteId`. Каждая анимация — **одна строка кадров**. Полоса по умолчанию высотой в одну строку; сепаратор тянется вниз. СКМ-драг / колесо панорамируют строки. Клик по кадру — пиксельный редактор. `+` в конце ряда добавляет кадр (спрайты: `setAnimFrameCount`; тайлы: append в `frames[]`). Драг превью кадра меняет порядок в ряду. **Play** / Stop (~8 fps). У `enemy*` / `flier*` / `spider*` при открытии bake-кадры материализуются во все слоты. Reset frame забывает правку. Пока кадр не красили (кроме материализации врагов), игра не переключается на спрайт.
 - Драг-дроп PNG на редактор: режет сетку 16×16, кладёт в палитру и пишет `src/tiles/tN.png`.
 - `Alt + LMB` в Cover: штамп текущей карты в cover (`base` → `cover`; пустая клетка = лаз).
 - Долгое нажатие LMB (примерно 450 мс): переход в стирание с протяжкой.
@@ -108,7 +108,8 @@
 Палитра = placeable `ED_OBJS` (`BUILTIN_OBJS` + customs из `ledge.dev.objects`). Details / спрайты — **не** через Tiles.
 
 Палитра включает:
-- `Hero / Start` (`kind: 'player_start'`) — spawn уровня; Details правит кадры героя (`spawn.spriteId` → `activeHeroId()`).
+- `Hero` (`kind: 'hero'`) — не placeable; Details правит кадры персонажа (в т.ч. Rope climb / Rope swing).
+- `Start` (`kind: 'player_start'`) — spawn уровня; Details: sprite slot → `spawn.spriteId` → `activeHeroId()`.
 - `Exit` (`kind: 'level_exit'`) — переход уровня (несколько на карту).
 - `Door` (`kind: 'door'`) — парная дверь (warp между двумя точками).
 - Враги/птицы/пауки/щупальца — Details → кадры при наличии sprite def.
@@ -128,7 +129,7 @@
 - Открывается **даблкликом** по любому Objects-свачу. Если окно уже открыто — **одиночный клик** переключает цель (то же для Tiles).
 - С привязанным спрайтом — редактор кадров/якорей (как раньше).
 - Без спрайта — шапка Name / Type(role) / Sprite slot; пиксельный холст появляется после привязки sprite.
-- **Sprite slot**: мини-превью; драг свача из палитры Tiles или Objects на слот назначает sprite (`applySpriteSlotPayload`). Менять slot можно у **customs** и у `Hero / Start`; прочие builtins — сначала `Ctrl+D` (клон), затем replace. У custom — Clear снимает `spriteId`.
+- **Sprite slot**: мини-превью; драг свача из палитры Tiles или Objects на слот назначает sprite (`applySpriteSlotPayload`). Менять slot можно у **customs** и у `Start`; прочие builtins — сначала `Ctrl+D` (клон), затем replace. У custom — Clear снимает `spriteId`.
 
 ### Role / Type
 
@@ -138,7 +139,7 @@
 ### Ctrl+D (Objects)
 
 - Клонирует кисть в новый custom kind (`cloneObjectFrom` → `ledge.dev.objects`) и при наличии спрайта — `cloneSpriteDef` → `ledge.dev.sprites`.
-- Клон `Hero / Start` → sprite `family: 'hero'`; постановка этой кисти пишет `LV.spawn.spriteId` (playable box/draw через `activeHeroId`).
+- Клон `Hero` → sprite `family: 'hero'`. У `Start` sprite slot пишет `LV.spawn.spriteId` (playable через `activeHeroId`).
 
 ### Редактор спрайтов (из Objects)
 
@@ -147,7 +148,7 @@
 
 ### Логика постановки
 
-- `Hero / Start`: строго один на уровень — повтор **переносит** `LV.spawn` (верх-лево idle-box активного героя). `spawn.spriteId` задаёт playable sprite/box. Маркер в гизмо. `Delete` → дефолт пустого уровня (`16`, `6*T−22`). Persist — `packLevel.spawn`.
+- `Start`: строго один на уровень — повтор **переносит** `LV.spawn` (верх-лево idle-box активного героя). `spawn.spriteId` задаёт playable sprite/box. Маркер в гизмо. `Delete` → дефолт пустого уровня (`16`, `6*T−22`). Persist — `packLevel.spawn`. `Hero` на карту не ставится.
 - `Exit`: несколько точек в `LV.exits: [{id,x,y,toId}]` (миграция со старого `LV.exit`; blank → `exits:[]`). Маркер в гизмо; `Delete` убирает выбранный. Persist — `packLevel.exits` (+ legacy `exit` = первый).
 - `Door`: всегда пара — **2 клика** (`mkDoorAt`); первый ждёт return (`doorPending`), второй связывает `pair` по id. `Esc` отменяет первый (удаляет pending). `Delete` / `RMB` снимают **оба** конца пары. В гизмо: общий цвет/бейдж номера пары + линия между концами (ярче при выборе). Поля `need` / `consume` / `locked=!!need` пишутся в persist.
 - Антидубль: нельзя поставить второй экземпляр **того же** template/kind в ту же клетку. Разные kind в одной клетке — можно. Start — один (повтор = перенос).
@@ -189,15 +190,15 @@
 
 Позиция и размер сохраняются в `localStorage` ключ `ledge.ed.float`.
 
-## 8. Inspect и гизмо (Hero/Start / Exit / Door / Sound / Light / Volume / FX Sand / Plat / Lift)
+## 8. Inspect и гизмо (Start / Exit / Door / Sound / Light / Volume / FX Sand / Plat / Lift)
 
 Выбор:
-- Клик по объекту (включая маркеры `Hero / Start` / `Exit` / `Door` / `FX Sand` / `Plat` / `Lift`).
+- Клик по объекту (включая маркеры `Start` / `Exit` / `Door` / `FX Sand` / `Plat` / `Lift`).
 - Для overlapping-объектов клик циклически перебирает попадание.
 
 Изменение:
 - Через поля/слайдеры в `Inspect`.
-- `Hero / Start`: заметка в Inspect («один на уровень»); позиция — гизмо `move` / повторная кисть; playable sprite — `LV.spawn.spriteId`.
+- `Start`: заметка в Inspect («один на уровень»); позиция — гизмо `move` / повторная кисть; playable sprite — `LV.spawn.spriteId`.
 - `Exit`: слот **Target level** (`toId` = id уровня в `LEVELS`); пусто = `(none / MENU)` — на CONTINUE уходит в меню (`finishLevel` / `resolveExitNext`). Несколько выходов; `tryExit` читает `LV.exits`.
 - `Door`: **Required item** (bag kind или none); при выбранном предмете — **Consume item on activate** (`consume`, дефолт true). `locked = !!need`; значения синкаются на пару. Позиция — гизмо `move`.
 - Light: `Color` / `Intensity` / `Radius` / `Sprite` (какой спрайт висит в точке света; `Lantern` — факел по умолчанию, без PNG рисуется процедурный; `None` — только свечение). Постановка Light сразу ставит факел (`sprite:'lantern'`).

@@ -1,3 +1,7 @@
+## 0.7.4
+
+- FX Sand: при `speed=0` `speedRand` не даёт импульс; `spread` только позиция спавна (без `vx`).
+
 ## 0.7.3
 
 - Editor floats: ПКМ-drag окна через capture поверх кнопок/инпутов; canvas/tilegeo по-прежнему со своей RMB-семантикой.

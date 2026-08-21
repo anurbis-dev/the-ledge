@@ -205,14 +205,20 @@ export function openSpriteEdit(def, clientX, clientY){
 export function openObjectEdit(meta, clientX, clientY){
   if (!root || !meta) return;
   objCurrent = meta;
-  var sid = meta.spriteId;
-  if (!sid && meta.template === 'player_start'){
-    sid = (runtime.LV && runtime.LV.spawn && runtime.LV.spawn.spriteId) || 'hero';
+  var tmpl = meta.template || meta.kind;
+  /* Hero — только кадры спрайта; Start — маркер спавна (sprite slot → spawn.spriteId) */
+  if (tmpl === 'hero' || meta.kind === 'hero'){
+    var heroSid = meta.spriteId || 'hero';
+    var heroSd = getSpriteDef(heroSid) || getSpriteDef('hero');
+    if (heroSd){ openSpriteEdit(heroSd, clientX, clientY); return; }
   }
-  var sd = sid ? getSpriteDef(sid) : null;
-  if (sd){
-    openSpriteEdit(sd, clientX, clientY);
-    return;
+  if (tmpl !== 'player_start' && meta.kind !== 'player_start'){
+    var sid = meta.spriteId;
+    var sd = sid ? getSpriteDef(sid) : null;
+    if (sd){
+      openSpriteEdit(sd, clientX, clientY);
+      return;
+    }
   }
   stopPlay();
   mode = 'object';

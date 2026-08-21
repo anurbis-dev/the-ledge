@@ -621,7 +621,7 @@ export function attachRope(S, p, r, t){
   p.hang = null; p.lad = null; p.bars = null; p.climb = null; p.ride = null;
   p.vx = 0; p.vy = 0; p.onGround = false; p.jumping = false;
   r.rider = true;
-  var box = getAnimBox(activeHeroId(), r.orient === 'h' ? 'bars' : 'hang');
+  var box = getAnimBox(activeHeroId(), r.orient === 'h' ? 'bars' : 'ropeClimb');
   if (box){ p.w = box.w; p.h = box.h; }
   placeOnRope(p, sampleRope(r, t), r.orient);
   unstickRopeRiderSidesHead(p);
@@ -709,12 +709,15 @@ export function updateRope(S, p, dt, inp){
   }
 
   var descending = false;
+  st.climbSp = 0;
   if (R.orient === 'v'){
     var up = (inp.upHeld ? 1 : 0) - (inp.downHeld ? 1 : 0);
     if (st.climbLock){
       if (up === 0) st.climbLock = false;
     } else if (up !== 0){
       st.t -= (up * climb * dt) / len;
+      st.climbSp = up;
+      st.ph = (st.ph || 0) + climb * dt * 0.12;
       if (up < 0) descending = true;
     }
     var dir = Math.abs(inp.x) > 0.35 ? (inp.x > 0 ? 1 : -1) : 0;

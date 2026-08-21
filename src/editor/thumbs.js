@@ -136,7 +136,12 @@ export function paintObjIcon(c, kind, s){
   var k = s / 16;
   function r(x, y, w, h, col){ px(c, x * k, y * k, Math.max(1, w * k), Math.max(1, h * k), col); }
   r(0, 0, 16, 16, '#160f26');
-  if (kind === 'player_start'){
+  if (kind === 'hero'){
+    r(6, 3, 5, 5, '#c9a06a'); r(7, 4, 3, 3, '#e8c49a');
+    r(7, 2, 3, 2, '#5a4060'); r(5, 8, 7, 6, '#4a3a68');
+    r(5, 14, 2, 1, '#2a2030'); r(10, 14, 2, 1, '#2a2030');
+    r(4, 9, 2, 4, '#3a2a50'); r(11, 9, 2, 4, '#3a2a50');
+  } else if (kind === 'player_start'){
     r(4, 2, 2, 12, '#3a8f5c'); r(6, 2, 7, 5, '#7dffb0'); r(3, 13, 4, 2, '#1a1220');
   } else if (kind === 'level_exit'){
     r(2, 2, 12, 13, '#3a2a5a'); r(3, 3, 10, 11, '#120d1e'); r(7, 1, 2, 3, '#ffd9a0');

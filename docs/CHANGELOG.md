@@ -1,3 +1,3 @@
 # Changelog (unreleased)
 
-- FX Sand: при `speed=0` `speedRand` не даёт импульс; `spread` только позиция спавна (без `vx`).
+- Objects: свачи Hero (кадры, не placeable) и Start (спавн) разделены; hero-слоты Rope climb / Rope swing (ladder / ladderD + fallback; swing зеркало facing).

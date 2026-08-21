@@ -58,7 +58,12 @@ export function heroClip(p){
   if (p.state === 'rope'){
     if (p.rope && p.rope.orient === 'h')
       return ['bars', Math.sin((p.rope.ph || 0) * 2.4) > 0 ? 0 : 1];
-    return ['hang', Math.sin(view.time * 3.1) > 0 ? 0 : 1];
+    var r = p.rope || {};
+    var swinging = !!(r.kickDir && ((r.swingCd || 0) > 0 || r.pendingKick));
+    if (swinging) return ['ropeSwing', Math.sin(view.time * 4.2) > 0 ? 0 : 1];
+    var climbing = Math.abs((r.climbSp || 0)) > 0.01;
+    var rf = climbing ? (Math.sin((r.ph || 0) * 3.1) > 0 ? 1 : 0) : 0;
+    return ['ropeClimb', rf];
   }
   if (p.state === 'hang' && p.hang.kind === 'lad') return ['hangLad', 0];
   if (p.state === 'climb' && p.climb.kind === 'lad') return ['ladder', 0];
@@ -165,6 +170,9 @@ function tryHeroSprite(p){
   var hid = activeHeroId();
   var clip = heroClip(p);
   var img = spriteFrameImage(hid, clip[0], clip[1]);
+  /* Rope-слоты по умолчанию берут кадры лестницы, пока свои не нарисованы */
+  if (!img && clip[0] === 'ropeClimb') img = spriteFrameImage(hid, 'ladder', clip[1]);
+  if (!img && clip[0] === 'ropeSwing') img = spriteFrameImage(hid, 'ladderD', clip[1]);
   if (!img) return false;
   var def = getSpriteDef(hid);
   if (!def) return false;
@@ -218,7 +226,12 @@ export function boxPose(p){
   if (p.state === 'rope'){
     if (p.rope && p.rope.orient === 'h')
       return (Math.sin((p.rope.ph || 0) * 2.4) > 0) ? BARS0 : BARS1;
-    return (Math.sin(animT * 3.1) > 0) ? HANG_A : HANG_B;
+    var rr = p.rope || {};
+    var rSwing = !!(rr.kickDir && ((rr.swingCd || 0) > 0 || rr.pendingKick));
+    if (rSwing) return (Math.sin(animT * 4.2) > 0) ? LADD0 : LADD1;
+    var rClimb = Math.abs((rr.climbSp || 0)) > 0.01;
+    var rf2 = rClimb ? (Math.sin((rr.ph || 0) * 3.1) > 0) : true;
+    return rf2 ? LADP0 : LADP1;
   }
   if (p.state === 'hang' && p.hang.kind === 'lad') return HANGL;
   if (p.state === 'climb' && p.climb.kind === 'lad')

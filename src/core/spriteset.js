@@ -33,6 +33,8 @@ export var SPRITE_DEFS = [
       { id: 'ladder', name: 'Ladder', n: 2 },
       { id: 'ladderF', name: 'Ladder front', n: 2 },
       { id: 'ladderD', name: 'Ladder diag', n: 2 },
+      { id: 'ropeClimb', name: 'Rope climb', n: 2 },
+      { id: 'ropeSwing', name: 'Rope swing', n: 2 },
       { id: 'bars', name: 'Bars', n: 2 },
       { id: 'swim', name: 'Swim', n: 2 },
       { id: 'dive', name: 'Dive', n: 2 },

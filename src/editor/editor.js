@@ -493,7 +493,12 @@ function startPaletteDrag(e, kind, pal, img){
       var payload = null;
       if (dKind === 'obj'){
         var om = palObjMeta(ED_OBJS[dPal]);
-        var sid = om && (om.spriteId || (om.template === 'player_start' ? 'hero' : null));
+        var sid = om && om.spriteId;
+        if (!sid && om && (om.template === 'hero' || om.kind === 'hero')) sid = 'hero';
+        if (!sid && om && om.template === 'player_start'){
+          var sp = G.levelSpec && G.levelSpec();
+          sid = (sp && sp.spawn && sp.spawn.spriteId) || 'hero';
+        }
         if (!sid && om){
           var sdO = objectSpriteDef(om.kind);
           if (sdO) sid = sdO.id;
@@ -602,6 +607,7 @@ function fillPal(){
     hint.textContent = 'Drop PNG to add tiles · double-click to edit · Ctrl+D clone · Delete removes custom · Ctrl+drag selects a block';
     edPal.appendChild(hint);
   } else if (ED.tab === 'obj'){
+    clearThumbCache();
     for (var m = 0; m < ED_OBJS.length; m++){
       (function(k){
         var spec = ED_OBJS[k];
@@ -613,7 +619,8 @@ function fillPal(){
           if (isDetailsOpen()) openPalDetails(spec);
         }, 'obj', k);
         if (palIsLootOnly(spec)) sw.title = spec.name + ' — drag onto a chest, enemy or bird';
-        else if (thumbKind === 'player_start') sw.title = 'Hero / Start — place spawn · Details edits hero frames';
+        else if (thumbKind === 'hero') sw.title = 'Hero — Details edits character frames (Rope climb/swing, …)';
+        else if (thumbKind === 'player_start') sw.title = 'Start — place spawn point · Details: spawn sprite slot';
         else sw.title = spec.name + (spec.custom ? ' (custom)' : '') + ' — stamp · Details edits params/sprite';
         sw.addEventListener('dblclick', function(e){
           e.preventDefault(); e.stopPropagation();
@@ -628,6 +635,7 @@ function fillPal(){
     oh.className = 'ed-pal-hint';
     oh.textContent = 'Double-click Details · click switches if open · Ctrl+D clone object · drop swatch on Sprite slot';
     edPal.appendChild(oh);
+    edPal.scrollTop = 0;
   }
 }
 
@@ -898,14 +906,18 @@ function duplicatePalObject(){
   var meta = palObjMeta(spec);
   if (!meta) return false;
   var srcSid = meta.spriteId;
-  if (!srcSid && meta.template === 'player_start') srcSid = 'hero';
+  if (!srcSid && (meta.template === 'hero' || meta.kind === 'hero')) srcSid = 'hero';
+  if (!srcSid && meta.template === 'player_start'){
+    var spDup = G.levelSpec && G.levelSpec();
+    srcSid = (spDup && spDup.spawn && spDup.spawn.spriteId) || 'hero';
+  }
   if (!srcSid){
     var sd = objectSpriteDef(meta.kind) || spriteDefForKind(meta.template);
     if (sd) srcSid = sd.id;
   }
   var newSid = null;
   if (srcSid){
-    var cloned = cloneSpriteDef(srcSid, (meta.name || 'Sprite').replace(/ \/ Start$/, '') + ' copy');
+    var cloned = cloneSpriteDef(srcSid, (meta.name || 'Sprite') + ' copy');
     if (cloned) newSid = cloned.id;
   }
   var obj = cloneObjectFrom(meta.kind, newSid);
@@ -1543,9 +1555,13 @@ function edPlaceObject(cell){
   var meta = palObjMeta(spec);
   var kind = (meta && meta.template) || spec.kind;
   var spriteId = meta && meta.spriteId;
-  if (!spriteId && kind === 'player_start') spriteId = 'hero';
+  if (!spriteId && kind === 'player_start'){
+    var sp0 = G.levelSpec && G.levelSpec();
+    spriteId = (sp0 && sp0.spawn && sp0.spawn.spriteId) || 'hero';
+  }
   var itemKind = (meta && meta.itemKind) || kind;
   var cx = cell.c*T + 8, cy = cell.r*T + 8, floorY = (cell.r + 1)*T;
+  if (kind === 'hero') return; /* только Details — кадры персонажа */
   if (kind === 'player_start'){ placePlayerStart(cell, spriteId); return; }
   if (occupiedByKind(kind, cell, kind === 'door' ? ED.doorPending : null)) return;
   if (kind === 'level_exit'){ placeLevelExit(cell); return; }

@@ -13,7 +13,8 @@ var MARKER_KINDS = { sound:1, volume:1, fx_sand:1, level_exit:1, door:1, player_
 
 /** Builtin placeable list — source of truth for names/order (editor mutates live ED_OBJS copy). */
 export var BUILTIN_OBJS = [
-  { name: 'Hero / Start', kind: 'player_start' },
+  { name: 'Hero',    kind: 'hero' },
+  { name: 'Start',   kind: 'player_start' },
   { name: 'Exit',    kind: 'level_exit' },
   { name: 'Door',    kind: 'door' },
   { name: 'Foe 1',   kind: 'enemy0' },
@@ -95,7 +96,7 @@ function rebuild(){
 
 export function builtinRole(kind){
   if (!kind) return 'prop';
-  if (kind === 'player_start') return 'actor';
+  if (kind === 'hero' || kind === 'player_start') return 'actor';
   if (PICKUP_KINDS[kind]) return 'pickup';
   if (LOOT_KINDS[kind]) return 'loot';
   if (PROP_KINDS[kind]) return 'prop';
@@ -105,7 +106,8 @@ export function builtinRole(kind){
 }
 
 export function builtinSpriteId(kind){
-  if (kind === 'player_start') return 'hero';
+  if (kind === 'hero') return 'hero';
+  if (kind === 'player_start') return null; /* спавн — маркер; спрайт уровня в LV.spawn.spriteId */
   if (kind === 'light') return 'lantern';
   var sd = spriteDefForKind(kind);
   return sd ? sd.id : null;
@@ -270,7 +272,7 @@ export function cloneObjectFrom(kind, spriteId){
   var template = src.template || src.kind;
   var role = src.role || builtinRole(template);
   var itemKind = src.itemKind || ((PICKUP_KINDS[template] || LOOT_KINDS[template]) ? template : null);
-  var name = (src.name || 'Object').replace(/ \/ Start$/, '') + ' copy';
+  var name = (src.name || 'Object') + ' copy';
   return addObject({
     name: name,
     template: template,

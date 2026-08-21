@@ -32,6 +32,9 @@ export var HERO_POSES = {
   ladder: [LADP0, LADP1],
   ladderF: [LADF0, LADF1],
   ladderD: [LADD0, LADD1],
+  /* Rope: climb = вертикальная лестница; swing = боковая, зеркало по facing */
+  ropeClimb: [LADP0, LADP1],
+  ropeSwing: [LADD0, LADD1],
   bars: [BARS0, BARS1],
   swim: [SWIM0, SWIM1],
   dive: [DIVE0, DIVE1],
