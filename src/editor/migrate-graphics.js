@@ -4,7 +4,8 @@ import {
   setAnimFrameCount, addSpriteDef, isHeroSprite
 } from '../core/spriteset.js';
 import {
-  listTiles, getTileSpriteId, setTileSpriteId, snapshotGfx, getTileDef
+  listTiles, getTileSpriteId, setTileSpriteId, snapshotGfx, getTileDef,
+  ensureTileLegacyPictures
 } from '../core/tileset.js';
 import { bakeSpriteFrameSrc } from '../render/sprite-bake.js';
 
@@ -103,8 +104,10 @@ export function migrateTilePicturesToSprites(){
 
 /** Run both boot migrations. */
 export function migrateEditorGraphics(){
+  var tiles = migrateTilePicturesToSprites();
   return {
     icons: ensureCatalogIconFrames(),
-    tiles: migrateTilePicturesToSprites()
+    tiles: tiles,
+    legacy: ensureTileLegacyPictures()
   };
 }

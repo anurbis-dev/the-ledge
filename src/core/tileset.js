@@ -304,15 +304,18 @@ function readyImg(key){
 
 export function tileImage(id){
   var sid = getTileSpriteId(id);
-  if (sid) return spriteFrameImage(sid, tileSpriteAnim(sid), 0) || readyImg(id);
+  if (sid){
+    return spriteFrameImage(sid, tileSpriteAnim(sid), 0) || readyImg(id);
+  }
   return readyImg(id);
 }
 
 export function tileFrameImage(id, i){
-  var sid = getTileSpriteId(id), anim;
+  var sid = getTileSpriteId(id), anim, img;
   if (sid){
     anim = tileSpriteAnim(sid);
-    return spriteFrameImage(sid, anim, i | 0) || spriteFrameImage(sid, anim, 0);
+    img = spriteFrameImage(sid, anim, i | 0) || spriteFrameImage(sid, anim, 0);
+    if (img) return img;
   }
   return readyImg(id + ':' + (i | 0)) || readyImg(id);
 }
@@ -321,9 +324,7 @@ export function getTileGfx(id){
   return gfx[id] || null;
 }
 
-export function tileFrameCount(id){
-  var sid = getTileSpriteId(id);
-  if (sid) return Math.max(1, getAnimFrameCount(sid, tileSpriteAnim(sid)) | 0);
+function legacyFrameCount(id){
   var t = byId[id];
   if (t && t.frames && t.frames.length) return t.frames.length;
   var g = gfx[id];
@@ -332,18 +333,34 @@ export function tileFrameCount(id){
   return 0;
 }
 
-export function tileFrameSrc(id, i){
-  var sid = getTileSpriteId(id);
-  if (sid) return getSpriteFrameSrc(sid, tileSpriteAnim(sid), i | 0) || '';
+function legacyFrameSrc(id, i){
   var t = byId[id];
   if (t && t.frames && t.frames.length)
-    return t.frames[(i | 0) % t.frames.length];
+    return t.frames[(i | 0) % t.frames.length] || '';
   var g = gfx[id];
   if (g && g.frames && g.frames.length)
-    return g.frames[(i | 0) % g.frames.length];
+    return g.frames[(i | 0) % g.frames.length] || '';
   if (t && t.src) return t.src;
   if (g && g.src) return g.src;
   return '';
+}
+
+export function tileFrameCount(id){
+  var sid = getTileSpriteId(id), n;
+  if (sid){
+    n = getAnimFrameCount(sid, tileSpriteAnim(sid)) | 0;
+    if (n > 0 && getSpriteFrameSrc(sid, tileSpriteAnim(sid), 0)) return n;
+  }
+  return legacyFrameCount(id);
+}
+
+export function tileFrameSrc(id, i){
+  var sid = getTileSpriteId(id), src;
+  if (sid){
+    src = getSpriteFrameSrc(sid, tileSpriteAnim(sid), i | 0) || '';
+    if (src) return src;
+  }
+  return legacyFrameSrc(id, i);
 }
 
 export function getTileMeta(id, key, fallback){

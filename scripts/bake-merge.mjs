@@ -63,9 +63,54 @@ function mergeSprites(base, next) {
 export function mergeTileGfx(base, next) {
   if (next == null) return base || null;
   const nextKeys = Object.keys(next);
-  if (nextKeys.length) return next;
-  if (base && Object.keys(base).length) return base;
-  return next;
+  if (!nextKeys.length) {
+    if (base && Object.keys(base).length) return base;
+    return next;
+  }
+  if (!base) return next;
+  const out = { ...next };
+  for (const id of Object.keys(base)) {
+    const b = base[id];
+    const n = out[id];
+    if (!b) continue;
+    const bPic = !!(b.src || (b.frames && b.frames.length));
+    if (!bPic) continue;
+    if (!n) {
+      out[id] = { ...b };
+      continue;
+    }
+    const nPic = !!(n.src || (n.frames && n.frames.length));
+    if (!nPic) {
+      out[id] = {
+        ...n,
+        src: b.src || '',
+        frames: Array.isArray(b.frames) ? b.frames.slice() : []
+      };
+    }
+  }
+  return out;
+}
+
+/** Dump after sprite migrate may POST tiles with spriteId and empty src —
+ *  keep prior baked pixels so dist/cold boot still paints. */
+export function mergeTiles(base, next) {
+  if (next == null) return base || null;
+  if (!Array.isArray(next)) return base || null;
+  if (!Array.isArray(base) || !base.length) return next;
+  const byB = new Map(base.map((t) => [t && t.id, t]));
+  return next.map((t) => {
+    if (!t || t.id == null) return t;
+    const b = byB.get(t.id);
+    if (!b) return t;
+    const nPic = !!(t.src || (t.frames && t.frames.length));
+    const bPic = !!(b.src || (b.frames && b.frames.length));
+    if (nPic || !bPic) return t;
+    return {
+      ...t,
+      src: b.src || '',
+      frames: Array.isArray(b.frames) ? b.frames.slice() : []
+    };
+  });
 }
 
 export function mergeBaked(existing, dump) {
@@ -82,7 +127,7 @@ export function mergeBaked(existing, dump) {
     mix: mergeFlat(base.mix, dump.mix),
     talk: mergeFlat(base.talk, dump.talk),
     intro: dump.intro != null ? dump.intro : (base.intro || null),
-    tiles: dump.tiles != null ? dump.tiles : (base.tiles || null),
+    tiles: dump.tiles != null ? mergeTiles(base.tiles, dump.tiles) : (base.tiles || null),
     tileGfx: mergeTileGfx(base.tileGfx, dump.tileGfx),
     sprites: nextSprites != null ? mergeSprites(base.sprites, nextSprites) : (base.sprites || null)
   };
