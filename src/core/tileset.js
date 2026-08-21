@@ -109,7 +109,8 @@ function writeLocal(){
 var GFX_META = [
   'speed', 'shift', 'waveX', 'splash',
   'length', 'wave', 'random', 'offset', 'fade',
-  'speed2', 'length2', 'density2', 'wave2'
+  'speed2', 'length2', 'density2', 'wave2',
+  'foam', 'spray'
 ];
 
 function copyGfxMeta(from, to){
@@ -180,21 +181,92 @@ export function getTileSpriteId(id){
 
 /**
  * Привязать / снять спрайт. Custom → tile.spriteId; builtin → gfx.spriteId.
- * При assign чистит legacy src/frames картинки (GFX_META остаётся).
+ * Legacy src/frames не трогаем — bake/dist без LS-кадров спрайта.
  */
 export function setTileSpriteId(id, spriteId){
   id = id | 0;
   if (id <= 0) return false;
   var sid = spriteId ? String(spriteId) : null;
   if (isCustomId(id) && byId[id]){
-    var patch = { spriteId: sid };
-    if (sid){ patch.src = ''; patch.frames = []; }
+    updateTile(id, { spriteId: sid });
+    return true;
+  }
+  return !!setTileGfx(id, { spriteId: sid });
+}
+
+/** Кадры spriteId → legacy src/frames (если пусто). */
+export function syncTileLegacyFromSprite(id){
+  id = id | 0;
+  var sid = getTileSpriteId(id);
+  if (!sid) return false;
+  var anim = tileSpriteAnim(sid);
+  var n = Math.max(1, getAnimFrameCount(sid, anim) | 0);
+  var frames = [], i, src;
+  for (i = 0; i < n; i++){
+    src = getSpriteFrameSrc(sid, anim, i);
+    if (src) frames.push(src);
+  }
+  if (!frames.length) return false;
+  var patch = {
+    src: frames[0],
+    frames: frames.length > 1 ? frames.slice() : []
+  };
+  if (isCustomId(id) && byId[id]){
+    var t = byId[id];
+    if (t.src || (t.frames && t.frames.length)) return false;
     updateTile(id, patch);
     return true;
   }
-  return !!setTileGfx(id, sid
-    ? { spriteId: sid, src: '', frames: [] }
-    : { spriteId: null, src: '', frames: [] });
+  var g = gfx[id];
+  if (g && (g.src || (g.frames && g.frames.length))) return false;
+  return !!setTileGfx(id, patch);
+}
+
+/** Добить пустые picture у тайлов со spriteId (после migrate / битого bake). */
+export function ensureTileLegacyPictures(){
+  var n = 0, i, t, id, g;
+  for (i = 0; i < tiles.length; i++){
+    t = tiles[i];
+    if (t && t.spriteId && syncTileLegacyFromSprite(t.id)) n++;
+  }
+  for (id in gfx){
+    if (!Object.prototype.hasOwnProperty.call(gfx, id)) continue;
+    g = gfx[id];
+    if (g && g.spriteId && syncTileLegacyFromSprite(id | 0)) n++;
+  }
+  return n;
+}
+
+/** LS после migrate мог остаться без src — подтянуть picture из BAKED. */
+function healLegacyFromBaked(){
+  var baked = (BAKED && BAKED.tiles) || [];
+  var byB = {}, i, t, b, g, bg, changed = false;
+  for (i = 0; i < baked.length; i++){
+    b = baked[i];
+    if (b && b.id) byB[b.id] = b;
+  }
+  for (i = 0; i < tiles.length; i++){
+    t = tiles[i];
+    if (!t || t.src || (t.frames && t.frames.length)) continue;
+    b = byB[t.id];
+    if (!b || !(b.src || (b.frames && b.frames.length))) continue;
+    t.src = b.src || '';
+    t.frames = Array.isArray(b.frames) ? b.frames.filter(Boolean) : [];
+    tiles[i] = normalizeTile(t);
+    changed = true;
+  }
+  bg = (BAKED && BAKED.tileGfx) || {};
+  for (i in gfx){
+    if (!Object.prototype.hasOwnProperty.call(gfx, i)) continue;
+    g = gfx[i];
+    if (!g || g.src || (g.frames && g.frames.length)) continue;
+    b = bg[i];
+    if (!b || !(b.src || (b.frames && b.frames.length))) continue;
+    g.src = b.src || '';
+    g.frames = Array.isArray(b.frames) ? b.frames.filter(Boolean) : [];
+    changed = true;
+  }
+  return changed;
 }
 
 function boot(){
@@ -206,6 +278,10 @@ function boot(){
   if (useLocal && local.gfx && Object.keys(local.gfx).length) gfx = cloneGfx(local.gfx);
   else gfx = cloneGfx((BAKED && BAKED.tileGfx) || {});
   rebuild();
+  if (healLegacyFromBaked()){
+    rebuild();
+    try { writeLocal(); } catch (_){}
+  }
   loadAllImgs();
 }
 
@@ -328,6 +404,14 @@ export function getTileWave2(id, fallback){
   return getTileMeta(id, 'wave2', fallback);
 }
 
+export function getTileFoam(id, fallback){
+  return getTileMeta(id, 'foam', fallback);
+}
+
+export function getTileSpray(id, fallback){
+  return getTileMeta(id, 'spray', fallback);
+}
+
 export function setTileGfx(id, patch){
   id = id | 0;
   if (id <= 0) return null;
@@ -372,7 +456,16 @@ export function clearTileGfx(id){
 }
 
 export function snapshotGfx(){
-  return cloneGfx(gfx);
+  var out = cloneGfx(gfx), id, g, pic;
+  for (id in out){
+    if (!Object.prototype.hasOwnProperty.call(out, id)) continue;
+    g = out[id];
+    if (!g || !g.spriteId) continue;
+    pic = pictureForBake(id | 0, g.src, g.frames);
+    g.src = pic.src;
+    g.frames = pic.frames;
+  }
+  return out;
 }
 
 export function customSpecs(){
@@ -392,8 +485,34 @@ export function customSpecs(){
   return out;
 }
 
+/** Shippable snapshot: подтянуть idle из спрайта, если legacy пуст. */
+function pictureForBake(id, curSrc, curFrames){
+  var sid = getTileSpriteId(id);
+  if (!sid) return { src: curSrc || '', frames: curFrames || [] };
+  if (curSrc || (curFrames && curFrames.length))
+    return { src: curSrc || '', frames: curFrames || [] };
+  var anim = tileSpriteAnim(sid);
+  var n = Math.max(1, getAnimFrameCount(sid, anim) | 0);
+  var frames = [], i, src;
+  for (i = 0; i < n; i++){
+    src = getSpriteFrameSrc(sid, anim, i);
+    if (src) frames.push(src);
+  }
+  if (!frames.length) return { src: curSrc || '', frames: curFrames || [] };
+  return {
+    src: frames[0],
+    frames: frames.length > 1 ? frames.slice() : []
+  };
+}
+
 export function snapshotTiles(){
-  return tiles.map(normalizeTile);
+  return tiles.map(function(t){
+    var o = normalizeTile(t);
+    var pic = pictureForBake(o.id, o.src, o.frames);
+    o.src = pic.src;
+    o.frames = pic.frames;
+    return o;
+  });
 }
 
 /** Полный restore черновика тайлов + gfx (для undo). */

@@ -2,7 +2,7 @@ import GAME from '../core/game.js';
 import {
   getTileDef, updateTile, getTileGfx, setTileGfx, clearTileGfx, getTileSpeed,
   getTileShift, getTileWaveX, getTileSplash, getTileLength, getTileWave, getTileRandom, getTileOffset, getTileFade,
-  getTileSpeed2, getTileLength2, getTileDensity2, getTileWave2,
+  getTileSpeed2, getTileLength2, getTileDensity2, getTileWave2, getTileFoam, getTileSpray,
   getTileSpriteId, setTileSpriteId,
   tileFrameCount, tileFrameSrc, canvasToPng, loadImageFile, sliceSheet, addTile
 } from '../core/tileset.js';
@@ -1857,6 +1857,8 @@ function fillTileParamsOnly(){
     addFallSlider('L2 Length', 'Layer-2 light strand length', 'length2', 20, 0, 100, getTileLength2);
     addFallSlider('L2 Density', 'Layer-2 strand count (1…8)', 'density2', 50, 0, 100, getTileDensity2);
     addFallSlider('L2 Wave', 'Layer-2 bend amount (0 = straight)', 'wave2', 20, 0, 100, getTileWave2);
+    addFallSlider('Foam', 'Foam band size on top FALL and above WATER (0 = none)', 'foam', 45, 0, 100, getTileFoam);
+    addFallSlider('Spray', 'Spray droplet strength at foam ends (0 = none)', 'spray', 55, 0, 100, getTileSpray);
   }
 
   if (current.id === GAME.WATER){

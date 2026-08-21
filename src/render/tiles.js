@@ -2,7 +2,7 @@ import GAME from '../core/game.js';
 import { hooks } from '../core/runtime.js';
 import { COVER_AIR, coverRaw, coverVarRaw, roomCoverA, rebuildRooms } from '../core/rooms.js';
 import { getLayers, layerShown, lastCollideIndex, layerTileRaw, layerVarRaw, layerDeco, isTileLayer, wrapSize, layerCssFilter, layerGrade, gradeCssFilter } from '../core/layers.js';
-import { getTileDef, tileImage, tileFrameImage, tileFrameCount, getTileSpeed, getTileShift, getTileWaveX, getTileSplash, getTileLength, getTileWave, getTileRandom, getTileOffset, getTileFade, getTileSpeed2, getTileLength2, getTileDensity2, getTileWave2 } from '../core/tileset.js';
+import { getTileDef, tileImage, tileFrameImage, tileFrameCount, getTileSpeed, getTileShift, getTileWaveX, getTileSplash, getTileLength, getTileWave, getTileRandom, getTileOffset, getTileFade, getTileSpeed2, getTileLength2, getTileDensity2, getTileWave2, getTileFoam, getTileSpray } from '../core/tileset.js';
 import { buildWater } from './fx.js';
 import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH, viewScale } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
@@ -529,6 +529,68 @@ function paintFallStrands(c, r, x, y, time, w1, fadeK){
   ctx.globalAlpha = prevA;
 }
 
+/* Шапка пены на верхнем FALL; пена/брызги внизу, если под тайлом WATER.
+ * foam — высота пояса, spray — сила брызг (tileGfx[14], 0..100). */
+function paintFallEnds(c, r, x, y, time, fadeK){
+  if (fadeK == null) fadeK = 0;
+  var foamP = getTileFoam(G.FALL, 45);
+  var sprayP = getTileSpray(G.FALL, 55);
+  if (foamP <= 0 && sprayP <= 0) return;
+  var foamH = Math.max(0, Math.round((foamP / 100) * 8));
+  var sprayN = Math.max(0, Math.round((sprayP / 100) * 12));
+  var isTop = tAt(c, r - 1) !== G.FALL;
+  var hitWater = G.isWaterV(tAt(c, r + 1));
+  if (!isTop && !hitWater) return;
+  var prevA = ctx.globalAlpha;
+  var aMul = 1 - fadeK * 0.55;
+  var i, px, py, bob, ph, band;
+  if (isTop && foamH > 0){
+    bob = Math.round(Math.sin(time * 4.2 + c * 1.1) * Math.min(1, foamH * 0.2));
+    band = Math.max(1, foamH);
+    ctx.globalAlpha = prevA * aMul * 0.75;
+    rc(x, y + bob, T, band, '#bfe6ff');
+    ctx.globalAlpha = prevA * aMul;
+    rc(x, y + bob, T, 1, '#e8f6ff');
+    rc(x + 1, y + bob + 1, T - 2, Math.max(1, band - 1), '#dff2ff');
+    if (band > 2){
+      rc(x, y + bob + 1, 2, band - 1, '#c8eaff');
+      rc(x + T - 2, y + bob + 1, 2, band - 1, '#c8eaff');
+    }
+  }
+  if (isTop && sprayN > 0){
+    for (i = 0; i < sprayN; i++){
+      ph = time * (3.6 + i * 0.37) + c * 2.2 + i * 1.9;
+      px = ((Math.sin(ph * 0.71 + i * 1.3) * 0.5 + 0.5) * (T - 2)) | 0;
+      py = -1 - (i % 4) - (((Math.abs(Math.sin(ph)) * (1 + sprayP / 35)) | 0));
+      if (Math.sin(ph * 1.15 + i) > 0.15)
+        py = ((Math.abs(Math.sin(ph * 0.85)) * Math.max(1, foamH + 1)) | 0);
+      ctx.globalAlpha = prevA * aMul * (0.3 + 0.6 * Math.abs(Math.sin(ph + i)));
+      rc(x + px, y + py, 1 + (i & 1), 1 + ((i % 3) === 0 ? 1 : 0), (i % 3) ? '#bfe6ff' : '#e8f6ff');
+    }
+  }
+  if (hitWater && foamH > 0){
+    bob = Math.round(Math.sin(time * 5.1 + c * 0.85) * Math.min(1.5, foamH * 0.28));
+    band = Math.max(1, foamH);
+    py = y + T - band + bob;
+    ctx.globalAlpha = prevA * aMul * 0.7;
+    rc(x, py, T, band, '#bfe6ff');
+    ctx.globalAlpha = prevA * aMul;
+    rc(x + 1, y + T - 2 + Math.min(0, bob), T - 2, 2, '#e8f6ff');
+    rc(x, py + Math.max(0, band - 2), 2, 2, '#dff2ff');
+    rc(x + T - 2, py + Math.max(0, band - 2), 2, 2, '#dff2ff');
+  }
+  if (hitWater && sprayN > 0){
+    for (i = 0; i < sprayN; i++){
+      ph = time * (4.4 + i * 0.48) + c * 1.7 + i * 2.4;
+      px = ((Math.sin(ph * 0.63 + i * 0.95) * 0.5 + 0.5) * (T - 2)) | 0;
+      py = T - 1 - ((Math.abs(Math.sin(ph)) * (2 + sprayP / 26) + (i % 3) * 0.35) | 0);
+      ctx.globalAlpha = prevA * aMul * (0.28 + 0.62 * Math.abs(Math.cos(ph)));
+      rc(x + px, y + py, 1 + (i & 1), 1, (i & 1) ? '#e8f6ff' : '#dff2ff');
+    }
+  }
+  ctx.globalAlpha = prevA;
+}
+
 export function drawTile(c, r, x, y, dyn){
   paintGraded(c, r, x, y, function(px, py){
     var v = tAt(c, r);
@@ -557,6 +619,7 @@ function paintTileId(v, c, r, x, y, dyn){
         ctx.globalAlpha = prevFallA;
       }
       paintFallStrands(c, r, x, y, time, w1, fadeK);
+      paintFallEnds(c, r, x, y, time, fadeK);
     } else {                                             // спокойная вода: бегущая волна
       rc(x, y, T, T, w0);
       var top = !G.isWaterV(tAt(c, r - 1));
