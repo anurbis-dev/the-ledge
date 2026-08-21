@@ -15,7 +15,8 @@ export function mkFliers(){
              x0:a[2], x1:a[3], v: a[4] * (kind === 1 ? 1.35 : (kind === 2 ? 0.8 : 1)),
              kind: kind, dir: i%2 ? -1 : 1, ph:i*1.9,
              cd: (kind === 1 ? 0.9 : 1.4) + i*0.3, flap:0,
-             loot: loot, random: !!a[7] };
+             loot: loot, random: !!a[7],
+             spriteId: typeof a[8] === 'string' ? a[8] : null };
   });
 }
 export function stepFliers(S, dt){

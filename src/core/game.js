@@ -32,6 +32,7 @@ import { GEAR, giveGear, wearGear, cycleHand } from '../entities/gear.js';
 import { mkHarpoons } from '../entities/harpoons.js';
 import { mkArrows } from '../entities/arrows.js';
 import { mkTendrils, mkTendrilAt } from '../entities/tendrils.js';
+import { mkRopes, mkRopeAt } from '../entities/ropes.js';
 import { mkLights, mkLightAt } from '../entities/lights.js';
 import { mkSounds, mkSoundAt } from '../entities/sounds.js';
 import { mkVolumes, mkVolumeAt } from '../entities/volumes.js';
@@ -47,6 +48,7 @@ export function mkWorld(li){
     lifts: mkLifts(), fade: 0, gates: null, fliers: mkFliers(), drops: [], spiders: mkSpiders(),
     dark: mkDark(), darkNow: false, darkT: 0, darkDist: 999, chests: mkChests(), loot: [],
     harpoons: mkHarpoons(), arrows: mkArrows(), tendrils: mkTendrils(),
+    ropes: mkRopes(),
     lights: mkLights(), sounds: mkSounds(), volumes: mkVolumes(),
     boulders: mkBoulders(), npcs: mkNpcs(), burnt: {}, plankT: {}, giveT: {},
     bubbles: [], talk: null, flags: {},
@@ -192,27 +194,34 @@ function setCoverVar(c, r, v){
   return true;
 }
 
-function mkItemAt(S, cx, cy, kind){
-  S.items.push({ id:allocId(S.items), x:cx, y:cy, kind:kind, got:false, ph:Math.random()*6.28 });
+function mkItemAt(S, cx, cy, kind, spriteId){
+  S.items.push({
+    id: allocId(S.items), x: cx, y: cy, kind: kind, got: false, ph: Math.random()*6.28,
+    spriteId: spriteId || null
+  });
 }
-function mkEnemyAt(S, x, y, kind, loot, random){
-  var box = getAnimBox('enemy' + (kind | 0), 'idle');
+function mkEnemyAt(S, x, y, kind, loot, random, spriteId){
+  var sid = spriteId || ('enemy' + (kind | 0));
+  var box = getAnimBox(sid, 'idle');
   S.enemies.push({ id:allocId(S.enemies), x:x, y:y-box.h, w:box.w, h:box.h,
                    x0:x-64, x1:x+64, v:26, kind:kind, tough: kind===2?2:1,
                    dir:1, dead:false, hitT:0, ph:0, vy:0,
                    loot: (loot && loot.length) ? loot.map(function(e){ return { kind:e.kind, qty:e.qty }; }) : [],
-                   random: !!random });
+                   random: !!random,
+                   spriteId: spriteId || null });
 }
-function mkFlierAt(S, x, y, kind, loot, random){
+function mkFlierAt(S, x, y, kind, loot, random, spriteId){
   S.fliers.push({ id:allocId(S.fliers), x:x, y:y, w: kind===2?16:13, h: kind===2?11:9,
                   x0:x-80, x1:x+80, v:28, kind:kind, dir:1,
                   ph:0, cd:1.2, flap:0,
                   loot: (loot && loot.length) ? loot.map(function(e){ return { kind:e.kind, qty:e.qty }; }) : [],
-                  random: !!random });
+                  random: !!random,
+                  spriteId: spriteId || null });
 }
-function mkSpiderAt(S, x, y, kind){
+function mkSpiderAt(S, x, y, kind, spriteId){
   S.spiders.push({ id:allocId(S.spiders), hx:x, hy:y, x:x, y:y, kind:kind,
-                   len:0, state:'wait', t:1, dir:1, dead:false, hitT:0, ph:0, vy:0 });
+                   len:0, state:'wait', t:1, dir:1, dead:false, hitT:0, ph:0, vy:0,
+                   spriteId: spriteId || null });
 }
 function mkTorchAt(S, x, y){
   S.torches.push({ id:allocId(S.torches), x:x, y:y, vx:0, vy:0, held:false, ground:true,
@@ -259,6 +268,7 @@ export const GAME = {
   COVER_AIR, setCover, setCoverVar, coverRaw, coverVarRaw,
   buildGates: function(S){ buildGates(S); },
   mkItemAt, mkEnemyAt, mkFlierAt, mkSpiderAt, mkTorchAt, mkChestAt, mkDoorAt, mkTendrilAt,
+  mkRopeAt,
   mkLightAt, mkSoundAt, mkVolumeAt, mkBoulderAt, mkNpcAt, getLayers, getActiveLayer,
   rectFree, mkWorld, step, resetPlayer, isInvuln, toggleInvuln, setInvuln,
   LEVELS, loadLevel, newBlankLevel: addBlankLevel, removeLevel, levelIndex(){ return runtime.LVI; },

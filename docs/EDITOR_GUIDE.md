@@ -42,7 +42,7 @@
 - `Esc` закрыть редактор.
 - `Ctrl+Z` undo.
 - `Ctrl+Y` или `Ctrl+Shift+Z` redo.
-- `Ctrl+D` — дублировать **кисть тайла** с палитры Tiles в новый кастом-тайл (копия `src` / `frames` / флагов). Не выделение карты и не объекты/спрайты (kinds не клонируются).
+- `Ctrl+D` — дубль кисти палитры: на **Tiles** → новый кастом-тайл (`src` / `frames` / флаги); на **Objects** → новый custom kind в `ledge.dev.objects` (+ клон sprite def в `ledge.dev.sprites`, если был). Не map-sel.
 - `Delete` / `Backspace` (вкладка Tiles, кисть на кастом-тайле, без map-sel и без выбранного объекта) — `deleteCustomTileById` (см. §4).
 - `G` включить/выключить Geo overlay.
 - `0` сброс зума в `1:1`.
@@ -56,7 +56,7 @@
 - `Ctrl + LMB` без движения: пипетка (тайл/объект; если есть декорация — её). В Cover — только cover-тайл. В Color — grade клетки в слайдеры.
 - `Ctrl + drag` на тайловом слое: рамка выделения. LMB внутри — перенос куска, Shift+LMB — копия, `Ctrl+C`/`Ctrl+V` — буфер, `Delete` стирает. `Esc` сначала снимает выделение.
 - Даблклик по тайлу (палитра или канва): окно картинки и коллизии. Paint/Pick правят пиксели (LMB красит, RMB стирает, отдельной кнопки Erase нет). Пока Pick включён (или зажат Alt) — курсор-пипетка. Прозрачные клетки — плоская серая шахматка, без сетки. Встроенный тайл тоже красится — картинка становится спрайтом, коллизия остаётся заводской; Reset picture возвращает старый рисунок. Hit — красная рамка, в которую упирается герой (не пиксели). Re-import PNG меняет картинку (широкий шит = кадры анимации), флаги остаются. Drop PNG на окно — тоже ре-импорт.
-- Спрайты персонажей правятся из вкладки **Objects** (не из Tiles): даблклик по свачу с `spriteDefForKind` открывает `#edTileEdit` / кадры; у `Start` (`player_start`) — `getSpriteDef('hero')`. Каждая анимация — **одна строка кадров**. Полоса по умолчанию высотой в одну строку; сепаратор тянется вниз. СКМ-драг / колесо панорамируют строки. Клик по кадру — пиксельный редактор. `+` в конце ряда добавляет кадр (спрайты: `setAnimFrameCount`; тайлы: append в `frames[]`). Драг превью кадра меняет порядок в ряду. **Play** / Stop проигрывает текущую анимацию в окне (~8 fps). У `enemy*` / `flier*` / `spider*` при открытии bake-кадры материализуются во все слоты (dirty raster). Reset frame забывает правку — в игре снова старый рисунок. Пока кадр не красили (кроме материализации врагов), игра не переключается на спрайт.
+- Details (`#edTileEdit`): даблклик по свачу палитры (Tiles или Objects). Если окно уже открыто — одиночный клик по свачу **переключает** цель. Objects без связанного спрайта — Name / Type(role) / Sprite slot (без пиксельного холста, пока не привязан sprite). Спрайты персонажей — из **Objects** (не Tiles): при наличии def открываются кадры; у `Hero / Start` — `spawn.spriteId` / `hero`. Каждая анимация — **одна строка кадров**. Полоса по умолчанию высотой в одну строку; сепаратор тянется вниз. СКМ-драг / колесо панорамируют строки. Клик по кадру — пиксельный редактор. `+` в конце ряда добавляет кадр (спрайты: `setAnimFrameCount`; тайлы: append в `frames[]`). Драг превью кадра меняет порядок в ряду. **Play** / Stop (~8 fps). У `enemy*` / `flier*` / `spider*` при открытии bake-кадры материализуются во все слоты. Reset frame забывает правку. Пока кадр не красили (кроме материализации врагов), игра не переключается на спрайт.
 - Драг-дроп PNG на редактор: режет сетку 16×16, кладёт в палитру и пишет `src/tiles/tN.png`.
 - `Alt + LMB` в Cover: штамп текущей карты в cover (`base` → `cover`; пустая клетка = лаз).
 - Долгое нажатие LMB (примерно 450 мс): переход в стирание с протяжкой.
@@ -105,31 +105,52 @@
 
 ## 5. Вкладка Objects
 
-Палитра = placeable `ED_OBJS` (постановка сущностей на карту). Спрайт-редактор открывается **даблкликом по свачу** (не через Tiles).
+Палитра = placeable `ED_OBJS` (`BUILTIN_OBJS` + customs из `ledge.dev.objects`). Details / спрайты — **не** через Tiles.
 
 Палитра включает:
-- `Start` (`kind: 'player_start'`) — точка старта уровня; даблклик → кадры героя (`getSpriteDef('hero')`).
+- `Hero / Start` (`kind: 'player_start'`) — spawn уровня; Details правит кадры героя (`spawn.spriteId` → `activeHeroId()`).
 - `Exit` (`kind: 'level_exit'`) — переход уровня (несколько на карту).
 - `Door` (`kind: 'door'`) — парная дверь (warp между двумя точками).
-- Враги/птицы/пауки/щупальца — даблклик по kind со спрайтом → `#edTileEdit` кадров.
+- Враги/птицы/пауки/щупальца — Details → кадры при наличии sprite def.
 - Предметы и лут.
 - Сундуки (`Chest`, `Locked`).
-- `Sound`, `Light`, `Volume` — у Light даблклик открывает спрайт фонаря, если есть def.
+- `Sound`, `Light`, `Volume` — у Light Details открывает спрайт фонаря, если есть def.
 - `Boulder`.
-- NPC (`Hermit`, `Wanderer`) — даблклик → кадры NPC.
+- `Rope V` (`kind: 'rope_v'`) / `Rope H` (`kind: 'rope_h'`) — вертикальный / горизонтальный канат (`LV.ropes`). Постановка `mkRopeAt`; гизмо: handles `a`/`b` + move span; клик по канату → float `#edRopeSettings` (Segments, Elasticity, Swing force только V, Wind, Climb speed, Grab radius). Persist `packRope`; history/rooms включают ropes. Role `marker`.
+- NPC (`Hermit`, `Wanderer`) — Details → кадры NPC.
+- Custom kinds (после `Ctrl+D`) — в конце палитры.
 
-Редактор спрайтов (из Objects):
-- Каждая анимация — своя строка кадров; высота полосы — одна строка, сепаратор увеличивает. `+` / драг-reorder / Play·Stop — как у тайлов. У врагов/птиц/пауков открытие материализует bake во все слоты. Клик по кадру — правка пикселей. Красная коробка — хитбокс действия (поля Box / инструмент Hit): origin — её верхний левый угол, низ — земля; размер едет в физику (`getAnimBox`). Голубой origin — привязка к `p.x,p.y`; золотой ромб Hands — поиск кромки; пурпурный weapon — кисть кадра. Драг / числа; Reset anchors сбрасывает и коробку. Size — ширина×высота кадра. Origin/box/Hands пишутся Bake в `BAKED.sprites` (код), кадры PNG — в `ledge.dev.sprites`. Неправленные кадры в игре рисуются как раньше (кроме уже материализованных слотов врагов).
-- `Ctrl+D` **не** клонирует объекты/спрайты — только кисть тайла на вкладке Tiles.
+### Details (`#edTileEdit`)
 
-Логика постановки:
-- `Start`: строго один на уровень — повторная постановка **переносит** `LV.spawn` (верх-лево idle-box героини). Маркер в гизмо; выбирается и тащится. `Delete` сбрасывает на дефолт пустого уровня (`16`, `6*T−22`). Уже пишется через `packLevel.spawn`.
+- Открывается **даблкликом** по любому Objects-свачу. Если окно уже открыто — **одиночный клик** переключает цель (то же для Tiles).
+- С привязанным спрайтом — редактор кадров/якорей (как раньше).
+- Без спрайта — шапка Name / Type(role) / Sprite slot; пиксельный холст появляется после привязки sprite.
+- **Sprite slot**: мини-превью; драг свача из палитры Tiles или Objects на слот назначает sprite (`applySpriteSlotPayload`). Менять slot можно у **customs** и у `Hero / Start`; прочие builtins — сначала `Ctrl+D` (клон), затем replace. У custom — Clear снимает `spriteId`.
+
+### Role / Type
+
+- Роли: `actor` | `pickup` | `loot` | `prop` | `marker` (`objectset.ROLES`). У custom — селект Type в Details; у builtins — inferred (`builtinRole`: coin/gem/…=`pickup`, key/gear=`loot`, foes/NPC/Start=`actor`, chest/boulder/light=`prop`, Exit/Door/Sound/Volume/Rope V/Rope H=`marker`, …).
+- Влияет на постановку: `loot`/`pickup` — drag на сундук/врага/птицу; `loot` only — не ставится как мировой объект (только содержимое).
+
+### Ctrl+D (Objects)
+
+- Клонирует кисть в новый custom kind (`cloneObjectFrom` → `ledge.dev.objects`) и при наличии спрайта — `cloneSpriteDef` → `ledge.dev.sprites`.
+- Клон `Hero / Start` → sprite `family: 'hero'`; постановка этой кисти пишет `LV.spawn.spriteId` (playable box/draw через `activeHeroId`).
+
+### Редактор спрайтов (из Objects)
+
+- Каждая анимация — своя строка кадров; высота полосы — одна строка, сепаратор увеличивает. `+` / драг-reorder / Play·Stop — как у тайлов. У врагов/птиц/пауков открытие материализует bake во все слоты. Клик по кадру — правка пикселей. Красная коробка — хитбокс действия (Box / Hit): origin — верх-лево, низ — земля; размер → `getAnimBox`. Голубой origin — `p.x,p.y`; золотой Hands — кромка; пурпурный weapon — кисть кадра. Reset anchors сбрасывает и коробку. Size — `fw×fh`. Origin/box/Hands → Bake `BAKED.sprites`; кадры PNG → `ledge.dev.sprites`.
+- Сущности (items / enemies / fliers / npcs) могут нести `spriteId` при постановке — draw/persist.
+
+### Логика постановки
+
+- `Hero / Start`: строго один на уровень — повтор **переносит** `LV.spawn` (верх-лево idle-box активного героя). `spawn.spriteId` задаёт playable sprite/box. Маркер в гизмо. `Delete` → дефолт пустого уровня (`16`, `6*T−22`). Persist — `packLevel.spawn`.
 - `Exit`: несколько точек в `LV.exits: [{id,x,y,toId}]` (миграция со старого `LV.exit`; blank → `exits:[]`). Маркер в гизмо; `Delete` убирает выбранный. Persist — `packLevel.exits` (+ legacy `exit` = первый).
 - `Door`: всегда пара — **2 клика** (`mkDoorAt`); первый ждёт return (`doorPending`), второй связывает `pair` по id. `Esc` отменяет первый (удаляет pending). `Delete` / `RMB` снимают **оба** конца пары. В гизмо: общий цвет/бейдж номера пары + линия между концами (ярче при выборе). Поля `need` / `consume` / `locked=!!need` пишутся в persist.
-- Антидубль: нельзя поставить второй экземпляр **того же** `kind` в ту же клетку (дверь на дверь, exit на exit, enemy0 на enemy0…). Разные kind в одной клетке — можно. `Start` по-прежнему один (повтор = перенос).
-- Для `Sound/Light/Volume` сразу выбирается объект и открывается управление через инспектор/гизмо.
-- Для loot-типов drag на сундук/врага/птицу открывает окно количества (`1..99`).
-- Некоторые loot-кисти работают только как содержимое лута (не ставятся как мировой объект): `key`, `helmet`, `shield`, `sword`, `scuba`, `flippers`, `harpoon`, `bow`.
+- Антидубль: нельзя поставить второй экземпляр **того же** template/kind в ту же клетку. Разные kind в одной клетке — можно. Start — один (повтор = перенос).
+- Для `Sound/Light/Volume` сразу выбирается объект и открывается Inspect/гизмо.
+- Для `pickup`/`loot` drag на сундук/врага/птицу открывает окно количества (`1..99`).
+- Builtin loot-only (и custom role=`loot`): только содержимое лута — `key`, `helmet`, `shield`, `sword`, `scuba`, `flippers`, `harpoon`, `bow`.
 
 ## 6. Слои
 
@@ -153,7 +174,7 @@
 
 ## 7. Плавающие окна
 
-Плавающие окна: Layers, Inspect, Chest Loot, NPC Talk, Boulder Settings, Tile.
+Плавающие окна: Layers, Inspect, Chest Loot, NPC Talk, Boulder Settings, Rope Settings (`#edRopeSettings`), Tile.
 
 Управление:
 - Drag за шапку.
@@ -165,15 +186,15 @@
 
 Позиция и размер сохраняются в `localStorage` ключ `ledge.ed.float`.
 
-## 8. Inspect и гизмо (Start / Exit / Door / Sound / Light / Volume)
+## 8. Inspect и гизмо (Hero/Start / Exit / Door / Sound / Light / Volume)
 
 Выбор:
-- Клик по объекту (включая маркеры `Start` / `Exit` / `Door`).
+- Клик по объекту (включая маркеры `Hero / Start` / `Exit` / `Door`).
 - Для overlapping-объектов клик циклически перебирает попадание.
 
 Изменение:
 - Через поля/слайдеры в `Inspect`.
-- `Start`: заметка в Inspect («один на уровень»); позиция — гизмо `move` / повторная кисть.
+- `Hero / Start`: заметка в Inspect («один на уровень»); позиция — гизмо `move` / повторная кисть; playable sprite — `LV.spawn.spriteId`.
 - `Exit`: слот **Target level** (`toId` = id уровня в `LEVELS`); пусто = `(none / MENU)` — на CONTINUE уходит в меню (`finishLevel` / `resolveExitNext`). Несколько выходов; `tryExit` читает `LV.exits`.
 - `Door`: **Required item** (bag kind или none); при выбранном предмете — **Consume item on activate** (`consume`, дефолт true). `locked = !!need`; значения синкаются на пару. Позиция — гизмо `move`.
 - Light: `Color` / `Intensity` / `Radius` / `Sprite` (какой спрайт висит в точке света; `Lantern` — факел по умолчанию, без PNG рисуется процедурный; `None` — только свечение). Постановка Light сразу ставит факел (`sprite:'lantern'`).

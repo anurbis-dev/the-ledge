@@ -7,8 +7,11 @@ import {
   getSpriteDef, getSpriteFrameSrc, setSpriteFrame, clearSpriteFrame,
   isSpriteFrameDirty, getFrameAnchor, setFrameAnchor, setSpriteSize,
   clearAnimAnchors, getAnimBox, setAnimBox,
-  getAnimFrameCount, setAnimFrameCount, reorderAnimFrames
+  getAnimFrameCount, setAnimFrameCount, reorderAnimFrames,
+  addSpriteDef, spriteFrameImage
 } from '../core/spriteset.js';
+import { updateObject } from '../core/objectset.js';
+import { runtime } from '../core/runtime.js';
 import { bakeSpriteFrameSrc, bakeBuiltinTileSrc, clearBakeCache } from '../render/sprite-bake.js';
 import { defaultFrameAnchors } from '../render/sprite-anchors.js';
 import { raiseFloat, placeFloat, hasFloatPos } from './float.js';
@@ -20,11 +23,14 @@ var titleEl = document.getElementById('edTileEditTitle');
 var body = document.getElementById('edTileEditBody');
 var current = null;
 var mode = 'tile';
+var objCurrent = null;
+var spriteSlotEl = null;
 var fw = 16, fh = 16;
 var animId = '';
 var frameI = 0;
 var onChange = null;
 var onDeleteCustom = null;
+var onObjectChange = null;
 
 var TOOLS = [
   { id: 'pencil', name: 'Paint', title: 'Paint pixels (LMB). RMB erases.' },
@@ -90,6 +96,19 @@ try {
 export function bindTileEdit(hooks){
   onChange = hooks && hooks.onChange;
   onDeleteCustom = hooks && hooks.onDeleteCustom;
+  onObjectChange = hooks && hooks.onObjectChange;
+}
+
+export function isDetailsOpen(){
+  return !!(root && !root.hidden);
+}
+
+export function getDetailsObject(){ return objCurrent; }
+
+export function hitSpriteSlot(clientX, clientY){
+  if (!spriteSlotEl || !isDetailsOpen()) return false;
+  var r = spriteSlotEl.getBoundingClientRect();
+  return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
 }
 
 function stopPlay(){
@@ -103,6 +122,8 @@ function stopPlay(){
 export function closeTileEdit(){
   stopPlay();
   current = null;
+  objCurrent = null;
+  spriteSlotEl = null;
   painting = null;
   boxDrag = null;
   frameDrag = null;
@@ -110,12 +131,14 @@ export function closeTileEdit(){
   if (root){
     root.hidden = true;
     root.classList.remove('ed-sprite');
+    root.classList.remove('ed-object');
   }
   altPick = false;
   pendingAnchor = null;
 }
 
 function isSprite(){ return mode === 'sprite'; }
+function isObjectOnly(){ return mode === 'object'; }
 function isCustomTile(){ return mode === 'tile' && current && current.custom; }
 function canPaint(){ return isSprite() || isCustomTile() || (mode === 'tile' && current && current.id); }
 
@@ -123,11 +146,13 @@ export function openTileEdit(spec, clientX, clientY){
   if (!root || !spec) return;
   stopPlay();
   mode = 'tile';
+  objCurrent = null;
   fw = 16; fh = 16;
   animId = '';
   frameI = 0;
   current = spec;
   root.classList.remove('ed-sprite');
+  root.classList.remove('ed-object');
   root.hidden = false;
   if (titleEl) titleEl.textContent = spec.custom ? 'Tile' : 'Tile (sprite)';
   fillBody();
@@ -158,6 +183,8 @@ export function openSpriteEdit(def, clientX, clientY){
   if (!root || !def) return;
   stopPlay();
   mode = 'sprite';
+  if (objCurrent) root.classList.add('ed-object');
+  else root.classList.remove('ed-object');
   if (isFoeSprite(def.id)) materializeBakes(def.id);
   current = getSpriteDef(def.id) || def;
   fw = current.fw || 16;
@@ -166,12 +193,217 @@ export function openSpriteEdit(def, clientX, clientY){
   frameI = 0;
   root.classList.add('ed-sprite');
   root.hidden = false;
-  if (titleEl) titleEl.textContent = def.name || 'Sprite';
+  if (titleEl) titleEl.textContent = (objCurrent && objCurrent.name) || def.name || 'Sprite';
   fillBody();
   if (!hasFloatPos(root))
     placeFloat(root, innerWidth - 400, 40);
   raiseFloat(root);
   void clientX; void clientY;
+}
+
+/** Details for an Objects palette entry (builtin or custom). */
+export function openObjectEdit(meta, clientX, clientY){
+  if (!root || !meta) return;
+  objCurrent = meta;
+  var sid = meta.spriteId;
+  if (!sid && meta.template === 'player_start'){
+    sid = (runtime.LV && runtime.LV.spawn && runtime.LV.spawn.spriteId) || 'hero';
+  }
+  var sd = sid ? getSpriteDef(sid) : null;
+  if (sd){
+    openSpriteEdit(sd, clientX, clientY);
+    return;
+  }
+  stopPlay();
+  mode = 'object';
+  current = meta;
+  fw = 16; fh = 16;
+  animId = '';
+  frameI = 0;
+  root.classList.remove('ed-sprite');
+  root.classList.add('ed-object');
+  root.hidden = false;
+  if (titleEl) titleEl.textContent = meta.name || 'Object';
+  fillObjectBody();
+  if (!hasFloatPos(root))
+    placeFloat(root, innerWidth - 320, 48);
+  raiseFloat(root);
+  void clientX; void clientY;
+}
+
+function setObjectSpriteId(spriteId){
+  if (!objCurrent) return false;
+  if (objCurrent.custom){
+    var next = updateObject(objCurrent.kind, { spriteId: spriteId || null });
+    if (!next) return false;
+    objCurrent = {
+      name: next.name, kind: next.id, template: next.template,
+      role: next.role, spriteId: next.spriteId, itemKind: next.itemKind, custom: true
+    };
+  } else if (objCurrent.template === 'player_start' || objCurrent.kind === 'player_start'){
+    if (runtime.LV && runtime.LV.spawn){
+      runtime.LV.spawn.spriteId = spriteId || 'hero';
+      objCurrent = Object.assign({}, objCurrent, { spriteId: spriteId || 'hero' });
+    }
+  } else {
+    return false;
+  }
+  if (onObjectChange) onObjectChange(objCurrent);
+  if (onChange) onChange();
+  openObjectEdit(objCurrent);
+  return true;
+}
+
+/** Assign sprite from palette drop onto the sprite slot. payload: { spriteId } | { tileSrc, tileName } */
+export function applySpriteSlotPayload(payload){
+  if (!objCurrent || !payload) return false;
+  if (payload.spriteId) return setObjectSpriteId(payload.spriteId);
+  if (payload.tileSrc){
+    var def = addSpriteDef({
+      name: (payload.tileName || 'Icon') + ' spr',
+      fw: 16, fh: 16, ox: 0, oy: 0,
+      anims: [{ id: 'idle', name: 'Idle', n: 1 }],
+      src: payload.tileSrc
+    });
+    if (!def) return false;
+    return setObjectSpriteId(def.id);
+  }
+  return false;
+}
+
+function fillObjectHeader(parent){
+  if (!objCurrent) return;
+  var box = document.createElement('div');
+  box.className = 'ed-obj-header';
+
+  var nameInp = document.createElement('input');
+  nameInp.type = 'text';
+  nameInp.value = objCurrent.name || '';
+  nameInp.maxLength = 32;
+  nameInp.disabled = !objCurrent.custom;
+  nameInp.addEventListener('keydown', function(e){ e.stopPropagation(); });
+  nameInp.addEventListener('change', function(){
+    if (!objCurrent.custom) return;
+    var next = updateObject(objCurrent.kind, { name: nameInp.value.trim() || objCurrent.name });
+    if (!next) return;
+    objCurrent.name = next.name;
+    if (titleEl) titleEl.textContent = next.name;
+    if (onObjectChange) onObjectChange(objCurrent);
+  });
+  field('Name', nameInp);
+  /* field appends to body — move into box */
+  var last = body.lastChild;
+  if (last) box.appendChild(last);
+
+  var roleSel = document.createElement('select');
+  ['actor', 'pickup', 'loot', 'prop', 'marker'].forEach(function(r){
+    var opt = document.createElement('option');
+    opt.value = r; opt.textContent = r;
+    if (objCurrent.role === r) opt.selected = true;
+    roleSel.appendChild(opt);
+  });
+  roleSel.disabled = !objCurrent.custom;
+  roleSel.addEventListener('change', function(){
+    if (!objCurrent.custom) return;
+    var next = updateObject(objCurrent.kind, { role: roleSel.value });
+    if (!next) return;
+    objCurrent.role = next.role;
+    if (onObjectChange) onObjectChange(objCurrent);
+  });
+  field('Type', roleSel);
+  last = body.lastChild;
+  if (last) box.appendChild(last);
+
+  var slot = document.createElement('div');
+  slot.className = 'ed-sprite-slot';
+  slot.title = objCurrent.custom || objCurrent.kind === 'player_start'
+    ? 'Drop a Tiles/Objects swatch here to set the sprite'
+    : 'Built-in sprite — Ctrl+D to clone, then replace';
+  spriteSlotEl = slot;
+  var sid = objCurrent.spriteId;
+  if (!sid && (objCurrent.template === 'player_start' || objCurrent.kind === 'player_start'))
+    sid = (runtime.LV && runtime.LV.spawn && runtime.LV.spawn.spriteId) || 'hero';
+  var thumb = document.createElement('canvas');
+  thumb.width = 32; thumb.height = 32;
+  thumb.className = 'ed-sprite-slot-img';
+  var ctx = thumb.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = '#2a2640';
+  ctx.fillRect(0, 0, 32, 32);
+  if (sid){
+    var sd = getSpriteDef(sid);
+    var anim0 = sd && sd.anims && sd.anims[0] ? sd.anims[0].id : 'idle';
+    var img = spriteFrameImage(sid, anim0, 0);
+    if (!img){
+      var src = getSpriteFrameSrc(sid, anim0, 0);
+      if (src){
+        var im = new Image();
+        im.onload = function(){
+          ctx.clearRect(0, 0, 32, 32);
+          ctx.fillStyle = '#2a2640';
+          ctx.fillRect(0, 0, 32, 32);
+          ctx.drawImage(im, 0, 0, 32, 32);
+        };
+        im.src = src;
+      } else {
+        ctx.fillStyle = '#6a628f';
+        ctx.fillRect(8, 8, 16, 16);
+      }
+    } else {
+      ctx.drawImage(img, 0, 0, 32, 32);
+    }
+  } else {
+    ctx.strokeStyle = '#6a628f';
+    ctx.strokeRect(4.5, 4.5, 23, 23);
+    ctx.fillStyle = '#8a8399';
+    ctx.font = '9px sans-serif';
+    ctx.fillText('drop', 6, 20);
+  }
+  slot.appendChild(thumb);
+  var slotLab = document.createElement('div');
+  slotLab.className = 'ed-field';
+  var sp = document.createElement('span');
+  sp.textContent = 'Sprite';
+  slotLab.appendChild(sp);
+  slotLab.appendChild(slot);
+  if (objCurrent.custom && objCurrent.spriteId){
+    var clr = document.createElement('button');
+    clr.type = 'button';
+    clr.className = 'edb';
+    clr.textContent = 'Clear';
+    clr.addEventListener('click', function(){ setObjectSpriteId(null); });
+    slotLab.appendChild(clr);
+  }
+  box.appendChild(slotLab);
+
+  if (objCurrent.custom){
+    var note = document.createElement('div');
+    note.className = 'ed-tile-note';
+    note.textContent = 'Template: ' + (objCurrent.template || '?') + ' · custom kind ' + objCurrent.kind;
+    box.appendChild(note);
+  }
+
+  parent.insertBefore(box, parent.firstChild);
+}
+
+function fillObjectBody(){
+  if (!body) return;
+  body.textContent = '';
+  preview = null;
+  hintEl = null;
+  hitLab = null;
+  toolsEl = null;
+  swatchEl = null;
+  colorInp = null;
+  stripsEl = null;
+  splitEl = null;
+  spriteSlotEl = null;
+  /* temporarily point field() at body */
+  fillObjectHeader(body);
+  var hint = document.createElement('div');
+  hint.className = 'ed-tile-note';
+  hint.textContent = 'No sprite yet — drop a tile or object swatch onto the Sprite slot to attach one, then edit frames.';
+  body.appendChild(hint);
 }
 
 function builtinCollide(spec){
@@ -1275,6 +1507,9 @@ function fillBody(){
   var custom = isCustomTile();
   var def = custom ? getTileDef(current.id) : null;
   var sprite = isSprite();
+  spriteSlotEl = null;
+
+  if (objCurrent && sprite) fillObjectHeader(body);
 
   stripsEl = document.createElement('div');
   stripsEl.className = 'ed-tile-strips';

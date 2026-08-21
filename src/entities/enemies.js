@@ -27,7 +27,8 @@ export function mkEnemies(){
   var LV = runtime.LV;
   return (LV.enemies || []).map(function(a, i){
     var kind = a[5] !== undefined ? a[5] : (i % 3);
-    var box = enemyBox(kind);
+    var spriteId = typeof a[8] === 'string' ? a[8] : null;
+    var box = spriteId ? getAnimBox(spriteId, 'idle') : enemyBox(kind);
     var loot = Array.isArray(a[6])
       ? a[6].map(function(e){ return { kind: e[0], qty: Math.max(1, e[1] | 0 || 1) }; })
       : [];
@@ -35,7 +36,7 @@ export function mkEnemies(){
              v: a[4] * (kind === 1 ? 1.4 : (kind === 2 ? 0.7 : 1)),
              kind: kind, tough: kind === 2 ? 2 : 1,
              dir: i%2 ? -1 : 1, dead:false, hitT:0, ph:i*1.3, vy:0,
-             loot: loot, random: !!a[7] };
+             loot: loot, random: !!a[7], spriteId: spriteId };
   });
 }
 export function stepEnemies(S, dt){
@@ -106,7 +107,7 @@ export function attack(S){
   var p = S.p;
   if (!p.stick || p.atkCd > 0 || p.atkT > 0) return false;
   if (p.stance > 0) return false;                        // бьём только стоя
-  if (p.state !== 'normal' && p.state !== 'ladder' && p.state !== 'snare') return false;
+  if (p.state !== 'normal' && p.state !== 'ladder' && p.state !== 'rope' && p.state !== 'snare') return false;
   p.atkT = C.ATK_T; p.atkCd = C.ATK_T + C.ATK_CD;
   p.events.push('swing');
   var reach = p.gear.weapon ? (GEAR[p.gear.weapon.type].reach || 1) : 1;

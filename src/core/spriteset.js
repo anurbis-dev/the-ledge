@@ -73,6 +73,7 @@ export var SPRITE_DEFS = [
 ];
 
 var byId = {};
+var customDefs = [];
 var i0;
 for (i0 = 0; i0 < SPRITE_DEFS.length; i0++) byId[SPRITE_DEFS[i0].id] = SPRITE_DEFS[i0];
 
@@ -83,6 +84,45 @@ var saved = {};
 var imgs = {};
 var onChange = null;
 var MIN_S = 8, MAX_S = 128;
+var defSeq = 1;
+
+function rebuildById(){
+  var i, d;
+  byId = {};
+  for (i = 0; i < SPRITE_DEFS.length; i++) byId[SPRITE_DEFS[i].id] = SPRITE_DEFS[i];
+  for (i = 0; i < customDefs.length; i++){
+    d = customDefs[i];
+    if (d && d.id) byId[d.id] = d;
+  }
+}
+
+function isHeroFamily(id){
+  var d = byId[id];
+  if (!d) return id === 'hero';
+  if (d.id === 'hero' || d.kind === 'hero' || d.family === 'hero') return true;
+  return false;
+}
+
+function cloneAnimList(anims){
+  var out = [], i, a;
+  if (!anims) return out;
+  for (i = 0; i < anims.length; i++){
+    a = anims[i];
+    out.push({ id: a.id, name: a.name, n: a.n | 0 });
+  }
+  return out;
+}
+
+function nextSpriteId(prefix){
+  var id, n = defSeq;
+  prefix = prefix || 's';
+  do {
+    id = prefix + '_' + n;
+    n++;
+  } while (byId[id]);
+  defSeq = n;
+  return id;
+}
 
 function animOf(def, animId){
   var i;
@@ -141,7 +181,7 @@ function cloneBox(b){
 }
 
 export function defaultAnimBox(id, anim){
-  if (id === 'hero'){
+  if (isHeroFamily(id)){
     if (anim === 'crouch' || anim === 'crouchWalk' || anim === 'pickCrouch') return { w: C.W, h: C.CRH };
     if (anim === 'prone' || anim === 'pickProne') return { w: C.PRW, h: C.PRH };
     if (anim === 'roll') return { w: C.W, h: C.RH };
@@ -219,19 +259,53 @@ function readLocal(){
     var raw = localStorage.getItem(KEY);
     if (!raw) return null;
     var o = JSON.parse(raw);
-    if (o && o.sprites) return o.sprites;
-    return o;
+    if (o && (o.sprites || o.defs)) return o;
+    if (o && typeof o === 'object') return { sprites: o, defs: [] };
+    return null;
   } catch (_){ return null; }
 }
 
 function writeLocal(){
-  try { localStorage.setItem(KEY, JSON.stringify({ sprites: saved })); } catch (_){}
+  try {
+    localStorage.setItem(KEY, JSON.stringify({ sprites: saved, defs: customDefs }));
+  } catch (_){}
+}
+
+function normalizeCustomDef(d){
+  if (!d || !d.id) return null;
+  return {
+    id: String(d.id),
+    name: String(d.name || d.id),
+    fw: d.fw | 0 || 16,
+    fh: d.fh | 0 || 16,
+    ox: d.ox | 0,
+    oy: d.oy | 0,
+    fx: d.fx != null ? (d.fx | 0) : 0,
+    kind: d.kind || d.id,
+    family: d.family || null,
+    anims: cloneAnimList(d.anims && d.anims.length ? d.anims : [{ id: 'idle', name: 'Idle', n: 1 }]),
+    custom: true
+  };
 }
 
 function boot(){
   saved = {};
+  customDefs = [];
   overlaySprites(saved, (BAKED && BAKED.sprites) || {});
-  overlaySprites(saved, readLocal());
+  var loc = readLocal();
+  if (loc){
+    if (loc.sprites) overlaySprites(saved, loc.sprites);
+    else overlaySprites(saved, loc);
+    if (loc.defs && loc.defs.length){
+      customDefs = loc.defs.map(normalizeCustomDef).filter(Boolean);
+      var i, m;
+      for (i = 0; i < customDefs.length; i++){
+        m = /_(\d+)$/.exec(customDefs[i].id);
+        if (m) defSeq = Math.max(defSeq, (+m[1]) + 1);
+      }
+    }
+  }
+  rebuildById();
   loadAll();
 }
 
@@ -330,21 +404,118 @@ export function getSpriteDef(id){
   if (!b) return null;
   m = getSpriteMeta(id);
   return {
-    id: b.id, name: b.name, kind: b.kind, anims: liveAnims(b, id),
+    id: b.id, name: b.name, kind: b.kind, family: b.family || null,
+    custom: !!b.custom, anims: liveAnims(b, id),
     fw: m.fw, fh: m.fh, ox: m.ox, oy: m.oy, fx: m.fx
   };
 }
 
 export function listSpriteDefs(){
-  return SPRITE_DEFS.map(function(d){ return getSpriteDef(d.id); });
+  var out = SPRITE_DEFS.map(function(d){ return getSpriteDef(d.id); });
+  var i, g;
+  for (i = 0; i < customDefs.length; i++){
+    g = getSpriteDef(customDefs[i].id);
+    if (g) out.push(g);
+  }
+  return out;
 }
 
 export function spriteDefForKind(kind){
-  var i;
+  var i, d;
   for (i = 0; i < SPRITE_DEFS.length; i++)
     if (SPRITE_DEFS[i].kind === kind) return getSpriteDef(SPRITE_DEFS[i].id);
+  for (i = 0; i < customDefs.length; i++){
+    d = customDefs[i];
+    if (d.kind === kind || d.id === kind) return getSpriteDef(d.id);
+  }
   return null;
 }
+
+/** Deep-clone catalog entry + saved frames/anchors into a new custom sprite. */
+export function cloneSpriteDef(srcId, name){
+  var src = byId[srcId], id, def, prefix;
+  if (!src) return null;
+  prefix = isHeroFamily(srcId) ? 'hero' : 's';
+  id = nextSpriteId(prefix);
+  def = normalizeCustomDef({
+    id: id,
+    name: name || ((src.name || srcId) + ' copy'),
+    fw: src.fw, fh: src.fh, ox: src.ox, oy: src.oy, fx: src.fx,
+    kind: isHeroFamily(srcId) ? 'hero' : (src.kind || id),
+    family: isHeroFamily(srcId) ? 'hero' : (src.family || null),
+    anims: src.anims
+  });
+  if (!def) return null;
+  customDefs.push(def);
+  rebuildById();
+  if (saved[srcId]) saved[id] = cloneSavedOne(saved[srcId]);
+  loadAll();
+  emit('add');
+  return getSpriteDef(id);
+}
+
+function cloneSavedOne(srcRec){
+  var out = {}, anim, rec, m;
+  if (!srcRec) return out;
+  m = srcRec._meta;
+  if (m && typeof m === 'object') out._meta = {
+    fw: m.fw, fh: m.fh, ox: m.ox, oy: m.oy, fx: m.fx
+  };
+  for (anim in srcRec){
+    if (!Object.prototype.hasOwnProperty.call(srcRec, anim) || anim === '_meta') continue;
+    rec = srcRec[anim];
+    if (!rec || typeof rec !== 'object') continue;
+    out[anim] = {
+      frames: rec.frames ? rec.frames.slice() : [],
+      dirty: rec.dirty ? rec.dirty.slice() : [],
+      n: rec.n,
+      origin: cloneOrigin(rec.origin),
+      grab: cloneOrigin(rec.grab),
+      weapon: clonePts(rec.weapon),
+      box: cloneBox(rec.box)
+    };
+  }
+  return out;
+}
+
+export function addSpriteDef(partial){
+  var id = partial && partial.id && !byId[partial.id] ? String(partial.id) : nextSpriteId('s');
+  var def = normalizeCustomDef({
+    id: id,
+    name: (partial && partial.name) || id,
+    fw: (partial && partial.fw) || 16,
+    fh: (partial && partial.fh) || 16,
+    ox: partial && partial.ox,
+    oy: partial && partial.oy,
+    fx: partial && partial.fx,
+    kind: (partial && partial.kind) || id,
+    family: partial && partial.family,
+    anims: (partial && partial.anims) || [{ id: 'idle', name: 'Idle', n: 1 }]
+  });
+  if (!def) return null;
+  customDefs.push(def);
+  rebuildById();
+  if (partial && partial.src){
+    setSpriteFrame(id, 'idle', 0, partial.src, true);
+  } else {
+    emit('add');
+  }
+  return getSpriteDef(id);
+}
+
+export function removeSpriteDef(id){
+  var i, found = false;
+  for (i = 0; i < customDefs.length; i++){
+    if (customDefs[i].id === id){ customDefs.splice(i, 1); found = true; break; }
+  }
+  if (!found) return false;
+  delete saved[id];
+  rebuildById();
+  emit('remove');
+  return true;
+}
+
+export function isHeroSprite(id){ return isHeroFamily(id); }
 
 function clampS(n, lo, hi){
   n = n | 0;

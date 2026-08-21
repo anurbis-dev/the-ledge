@@ -203,7 +203,7 @@ export function npcs(){
     if (x < -16 || x > viewW() + 16) continue;
     var f = n.facing >= 0 ? 1 : -1;
     var bob = n.st === 'flee' ? Math.round(Math.sin(time * 10 + n.ph)) : Math.round(Math.sin(time * 2.2 + n.ph) * 0.5);
-    var nKind = n.tree === 'wanderer' ? 'npc_wanderer' : 'npc_hermit';
+    var nKind = n.spriteId || (n.tree === 'wanderer' ? 'npc_wanderer' : 'npc_hermit');
     if (blitEntSprite(nKind, 'idle', bob > 0 ? 1 : 0, n.x, n.y + bob, n.facing)) continue;
     var cloak = n.tree === 'wanderer' ? '#3a5a4a' : '#4a3a68';
     var cloakD = n.tree === 'wanderer' ? '#243830' : '#2e2446';
@@ -330,7 +330,7 @@ export function enemies(){
       continue;
     }
     var hop = Math.round(Math.sin(time*(e.kind === 1 ? 9 : 6) + e.ph)*1.5);
-    if (blitEntSprite('enemy' + e.kind, 'idle', hop > 0 ? 1 : 0, e.x, e.y + hop, e.dir)) continue;
+    if (blitEntSprite(e.spriteId || ('enemy' + e.kind), 'idle', hop > 0 ? 1 : 0, e.x, e.y + hop, e.dir)) continue;
     var bodyA = e.kind === 1 ? '#b05f7a' : (e.kind === 2 ? '#5f7fb0' : P.foeA);
     var bodyB = e.kind === 1 ? '#7a3d52' : (e.kind === 2 ? '#3d537a' : P.foeB);
     if (e.hurt) bodyA = '#d0a0a0';
@@ -355,7 +355,7 @@ export function fliers(){
     var x = Math.round(f.x - cam.x), y = Math.round(f.y - cam.y);
     if (x < -22 || x > viewW() + 22) continue;
     var wing = Math.sin(f.flap * (f.kind === 1 ? 20 : 12) + f.ph) * (f.kind === 2 ? 6 : 4);
-    if (blitEntSprite('flier' + f.kind, 'flap', wing > 0 ? 1 : 0, f.x, f.y, f.dir)) continue;
+    if (blitEntSprite(f.spriteId || ('flier' + f.kind), 'flap', wing > 0 ? 1 : 0, f.x, f.y, f.dir)) continue;
     var fa = f.kind === 1 ? '#8f6d4a' : (f.kind === 2 ? '#4a6d8f' : (f.kind === 3 ? '#8f2f3a' : '#6d5a8f'));
     var fb = f.kind === 1 ? '#c9a06a' : (f.kind === 2 ? '#7fa8cc' : (f.kind === 3 ? '#e06a6a' : '#9b83c4'));
     rc(x + 2, y + 2, f.w - 4, f.h - 3, fa);
@@ -473,6 +473,36 @@ export function spiders(){
   }
   popEntA();
 }
+export function ropes(){
+  var S = world();
+  var list = S.ropes || [];
+  for (var i = 0; i < list.length; i++){
+    var r = list[i];
+    if (!r.nodes || r.nodes.length < 2) continue;
+    if (!pushEntA(r)) continue;
+    var nodes = r.nodes, k, a, b, x0, y0, x1, y1, dx, dy, len, steps, s, px, py;
+    for (k = 0; k < nodes.length - 1; k++){
+      a = nodes[k]; b = nodes[k + 1];
+      x0 = Math.round(a.x - cam.x); y0 = Math.round(a.y - cam.y);
+      x1 = Math.round(b.x - cam.x); y1 = Math.round(b.y - cam.y);
+      dx = x1 - x0; dy = y1 - y0;
+      len = Math.sqrt(dx * dx + dy * dy) || 1;
+      steps = Math.max(1, Math.ceil(len / 2));
+      for (s = 0; s < steps; s++){
+        px = x0 + Math.round(dx * s / steps);
+        py = y0 + Math.round(dy * s / steps);
+        ctx.globalAlpha = entA(r) * ((s & 1) ? 0.42 : 0.72);
+        rc(px, py, 2, 2, (s & 1) ? '#5a4030' : '#c4a06a');
+      }
+    }
+    ctx.globalAlpha = entA(r);
+    /* крепления */
+    rc(Math.round(r.ax - cam.x) - 1, Math.round(r.ay - cam.y) - 1, 3, 3, '#7a6040');
+    if (r.orient === 'h')
+      rc(Math.round(r.bx - cam.x) - 1, Math.round(r.by - cam.y) - 1, 3, 3, '#7a6040');
+  }
+  popEntA();
+}
 export function tendrils(){
   var S = world(), time = view.time;
   var list = S.tendrils || [];
@@ -554,6 +584,7 @@ export function items(){
     var bob = Math.sin(time*2.4 + it.ph)*2;
     var x = Math.round(it.x - cam.x), y = Math.round(it.y - cam.y + bob);
     if (x < -12 || x > viewW()+12) continue;
+    if (it.spriteId && blitEntSprite(it.spriteId, 'idle', 0, it.x - 8, it.y - 8 + bob, 1)) continue;
     if (it.kind === 'gem'){
       rc(x-1,y-4,2,1,P.gem); rc(x-3,y-3,6,2,P.gem); rc(x-2,y-1,4,3,P.gemD);
       rc(x-1,y+2,2,2,P.gemD); rc(x-2,y-3,1,2,'#ffffff');

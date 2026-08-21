@@ -12,6 +12,7 @@ import {
 import { figure, drawBow, drawHeldWeapon } from './figure.js';
 import { isBowHand, isHarpoonHand } from '../entities/gear.js';
 import { spriteFrameImage, getSpriteDef, getFrameAnchor } from '../core/spriteset.js';
+import { activeHeroId } from '../core/player.js';
 import { defaultFrameAnchors } from './sprite-anchors.js';
 
 var G = GAME, C = G.C;
@@ -54,6 +55,7 @@ export function heroClip(p){
     if (p.lad.v === G.LADR || p.lad.v === G.LADL) return ['ladderD', f];
     return ['ladder', f];
   }
+  if (p.state === 'rope') return ['hang', Math.sin(view.time * 3.1) > 0 ? 0 : 1];
   if (p.state === 'hang' && p.hang.kind === 'lad') return ['hangLad', 0];
   if (p.state === 'climb' && p.climb.kind === 'lad') return ['ladder', 0];
   if (p.state === 'hang' && p.hang.kind === 'ledge') return ['hang', Math.sin(view.time * 2.2) > 0 ? 0 : 1];
@@ -144,7 +146,7 @@ function heroWeaponState(p){
 function overlayHeroWeapon(p, clip, def, wx, wy, facing, origin){
   var st = heroWeaponState(p);
   if (st.onBack || (!st.hs && !st.bowHeld)) return;
-  var weap = frameWeapon('hero', clip[0], clip[1]);
+  var weap = frameWeapon(activeHeroId(), clip[0], clip[1]);
   var xy = spriteLocalScreen(wx, wy, facing, origin, def, weap.x, weap.y);
   if (st.bowHeld){
     var bt = p.bowT > 0 ? (1 - p.bowT / C.BOW_ANIM_T) : 0;
@@ -156,10 +158,11 @@ function overlayHeroWeapon(p, clip, def, wx, wy, facing, origin){
 }
 
 function tryHeroSprite(p){
+  var hid = activeHeroId();
   var clip = heroClip(p);
-  var img = spriteFrameImage('hero', clip[0], clip[1]);
+  var img = spriteFrameImage(hid, clip[0], clip[1]);
   if (!img) return false;
-  var def = getSpriteDef('hero');
+  var def = getSpriteDef(hid);
   if (!def) return false;
   var facing = p.facing, wx = p.x, wy = p.y;
   if (p.state === 'hang' && p.hang.kind === 'ledge'){
@@ -167,7 +170,7 @@ function tryHeroSprite(p){
   } else if (p.state === 'climb' && p.climb.kind === 'ledge'){
     wx = p.climb.cx; wy = p.climb.cy; facing = p.climb.facing;
   }
-  var origin = frameOrigin('hero', clip[0], clip[1], def);
+  var origin = frameOrigin(hid, clip[0], clip[1], def);
   blitHeroSprite(img, def, wx, wy, facing, origin, p.rollT > 0 ? p.rollAng : 0);
   overlayHeroWeapon(p, clip, def, wx, wy, facing, origin);
   return true;
@@ -208,6 +211,7 @@ export function boxPose(p){
     if (p.lad.v === G.LADR || p.lad.v === G.LADL) return f ? LADD0 : LADD1;  // диагональ: наклон корпуса
     return f ? LADP0 : LADP1;
   }
+  if (p.state === 'rope') return (Math.sin(animT * 3.1) > 0) ? HANG_A : HANG_B;
   if (p.state === 'hang' && p.hang.kind === 'lad') return HANGL;
   if (p.state === 'climb' && p.climb.kind === 'lad')
     return lerpPose(HANGL, (p.lad && p.lad.v === G.LADF) ? LADF0 : LADP0, p.climb.p);

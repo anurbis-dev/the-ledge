@@ -1,0 +1,291 @@
+/* Кастомные объекты редактора: kind + template + role + spriteId.
+   Черновик — ledge.dev.objects (LS). Поведение берётся из template (builtin kind). */
+import { preferLocal, notifyDraftChange } from './persist.js';
+import { spriteDefForKind, getSpriteDef } from './spriteset.js';
+
+var KEY = 'ledge.dev.objects';
+var ROLES = ['actor', 'pickup', 'loot', 'prop', 'marker'];
+
+var PICKUP_KINDS = { coin:1, gem:1, shroom:1, relic:1, tank:1 };
+var LOOT_KINDS = { key:1, helmet:1, shield:1, sword:1, scuba:1, flippers:1, harpoon:1, bow:1 };
+var PROP_KINDS = { chest:1, chestL:1, torch:1, boulder:1, light:1 };
+var MARKER_KINDS = { sound:1, volume:1, level_exit:1, door:1, player_start:1, rope_v:1, rope_h:1 };
+
+/** Builtin placeable list — source of truth for names/order (editor mutates live ED_OBJS copy). */
+export var BUILTIN_OBJS = [
+  { name: 'Hero / Start', kind: 'player_start' },
+  { name: 'Exit',    kind: 'level_exit' },
+  { name: 'Door',    kind: 'door' },
+  { name: 'Foe 1',   kind: 'enemy0' },
+  { name: 'Foe 2',   kind: 'enemy1' },
+  { name: 'Foe 3',   kind: 'enemy2' },
+  { name: 'Bird',    kind: 'flier0' },
+  { name: 'Bird 2',  kind: 'flier1' },
+  { name: 'Bird 3',  kind: 'flier2' },
+  { name: 'Diver',   kind: 'flier3' },
+  { name: 'Spider',  kind: 'spider0' },
+  { name: 'Spider 2',kind: 'spider1' },
+  { name: 'Spider 3',kind: 'spider2' },
+  { name: 'Sting',   kind: 'tendril0' },
+  { name: 'Grabber', kind: 'tendril1' },
+  { name: 'Torch',   kind: 'torch' },
+  { name: 'Chest',   kind: 'chest' },
+  { name: 'Locked',  kind: 'chestL' },
+  { name: 'Coin',    kind: 'coin' },
+  { name: 'Gem',     kind: 'gem' },
+  { name: 'Shroom',  kind: 'shroom' },
+  { name: 'Relic',   kind: 'relic' },
+  { name: 'Air tank',kind: 'tank' },
+  { name: 'Key',      kind: 'key' },
+  { name: 'Helmet',   kind: 'helmet' },
+  { name: 'Shield',   kind: 'shield' },
+  { name: 'Sword',    kind: 'sword' },
+  { name: 'Scuba',    kind: 'scuba' },
+  { name: 'Flippers', kind: 'flippers' },
+  { name: 'Harpoon',  kind: 'harpoon' },
+  { name: 'Bow',      kind: 'bow' },
+  { name: 'Sound',   kind: 'sound' },
+  { name: 'Light',   kind: 'light' },
+  { name: 'Volume',  kind: 'volume' },
+  { name: 'Boulder', kind: 'boulder' },
+  { name: 'Rope V',  kind: 'rope_v' },
+  { name: 'Rope H',  kind: 'rope_h' },
+  { name: 'Hermit',  kind: 'npc_hermit' },
+  { name: 'Wanderer', kind: 'npc_wanderer' }
+];
+
+var customs = [];
+var byId = {};
+var onChange = null;
+var seq = 1;
+
+function emit(why){
+  writeLocal();
+  notifyDraftChange();
+  if (onChange) onChange(why || 'change');
+}
+
+function writeLocal(){
+  try { localStorage.setItem(KEY, JSON.stringify({ objects: customs })); } catch (_){}
+}
+
+function readLocal(){
+  try {
+    var raw = localStorage.getItem(KEY);
+    if (!raw) return null;
+    var o = JSON.parse(raw);
+    if (o && Array.isArray(o.objects)) return o.objects;
+    if (Array.isArray(o)) return o;
+    return null;
+  } catch (_){ return null; }
+}
+
+function rebuild(){
+  byId = {};
+  var i, o;
+  for (i = 0; i < customs.length; i++){
+    o = customs[i];
+    if (o && o.id) byId[o.id] = o;
+  }
+}
+
+export function builtinRole(kind){
+  if (!kind) return 'prop';
+  if (kind === 'player_start') return 'actor';
+  if (PICKUP_KINDS[kind]) return 'pickup';
+  if (LOOT_KINDS[kind]) return 'loot';
+  if (PROP_KINDS[kind]) return 'prop';
+  if (MARKER_KINDS[kind]) return 'marker';
+  if (/^(enemy|flier|spider|tendril)\d+$/.test(kind) || kind.indexOf('npc_') === 0) return 'actor';
+  return 'prop';
+}
+
+export function builtinSpriteId(kind){
+  if (kind === 'player_start') return 'hero';
+  if (kind === 'light') return 'lantern';
+  var sd = spriteDefForKind(kind);
+  return sd ? sd.id : null;
+}
+
+export function normalizeObject(o){
+  if (!o || !o.id) return null;
+  var role = o.role && ROLES.indexOf(o.role) >= 0 ? o.role : builtinRole(o.template || o.kind);
+  var template = o.template || o.kind || 'coin';
+  return {
+    id: String(o.id),
+    name: String(o.name || 'Object'),
+    template: String(template),
+    role: role,
+    spriteId: o.spriteId ? String(o.spriteId) : null,
+    itemKind: o.itemKind ? String(o.itemKind) : null,
+    custom: true
+  };
+}
+
+function nextId(){
+  var id, n = seq;
+  do {
+    id = 'o_' + n;
+    n++;
+  } while (byId[id]);
+  seq = n;
+  return id;
+}
+
+function boot(){
+  customs = [];
+  if (preferLocal()){
+    var list = readLocal();
+    if (list && list.length){
+      customs = list.map(normalizeObject).filter(Boolean);
+      var i, m;
+      for (i = 0; i < customs.length; i++){
+        m = /^o_(\d+)$/.exec(customs[i].id);
+        if (m) seq = Math.max(seq, (+m[1]) + 1);
+      }
+    }
+  }
+  rebuild();
+}
+
+boot();
+
+export function bindObjectset(hooks){
+  onChange = hooks && hooks.onChange;
+}
+
+export function listObjects(){ return customs.slice(); }
+
+export function getObjectDef(id){
+  if (!id) return null;
+  if (byId[id]) return byId[id];
+  return null;
+}
+
+/** Resolve palette kind → full meta (builtin or custom). */
+export function resolveObject(kind){
+  var c = getObjectDef(kind);
+  if (c) return {
+    name: c.name,
+    kind: c.id,
+    template: c.template,
+    role: c.role,
+    spriteId: c.spriteId,
+    itemKind: c.itemKind,
+    custom: true
+  };
+  var i, b;
+  for (i = 0; i < BUILTIN_OBJS.length; i++){
+    b = BUILTIN_OBJS[i];
+    if (b.kind === kind){
+      return {
+        name: b.name,
+        kind: b.kind,
+        template: b.kind,
+        role: builtinRole(b.kind),
+        spriteId: builtinSpriteId(b.kind),
+        itemKind: (PICKUP_KINDS[b.kind] || LOOT_KINDS[b.kind]) ? b.kind : null,
+        custom: false
+      };
+    }
+  }
+  return null;
+}
+
+export function allPaletteObjects(){
+  var out = [], i, b, c;
+  for (i = 0; i < BUILTIN_OBJS.length; i++){
+    b = BUILTIN_OBJS[i];
+    out.push({
+      name: b.name,
+      kind: b.kind,
+      template: b.kind,
+      role: builtinRole(b.kind),
+      spriteId: builtinSpriteId(b.kind),
+      custom: false
+    });
+  }
+  for (i = 0; i < customs.length; i++){
+    c = customs[i];
+    out.push({
+      name: c.name,
+      kind: c.id,
+      template: c.template,
+      role: c.role,
+      spriteId: c.spriteId,
+      itemKind: c.itemKind,
+      custom: true
+    });
+  }
+  return out;
+}
+
+export function addObject(partial){
+  var id = partial && partial.id && !byId[partial.id] ? String(partial.id) : nextId();
+  var o = normalizeObject({
+    id: id,
+    name: (partial && partial.name) || 'Object',
+    template: (partial && partial.template) || 'coin',
+    role: partial && partial.role,
+    spriteId: partial && partial.spriteId,
+    itemKind: partial && partial.itemKind
+  });
+  if (!o) return null;
+  customs.push(o);
+  rebuild();
+  emit('add');
+  return o;
+}
+
+export function updateObject(id, patch){
+  var o = byId[id], k, next;
+  if (!o) return null;
+  next = {};
+  for (k in o) if (Object.prototype.hasOwnProperty.call(o, k)) next[k] = o[k];
+  for (k in patch) if (k !== 'id' && Object.prototype.hasOwnProperty.call(patch, k)) next[k] = patch[k];
+  next = normalizeObject(next);
+  for (k = 0; k < customs.length; k++)
+    if (customs[k].id === id){ customs[k] = next; break; }
+  rebuild();
+  emit('update');
+  return next;
+}
+
+export function removeObject(id){
+  if (!byId[id]) return false;
+  customs = customs.filter(function(o){ return o.id !== id; });
+  rebuild();
+  emit('remove');
+  return true;
+}
+
+/** Clone builtin or custom into a new custom object. spriteId passed in (already cloned if needed). */
+export function cloneObjectFrom(kind, spriteId){
+  var src = resolveObject(kind);
+  if (!src) return null;
+  var template = src.template || src.kind;
+  var role = src.role || builtinRole(template);
+  var itemKind = src.itemKind || ((PICKUP_KINDS[template] || LOOT_KINDS[template]) ? template : null);
+  var name = (src.name || 'Object').replace(/ \/ Start$/, '') + ' copy';
+  return addObject({
+    name: name,
+    template: template,
+    role: role,
+    spriteId: spriteId != null ? spriteId : (src.spriteId || null),
+    itemKind: itemKind
+  });
+}
+
+export function objectSpriteDef(kind){
+  var meta = resolveObject(kind);
+  if (!meta) return null;
+  if (meta.spriteId) return getSpriteDef(meta.spriteId);
+  return spriteDefForKind(meta.template || kind);
+}
+
+export function isLootRole(role){ return role === 'loot' || role === 'pickup'; }
+export function isLootOnlyRole(role){ return role === 'loot'; }
+
+export function snapshotObjects(){
+  return customs.map(function(o){ return normalizeObject(o); });
+}

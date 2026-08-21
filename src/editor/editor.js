@@ -16,8 +16,15 @@ import {
   customSpecs, addTile, loadImageFile, sliceSheet, guessOverlay, bindTileset, isCustomId,
   getTileDef, updateTile, getTileGfx, removeTile
 } from '../core/tileset.js';
-import { bindTileEdit, openTileEdit, openSpriteEdit, closeTileEdit } from './tile-edit.js';
-import { spriteDefForKind, getSpriteDef, bindSpriteset } from '../core/spriteset.js';
+import {
+  bindTileEdit, openTileEdit, openSpriteEdit, openObjectEdit, closeTileEdit,
+  isDetailsOpen, hitSpriteSlot, applySpriteSlotPayload
+} from './tile-edit.js';
+import { spriteDefForKind, getSpriteDef, bindSpriteset, cloneSpriteDef } from '../core/spriteset.js';
+import {
+  allPaletteObjects, resolveObject, cloneObjectFrom, bindObjectset,
+  isLootRole, isLootOnlyRole, objectSpriteDef
+} from '../core/objectset.js';
 import { bakeBuiltinTileSrc } from '../render/sprite-bake.js';
 import { clearThumbCache } from './thumbs.js';
 import { setEditorRooms, stepRooms } from '../core/rooms.js';
@@ -28,6 +35,11 @@ import { bindGearPanel, renderGearPanel } from './gear-settings.js';
 import { showInspect, bindInspect } from './inspect.js';
 import { bindNpcTalk, openNpcTalk, closeNpcTalk } from './npc-talk.js';
 import { bindBoulderSettings, openBoulderSettings, closeBoulderSettings } from './boulder-settings.js';
+import { bindRopeSettings, openRopeSettings, closeRopeSettings } from './rope-settings.js';
+import { rebuildRope, packRope, ropeHitDist } from '../entities/ropes.js';
+function ropeHitDistSafe(r, x, y){
+  try { return ropeHitDist(r, x, y).dist; } catch (_){ return 999; }
+}
 import { bindAllFloats, bindMiddleScroll, placeFloat, hasFloatPos } from './float.js';
 import { pickSpecial, pickAllSpecial, hitGizmo, beginGizmo, moveGizmo, endGizmo, gizmoActive, drawGizmos } from './gizmos.js';
 import { markLevelDirty as persistDirty, flushLevel, flushAllLevelsStore, bindPersist } from '../core/persist.js';
@@ -90,45 +102,13 @@ export var ED_TILES = [
   { name: 'Plank',   id: G.PLANK, color: '#a9743f' },
   { name: 'Give',    id: G.GIVE,  color: '#4a4069' }
 ];
-export var ED_OBJS = [
-  { name: 'Start',   kind: 'player_start' },
-  { name: 'Exit',    kind: 'level_exit' },
-  { name: 'Door',    kind: 'door' },
-  { name: 'Foe 1',   kind: 'enemy0' },
-  { name: 'Foe 2',   kind: 'enemy1' },
-  { name: 'Foe 3',   kind: 'enemy2' },
-  { name: 'Bird',    kind: 'flier0' },
-  { name: 'Bird 2',  kind: 'flier1' },
-  { name: 'Bird 3',  kind: 'flier2' },
-  { name: 'Diver',   kind: 'flier3' },
-  { name: 'Spider',  kind: 'spider0' },
-  { name: 'Spider 2',kind: 'spider1' },
-  { name: 'Spider 3',kind: 'spider2' },
-  { name: 'Sting',   kind: 'tendril0' },
-  { name: 'Grabber', kind: 'tendril1' },
-  { name: 'Torch',   kind: 'torch' },
-  { name: 'Chest',   kind: 'chest' },
-  { name: 'Locked',  kind: 'chestL' },
-  { name: 'Coin',    kind: 'coin' },
-  { name: 'Gem',     kind: 'gem' },
-  { name: 'Shroom',  kind: 'shroom' },
-  { name: 'Relic',   kind: 'relic' },
-  { name: 'Air tank',kind: 'tank' },
-  { name: 'Key',      kind: 'key' },
-  { name: 'Helmet',   kind: 'helmet' },
-  { name: 'Shield',   kind: 'shield' },
-  { name: 'Sword',    kind: 'sword' },
-  { name: 'Scuba',    kind: 'scuba' },
-  { name: 'Flippers', kind: 'flippers' },
-  { name: 'Harpoon',  kind: 'harpoon' },
-  { name: 'Bow',      kind: 'bow' },
-  { name: 'Sound',   kind: 'sound' },
-  { name: 'Light',   kind: 'light' },
-  { name: 'Volume',  kind: 'volume' },
-  { name: 'Boulder', kind: 'boulder' },
-  { name: 'Hermit',  kind: 'npc_hermit' },
-  { name: 'Wanderer', kind: 'npc_wanderer' }
-];
+export var ED_OBJS = allPaletteObjects();
+
+function rebuildEdObjs(){
+  ED_OBJS.length = 0;
+  var list = allPaletteObjects(), i;
+  for (i = 0; i < list.length; i++) ED_OBJS.push(list[i]);
+}
 
 /* предметы, которые можно тащить в сундук/врага; часть из них (не coin/gem/shroom)
    не работают как отдельный мировой предмет — только как содержимое лута */
@@ -138,6 +118,40 @@ var LOOT_ONLY_KINDS = { key:1, helmet:1, shield:1, sword:1, scuba:1, flippers:1,
 var LOOT_NAMES = { key:'Key', coin:'Coin', gem:'Gem', shroom:'Shroom', helmet:'Helmet',
                     shield:'Shield', sword:'Sword', scuba:'Scuba', flippers:'Flippers',
                     harpoon:'Harpoon', bow:'Bow' };
+
+function palObjMeta(spec){
+  if (!spec) return null;
+  return resolveObject(spec.kind) || spec;
+}
+function palObjRole(spec){
+  var m = palObjMeta(spec);
+  return (m && m.role) || 'prop';
+}
+function palIsLooty(spec){
+  var m = palObjMeta(spec);
+  if (!m) return false;
+  if (m.custom) return isLootRole(m.role);
+  return !!LOOT_KINDS[m.template || m.kind];
+}
+function palIsLootOnly(spec){
+  var m = palObjMeta(spec);
+  if (!m) return false;
+  if (m.custom) return isLootOnlyRole(m.role);
+  return !!LOOT_ONLY_KINDS[m.template || m.kind];
+}
+function palLootKind(spec){
+  var m = palObjMeta(spec);
+  if (!m) return null;
+  return m.itemKind || m.template || m.kind;
+}
+function openPalDetails(spec, clientX, clientY){
+  if (!spec) return;
+  if (spec.kind != null){
+    openObjectEdit(palObjMeta(spec), clientX, clientY);
+    return;
+  }
+  openTileEdit(spec, clientX, clientY);
+}
 
 /* сундук или враг под указанной мировой точкой — цель для добавления/просмотра лута */
 function findLootTargetAt(wx, wy){
@@ -272,7 +286,19 @@ bindTileEdit({
     scheduleBake();
     edRefresh();
   },
-  onDeleteCustom: function(id){ return deleteCustomTileById(id); }
+  onDeleteCustom: function(id){ return deleteCustomTileById(id); },
+  onObjectChange: function(){
+    rebuildEdObjs();
+    markLevelDirty();
+    edRefresh();
+  }
+});
+bindObjectset({
+  onChange: function(){
+    rebuildEdObjs();
+    clearThumbCache();
+    edRefresh();
+  }
 });
 bindTileset({
   onChange: function(){
@@ -291,6 +317,7 @@ bindSpriteset({
 });
 bindNpcTalk({ onChange: function(){ markLevelDirty(); } });
 bindBoulderSettings({ onChange: function(){ markLevelDirty(); } });
+bindRopeSettings({ onChange: function(){ markLevelDirty(); } });
 bindAllFloats();
 if (edBar) bindMiddleScroll(edBar, edPal);
 bindPersist({ water: waterExport, onFlush: scheduleBake });
@@ -300,6 +327,10 @@ bindHistory({
       invalidateAll();
       buildWater();
       renderLayersPanel();
+      var Srest = world();
+      if (Srest && Srest.ropes){
+        for (var ri = 0; ri < Srest.ropes.length; ri++) rebuildRope(Srest.ropes[ri]);
+      }
       if (ED.sel && ED.sel.obj){
         var still = findByIdRestored(ED.sel);
         if (still) selectSpecial(still);
@@ -314,11 +345,24 @@ bindHistory({
 function findByIdRestored(sel){
   var S = world();
   if (!S || !sel || !sel.obj) return null;
-  var arr = sel.type === 'light' ? S.lights : sel.type === 'sound' ? S.sounds : sel.type === 'volume' ? S.volumes : null;
+  var arr = sel.type === 'light' ? S.lights
+    : sel.type === 'sound' ? S.sounds
+    : sel.type === 'volume' ? S.volumes
+    : sel.type === 'rope' ? S.ropes
+    : null;
   if (!arr) return null;
   var id = sel.obj.id, i;
-  for (i = 0; i < arr.length; i++) if (arr[i].id === id) return { type: sel.type, obj: arr[i] };
-  return arr.length ? { type: sel.type, obj: arr[0] } : null;
+  for (i = 0; i < arr.length; i++){
+    if (arr[i].id === id){
+      if (sel.type === 'rope') rebuildRope(arr[i]);
+      return { type: sel.type, obj: arr[i] };
+    }
+  }
+  if (arr.length){
+    if (sel.type === 'rope') rebuildRope(arr[0]);
+    return { type: sel.type, obj: arr[0] };
+  }
+  return null;
 }
 
 function syncUndoBtns(){
@@ -438,10 +482,33 @@ function startPaletteDrag(e, kind, pal, img){
     window.removeEventListener('pointermove', move);
     window.removeEventListener('pointerup', up);
     window.removeEventListener('pointercancel', up);
+    var dKind = ED.dragPal.kind, dPal = ED.dragPal.pal;
+    if (ED.dragPal.moved && isDetailsOpen() && hitSpriteSlot(ev.clientX, ev.clientY)){
+      var payload = null;
+      if (dKind === 'obj'){
+        var om = palObjMeta(ED_OBJS[dPal]);
+        var sid = om && (om.spriteId || (om.template === 'player_start' ? 'hero' : null));
+        if (!sid && om){
+          var sdO = objectSpriteDef(om.kind);
+          if (sdO) sid = sdO.id;
+        }
+        if (sid) payload = { spriteId: sid };
+      } else if (dKind === 'tile'){
+        var tiles = palTiles();
+        var tspec = tiles[dPal];
+        var tdef = tspec && tspec.id != null ? getTileDef(tspec.id) : null;
+        var tsrc = (tdef && (tdef.src || (tdef.frames && tdef.frames[0]))) ||
+          (tspec && bakeBuiltinTileSrc(tspec));
+        if (tsrc) payload = { tileSrc: tsrc, tileName: (tspec && tspec.name) || 'Tile' };
+      }
+      if (payload) applySpriteSlotPayload(payload);
+      ED.dragPal = null;
+      if (ghost) ghost.hidden = true;
+      return;
+    }
     var r = cv.getBoundingClientRect();
     var over = ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom;
     if (over && ED.dragPal.moved){
-      var dKind = ED.dragPal.kind, dPal = ED.dragPal.pal;
       if (dKind === 'sprite'){
         var sdef = getSpriteDef(dPal);
         var spal = sdef ? objPalForKind(sdef.kind) : -1;
@@ -454,16 +521,17 @@ function startPaletteDrag(e, kind, pal, img){
         dPal = spal;
       }
       var ospec = dKind === 'obj' ? ED_OBJS[dPal] : null;
-      if (ospec && LOOT_KINDS[ospec.kind]){
+      if (ospec && palIsLooty(ospec)){
         var wcellD = edCell(ev.clientX, ev.clientY, true);
         var lootHit = findLootTargetAt(wcellD.x, wcellD.y);
+        var lootK = palLootKind(ospec);
         if (lootHit){
-          openChestAdd(lootHit.obj, ospec.kind, ev.clientX, ev.clientY);
+          openChestAdd(lootHit.obj, lootK, ev.clientX, ev.clientY);
           ED.dragPal = null;
           if (ghost) ghost.hidden = true;
           return;
         }
-        if (LOOT_ONLY_KINDS[ospec.kind]){
+        if (palIsLootOnly(ospec)){
           ED.dragPal = null;
           if (ghost) ghost.hidden = true;
           return;
@@ -509,7 +577,11 @@ function fillPal(){
     for (var j = 0; j < tiles.length; j++){
       (function(k){
         var spec = tiles[k];
-        var sw = swatch(edPal, tileThumb(spec, ED.icon), spec.name + (spec.overlay ? ' (overlay)' : ''), ED.tool === 'tile' && ED.pal === k, function(){ ED.tool = 'tile'; ED.pal = k; }, 'tile', k);
+        var sw = swatch(edPal, tileThumb(spec, ED.icon), spec.name + (spec.overlay ? ' (overlay)' : ''), ED.tool === 'tile' && ED.pal === k, function(){
+          ED.tool = 'tile';
+          ED.pal = k;
+          if (isDetailsOpen()) openTileEdit(spec);
+        }, 'tile', k);
         if (spec.overlay) sw.classList.add('deco');
         sw.addEventListener('dblclick', function(e){
           e.preventDefault(); e.stopPropagation();
@@ -527,22 +599,29 @@ function fillPal(){
     for (var m = 0; m < ED_OBJS.length; m++){
       (function(k){
         var spec = ED_OBJS[k];
-        var sw = swatch(edPal, objThumb(spec.kind, ED.icon), spec.name, ED.pal === k, function(){ ED.pal = k; }, 'obj', k);
-        if (LOOT_ONLY_KINDS[spec.kind]) sw.title = spec.name + ' — drag onto a chest, enemy or bird';
-        else if (spec.kind === 'player_start') sw.title = 'Start — place spawn · double-click edits Hero frames';
-        else {
-          var sd0 = spriteDefForKind(spec.kind);
-          if (sd0) sw.title = spec.name + ' — stamp · double-click edits frames';
-        }
+        var meta = palObjMeta(spec);
+        var thumbKind = (meta && meta.template) || spec.kind;
+        var sw = swatch(edPal, objThumb(thumbKind, ED.icon), spec.name, ED.pal === k, function(){
+          ED.tool = 'obj';
+          ED.pal = k;
+          if (isDetailsOpen()) openPalDetails(spec);
+        }, 'obj', k);
+        if (palIsLootOnly(spec)) sw.title = spec.name + ' — drag onto a chest, enemy or bird';
+        else if (thumbKind === 'player_start') sw.title = 'Hero / Start — place spawn · Details edits hero frames';
+        else sw.title = spec.name + (spec.custom ? ' (custom)' : '') + ' — stamp · Details edits params/sprite';
         sw.addEventListener('dblclick', function(e){
-          var sd = spriteDefForKind(spec.kind);
-          if (!sd && spec.kind === 'player_start') sd = getSpriteDef('hero');
-          if (!sd) return;
           e.preventDefault(); e.stopPropagation();
-          openSpriteEdit(sd, e.clientX, e.clientY);
+          ED.pal = k;
+          ED.tool = 'obj';
+          openPalDetails(spec, e.clientX, e.clientY);
+          edRefresh();
         });
       })(m);
     }
+    var oh = document.createElement('div');
+    oh.className = 'ed-pal-hint';
+    oh.textContent = 'Double-click Details · click switches if open · Ctrl+D clone object · drop swatch on Sprite slot';
+    edPal.appendChild(oh);
   }
 }
 
@@ -654,6 +733,7 @@ export function edClose(){
   showInspect(null);
   closeNpcTalk();
   closeBoulderSettings();
+  closeRopeSettings();
   closeTileEdit();
   ED.sel = null;
   ED.selTiles = null;
@@ -715,12 +795,14 @@ function brushDeco(c, r){
 
 function selectSpecial(sel){
   ED.sel = sel;
+  if (sel && sel.type === 'rope'){ showInspect(null); return; }
   showInspect(sel);
 }
 
 function isSpecialKind(kind){
   return kind === 'sound' || kind === 'light' || kind === 'volume'
-    || kind === 'player_start' || kind === 'level_exit' || kind === 'door';
+    || kind === 'player_start' || kind === 'level_exit' || kind === 'door'
+    || kind === 'rope' || kind === 'rope_v' || kind === 'rope_h';
 }
 
 function exitsList(){
@@ -789,14 +871,46 @@ function spawnMarker(){
   return lv.spawn;
 }
 
-function placePlayerStart(cell){
-  var T = G.T, box = G.getAnimBox('hero', 'idle') || { w: 10, h: 22 };
+function placePlayerStart(cell, spriteId){
   var spawn = spawnMarker(), S = world();
   if (!spawn) return;
+  var sid = spriteId || spawn.spriteId || 'hero';
+  var T = G.T, box = G.getAnimBox(sid, 'idle') || G.getAnimBox('hero', 'idle') || { w: 10, h: 22 };
   spawn.x = Math.round(cell.c * T + 8 - box.w / 2);
   spawn.y = Math.round((cell.r + 1) * T - box.h);
+  spawn.spriteId = sid;
   if (S && S.respawn){ S.respawn.x = spawn.x; S.respawn.y = spawn.y; }
   selectSpecial({ type: 'player_start', obj: spawn });
+}
+
+function duplicatePalObject(){
+  if (ED.tab !== 'obj' && ED.tool !== 'obj') return false;
+  var spec = ED_OBJS[ED.pal];
+  if (!spec) return false;
+  var meta = palObjMeta(spec);
+  if (!meta) return false;
+  var srcSid = meta.spriteId;
+  if (!srcSid && meta.template === 'player_start') srcSid = 'hero';
+  if (!srcSid){
+    var sd = objectSpriteDef(meta.kind) || spriteDefForKind(meta.template);
+    if (sd) srcSid = sd.id;
+  }
+  var newSid = null;
+  if (srcSid){
+    var cloned = cloneSpriteDef(srcSid, (meta.name || 'Sprite').replace(/ \/ Start$/, '') + ' copy');
+    if (cloned) newSid = cloned.id;
+  }
+  var obj = cloneObjectFrom(meta.kind, newSid);
+  if (!obj) return false;
+  rebuildEdObjs();
+  ED.tool = 'obj';
+  ED.tab = 'obj';
+  fillPal();
+  var i;
+  for (i = 0; i < ED_OBJS.length; i++) if (ED_OBJS[i].kind === obj.id){ ED.pal = i; break; }
+  openObjectEdit(palObjMeta(ED_OBJS[ED.pal]));
+  edRefresh();
+  return true;
 }
 
 function duplicatePalTile(){
@@ -1213,6 +1327,11 @@ function edEraseObjects(cell){
   if (S.volumes) S.volumes = S.volumes.filter(function(v){
     return Math.abs(v.x + v.w/2 - ox) >= v.w/2 + 4 || Math.abs(v.y + v.h/2 - oy) >= v.h/2 + 4;
   });
+  if (S.ropes) S.ropes = S.ropes.filter(function(r){
+    return !(Math.abs(r.ax - ox) < 14 && Math.abs(r.ay - oy) < 18)
+      && !(Math.abs(r.bx - ox) < 14 && Math.abs(r.by - oy) < 18)
+      && ropeHitDistSafe(r, ox, oy) >= 10;
+  });
   /* двери: попадание по створке + снос пары */
   list = S.doors || [];
   drop = {};
@@ -1374,9 +1493,13 @@ function edPlaceObject(cell){
   var T = G.T;
   var spec = ED_OBJS[ED.pal];
   if (!spec) return;
-  var kind = spec.kind;
+  var meta = palObjMeta(spec);
+  var kind = (meta && meta.template) || spec.kind;
+  var spriteId = meta && meta.spriteId;
+  if (!spriteId && kind === 'player_start') spriteId = 'hero';
+  var itemKind = (meta && meta.itemKind) || kind;
   var cx = cell.c*T + 8, cy = cell.r*T + 8, floorY = (cell.r + 1)*T;
-  if (kind === 'player_start'){ placePlayerStart(cell); return; }
+  if (kind === 'player_start'){ placePlayerStart(cell, spriteId); return; }
   if (occupiedByKind(kind, cell, kind === 'door' ? ED.doorPending : null)) return;
   if (kind === 'level_exit'){ placeLevelExit(cell); return; }
   if (kind === 'door'){ placeDoorPair(cell); return; }
@@ -1384,21 +1507,27 @@ function edPlaceObject(cell){
   if (kind === 'sound'){ selectSpecial({ type: 'sound', obj: G.mkSoundAt(S, cx, cy) }); return; }
   if (kind === 'light'){ selectSpecial({ type: 'light', obj: G.mkLightAt(S, cx, cy) }); return; }
   if (kind === 'volume'){ selectSpecial({ type: 'volume', obj: G.mkVolumeAt(S, cx, cy) }); return; }
-  if (LOOT_KINDS[kind]){
-    var lootAt = findLootTargetAt(cx, cy);
-    if (lootAt){ addLoot(lootAt.obj, kind, 1); return; }
-    if (LOOT_ONLY_KINDS[kind]) return;
+  if (kind === 'rope_v' || kind === 'rope_h'){
+    var rope = G.mkRopeAt(S, cx, cy, kind === 'rope_h' ? 'h' : 'v');
+    ED.sel = { type: 'rope', obj: rope };
+    showInspect(null);
+    return;
   }
-  if (kind.indexOf('enemy') === 0) G.mkEnemyAt(S, cx - 5, floorY, +kind.slice(5));
-  else if (kind.indexOf('flier') === 0) G.mkFlierAt(S, cx - 6, cy - 4, +kind.slice(5));
-  else if (kind.indexOf('spider') === 0) G.mkSpiderAt(S, cx, floorY, +kind.slice(6));
+  if (palIsLooty(spec) || LOOT_KINDS[kind]){
+    var lootAt = findLootTargetAt(cx, cy);
+    if (lootAt){ addLoot(lootAt.obj, itemKind, 1); return; }
+    if (palIsLootOnly(spec) || LOOT_ONLY_KINDS[kind]) return;
+  }
+  if (kind.indexOf('enemy') === 0) G.mkEnemyAt(S, cx - 5, floorY, +kind.slice(5), null, false, spriteId);
+  else if (kind.indexOf('flier') === 0) G.mkFlierAt(S, cx - 6, cy - 4, +kind.slice(5), null, false, spriteId);
+  else if (kind.indexOf('spider') === 0) G.mkSpiderAt(S, cx, floorY, +kind.slice(6), spriteId);
   else if (kind.indexOf('tendril') === 0) G.mkTendrilAt(S, cx, cy, +kind.slice(7));
   else if (kind === 'torch') G.mkTorchAt(S, cx, floorY);
   else if (kind === 'chest') G.mkChestAt(S, cell.c*T, floorY, [{ kind:'coin', qty:5 }], false);
   else if (kind === 'chestL') G.mkChestAt(S, cell.c*T, floorY, [{ kind:'gem', qty:3 }], true);
   else if (kind === 'boulder') G.mkBoulderAt(S, cx, floorY);
-  else if (kind.indexOf('npc_') === 0) G.mkNpcAt(S, cx, floorY, kind.slice(4));
-  else G.mkItemAt(S, cx, cy, kind);
+  else if (kind.indexOf('npc_') === 0) G.mkNpcAt(S, cx, floorY, kind.slice(4), null, null, spriteId);
+  else G.mkItemAt(S, cx, cy, itemKind, spriteId);
 }
 function edPaintSlope(cell, brush){
   var S = world();
@@ -1496,6 +1625,9 @@ export function edExportText(){
     return side
       ? '[' + col + ',' + row + ',' + td.kind + ',' + side + ']'
       : '[' + col + ',' + row + ',' + td.kind + ']';
+  }).join(',') + '],');
+  out.push('ropes: [' + (S.ropes || []).map(function(r){
+    return JSON.stringify(packRope(r));
   }).join(',') + '],');
   out.push('torches: [' + S.torches.map(function(t){
     return '[' + Math.floor(t.x / T) + ',' + (Math.floor(t.y / T) - 1) + ']';
@@ -2036,6 +2168,7 @@ cv.addEventListener('pointerdown', function(e){
   closeChestList();
   closeNpcTalk();
   closeBoulderSettings();
+  closeRopeSettings();
   if (e.ctrlKey || e.metaKey){
     if (ED.color && ED.tool === 'tile'){
       pickColor(cell);
@@ -2182,6 +2315,8 @@ function edUp(e){
       openNpcTalk(ph.obj, ED.pendHit.x, ED.pendHit.y);
     else if (ph && ph.type === 'boulder')
       openBoulderSettings(ph.obj, ED.pendHit.x, ED.pendHit.y);
+    else if (ph && ph.type === 'rope')
+      openRopeSettings(ph.obj, ED.pendHit.x, ED.pendHit.y);
   }
   ED.dragObj = null;
   ED.pendHit = null;
@@ -2364,7 +2499,7 @@ addEventListener('keydown', function(e){
   }
   if (ED.on && (e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')){
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-    if (duplicatePalTile()){
+    if (duplicatePalObject() || duplicatePalTile()){
       e.preventDefault();
       return;
     }
@@ -2462,6 +2597,7 @@ function deleteSelected(){
   if (t === 'light') S.lights = (S.lights || []).filter(function(x){ return x !== o; });
   else if (t === 'sound') S.sounds = (S.sounds || []).filter(function(x){ return x !== o; });
   else if (t === 'volume') S.volumes = (S.volumes || []).filter(function(x){ return x !== o; });
+  else if (t === 'rope') S.ropes = (S.ropes || []).filter(function(x){ return x !== o; });
   else if (t === 'player_start'){
     spawn = spawnMarker();
     if (spawn){ spawn.x = 16; spawn.y = 6 * G.T - 22; }

@@ -3,6 +3,7 @@ import { runtime } from './runtime.js';
 import { stashLayers } from './layers.js';
 import { BAKED } from './defaults.js';
 import { BOULDER_DEF } from '../entities/boulders.js';
+import { packRope } from '../entities/ropes.js';
 import { ensureLevelExits } from '../entities/doors.js';
 
 var KEY = 'ledge.dev.levels';
@@ -134,6 +135,7 @@ function packLevel(lv){
     fliers: lv.fliers || [],
     spiders: lv.spiders || [],
     tendrils: lv.tendrils || [],
+    ropes: lv.ropes || [],
     torches: lv.torches || [],
     chests: lv.chests || [],
     npcs: lv.npcs || [],
@@ -166,6 +168,7 @@ function applyRecord(lv, rec){
   if (rec.fliers) lv.fliers = rec.fliers;
   if (rec.spiders) lv.spiders = rec.spiders;
   if (rec.tendrils) lv.tendrils = rec.tendrils;
+  if (rec.ropes) lv.ropes = rec.ropes;
   if (rec.torches) lv.torches = rec.torches;
   if (rec.chests) lv.chests = rec.chests;
   if (rec.npcs) lv.npcs = rec.npcs;
@@ -224,7 +227,7 @@ function makeBlank(rec){
     lights: rec.lights || [], sounds: rec.sounds || [], volumes: rec.volumes || [],
     items: function(){ return items.map(function(a){ return a.slice(); }); },
     enemies: rec.enemies || [], fliers: rec.fliers || [],
-    spiders: rec.spiders || [], tendrils: rec.tendrils || [],
+    spiders: rec.spiders || [], tendrils: rec.tendrils || [], ropes: rec.ropes || [],
     torches: rec.torches || [], chests: rec.chests || [], npcs: rec.npcs || [],
     doors: rec.doors || [], lifts: rec.lifts || [], plats: rec.plats || [], dark: rec.dark || [],
     boulders: rec.boulders || [],
@@ -270,23 +273,27 @@ function writeObjects(lv, S){
   lv.enemies = (S.enemies || []).filter(function(e){ return !e.dead; }).map(function(e){
     var t = [Math.round(e.x), Math.round(e.y + e.h), Math.round(e.x0), Math.round(e.x1),
              Math.round(e.v), e.kind];
-    if (e.loot && e.loot.length){
-      t.push(e.loot.map(function(x){ return [x.kind, x.qty]; }));
+    if ((e.loot && e.loot.length) || e.spriteId){
+      t.push((e.loot || []).map(function(x){ return [x.kind, x.qty]; }));
       t.push(!!e.random);
+      if (e.spriteId) t.push(e.spriteId);
     }
     return t;
   });
   lv.fliers = (S.fliers || []).map(function(f){
     var t = [Math.round(f.x), Math.round(f.y), Math.round(f.x0), Math.round(f.x1),
              Math.round(f.v), f.kind];
-    if (f.loot && f.loot.length){
-      t.push(f.loot.map(function(x){ return [x.kind, x.qty]; }));
+    if ((f.loot && f.loot.length) || f.spriteId){
+      t.push((f.loot || []).map(function(x){ return [x.kind, x.qty]; }));
       t.push(!!f.random);
+      if (f.spriteId) t.push(f.spriteId);
     }
     return t;
   });
   lv.spiders = (S.spiders || []).filter(function(s){ return !s.dead; }).map(function(s){
-    return [Math.floor(s.hx / T), Math.floor(s.hy / T) - 1, s.kind];
+    var row = [Math.floor(s.hx / T), Math.floor(s.hy / T) - 1, s.kind];
+    if (s.spriteId) row.push(s.spriteId);
+    return row;
   });
   lv.tendrils = (S.tendrils || []).filter(function(td){ return !td.dead; }).map(function(td){
     var col = td.col, row = td.row, side = td.side || 0;
@@ -297,6 +304,7 @@ function writeObjects(lv, S){
     }
     return side ? [col, row, td.kind, side] : [col, row, td.kind];
   });
+  lv.ropes = (S.ropes || []).map(packRope);
   lv.torches = (S.torches || []).filter(function(t){ return !t.held; }).map(function(t){
     return [Math.floor(t.x / T), Math.floor(t.y / T) - 1];
   });
@@ -310,10 +318,14 @@ function writeObjects(lv, S){
     var row = [Math.floor((n.x + 5) / T), Math.floor((n.y + 18) / T) - 1,
                n.tree || 'hermit', n.facing != null ? n.facing : -1];
     if (n.dialog && n.dialog.nodes) row.push(JSON.parse(JSON.stringify(n.dialog)));
+    else if (n.spriteId) row.push(null);
+    if (n.spriteId) row.push(n.spriteId);
     return row;
   });
   var items = (S.items || []).filter(function(it){ return !it.got; }).map(function(it){
-    return [Math.floor(it.x / T), Math.floor(it.y / T), it.kind];
+    var row = [Math.floor(it.x / T), Math.floor(it.y / T), it.kind];
+    if (it.spriteId){ row.push(0); row.push(it.spriteId); }
+    return row;
   });
   lv.items = function(){ return items.map(function(a){ return a.slice(); }); };
   lv.lights = (S.lights || []).map(function(L){
