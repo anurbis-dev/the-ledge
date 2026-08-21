@@ -352,15 +352,27 @@ export function step(S, dt, inp){
 
   var cxw = p.x + p.w/2;
   var wetCenter = isWaterV(tileAt(Math.floor(cxw/T), Math.floor((p.y + p.h/2)/T)));
-  var surf0 = wetCenter ? waterSurfaceY(cxw, p.y + p.h/2) : null;
+  var wetFeet = isWaterV(tileAt(Math.floor(cxw/T), Math.floor((p.y + p.h - 1)/T)));
+  var surf0 = wetCenter ? waterSurfaceY(cxw, p.y + p.h/2)
+    : (wetFeet ? waterSurfaceY(cxw, p.y + p.h - 1) : null);
   // вброд: стоим на дне и голова над водой — обычная физика, можно прыгать
   var standsOnBottom = false;
   for (var wb = 0; wb <= 8 && !standsOnBottom; wb++)
     if (!rectFree(p.x + 1, p.y + p.h + wb, p.w - 2, 1)) standsOnBottom = true;
-  var wading = wetCenter && standsOnBottom && surf0 !== null && surf0 > p.y + 4;
+  var wading = (wetCenter || wetFeet) && standsOnBottom && surf0 !== null && surf0 > p.y + 4;
   var inWater = wetCenter && !wading;
   p.wading = wading;
   p.inWater = inWater;
+  if (wading && surf0 !== null) p.swimSurf = surf0;
+  var wetContact = inWater || wading;
+  if (wetContact){
+    if (!p.wasWet){
+      p.wasWet = true; p.events.push('splash');
+      if (inWater && p.vy > 48) p.vy = 48;             // вход вплавь — короткий нырок
+    }
+  } else if (p.wasWet){
+    p.wasWet = false; p.apexY = p.y; p.events.push('splash');
+  }
   if (inWater && p.swimLaunch > 0 && p.vy < 0){          // выпрыгнули — летим свободно только вверх
     p.swimLaunch -= dt;
     p.vy += C.GRAV * dt;
@@ -376,10 +388,6 @@ export function step(S, dt, inp){
       p.swimLaunch = 0;
       if (p.vy > 48) p.vy = 48;
       else if (p.vy < 22) p.vy = 22;
-    }
-    if (!p.wasWet){
-      p.wasWet = true; p.events.push('splash');
-      if (p.vy > 48) p.vy = 48;                       // вход — короткий нырок
     }
     if (p.vy > 52) p.vy = 52;
     if (p.vy > 0 && dip > 8) p.vy *= 0.82;            // вязкость вниз
@@ -447,9 +455,6 @@ export function step(S, dt, inp){
     p.buf = 0;
   } else {
     if (p.swimLaunch > 0) p.swimLaunch = Math.max(0, p.swimLaunch - dt);
-    if (p.wasWet && !p.wading){
-      p.wasWet = false; p.apexY = p.y; p.events.push('splash');
-    }
     p.atSurface = false;
     p.swimAng += (0 - p.swimAng) * Math.min(1, dt * 6);
     p.vy += C.GRAV * dt;
@@ -525,7 +530,7 @@ export function step(S, dt, inp){
     }
     p.vy = 0; p.coyote = C.COYOTE; p.jumping = false; p.lastWall = 0; p.lock = 0;
     if (wasAir){
-      var wetFeet = isWaterV(tileAt(Math.floor(cxw/T), Math.floor((p.y + p.h - 1)/T)));
+      wetFeet = isWaterV(tileAt(Math.floor(cxw/T), Math.floor((p.y + p.h - 1)/T)));
       var fall = (p.inWater || p.wading || wetCenter || wetFeet) ? 0 : (p.y - p.apexY);
       p.fell = fall;
       if (fall > C.SAFE){
@@ -548,12 +553,13 @@ export function step(S, dt, inp){
       p.apexY = p.y;
     }
     if (p.state === 'normal' && !rolling){
-      // стоим на верхней перекладине и жмём вниз — мягко липнем на лестницу
+      // верх перекладины: ↓ без бокового хода — мягко липнем; ↑/вбок не тянут обратно
       var lt = ladderTopUnder(p, p.y + p.h + 1);
-      if (lt !== null && (inp.downPressed || inp.downHeld) && p.stance === 0){
+      if (lt !== null && (inp.downPressed || inp.downHeld) && p.stance === 0 &&
+          Math.abs(inp.x) <= 0.35){
         var lc = Math.floor((p.x + p.w/2) / T);
         var lr = Math.floor((lt + 2) / T);
-        if (ladderTile(lc, lr) && towardLadAxis(p, lc, inp.x)){
+        if (ladderTile(lc, lr) && towardLadAxis(p, lc, 0)){
           mountLad(p, lc * T + T / 2 - p.w / 2, lt - Math.round(p.h / 2),
             tileAt(lc, lr), lc, 0, 0, lc, lr);
           return;

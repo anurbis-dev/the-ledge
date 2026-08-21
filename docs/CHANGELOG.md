@@ -1,3 +1,3 @@
 # Changelog (unreleased)
 
-- Ladder: soft mount only when approaching axis (`towardLadAxis`); leaving with vx/inp away no longer remagnetizes. Exit lerp kept.
+- Ladder top: ↑ / ↓+side no longer remount into the column; ↓ alone still soft-sticks.

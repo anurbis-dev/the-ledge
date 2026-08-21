@@ -32,7 +32,7 @@ export function mkPlayer(){
     atkT: 0, atkCd: 0, hurtCd: 0, snap: null, pickT: 0, pickPend: null, pickWall: false, throwT: 0, throwPend: false, bowT: 0, bowReady: false,
     grapple: null, harpoonCd: 0,
     stance: 0, bars: null, ladCd: 0, inWater: false, wading: false,
-    atSurface: false, swimSurf: null, swimAng: 0, wasWet: false, bubT: 0,
+    atSurface: false, swimSurf: null, swimAng: 0, wasWet: false, rippleT: 0, bubT: 0,
     air: C.AIR_MAX, swimLaunch: 0, stam: C.STAM_MAX, dashT: 0,
     stanceT: 0, stanceFrom: 0, lookUp: 0, pushWall: false,
     gapCrawl: false, edgeHoldT: 0,
@@ -322,7 +322,7 @@ export function bestLand(cx, cy, facing){
 }
 function dryOff(p){
   p.inWater = false; p.wading = false; p.atSurface = false; p.wasWet = false;
-  p.swimLaunch = 0; p.apexY = p.y;
+  p.rippleT = 0; p.swimLaunch = 0; p.apexY = p.y;
 }
 function pixSolid(px, py){
   return tileBlocks(Math.floor(px / T), Math.floor(py / T), py, 1, px, 1);
@@ -960,18 +960,21 @@ export function attach(p, kind, col, ox, oy){
   p.state = 'ladder'; p.vx = 0; p.vy = 0; p.onGround = false; p.ride = null;
   p.events.push('onladder');
 }
-/* true если не уходим от оси лестницы (vx / inp.x против toward) */
+/* true если не уходим от оси (vx / inp.x против toward) */
 export function towardLadAxis(p, col, inpX){
   var toward = col * T + T / 2 - (p.x + p.w / 2);
-  if (Math.abs(toward) <= 2) return true;
-  if (Math.abs(p.vx) > 40 && toward * p.vx < 0) return false;
-  if (inpX && toward * inpX < 0) return false;
+  if (inpX && Math.abs(toward) > 2 && toward * inpX < 0) return false;
+  if (Math.abs(p.vx) > 40 && Math.abs(toward) > 2 && toward * p.vx < 0) return false;
   return true;
 }
 export function tryLadder(S, p, inp){
   if (p.rollT > 0 || (p.ladCd || 0) > 0) return false;
   var up = inp.upPressed || inp.upHeld, dn = inp.downPressed || inp.downHeld;
   if (!up && !dn) return false;
+  // верх перекладины: ↑ не затягивает обратно в колонну; ↓+вбок — сход, не mount
+  var onTop = p.onGround && ladderTopUnder(p, p.y + p.h + 1) !== null;
+  if (onTop && up && !dn) return false;
+  if (onTop && dn && Math.abs(inp.x) > 0.35) return false;
   var cx = p.x + p.w/2, probes = [];
   if (p.onGround){
     if (up) probes.push([cx, p.y + 8], [cx, p.y + p.h - 4], [cx, p.y + 3]);

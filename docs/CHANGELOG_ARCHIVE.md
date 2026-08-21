@@ -2,6 +2,10 @@
 
 ## 2026-08-21 (pre-commit)
 
+- Ladder: soft mount only when approaching axis (`towardLadAxis`); leaving with vx/inp away no longer remagnetizes. Exit lerp kept.
+
+## 2026-08-21 (pre-commit)
+
 - Ladder mount (`tryLadder` / `autoLadder` / top ↓): soft `mountLad` ease-snap instead of hard teleport onto rail.
 
 ## 2026-08-21 (pre-commit)
