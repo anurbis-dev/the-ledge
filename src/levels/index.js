@@ -44,7 +44,7 @@ export function addBlankLevel(){
     spawn: { x: 16, y: 6 * 16 - 22 },
     exit: null,
     exits: [],
-    lights: [], sounds: [], volumes: [],
+    lights: [], sounds: [], volumes: [], emitters: [],
     items: function(){ return []; },
     enemies: [], fliers: [], spiders: [], tendrils: [], ropes: [],
     torches: [], boulders: [], chests: [], npcs: [], doors: [], lifts: [], plats: [], dark: [],

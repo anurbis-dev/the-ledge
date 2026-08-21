@@ -348,6 +348,7 @@ function findByIdRestored(sel){
   var arr = sel.type === 'light' ? S.lights
     : sel.type === 'sound' ? S.sounds
     : sel.type === 'volume' ? S.volumes
+    : sel.type === 'fx_sand' ? S.emitters
     : sel.type === 'rope' ? S.ropes
     : null;
   if (!arr) return null;
@@ -800,7 +801,7 @@ function selectSpecial(sel){
 }
 
 function isSpecialKind(kind){
-  return kind === 'sound' || kind === 'light' || kind === 'volume'
+  return kind === 'sound' || kind === 'light' || kind === 'volume' || kind === 'fx_sand'
     || kind === 'player_start' || kind === 'level_exit' || kind === 'door'
     || kind === 'rope' || kind === 'rope_v' || kind === 'rope_h';
 }
@@ -1324,6 +1325,7 @@ function edEraseObjects(cell){
   function away(obj){ return Math.abs(obj.x - ox) >= 14 || Math.abs(obj.y - oy) >= 18; }
   if (S.lights) S.lights = S.lights.filter(away);
   if (S.sounds) S.sounds = S.sounds.filter(away);
+  if (S.emitters) S.emitters = S.emitters.filter(away);
   if (S.volumes) S.volumes = S.volumes.filter(function(v){
     return Math.abs(v.x + v.w/2 - ox) >= v.w/2 + 4 || Math.abs(v.y + v.h/2 - oy) >= v.h/2 + 4;
   });
@@ -1372,7 +1374,7 @@ function kindCellKey(kind, o, T){
   if (kind === 'door') return Math.floor(o.x / T) + ':' + (Math.floor(o.y / T) - 1);
   if (kind === 'level_exit') return Math.floor(o.x / T) + ':' + (Math.floor(o.y / T) - 1);
   if (kind === 'player_start') return Math.floor((o.x + 5) / T) + ':' + Math.floor((o.y + 11) / T);
-  if (kind === 'sound' || kind === 'light') return Math.floor(o.x / T) + ':' + Math.floor(o.y / T);
+  if (kind === 'sound' || kind === 'light' || kind === 'fx_sand') return Math.floor(o.x / T) + ':' + Math.floor(o.y / T);
   if (kind === 'volume') return Math.floor((o.x + o.w / 2) / T) + ':' + Math.floor((o.y + o.h / 2) / T);
   if (kind.indexOf('enemy') === 0 || kind.indexOf('flier') === 0)
     return Math.floor((o.x + o.w / 2) / T) + ':' + Math.floor((o.y + o.h / 2) / T);
@@ -1418,6 +1420,11 @@ function occupiedByKind(kind, cell, skip){
   if (kind === 'volume'){
     list = S.volumes || [];
     for (i = 0; i < list.length; i++) if (list[i] !== skip && kindCellKey('volume', list[i], T) === key) return true;
+    return false;
+  }
+  if (kind === 'fx_sand'){
+    list = S.emitters || [];
+    for (i = 0; i < list.length; i++) if (list[i] !== skip && kindCellKey('fx_sand', list[i], T) === key) return true;
     return false;
   }
   if (kind.indexOf('enemy') === 0){
@@ -1507,6 +1514,7 @@ function edPlaceObject(cell){
   if (kind === 'sound'){ selectSpecial({ type: 'sound', obj: G.mkSoundAt(S, cx, cy) }); return; }
   if (kind === 'light'){ selectSpecial({ type: 'light', obj: G.mkLightAt(S, cx, cy) }); return; }
   if (kind === 'volume'){ selectSpecial({ type: 'volume', obj: G.mkVolumeAt(S, cx, cy) }); return; }
+  if (kind === 'fx_sand'){ selectSpecial({ type: 'fx_sand', obj: G.mkEmitterAt(S, cx, cy, 'sand') }); return; }
   if (kind === 'rope_v' || kind === 'rope_h'){
     var rope = G.mkRopeAt(S, cx, cy, kind === 'rope_h' ? 'h' : 'v');
     ED.sel = { type: 'rope', obj: rope };
@@ -1679,6 +1687,20 @@ export function edExportText(){
       "',hue:" + (v.hue || 0) + ',sat:' + (v.sat != null ? v.sat : 1) +
       ',bright:' + (v.bright || 0) + ',contrast:' + (v.contrast != null ? v.contrast : 1) +
       ",tint:'" + (v.tint || '#88a0ff') + "',tintAmt:" + (v.tintAmt || 0) + '}';
+  }).join(',') + '],');
+  out.push('emitters: [' + (S.emitters || []).map(function(e){
+    return "{kind:'" + (e.kind || 'sand') + "',x:" + Math.round(e.x) + ',y:' + Math.round(e.y) +
+      ',density:' + (e.density != null ? e.density : 8) +
+      ',speed:' + (e.speed != null ? e.speed : 18) +
+      ',speedRand:' + (e.speedRand != null ? e.speedRand : 14) +
+      ",color:'" + (e.color || '#bb8f70') + "'" +
+      ',life:' + (e.life != null ? e.life : 0.5) +
+      ',lifeRand:' + (e.lifeRand != null ? e.lifeRand : 0.4) +
+      ',gravity:' + (e.gravity != null ? e.gravity : 55) +
+      ',size:' + (e.size != null ? e.size : 1) +
+      ',spread:' + (e.spread != null ? e.spread : 6) +
+      ',drag:' + (e.drag != null ? e.drag : 1.4) +
+      ',lift:' + (e.lift != null ? e.lift : 0) + '}';
   }).join(',') + '],');
   var ls = getLayers();
   out.push('layers: [' + ls.map(function(L){
@@ -1986,6 +2008,7 @@ function findObjPal(type, obj){
     if (type === 'sound' && k === 'sound') return i;
     if (type === 'light' && k === 'light') return i;
     if (type === 'volume' && k === 'volume') return i;
+    if (type === 'fx_sand' && k === 'fx_sand') return i;
     if (type === 'player_start' && k === 'player_start') return i;
     if (type === 'level_exit' && k === 'level_exit') return i;
     if (type === 'door' && k === 'door') return i;
@@ -2597,6 +2620,7 @@ function deleteSelected(){
   if (t === 'light') S.lights = (S.lights || []).filter(function(x){ return x !== o; });
   else if (t === 'sound') S.sounds = (S.sounds || []).filter(function(x){ return x !== o; });
   else if (t === 'volume') S.volumes = (S.volumes || []).filter(function(x){ return x !== o; });
+  else if (t === 'fx_sand') S.emitters = (S.emitters || []).filter(function(x){ return x !== o; });
   else if (t === 'rope') S.ropes = (S.ropes || []).filter(function(x){ return x !== o; });
   else if (t === 'player_start'){
     spawn = spawnMarker();

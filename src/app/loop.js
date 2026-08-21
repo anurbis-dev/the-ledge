@@ -8,7 +8,7 @@ import {
   beginIntro, skipIntro, dismissIntro, stepIntro, isIntroReady,
   beginOutro, skipOutro, pickOutro, stepOutro, hitOutro, isOutroReady,
   setOutroFocus, outroFocus,
-  applyPal, buildWater, stepWater, invalidateAll, fore, rc, getFish, spark, landDust, bonkDust,
+  applyPal, buildWater, stepWater, invalidateAll, fore, rc, getFish, spark, landDust, bonkDust, emitSand,
   resetCam, followCam, pushCamRender, popCamRender, clearCamPan, paintHud, clearHud,
   setViewScale, applyVolumes, drawCollideOverlay,
   isInvOpen, invInspecting, openInv, closeInv, toggleInv, stepInv, drawInventory, handleInvPointer, handleInvWheel, handleInvKey,
@@ -210,7 +210,17 @@ function onEvent(ev){
   else if (k === 'spiderflee'){ blip(220, 0.07, 'sine', 0.03); }
   else if (k === 'droptorch'){ blip(220, 0.06); }
   else if (k === 'crack'){ blip(120, 0.05, 'sawtooth'); }
-  else if (k === 'crumble'){ blip(70, 0.25, 'sawtooth', 0.05); }
+  else if (k === 'crumble'){
+    blip(70, 0.25, 'sawtooth', 0.05);
+    var ck = +ev.split(':')[1];
+    if (ck === ck){
+      var cc = ck % G.MAP_W, rr = (ck / G.MAP_W) | 0;
+      emitSand(cc * G.T + G.T / 2, rr * G.T + G.T / 2, {
+        n: 16, speed: 22, speedRand: 48, spread: 12, lift: 8,
+        life: 0.4, lifeRand: 0.55, gravity: 72
+      });
+    }
+  }
   else if (k === 'plankburn'){ blip(300, 0.08, 'sawtooth', 0.04); }
   else if (k === 'plankgone'){ blip(70, 0.22, 'sawtooth', 0.05); }
   else if (k === 'bouldland'){ blip(90, 0.15, 'square', 0.05); }

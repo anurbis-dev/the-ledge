@@ -6,7 +6,8 @@ import { getTileDef, tileImage, tileFrameImage, tileFrameCount } from '../core/t
 import { buildWater } from './fx.js';
 import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH, viewScale } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
-import { waterDepthK, dust } from './fx.js';
+import { waterDepthK } from './fx.js';
+import { emitSand } from './sand-fx.js';
 
 var G = GAME, T = G.T;
 var _L = null;
@@ -371,15 +372,17 @@ function paintTileId(v, c, r, x, y, dyn){
   }
   if (!G.isSolidV(v)) return;
   var k = G.mapIx(c, r), crumb = (v === G.CRUMB), hh = hashT(c, r);
-  if (crumb && !sAt(c, r)){
-    rc(x+2, y+5, 3, 2, P.crumD); rc(x+9, y+8, 2, 2, P.crumD); return;
-  }
+  if (crumb && !sAt(c, r)) return;                   // осыпался — ничего не оставляем
   var sx = 0;
   var cracking = crumb && S.crumbT && S.crumbT[k] !== undefined;
   if (cracking) sx = Math.round(Math.sin(time*46)*1.2);
   if (crumb){                                        // с нижней кромки сыплется песок — тайл нестабилен
-    if (cracking){ if (Math.random() < 0.4) dust(x + sx + 2 + Math.random()*(T-4), y + T - 1, 2, 4, 4); }
-    else if (Math.random() < 0.05) dust(x + 2 + Math.random()*(T-4), y + T - 1, 2, 3, 3);
+    if (cracking){
+      if (Math.random() < 0.4)
+        emitSand(x + sx + 2 + Math.random()*(T-4), y + T - 1, { n: 2, speed: 10, speedRand: 16, spread: 4, lift: 4, life: 0.35, lifeRand: 0.35, gravity: 48 });
+    } else if (Math.random() < 0.05){
+      emitSand(x + 2 + Math.random()*(T-4), y + T - 1, { n: 1, speed: 8, speedRand: 12, spread: 3, lift: 3, life: 0.3, lifeRand: 0.3, gravity: 42 });
+    }
   }
   var deep = r > 30;
   var biome = deep ? 2 : (c > 112 ? 1 : 0);

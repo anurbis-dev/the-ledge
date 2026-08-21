@@ -241,6 +241,7 @@ export function markRoomHidden(S){
   markList(S.boulders);
   markList(S.lights);
   markList(S.sounds);
+  markList(S.emitters);
   markList(S.doors);
   markList(S.plats);
   markList(S.lifts);

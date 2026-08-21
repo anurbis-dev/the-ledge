@@ -16,6 +16,7 @@ import { stepTorches, tryAction, resolvePickup } from '../entities/torches.js';
 import { stepPlanks } from '../entities/planks.js';
 import { stepGive } from '../entities/give.js';
 import { stepBoulders, pushBoulders } from '../entities/boulders.js';
+import { stepEmitters } from '../entities/emitters.js';
 import { stepHarpoons, stepGrapple, releaseGrapple } from '../entities/harpoons.js';
 import { stepArrows } from '../entities/arrows.js';
 import { stepEnemies } from '../entities/enemies.js';
@@ -54,6 +55,7 @@ export function step(S, dt, inp){
   stepTorches(S, dt);
   stepPlanks(S, dt);
   stepBoulders(S, dt);
+  stepEmitters(S, dt);
   stepHarpoons(S, dt);
   stepGrapple(S, dt);
   stepArrows(S, dt);

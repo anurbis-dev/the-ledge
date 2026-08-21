@@ -73,6 +73,11 @@ export function pickAllSpecial(S, wx, wy){
     o = list[i];
     if (near(wx, wy, o.x, o.y, 10)) out.push({ type: 'sound', obj: o });
   }
+  list = S.emitters || [];
+  for (i = list.length - 1; i >= 0; i--){
+    o = list[i];
+    if (near(wx, wy, o.x, o.y, 10)) out.push({ type: 'fx_sand', obj: o });
+  }
   list = S.volumes || [];
   for (i = list.length - 1; i >= 0; i--){
     if (pointInVolume(list[i], wx, wy)) out.push({ type: 'volume', obj: list[i] });
@@ -117,6 +122,9 @@ export function hitGizmo(S, sel, wx, wy){
     var hx = o.x + r, hy = o.y;
     if ((t === 'light' || o.mode === 'falloff') && near(wx, wy, hx, hy, 8))
       return { kind: 'radius', type: t, obj: o };
+    if (near(wx, wy, o.x, o.y, 10)) return { kind: 'move', type: t, obj: o };
+  }
+  if (t === 'fx_sand'){
     if (near(wx, wy, o.x, o.y, 10)) return { kind: 'move', type: t, obj: o };
   }
   if (t === 'player_start'){
@@ -246,6 +254,12 @@ export function drawGizmos(S, sel){
     o = list[i];
     var son = sel && sel.type === 'sound' && sel.obj === o;
     drawPoint(o, '#7ad0ff', son, son && o.mode === 'falloff');
+  }
+  list = S.emitters || [];
+  for (i = 0; i < list.length; i++){
+    o = list[i];
+    var fon = sel && sel.type === 'fx_sand' && sel.obj === o;
+    drawPoint(o, o.color || '#bb8f70', fon, false);
   }
   list = S.doors || [];
   /* линии пар — под маркерами, только для валидных пар (раз рисуем оба конца) */

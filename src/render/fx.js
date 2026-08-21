@@ -35,6 +35,9 @@ function puff(x, y, vx, vy, life, col, sz, g, drag){
 function dustCols(){
   return ['#e8d8b4', '#cbb892', TINT.rockL, P.crumL];
 }
+
+export { SAND_DEF, emitSand } from './sand-fx.js';
+
 /* мягкая пыль: n пылинок, spread — разлёт в стороны, lift — подброс */
 export function dust(x, y, n, spread, lift){
   var cols = dustCols();

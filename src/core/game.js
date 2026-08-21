@@ -36,6 +36,7 @@ import { mkRopes, mkRopeAt } from '../entities/ropes.js';
 import { mkLights, mkLightAt } from '../entities/lights.js';
 import { mkSounds, mkSoundAt } from '../entities/sounds.js';
 import { mkVolumes, mkVolumeAt } from '../entities/volumes.js';
+import { mkEmitters, mkEmitterAt } from '../entities/emitters.js';
 import { mkBoulders, mkBoulderAt } from '../entities/boulders.js';
 import { mkNpcs, mkNpcAt } from '../entities/npcs.js';
 import { mutter, mutterHero, startTalk, endTalk, breakTalk } from '../speech/runtime.js';
@@ -50,6 +51,7 @@ export function mkWorld(li){
     harpoons: mkHarpoons(), arrows: mkArrows(), tendrils: mkTendrils(),
     ropes: mkRopes(),
     lights: mkLights(), sounds: mkSounds(), volumes: mkVolumes(),
+    emitters: mkEmitters(),
     boulders: mkBoulders(), npcs: mkNpcs(), burnt: {}, plankT: {}, giveT: {},
     bubbles: [], talk: null, flags: {},
     gone: {}, hp: 3, bag: { gem:0, shroom:0, coin:0, relic:0, tank:0, stone:0, idol:0 },
@@ -269,7 +271,7 @@ export const GAME = {
   buildGates: function(S){ buildGates(S); },
   mkItemAt, mkEnemyAt, mkFlierAt, mkSpiderAt, mkTorchAt, mkChestAt, mkDoorAt, mkTendrilAt,
   mkRopeAt,
-  mkLightAt, mkSoundAt, mkVolumeAt, mkBoulderAt, mkNpcAt, getLayers, getActiveLayer,
+  mkLightAt, mkSoundAt, mkVolumeAt, mkEmitterAt, mkBoulderAt, mkNpcAt, getLayers, getActiveLayer,
   rectFree, mkWorld, step, resetPlayer, isInvuln, toggleInvuln, setInvuln,
   LEVELS, loadLevel, newBlankLevel: addBlankLevel, removeLevel, levelIndex(){ return runtime.LVI; },
   levelSpec(){ return runtime.LV; },

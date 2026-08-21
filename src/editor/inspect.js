@@ -1,4 +1,5 @@
 import { VOLUME_MASKS } from '../entities/volumes.js';
+import { SAND_EMIT_DEF } from '../entities/emitters.js';
 import { initSliders, bindResetHover } from './slider.js';
 import { touchOp } from './history.js';
 import { raiseFloat, placeFloat, hasFloatPos } from './float.js';
@@ -11,7 +12,8 @@ import { runtime } from '../core/runtime.js';
 var DEF = {
   sound: { mode: 'falloff', vol: 0.4, radius: 96, freq: 220, type: 'sine' },
   light: { color: '#ffbe74', intensity: 1, radius: 82, sprite: 'lantern' },
-  volume: { mode: 'color', mask: 'circle', hue: 0, sat: 1, bright: 0, contrast: 1, tint: '#88a0ff', tintAmt: 0.15 }
+  volume: { mode: 'color', mask: 'circle', hue: 0, sat: 1, bright: 0, contrast: 1, tint: '#88a0ff', tintAmt: 0.15 },
+  fx_sand: SAND_EMIT_DEF
 };
 
 var root = document.getElementById('edInspect');
@@ -34,9 +36,10 @@ export function showInspect(sel){
   if (titleEl){
     titleEl.textContent = sel.type === 'volume' ? 'Volume'
       : (sel.type === 'light' ? 'Light'
-        : (sel.type === 'player_start' ? 'Start'
-          : (sel.type === 'level_exit' ? 'Exit'
-            : (sel.type === 'door' ? 'Door' : 'Sound'))));
+        : (sel.type === 'fx_sand' ? 'FX Sand'
+          : (sel.type === 'player_start' ? 'Start'
+            : (sel.type === 'level_exit' ? 'Exit'
+              : (sel.type === 'door' ? 'Door' : 'Sound')))));
   }
   fillBody(sel);
   if (!hasFloatPos(root)) placeFloat(root, innerWidth - 250, 8);
@@ -235,6 +238,20 @@ function fillBody(sel){
     slider(body, 'Contrast', 0, 2, 0.05, o.contrast != null ? o.contrast : dv.contrast, function(v){ o.contrast = v; }, dv.contrast);
     color(body, 'Tint', o.tint, function(v){ o.tint = v; }, dv.tint);
     slider(body, 'Tint amount', 0, 1, 0.01, o.tintAmt != null ? o.tintAmt : dv.tintAmt, function(v){ o.tintAmt = v; }, dv.tintAmt);
+  } else if (sel.type === 'fx_sand'){
+    var df = DEF.fx_sand;
+    note(body, 'Continuous sand fall. Drag marker to move. Crumb tiles use the same particle API.');
+    slider(body, 'Density', 0, 40, 0.5, o.density != null ? o.density : df.density, function(v){ o.density = v; }, df.density);
+    slider(body, 'Speed', 0, 80, 1, o.speed != null ? o.speed : df.speed, function(v){ o.speed = v; }, df.speed);
+    slider(body, 'Speed rand', 0, 80, 1, o.speedRand != null ? o.speedRand : df.speedRand, function(v){ o.speedRand = v; }, df.speedRand);
+    color(body, 'Color', o.color || df.color, function(v){ o.color = v; }, df.color);
+    slider(body, 'Life', 0.05, 2, 0.05, o.life != null ? o.life : df.life, function(v){ o.life = v; }, df.life);
+    slider(body, 'Life rand', 0, 2, 0.05, o.lifeRand != null ? o.lifeRand : df.lifeRand, function(v){ o.lifeRand = v; }, df.lifeRand);
+    slider(body, 'Gravity', 0, 160, 1, o.gravity != null ? o.gravity : df.gravity, function(v){ o.gravity = v; }, df.gravity);
+    slider(body, 'Size', 1, 4, 1, o.size != null ? o.size : df.size, function(v){ o.size = v; }, df.size);
+    slider(body, 'Spread', 0, 40, 1, o.spread != null ? o.spread : df.spread, function(v){ o.spread = v; }, df.spread);
+    slider(body, 'Drag', 0, 8, 0.1, o.drag != null ? o.drag : df.drag, function(v){ o.drag = v; }, df.drag);
+    slider(body, 'Lift', 0, 40, 1, o.lift != null ? o.lift : df.lift, function(v){ o.lift = v; }, df.lift);
   }
 }
 

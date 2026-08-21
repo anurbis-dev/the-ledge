@@ -206,6 +206,10 @@ export function paintObjIcon(c, kind, s){
     r(2, 3, 12, 10, '#241a40'); r(3, 4, 10, 8, '#3a5080aa');
     r(2, 3, 12, 1, '#88a0ff'); r(2, 12, 12, 1, '#88a0ff');
     r(2, 3, 1, 10, '#88a0ff'); r(13, 3, 1, 10, '#88a0ff');
+  } else if (kind === 'fx_sand'){
+    r(4, 2, 2, 2, P.crumL); r(8, 3, 2, 2, P.crum); r(11, 2, 1, 1, P.crumD);
+    r(5, 6, 2, 2, P.crum); r(9, 7, 2, 2, P.crumL); r(7, 10, 2, 2, P.crumD);
+    r(4, 12, 1, 1, P.crumL); r(10, 13, 2, 1, P.crum);
   } else if (kind === 'boulder'){
     r(2, 4, 12, 11, '#4a4460'); r(2, 4, 12, 2, '#6e6892'); r(3, 6, 3, 2, '#847dab');
     r(3, 13, 10, 2, '#302c46');

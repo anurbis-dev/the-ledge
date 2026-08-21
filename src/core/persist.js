@@ -3,6 +3,7 @@ import { runtime } from './runtime.js';
 import { stashLayers } from './layers.js';
 import { BAKED } from './defaults.js';
 import { BOULDER_DEF } from '../entities/boulders.js';
+import { packEmitter } from '../entities/emitters.js';
 import { packRope } from '../entities/ropes.js';
 import { ensureLevelExits } from '../entities/doors.js';
 
@@ -143,6 +144,7 @@ function packLevel(lv){
     lights: lv.lights || [],
     sounds: lv.sounds || [],
     volumes: lv.volumes || [],
+    emitters: lv.emitters || [],
     water: lv.water || [],
     doors: (lv.doors || []).map(function(d){
       return {
@@ -179,6 +181,7 @@ function applyRecord(lv, rec){
   if (rec.lights) lv.lights = rec.lights;
   if (rec.sounds) lv.sounds = rec.sounds;
   if (rec.volumes) lv.volumes = rec.volumes;
+  if (rec.emitters) lv.emitters = rec.emitters;
   if (rec.water) lv.water = rec.water;
   if (rec.spawn) lv.spawn = rec.spawn;
   if (rec.exits){
@@ -225,6 +228,7 @@ function makeBlank(rec){
       ? [{ id: 0, x: rec.exit.x, y: rec.exit.y, toId: rec.exit.toId != null ? rec.exit.toId : null }]
       : []),
     lights: rec.lights || [], sounds: rec.sounds || [], volumes: rec.volumes || [],
+    emitters: rec.emitters || [],
     items: function(){ return items.map(function(a){ return a.slice(); }); },
     enemies: rec.enemies || [], fliers: rec.fliers || [],
     spiders: rec.spiders || [], tendrils: rec.tendrils || [], ropes: rec.ropes || [],
@@ -348,6 +352,7 @@ function writeObjects(lv, S){
       tint: v.tint, tintAmt: v.tintAmt, id: v.id
     };
   });
+  lv.emitters = (S.emitters || []).map(packEmitter);
   lv.doors = (S.doors || []).map(function(d){
     return {
       id: d.id, x: d.x, y: d.y, pair: d.pair, tag: d.tag || '',
