@@ -1,5 +1,9 @@
 # Changelog archive
 
+## 0.18.1
+
+- Fix: custom/painted tiles blank after Sprites split — `setTileSpriteId` keeps legacy `src`; `tileFrameSrc`/`tileImage` fall back to legacy; bake `mergeTiles`/`mergeTileGfx` keep prior pixels; boot heals empty LS from BAKED.
+
 ## 2026-08-21 (pre-commit)
 
 - Fall strands (`paintFallStrands`): continuous world-Y phase through stacked FALL tiles (no per-tile `% T` clasp); light strand smoothstep alpha brightest at bottom → transparent at top along full **Length**.
