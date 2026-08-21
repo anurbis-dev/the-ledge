@@ -897,6 +897,16 @@ export function tryClimbUp(p){
 export function ease(t){ return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2)/2; }
 export function updateClimb(S, p, dt){
   var cl = p.climb;
+  if (cl.plat){                             // якорь/from/to едут с палубой (как updateHang)
+    var q = cl.plat;
+    var dx = q.dx || 0;
+    var dcy = q.y - cl.cy;
+    if (dx || dcy){
+      cl.cx += dx; cl.cy = q.y;
+      cl.from.x += dx; cl.from.y += dcy;
+      cl.to.x += dx; cl.to.y += dcy;
+    }
+  }
   cl.p += dt / cl.dur;
   if (cl.p >= 1){
     p.x = cl.to.x; p.y = cl.to.y; p.vy = 0; p.apexY = p.y;

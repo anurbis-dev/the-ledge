@@ -1,3 +1,7 @@
+## 0.14.0
+
+- Water: FALL waves expand left/right via `sin(k·|x−src|−ωt)` (river drift damped near fall; no bob amplify). Player enter/exit splash adds surface ripples (`addWaterRipple`).
+
 ## 0.13.0
 
 - Editor: Paint only on Sprites (`canPaint` = sprite-mode); Tile/Object Details = params + Sprite slot (Edit/dblclick → `openSpriteEdit`). `openObjectEdit` no longer redirects Hero/Light/foes into Paint.

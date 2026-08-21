@@ -1,3 +1,3 @@
 # Changelog (unreleased)
 
-- Water: FALL waves expand left/right via `sin(k·|x−src|−ωt)` (river drift damped near fall; no bob amplify). Player enter/exit splash adds surface ripples (`addWaterRipple`).
+- Climb on moving plat: `updateClimb` carries `cx/cy/from/to` with deck (`q.dx` + `q.y`) so hang lip and body stay on the platform.
