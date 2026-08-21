@@ -528,19 +528,20 @@ export function tryGrab(S, p){
   if (p.inWater) return false;                              // под водой кромки не берём
   if (p.grabCd > 0 || p.onGround || p.state !== 'normal' || p.rollT > 0) return false;
   if (p.vy < C.GRAB_VY) return false;
-  var handY = heroHandY(p), dir = p.facing, dy;
+  var g = heroGrabWorld(p), handY = g.y, dir = p.facing, dy;
 
   /* plat раньше тайлов: иначе findLedge берёт губу клетки под/у палубы (~T смещение) */
   for (var pi = 0; pi < runtime.W.plats.length; pi++){
     var q = runtime.W.plats[pi];
-    if (Math.abs(handY - q.y) > 9) continue;
+    if (Math.abs(g.y - q.y) > C.PLAT_GRAB_Y) continue;
     var bestSide = 0, bestFace = 0, bestDist = 1e9, si, face, cxq, dEdge, hbq;
     for (si = -1; si <= 1; si += 2){                      // si: -1 левый край, +1 правый
       if (platSeam(runtime.W.plats, q, si)) continue;      // платформы встык — тут уже не край
       cxq = si > 0 ? q.x + q.w : q.x;
       face = -si;                                         // лицом к платформе (как у tile ledge)
-      dEdge = Math.min(Math.abs(p.x - cxq), Math.abs(p.x + p.w - cxq));
-      if (dEdge > 12 || dEdge >= bestDist) continue;
+      if (dir !== face) continue;                         // спиной к кромке не хватаемся
+      dEdge = Math.abs(g.x - cxq);                        // якорь рук, не хитбокс
+      if (dEdge > C.PLAT_GRAB || dEdge >= bestDist) continue;
       hbq = hangBox(cxq, q.y, face, 'ledge', p);
       if (!rectFree(hbq.x, hbq.y, hbq.w, hbq.h)) continue;
       bestDist = dEdge; bestSide = si; bestFace = face;

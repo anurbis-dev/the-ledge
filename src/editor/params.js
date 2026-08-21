@@ -55,6 +55,8 @@ export var PARAM_GROUPS = [
     { key: 'TOL_DN', label: 'Grab tol down', min: 1, max: 16, step: 1 },
     { key: 'GRAB_VY', label: 'Grab max vy', min: -260, max: -20, step: 1 },
     { key: 'GRAB_CD', label: 'Grab cooldown', min: 0, max: 0.6, step: 0.01 },
+    { key: 'PLAT_GRAB', label: 'Plat grab reach', min: 2, max: 28, step: 1, hint: 'hand→lip X' },
+    { key: 'PLAT_GRAB_Y', label: 'Plat grab Y', min: 2, max: 20, step: 1, hint: 'hand→deck Y' },
     { key: 'CLIMB_UP', label: 'Climb up t', min: 0.1, max: 1.2, step: 0.01 },
     { key: 'CLIMB_DN', label: 'Climb down t', min: 0.1, max: 1.2, step: 0.01 },
     { key: 'TO_LAD', label: 'To ladder t', min: 0.05, max: 0.8, step: 0.01 },

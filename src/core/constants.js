@@ -16,6 +16,8 @@ export const C = {
   SLOPE_ALONG: 0.9,                                    // вдоль скоса чуть тише бега (не гипотенуза)
   JUMP: -236, CUT: 0.45, COYOTE: 0.09, BUF: 0.12,
   HAND: 3, TOL_UP: 3, TOL_DN: 6, GRAB_VY: -130, GRAB_CD: 0.2,
+  /* plat: допуск якоря рук (heroGrabWorld) до губы; Y отдельно от tile TOL */
+  PLAT_GRAB: 12, PLAT_GRAB_Y: 9,
   CLIMB_UP: 0.5, CLIMB_DN: 0.46, TO_LAD: 0.3, VAULT_T: 0.24,
   STAND_OFF: 8,
   SLIDE_V: 62, WJ_X: 118, WJ_Y: -178, WJ_LOCK: 0.19, WJ_SAME_Y: -126, WJ_SAME_X: 74,

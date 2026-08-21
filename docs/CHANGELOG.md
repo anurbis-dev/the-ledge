@@ -1,3 +1,3 @@
 # Changelog (unreleased)
 
-- Climb on moving plat: `updateClimb` carries `cx/cy/from/to` with deck (`q.dx` + `q.y`) so hang lip and body stay on the platform.
+- Plat grab: bind by `heroGrabWorld` + `C.PLAT_GRAB`/`PLAT_GRAB_Y`; only grab when facing the deck (no back-grab).
