@@ -452,6 +452,7 @@ function paintGraded(c, r, x, y, fn){
 
 /* FALL-нити: фаза по world Y — непрерывны через столбец тайлов.
  * Светлая нить: яркая снизу → плавно прозрачнее вверх (по всей length).
+ * Два слоя: основной + второй со сдвигом X≈2 и фазой от Offset.
  * length/wave/random/offset/fade — tileGfx[14], 0..100. */
 function paintFallStrands(c, r, x, y, time, w1, fadeK){
   if (fadeK == null) fadeK = 0;
@@ -469,40 +470,46 @@ function paintFallStrands(c, r, x, y, time, w1, fadeK){
   var baseA = 1 - fadeK * 0.78;
   var softHole = fadeK * 0.55;
   var worldY0 = r * T;
-  var s, h, n1, n2, n3, n4, strandSpd, phase0, lightLen, period, baseX;
-  var py, wy, u, wOff, sx, hh, hn, a, lightA, taper, prevA;
+  var layer, s, sid, h, n1, n2, n3, n4, strandSpd, phase0, lightLen, period, baseX;
+  var py, wy, u, wOff, sx, hh, hn, a, lightA, taper, prevA, layerA, xShift, phaseShift;
   prevA = ctx.globalAlpha;
-  for (s = 0; s < 4; s++){
-    h = ((c * 73856093) ^ (s * 19349663) ^ 0x9e3779b9) >>> 0;
-    n1 = (h & 255) / 255;
-    n2 = ((h >>> 8) & 255) / 255;
-    n3 = ((h >>> 16) & 255) / 255;
-    n4 = ((h >>> 24) & 255) / 255;
-    strandSpd = spd * (1 + (n1 - 0.5) * 0.55 * randK);
-    phase0 = s * (12 + 70 * desync) + n2 * 100 * desync + n3 * 55 * randK;
-    lightLen = Math.max(2, Math.round(lightBase * (1 + (n3 - 0.5) * 0.45 * randK)));
-    period = Math.max(lightLen + 6, Math.round(periodBase * (1 + (n4 - 0.5) * 0.25 * randK)));
-    baseX = 1 + s * 4 + (n1 - 0.5) * 2.2 * randK;
-    for (py = 0; py < T; py++){
-      wy = worldY0 + py;
-      wOff = waveAmp * Math.sin(wy * (0.12 + n2 * 0.06 * randK) + s * 1.35 + n4 * 2.1);
-      sx = Math.round(baseX + wOff);
-      hh = ((wy * 2654435761) ^ (s * 9749) ^ ((sx + 17) * 2246822519)) >>> 0;
-      hn = (hh & 255) / 255;
-      /* мягкая модуляция: не continue — нить не рвётся */
-      a = baseA * (1 - softHole * hn * 0.85);
-      if (a < 0.05) continue;
-      ctx.globalAlpha = prevA * a;
-      rc(x + sx, y + py, 2, 1, w1);
-      u = (time * strandSpd + phase0 - wy) % period;
-      if (u < 0) u += period;
-      if (u < lightLen){
-        /* u→0 = низ нити (ярче), u→lightLen = верх (прозрачнее) */
-        taper = 1 - u / lightLen;
-        taper = taper * taper * (3 - 2 * taper); /* smoothstep */
-        lightA = 0.12 + 0.88 * taper;
-        ctx.globalAlpha = prevA * a * lightA;
-        if (ctx.globalAlpha > 0.04) rc(x + sx, y + py, 2, 1, '#bfe6ff');
+  for (layer = 0; layer < 2; layer++){
+    /* слой 1: между основными нитями, сдвиг X и фаза от Offset */
+    xShift = layer ? 2 : 0;
+    phaseShift = layer ? (40 + 80 * desync) : 0;
+    layerA = layer ? 0.72 : 1;
+    for (s = 0; s < 4; s++){
+      sid = s + layer * 4;
+      h = ((c * 73856093) ^ (sid * 19349663) ^ 0x9e3779b9) >>> 0;
+      n1 = (h & 255) / 255;
+      n2 = ((h >>> 8) & 255) / 255;
+      n3 = ((h >>> 16) & 255) / 255;
+      n4 = ((h >>> 24) & 255) / 255;
+      strandSpd = spd * (1 + (n1 - 0.5) * 0.55 * randK) * (layer ? 0.92 : 1);
+      phase0 = s * (12 + 70 * desync) + n2 * 100 * desync + n3 * 55 * randK + phaseShift;
+      lightLen = Math.max(2, Math.round(lightBase * (1 + (n3 - 0.5) * 0.45 * randK) * (layer ? 0.85 : 1)));
+      period = Math.max(lightLen + 6, Math.round(periodBase * (1 + (n4 - 0.5) * 0.25 * randK)));
+      baseX = 1 + s * 4 + xShift + (n1 - 0.5) * 2.2 * randK;
+      for (py = 0; py < T; py++){
+        wy = worldY0 + py;
+        wOff = waveAmp * Math.sin(wy * (0.12 + n2 * 0.06 * randK) + sid * 1.35 + n4 * 2.1 + layer * 0.9);
+        sx = Math.round(baseX + wOff);
+        hh = ((wy * 2654435761) ^ (sid * 9749) ^ ((sx + 17) * 2246822519)) >>> 0;
+        hn = (hh & 255) / 255;
+        a = baseA * layerA * (1 - softHole * hn * 0.85);
+        if (a < 0.05) continue;
+        ctx.globalAlpha = prevA * a;
+        rc(x + sx, y + py, 2, 1, w1);
+        u = (time * strandSpd + phase0 - wy) % period;
+        if (u < 0) u += period;
+        if (u < lightLen){
+          /* u→0 = низ нити (ярче), u→lightLen = верх (прозрачнее) */
+          taper = 1 - u / lightLen;
+          taper = taper * taper * (3 - 2 * taper);
+          lightA = 0.12 + 0.88 * taper;
+          ctx.globalAlpha = prevA * a * lightA;
+          if (ctx.globalAlpha > 0.04) rc(x + sx, y + py, 2, 1, '#bfe6ff');
+        }
       }
     }
   }

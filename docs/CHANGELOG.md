@@ -4,3 +4,4 @@
 - Fall Details: **Length** / **Wave** / **Random** / **Offset** (0–100, defaults 25/15/35/55) + existing **Speed** (0–200, 70) → `tileGfx[14]`; getters `getTileLength` / `getTileWave` / `getTileRandom` / `getTileOffset`.
 - Fall Details: **Fade** (0–100, default 0) via `tileGfx[14].fade` / `getTileFade` — softer strand/body alpha (no hard holes that tear); also fades solid FALL fill.
 - Fall: removed per-tile top foam line (`#8fd0ef`) that drew light horizontal seams on every FALL edge.
+- Fall strands: second layer between the main threads (X≈+2, phase from **Offset**, slightly dimmer/slower).
