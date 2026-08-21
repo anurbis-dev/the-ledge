@@ -1,5 +1,9 @@
 # Changelog archive
 
+## 0.18.2
+
+- FALL ends: пена — частая многослойная волна (`paintFallFoamWave`), брызги — веер капель разного размера/направления (`paintFallSpray`); Foam/Spray по-прежнему 0–100.
+
 ## 0.18.1
 
 - Fix: custom/painted tiles blank after Sprites split — `setTileSpriteId` keeps legacy `src`; `tileFrameSrc`/`tileImage` fall back to legacy; bake `mergeTiles`/`mergeTileGfx` keep prior pixels; boot heals empty LS from BAKED.

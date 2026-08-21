@@ -2,7 +2,7 @@ import GAME from '../core/game.js';
 import { hooks } from '../core/runtime.js';
 import { COVER_AIR, coverRaw, coverVarRaw, roomCoverA, rebuildRooms } from '../core/rooms.js';
 import { getLayers, layerShown, lastCollideIndex, layerTileRaw, layerVarRaw, layerDeco, isTileLayer, wrapSize, layerCssFilter, layerGrade, gradeCssFilter } from '../core/layers.js';
-import { getTileDef, tileImage, tileFrameImage, tileFrameCount, getTileSpeed, getTileShift, getTileWaveX, getTileSplash, getTileLength, getTileWave, getTileRandom, getTileOffset, getTileFade, getTileSpeed2, getTileLength2, getTileDensity2, getTileWave2, getTileFoam, getTileSpray } from '../core/tileset.js';
+import { getTileDef, tileImage, tileFrameImage, tileFrameCount, getTileSpeed, getTileShift, getTileWaveX, getTileSplash, getTileLength, getTileWave, getTileRandom, getTileOffset, getTileFade, getTileSpeed2, getTileLength2, getTileDensity2, getTileWave2, getTileFoam, getTileSpray, getTileFoamSize, getTileFoamRandom, getTileFoamSpeed, getTileSpraySpeed } from '../core/tileset.js';
 import { buildWater } from './fx.js';
 import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH, viewScale } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
@@ -530,42 +530,53 @@ function paintFallStrands(c, r, x, y, time, w1, fadeK){
 }
 
 /* Шапка пены на верхнем FALL; пена/брызги внизу, если под тайлом WATER.
- * foam — амплитуда частой волны, spray — сила разлёта (tileGfx[14], 0..100). */
-function paintFallFoamWave(x, yBase, time, c, foamP, aMul, prevA, dir){
+ * foam/foamSize/foamRandom/foamSpeed; spray/spraySpeed (tileGfx[14]). */
+function paintFallFoamWave(x, yBase, time, c, foamP, foamSizeP, foamRandP, foamSpdP, aMul, prevA, dir){
   /* dir: 1 = шапка вниз от yBase, -1 = удар вверх от yBase */
   var amp = 1.2 + (foamP / 100) * 4.5;
   var thick = Math.max(1, Math.round(1 + (foamP / 100) * 3));
-  var wx, crest, d, col, a;
+  var pxSz = Math.max(1, Math.min(4, 1 + Math.round((foamSizeP / 100) * 3)));
+  var rnd = foamRandP / 100;
+  var spd = foamSpdP / 100;
+  var wx, crest, d, col, a, jitter, bub;
   var world0 = c * T;
-  for (wx = 0; wx < T; wx++){
-    crest = Math.sin(time * 5.4 + (world0 + wx) * 0.92 + c * 0.4) * amp
-      + Math.sin(time * 8.1 + (world0 + wx) * 1.85 + 1.2) * (amp * 0.45)
-      + Math.sin(time * 11.6 + (world0 + wx) * 3.1 + wx * 0.17) * (amp * 0.22);
+  var t = time * spd;
+  for (wx = 0; wx < T; wx += pxSz){
+    jitter = rnd > 0.01
+      ? Math.sin((world0 + wx) * 2.37 + c * 5.1) * amp * 0.55 * rnd
+        + Math.sin((world0 + wx) * 5.9 + 1.7) * amp * 0.28 * rnd
+      : 0;
+    crest = Math.sin(t * 5.4 + (world0 + wx) * 0.92 + c * 0.4) * amp
+      + Math.sin(t * 8.1 + (world0 + wx) * 1.85 + 1.2) * (amp * 0.45)
+      + Math.sin(t * 11.6 + (world0 + wx) * 3.1 + wx * 0.17) * (amp * 0.22)
+      + jitter;
     crest = Math.round(crest);
     for (d = 0; d < thick + Math.abs(crest % 2); d++){
       a = 1 - d / (thick + 1.5);
       if (a < 0.12) continue;
       col = d === 0 ? '#e8f6ff' : (d === 1 ? '#dff2ff' : '#bfe6ff');
       ctx.globalAlpha = prevA * aMul * (0.45 + 0.55 * a);
-      rc(x + wx, yBase + dir * (crest + d), 1, 1, col);
+      rc(x + wx, yBase + dir * (crest + d), pxSz, Math.min(pxSz, 2), col);
     }
-    /* мелкие «пузырьки» по гребню */
-    if (((wx + ((time * 9 + c * 3) | 0)) & 3) === 0){
-      ctx.globalAlpha = prevA * aMul * 0.85;
-      rc(x + wx, yBase + dir * (crest - dir), 1, 1, '#ffffff');
+    /* пузырьки по гребню — плотность от random */
+    bub = 3 - Math.min(2, (rnd * 3) | 0);
+    if (((wx / pxSz + ((t * 9 + c * 3) | 0)) & bub) === 0){
+      ctx.globalAlpha = prevA * aMul * (0.7 + 0.3 * (1 - rnd * 0.4));
+      rc(x + wx, yBase + dir * (crest - dir - ((rnd > 0.5 && (wx & 1)) ? 1 : 0)),
+        Math.max(1, pxSz - (rnd > 0.65 ? 1 : 0)), 1, '#ffffff');
     }
   }
 }
-function paintFallSpray(x, yOrigin, time, c, sprayP, aMul, prevA){
+function paintFallSpray(x, yOrigin, time, c, sprayP, spraySpdP, aMul, prevA){
   /* Капли разлетаются веером вверх/в стороны, размер 1..3. */
   var n = Math.max(0, Math.round((sprayP / 100) * 20));
   var reach = 4 + (sprayP / 100) * 12;
+  var spdMul = spraySpdP / 100;
   var i, seed, life, ang, dist, spd, sz, ox, px, py, blink, col, hx;
   for (i = 0; i < n; i++){
     seed = i * 12.9898 + c * 7.13;
-    life = (time * (2.1 + (i % 6) * 0.42) + seed * 0.17) % 1;
+    life = (time * spdMul * (2.1 + (i % 6) * 0.42) + seed * 0.17) % 1;
     if (life < 0) life += 1;
-    /* старт по ширине тайла, угол −80°…+80° от вертикали */
     ox = ((Math.sin(seed * 3.1) * 0.5 + 0.5) * (T - 2)) | 0;
     ang = Math.sin(seed * 1.91) * 1.35;
     spd = 0.55 + 0.45 * Math.abs(Math.sin(seed * 0.73));
@@ -576,7 +587,7 @@ function paintFallSpray(x, yOrigin, time, c, sprayP, aMul, prevA){
     if ((i % 5) === 0) sz = 3;
     else if ((i % 3) === 0) sz = Math.max(sz, 2);
     blink = (1 - life);
-    blink *= blink * (0.4 + 0.6 * Math.abs(Math.sin(time * 7.2 + seed)));
+    blink *= blink * (0.4 + 0.6 * Math.abs(Math.sin(time * spdMul * 7.2 + seed)));
     if (blink < 0.07) continue;
     col = sz >= 3 ? '#e8f6ff' : (sz === 2 ? '#dff2ff' : '#bfe6ff');
     hx = x + Math.max(-3, Math.min(T + 2, px));
@@ -593,15 +604,23 @@ function paintFallEnds(c, r, x, y, time, fadeK){
   var foamP = getTileFoam(G.FALL, 45);
   var sprayP = getTileSpray(G.FALL, 55);
   if (foamP <= 0 && sprayP <= 0) return;
+  var foamSizeP = getTileFoamSize(G.FALL, 40);
+  var foamRandP = getTileFoamRandom(G.FALL, 40);
+  var foamSpdP = getTileFoamSpeed(G.FALL, 100);
+  var spraySpdP = getTileSpraySpeed(G.FALL, 100);
   var isTop = tAt(c, r - 1) !== G.FALL;
   var hitWater = G.isWaterV(tAt(c, r + 1));
   if (!isTop && !hitWater) return;
   var prevA = ctx.globalAlpha;
   var aMul = 1 - fadeK * 0.55;
-  if (isTop && foamP > 0) paintFallFoamWave(x, y + 1, time, c, foamP, aMul, prevA, 1);
-  if (isTop && sprayP > 0) paintFallSpray(x, y + 1, time, c, sprayP, aMul, prevA);
-  if (hitWater && foamP > 0) paintFallFoamWave(x, y + T - 2, time + 0.7, c, foamP, aMul, prevA, -1);
-  if (hitWater && sprayP > 0) paintFallSpray(x, y + T - 1, time + 1.1, c, sprayP, aMul, prevA);
+  if (isTop && foamP > 0)
+    paintFallFoamWave(x, y + 1, time, c, foamP, foamSizeP, foamRandP, foamSpdP, aMul, prevA, 1);
+  if (isTop && sprayP > 0)
+    paintFallSpray(x, y + 1, time, c, sprayP, spraySpdP, aMul, prevA);
+  if (hitWater && foamP > 0)
+    paintFallFoamWave(x, y + T - 2, time + 0.7, c, foamP, foamSizeP, foamRandP, foamSpdP, aMul, prevA, -1);
+  if (hitWater && sprayP > 0)
+    paintFallSpray(x, y + T - 1, time + 1.1, c, sprayP, spraySpdP, aMul, prevA);
   ctx.globalAlpha = prevA;
 }
 
