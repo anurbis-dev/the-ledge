@@ -2,7 +2,7 @@ import GAME from '../core/game.js';
 import {
   cv, ctx, VW, VH, BUF_W, BUF_H, viewBox, hv, cam, view,
   sky, tiles, tilesFront, plats, lifts, caveExit, doors, chests, boulders, npcs,
-  lootDrops, items, pickables, drawTorches, drawHarpoons, drawArrows, enemies, spiders, fliers, tendrils,
+  lootDrops, items, pickables, drawTorches, drawHarpoons, drawArrows, enemies, spiders, fliers, tendrils, ropes,
   hero, lightPass, drawWeeds, drawFish, drawParts, drawHearts,
   vignette, hud, drawIntro, drawPaused, drawOutro, drawDead, drawBubbles, hudHitsWeapon,
   beginIntro, skipIntro, dismissIntro, stepIntro, isIntroReady,
@@ -63,8 +63,8 @@ function onEvent(ev){
   else if (k === 'grab'){ blip(720, 0.06); spark(p.hang.cx, p.hang.cy, 6, '#ffe08a', 60); }
   else if (k === 'mantled'){ blip(640, 0.09, 'triangle'); }
   else if (k === 'vault'){ blip(560, 0.07, 'triangle', 0.035); }
-  else if (k === 'hanged' || k === 'onladder'){ blip(520, 0.05); }
-  else if (k === 'release' || k === 'offladder'){ blip(280, 0.05); }
+  else if (k === 'hanged' || k === 'onladder' || k === 'onrope'){ blip(520, 0.05); }
+  else if (k === 'release' || k === 'offladder' || k === 'offrope'){ blip(280, 0.05); }
   else if (k === 'climbup' || k === 'climbdown'){ blip(460, 0.06, 'triangle', 0.035); }
   else if (k === 'spark'){ spark(p.x + (p.sliding>0?p.w:0), p.y+14, 2, '#ffd9a0', 30, 10); }
   else if (k === 'swing'){ blip(300, 0.09, 'triangle', 0.045); }
@@ -483,7 +483,7 @@ function frame(now){
     if (entitiesShown(true)){
       plats(); lifts(); caveExit(); doors(); boulders(); chests();
       lootDrops(); items(); pickables(); drawTorches(); drawHarpoons(); drawArrows(); enemies(); spiders(); fliers(); npcs();
-      hero(); drawFish();
+      ropes(); hero(); drawFish();
     }
     tilesFront();
     drawParts(dt); drawHearts(dt);
@@ -517,7 +517,7 @@ function frame(now){
     if (entitiesShown(false)){
       plats(); lifts(); caveExit(); doors(); boulders(); chests();
       lootDrops(); items(); pickables(); drawTorches(); drawHarpoons(); drawArrows(); enemies(); spiders(); fliers(); npcs();
-      hero(); drawFish();
+      ropes(); hero(); drawFish();
     }
     tilesFront(); lightPass(); applyVolumes(); drawWeeds(); tendrils();
     if (ED.showGeo) drawCollideOverlay();
@@ -611,6 +611,7 @@ function frame(now){
   spiders();
   fliers();
   npcs();
+  ropes();
   hero();
   drawFish();
   tilesFront();

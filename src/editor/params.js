@@ -113,6 +113,17 @@ export var PARAM_GROUPS = [
     { key: 'LIFT_V', label: 'Lift speed', min: 12, max: 100, step: 1 },
     { key: 'LIFT_DWELL', label: 'Lift dwell', min: 0.2, max: 4, step: 0.05 }
   ]},
+  { id: 'rope', name: 'Rope', items: [
+    { key: 'ROPE_SEGS', label: 'Default segs', min: 4, max: 24, step: 1 },
+    { key: 'ROPE_ELAST', label: 'Elasticity', min: 0, max: 0.5, step: 0.01 },
+    { key: 'ROPE_SWING', label: 'Swing force', min: 40, max: 400, step: 5 },
+    { key: 'ROPE_DAMP', label: 'Damping', min: 0.9, max: 1, step: 0.005 },
+    { key: 'ROPE_WIND', label: 'Idle wind', min: 0, max: 8, step: 0.1 },
+    { key: 'ROPE_CLIMB', label: 'Climb speed', min: 20, max: 120, step: 1 },
+    { key: 'ROPE_GRAB', label: 'Grab radius', min: 6, max: 28, step: 1 },
+    { key: 'ROPE_ITERS', label: 'Constraint iters', min: 2, max: 12, step: 1 },
+    { key: 'ROPE_CD', label: 'Regrab CD', min: 0, max: 1, step: 0.02 }
+  ]},
   { id: 'fall', name: 'Fall / Damage', items: [
     { key: 'SAFE', label: 'Safe fall', min: 10, max: 120, step: 1 },
     { key: 'HURT', label: 'Hurt fall', min: 30, max: 220, step: 1 },

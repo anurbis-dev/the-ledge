@@ -91,14 +91,14 @@ export function fireGrapple(S, inp){
   if (!g) return false;
   if (p.grapple || p.harpoonCd > 0) return false;
   if (p.stance > 0 || p.rollT > 0) return false;
-  if (p.state !== 'normal' && p.state !== 'hang' && p.state !== 'ladder' && p.state !== 'bars')
+  if (p.state !== 'normal' && p.state !== 'hang' && p.state !== 'ladder' && p.state !== 'bars' && p.state !== 'rope')
     return false;
   var up = !!(inp && inp.upHeld);
   var ang = up ? -Math.PI / 2 : (p.facing > 0 ? -Math.PI / 4 : -3 * Math.PI / 4);
   var ox = p.x + p.w / 2 + p.facing * 6, oy = p.y + 8;
-  if (p.state === 'hang' || p.state === 'ladder' || p.state === 'bars'){
+  if (p.state === 'hang' || p.state === 'ladder' || p.state === 'bars' || p.state === 'rope'){
     p.state = 'normal';
-    p.hang = null; p.lad = null; p.bars = null;
+    p.hang = null; p.lad = null; p.bars = null; p.rope = null;
   }
   p.grapple = {
     phase: 'fly', up: up,

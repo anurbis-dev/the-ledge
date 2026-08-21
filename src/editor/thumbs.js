@@ -209,6 +209,12 @@ export function paintObjIcon(c, kind, s){
   } else if (kind === 'boulder'){
     r(2, 4, 12, 11, '#4a4460'); r(2, 4, 12, 2, '#6e6892'); r(3, 6, 3, 2, '#847dab');
     r(3, 13, 10, 2, '#302c46');
+  } else if (kind === 'rope_v'){
+    r(7, 1, 2, 2, '#7dffb0'); r(7, 3, 2, 10, '#8a6a3c'); r(7, 13, 2, 2, '#ffd9a0');
+    r(8, 5, 1, 1, '#c4a06a'); r(8, 8, 1, 1, '#c4a06a');
+  } else if (kind === 'rope_h'){
+    r(1, 7, 2, 2, '#7dffb0'); r(3, 7, 10, 2, '#8a6a3c'); r(13, 7, 2, 2, '#ffd9a0');
+    r(5, 8, 1, 1, '#c4a06a'); r(9, 8, 1, 1, '#c4a06a');
   } else if (kind === 'npc_hermit' || kind === 'npc_wanderer'){
     var cloak = kind === 'npc_wanderer' ? '#3a5a4a' : '#4a3a68';
     var cloakD = kind === 'npc_wanderer' ? '#243830' : '#2e2446';

@@ -232,6 +232,7 @@ export function markRoomHidden(S){
   markList(S.fliers);
   markList(S.spiders);
   markList(S.tendrils, function(w){ return { x: w.bx != null ? w.bx : w.x, y: w.by != null ? w.by : w.y }; });
+  markList(S.ropes, function(r){ return { x: (r.ax + r.bx) * 0.5, y: (r.ay + r.by) * 0.5 }; });
   markList(S.torches, function(t){ return t.held ? null : t; });
   markList(S.chests, function(ch){ return { x: ch.x + 8, y: ch.y - 6 }; });
   markList(S.loot);

@@ -2,6 +2,8 @@ import { ctx, cam, rc } from '../render/ctx.js';
 import { volCenter, volWorld, volLocal, pointInVolume } from '../entities/volumes.js';
 import { runtime } from '../core/runtime.js';
 import { findById } from '../entities/ids.js';
+import { rebuildRope, ropeHitDist } from '../entities/ropes.js';
+import { T } from '../core/constants.js';
 
 var drag = null;
 var PAIR_COLS = ['#7de08a', '#7ad0ff', '#ffcf7a', '#ff7ab0', '#c9a0ff', '#e0c060', '#ff9a6a', '#6ad0c8'];
@@ -75,6 +77,13 @@ export function pickAllSpecial(S, wx, wy){
   for (i = list.length - 1; i >= 0; i--){
     if (pointInVolume(list[i], wx, wy)) out.push({ type: 'volume', obj: list[i] });
   }
+  list = S.ropes || [];
+  for (i = list.length - 1; i >= 0; i--){
+    o = list[i];
+    if (near(wx, wy, o.ax, o.ay, 10) || near(wx, wy, o.bx, o.by, 10)
+        || ropeHitDist(o, wx, wy).dist < 8)
+      out.push({ type: 'rope', obj: o });
+  }
   return out;
 }
 
@@ -119,6 +128,11 @@ export function hitGizmo(S, sel, wx, wy){
   if (t === 'door'){
     if (near(wx, wy, o.x + 8, o.y - 12, 14)) return { kind: 'move', type: t, obj: o };
   }
+  if (t === 'rope'){
+    if (near(wx, wy, o.ax, o.ay, 9)) return { kind: 'ropeA', type: t, obj: o };
+    if (near(wx, wy, o.bx, o.by, 9)) return { kind: 'ropeB', type: t, obj: o };
+    if (ropeHitDist(o, wx, wy).dist < 8) return { kind: 'ropeMove', type: t, obj: o };
+  }
   return null;
 }
 
@@ -127,7 +141,8 @@ export function beginGizmo(hit, wx, wy){
   drag = {
     kind: hit.kind, type: hit.type, obj: o, sign: hit.sign || 1,
     x0: wx, y0: wy,
-    ox: o.x, oy: o.y, ow: o.w, oh: o.h, or: o.rot || 0, rad: o.radius || 80
+    ox: o.x, oy: o.y, ow: o.w, oh: o.h, or: o.rot || 0, rad: o.radius || 80,
+    ax: o.ax, ay: o.ay, bx: o.bx, by: o.by
   };
 }
 
@@ -152,6 +167,25 @@ export function moveGizmo(wx, wy){
   if (drag.kind === 'rot'){
     var c = volCenter(o);
     o.rot = Math.atan2(wy - c.y, wx - c.x) - Math.atan2(drag.y0 - c.y, drag.x0 - c.x) + drag.or;
+    return;
+  }
+  if (drag.kind === 'ropeA' || drag.kind === 'ropeB' || drag.kind === 'ropeMove'){
+    if (drag.kind === 'ropeMove'){
+      o.ax = drag.ax + dx; o.ay = drag.ay + dy;
+      o.bx = drag.bx + dx; o.by = drag.by + dy;
+    } else if (drag.kind === 'ropeA'){
+      o.ax = Math.round(wx); o.ay = Math.round(wy);
+      if (o.orient === 'v') o.bx = o.ax;
+    } else {
+      o.bx = Math.round(wx); o.by = Math.round(wy);
+      if (o.orient === 'v'){
+        o.bx = o.ax;
+        if (o.by < o.ay + T * 2) o.by = o.ay + T * 2;
+      } else if (o.orient === 'h'){
+        if (Math.abs(o.bx - o.ax) < T * 2) o.bx = o.ax + (o.bx < o.ax ? -T * 2 : T * 2);
+      }
+    }
+    rebuildRope(o);
     return;
   }
   if (drag.type !== 'volume') return;
@@ -181,6 +215,11 @@ export function drawGizmos(S, sel){
   for (i = 0; i < list.length; i++){
     o = list[i];
     drawVolumeFrame(o, sel && sel.type === 'volume' && sel.obj === o);
+  }
+  list = S.ropes || [];
+  for (i = 0; i < list.length; i++){
+    o = list[i];
+    drawRopeGizmo(o, sel && sel.type === 'rope' && sel.obj === o);
   }
   list = S.lights || [];
   for (i = 0; i < list.length; i++){
@@ -299,6 +338,23 @@ function drawVolumeFrame(o, on){
   ];
   for (i = 0; i < 4; i++) handle(mids[i].x - cam.x, mids[i].y - cam.y, '#7ad0ff');
   for (i = 0; i < 4; i++) handle(pts[i].x - cam.x, pts[i].y - cam.y, '#ffd9a0');
+}
+
+function drawRopeGizmo(o, on){
+  var ax = o.ax - cam.x, ay = o.ay - cam.y, bx = o.bx - cam.x, by = o.by - cam.y;
+  ctx.save();
+  ctx.globalAlpha = on ? 0.95 : 0.4;
+  ctx.strokeStyle = on ? '#e8c57a' : '#8a7a55';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  ctx.moveTo(ax, ay);
+  ctx.lineTo(bx, by);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+  handle(ax, ay, on ? '#7dffb0' : '#3a8f5c');
+  handle(bx, by, on ? '#ffd9a0' : '#9a8ab8');
 }
 
 function drawPoint(o, col, on, ring){

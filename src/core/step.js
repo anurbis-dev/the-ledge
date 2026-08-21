@@ -22,6 +22,7 @@ import { stepEnemies } from '../entities/enemies.js';
 import { stepFliers, stepDrops } from '../entities/fliers.js';
 import { stepSpiders } from '../entities/spiders.js';
 import { stepTendrils, tickSnareAir } from '../entities/tendrils.js';
+import { stepRopes, tryRope, updateRope } from '../entities/ropes.js';
 import { stepLoot } from '../entities/loot.js';
 import { tryDoor, updateWarp, tryExit } from '../entities/doors.js';
 import { pickups } from '../entities/items.js';
@@ -47,6 +48,7 @@ export function step(S, dt, inp){
   decayShake(S, dt);
   stepPlats(S, dt);
   stepLifts(S, dt);
+  stepRopes(S, dt);
   stepCrumbs(S, dt);
   stepGive(S, dt);
   stepTorches(S, dt);
@@ -111,6 +113,7 @@ export function step(S, dt, inp){
   var p = S.p;
   if (p.harpoonCd > 0) p.harpoonCd = Math.max(0, p.harpoonCd - dt);
   if (p.grabCd > 0) p.grabCd = Math.max(0, p.grabCd - dt);
+  if (p.ropeCd > 0) p.ropeCd = Math.max(0, p.ropeCd - dt);
   if (p.ladCd > 0) p.ladCd = Math.max(0, p.ladCd - dt);
   if (p.rollCd > 0) p.rollCd = Math.max(0, p.rollCd - dt);
   if (p.landT > 0) p.landT = Math.max(0, p.landT - dt);
@@ -177,6 +180,7 @@ export function step(S, dt, inp){
   if (p.state === 'climb'){ updateClimb(S, p, dt); crumbCheck(S, p); pickups(S, p); return; }
   if (p.state === 'hang'){ updateHang(S, p, dt, inp); crumbCheck(S, p); pickups(S, p); return; }
   if (p.state === 'ladder'){ updateLadder(S, p, dt, inp); pickups(S, p); return; }
+  if (p.state === 'rope'){ updateRope(S, p, dt, inp); pickups(S, p); return; }
 
   /* крюк: тянем к точке, не долетая отстёгиваемся с текущей скоростью */
   if (p.grapple && p.grapple.phase === 'pull'){
@@ -499,6 +503,7 @@ export function step(S, dt, inp){
     autoLadder(S, p, prevBottom);
     if (!inWater && !rolling && p.state === 'normal') tryBars(S, p);
     if (!inWater && !rolling && p.state === 'normal') tryLadder(S, p, inp);
+    if (!inWater && !rolling && p.state === 'normal') tryRope(S, p, inp);
     if (!inWater && p.state === 'normal') tryGrab(S, p);
     else if (inWater && p.atSurface && p.state === 'normal' && Math.abs(inp.x) > 0.35
              && !inp.downHeld && !inp.downPressed)
@@ -553,17 +558,19 @@ export function step(S, dt, inp){
         }
       }
       if (!tryLadder(S, p, inp)){
-        onEdge = canDescend(p, inp.x);
-        if (onEdge && p.grabCd <= 0){
-          var inland = awayFromEdge(p, inp.x);           // ход от края — лаз лёжа, не вис
-          if (inp.downHeld && !inland) p.edgeHoldT += dt; else p.edgeHoldT = 0;
-          var tapHang = inp.downPressed && stanceBefore === 2 && !inland;
-          var holdHang = inp.downHeld && !inland && p.edgeHoldT >= C.EDGE_HOLD;
-          if (tapHang || holdHang){
-            if (tryDescend(S, p, inp.x)) p.edgeHoldT = 0;
+        if (!tryRope(S, p, inp)){
+          onEdge = canDescend(p, inp.x);
+          if (onEdge && p.grabCd <= 0){
+            var inland = awayFromEdge(p, inp.x);           // ход от края — лаз лёжа, не вис
+            if (inp.downHeld && !inland) p.edgeHoldT += dt; else p.edgeHoldT = 0;
+            var tapHang = inp.downPressed && stanceBefore === 2 && !inland;
+            var holdHang = inp.downHeld && !inland && p.edgeHoldT >= C.EDGE_HOLD;
+            if (tapHang || holdHang){
+              if (tryDescend(S, p, inp.x)) p.edgeHoldT = 0;
+            }
+          } else {
+            p.edgeHoldT = 0;
           }
-        } else {
-          p.edgeHoldT = 0;
         }
       }
     }
