@@ -150,6 +150,12 @@ export function hitGizmo(S, sel, wx, wy){
     if (near(wx, wy, o.x, o.y, 10)) return { kind: 'move', type: t, obj: o };
   }
   if (t === 'fx_sand'){
+    var esh = o.shape || 'point';
+    var esz = o.shapeSize != null ? o.shapeSize : 16;
+    if (esh !== 'point' && esz > 0){
+      var eh = emitSizeHandle(o);
+      if (near(wx, wy, eh.x, eh.y, 8)) return { kind: 'emitSize', type: t, obj: o };
+    }
     if (near(wx, wy, o.x, o.y, 10)) return { kind: 'move', type: t, obj: o };
   }
   if (t === 'player_start'){
@@ -277,6 +283,15 @@ export function moveGizmo(wx, wy){
     o.radius = Math.max(8, Math.round(Math.sqrt((wx - o.x) * (wx - o.x) + (wy - o.y) * (wy - o.y))));
     return;
   }
+  if (drag.kind === 'emitSize'){
+    var edx = wx - o.x, edy = wy - o.y;
+    var edist = Math.sqrt(edx * edx + edy * edy);
+    var esh2 = o.shape || 'point';
+    o.shapeSize = Math.max(1, Math.round(edist * 2));
+    if (esh2 === 'line')
+      o.shapeAngle = Math.round(Math.atan2(edy, edx) * 180 / Math.PI);
+    return;
+  }
   if (drag.kind === 'rot'){
     var c = volCenter(o);
     o.rot = Math.atan2(wy - c.y, wx - c.x) - Math.atan2(drag.y0 - c.y, drag.x0 - c.x) + drag.or;
@@ -366,7 +381,7 @@ export function drawGizmos(S, sel){
   for (i = 0; i < list.length; i++){
     o = list[i];
     var fon = sel && sel.type === 'fx_sand' && sel.obj === o;
-    drawPoint(o, o.color || '#bb8f70', fon, false);
+    drawEmitterGizmo(o, fon);
   }
   list = S.doors || [];
   /* линии пар — под маркерами, только для валидных пар (раз рисуем оба конца) */
@@ -537,6 +552,51 @@ function drawLiftGizmo(o, on){
   for (i = 0; i < (o.floors || []).length; i++){
     fy = o.floors[i];
     handle(o.x + o.w / 2 - cam.x, fy - cam.y, on ? (i === (o.homeIdx | 0) ? '#7dffb0' : '#ffd9a0') : '#6a5888');
+  }
+}
+
+function emitSizeHandle(o){
+  var sh = o.shape || 'point';
+  var sz = o.shapeSize != null ? o.shapeSize : 16;
+  var ang = ((o.shapeAngle != null ? o.shapeAngle : 0) * Math.PI) / 180;
+  if (sh === 'line')
+    return { x: o.x + Math.cos(ang) * sz * 0.5, y: o.y + Math.sin(ang) * sz * 0.5 };
+  return { x: o.x + sz * 0.5, y: o.y };
+}
+
+function drawEmitterGizmo(o, on){
+  var col = o.color || '#bb8f70';
+  var sh = o.shape || 'point';
+  var sz = o.shapeSize != null ? o.shapeSize : 16;
+  var x = o.x - cam.x, y = o.y - cam.y;
+  var ang, hx, hy, eh;
+  drawPoint(o, col, on, false);
+  if (sh === 'point' || !(sz > 0)) return;
+  ctx.save();
+  ctx.globalAlpha = on ? 0.7 : 0.28;
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 1;
+  ctx.setLineDash(on ? [] : [3, 3]);
+  if (sh === 'square'){
+    ctx.strokeRect(x - sz * 0.5, y - sz * 0.5, sz, sz);
+  } else if (sh === 'circle'){
+    ctx.beginPath();
+    ctx.arc(x, y, sz * 0.5, 0, Math.PI * 2);
+    ctx.stroke();
+  } else if (sh === 'line'){
+    ang = ((o.shapeAngle != null ? o.shapeAngle : 0) * Math.PI) / 180;
+    hx = Math.cos(ang) * sz * 0.5;
+    hy = Math.sin(ang) * sz * 0.5;
+    ctx.beginPath();
+    ctx.moveTo(x - hx, y - hy);
+    ctx.lineTo(x + hx, y + hy);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  ctx.restore();
+  if (on){
+    eh = emitSizeHandle(o);
+    handle(eh.x - cam.x, eh.y - cam.y, col);
   }
 }
 

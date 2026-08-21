@@ -115,7 +115,7 @@
 - Предметы и лут.
 - Сундуки (`Chest`, `Locked`).
 - `Sound`, `Light`, `Volume` — у Light Details открывает спрайт фонаря, если есть def.
-- `FX Sand` (`kind: 'fx_sand'`) — непрерывный песчаный эмиттер (`LV.emitters` / `S.emitters`, `mkEmitterAt`); role `marker`. Постановка сразу выбирает объект и открывает Inspect/гизмо `move` (позиция = `x,y`). Те же частицы, что у CRUMB (`emitSand` / `SAND_DEF`).
+- `FX Sand` (`kind: 'fx_sand'`) — непрерывный песчаный эмиттер (`LV.emitters` / `S.emitters`, `mkEmitterAt`); role `marker`. Постановка сразу выбирает объект и открывает Inspect/гизмо `move` (позиция = `x,y`). Форма спавна: `shape` point|square|circle|line (`EMIT_SHAPES`), `shapeSize` (px: сторона / диаметр / длина), `shapeAngle` (deg, только line); `stepEmitters` → `sampleEmitterPoint` → `emitSand`. Те же частицы, что у CRUMB (`SAND_DEF`).
 - `Boulder`.
 - `Rope V` (`kind: 'rope_v'`) / `Rope H` (`kind: 'rope_h'`) — вертикальный / горизонтальный канат (`LV.ropes`). Постановка `mkRopeAt`; гизмо: handles `a`/`b` + move span; клик → `#edRopeSettings` (H: Length+ 0=длина=span, сдвиг добавляет px; Segments; Elasticity 0..1 с кривой ^2.6; Swing force только V; Wind; Climb; Grab). Play: V — лёгкий wobble при хвате, ↑↓ после отпускания захвата, тап L/R; H — bars, ↓ отцеп. В Play канат сталкивается с solid-тайлами (новых контролов в редакторе нет). Persist `packRope` (`lengthExtra`/`length` для H). Role `marker`.
 - `Plat H` (`kind: 'plat_h'`) / `Plat V` (`kind: 'plat_v'`) — движущаяся платформа (`LV.plats` / `S.plats`, `mkPlatAt`; `vert` из kind). Role `marker`. Постановка сразу выбирает объект и открывает Inspect; гизмо `move` (сдвиг всего пути) + ручки `platA`/`platB` (концы A=min / B=max). Persist `packPlat`. History `OBJ_KEYS` включает `plats`.
@@ -201,7 +201,7 @@
 - `Exit`: слот **Target level** (`toId` = id уровня в `LEVELS`); пусто = `(none / MENU)` — на CONTINUE уходит в меню (`finishLevel` / `resolveExitNext`). Несколько выходов; `tryExit` читает `LV.exits`.
 - `Door`: **Required item** (bag kind или none); при выбранном предмете — **Consume item on activate** (`consume`, дефолт true). `locked = !!need`; значения синкаются на пару. Позиция — гизмо `move`.
 - Light: `Color` / `Intensity` / `Radius` / `Sprite` (какой спрайт висит в точке света; `Lantern` — факел по умолчанию, без PNG рисуется процедурный; `None` — только свечение). Постановка Light сразу ставит факел (`sprite:'lantern'`).
-- `FX Sand`: `Density` / `Speed` / `Speed rand` / `Color` / `Life` / `Life rand` / `Gravity` / `Size` / `Spread` / `Drag` / `Lift` (дефолты `SAND_EMIT_DEF`); позиция — гизмо `move` (`x,y`). Persist `packEmitter`.
+- `FX Sand`: `Shape` (point|square|circle|line); `Shape size` если не point; `Shape angle` если line; далее `Density` / `Speed` / `Speed rand` / `Color` / `Life` / `Life rand` / `Gravity` / `Size` (px зерна) / `Spread` / `Drag` / `Lift` (дефолты `SAND_EMIT_DEF`: shape=point, shapeSize=16, shapeAngle=0). Гизмо: `move` + контур формы при выборе + ручка `emitSize` (resize; у line ещё angle). Persist `packEmitter` (+ dump emitters) с shape/shapeSize/shapeAngle.
 - `Plat H` / `Plat V`: `Width` / `Height` / `Speed` / `Pause A` / `Pause B`; `Travel` (`pingpong`|`oneway`); `Loop` (`infinite`|`once`); `Trigger` (`auto`|`ride`); `On leave` (`continue`|`return`|`stop`). Гизмо: `move` + `platA`/`platB`. Persist `packPlat` (`PLAT_DEF`).
 - `Lift`: `Width` / `Cabin H` / `Speed` / `Dwell` (пусто → `C.LIFT_V` / `C.LIFT_DWELL`); `Travel` (`pingpong`|`oneway`); `Loop` (`infinite`|`once`); `Trigger` (`call`|`auto`|`ride`); `On leave` (`stay`|`return`); `Home floor` + кнопки `+ Floor` / `− Floor` (минимум 2 этажа). Гизмо: `move` + `liftFloor`. Persist `packLift` (`LIFT_DEF`).
 - Через гизмо на канве:
@@ -210,6 +210,7 @@
 - `rotate`, `scaleX`, `scaleY` (для volume)
 - `platA` / `platB` (концы платформы)
 - `liftFloor` (этажи лифта)
+- `emitSize` (размер/угол формы FX Sand)
 
 Удаление выбранного special-объекта:
 - Клавиша `Delete` (`Start` не удаляется — сброс `LV.spawn` на дефолт; `Door` — оба конца пары).

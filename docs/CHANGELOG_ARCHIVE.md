@@ -1,3 +1,7 @@
+## 0.6.0
+
+- Objects: `Plat H` / `Plat V` / `Lift` в палитре + Inspect/гизмо; `plats.js`/`lifts.js` params (travel/loop/trigger/onLeave, floors); persist `packPlat`/`packLift`.
+
 ## 0.5.0
 
 - Ropes: коллизия Verlet-нод с solid-тайлами (`solidAt` в constrain loop) + unstick AABB райдера; `C.ROPE_COL_EPS`.

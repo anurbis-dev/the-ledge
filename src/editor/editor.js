@@ -1746,6 +1746,9 @@ export function edExportText(){
   }).join(',') + '],');
   out.push('emitters: [' + (S.emitters || []).map(function(e){
     return "{kind:'" + (e.kind || 'sand') + "',x:" + Math.round(e.x) + ',y:' + Math.round(e.y) +
+      ",shape:'" + (e.shape || 'point') + "'" +
+      ',shapeSize:' + (e.shapeSize != null ? e.shapeSize : 16) +
+      ',shapeAngle:' + (e.shapeAngle != null ? e.shapeAngle : 0) +
       ',density:' + (e.density != null ? e.density : 8) +
       ',speed:' + (e.speed != null ? e.speed : 18) +
       ',speedRand:' + (e.speedRand != null ? e.speedRand : 14) +

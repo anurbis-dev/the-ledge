@@ -1,5 +1,5 @@
 import { VOLUME_MASKS } from '../entities/volumes.js';
-import { SAND_EMIT_DEF } from '../entities/emitters.js';
+import { SAND_EMIT_DEF, EMIT_SHAPES } from '../entities/emitters.js';
 import { PLAT_DEF } from '../entities/plats.js';
 import { LIFT_DEF, syncLiftFloors } from '../entities/lifts.js';
 import { initSliders, bindResetHover } from './slider.js';
@@ -247,7 +247,15 @@ function fillBody(sel){
     slider(body, 'Tint amount', 0, 1, 0.01, o.tintAmt != null ? o.tintAmt : dv.tintAmt, function(v){ o.tintAmt = v; }, dv.tintAmt);
   } else if (sel.type === 'fx_sand'){
     var df = DEF.fx_sand;
-    note(body, 'Continuous sand fall. Drag marker to move. Crumb tiles use the same particle API.');
+    var sh = o.shape || df.shape;
+    note(body, 'Continuous sand fall. Drag marker to move; shape handle resizes. Crumb tiles use the same particle API.');
+    select(body, 'Shape', EMIT_SHAPES, sh, function(v){ o.shape = v; }, df.shape);
+    if (sh !== 'point'){
+      slider(body, 'Shape size', 1, 128, 1, o.shapeSize != null ? o.shapeSize : df.shapeSize, function(v){ o.shapeSize = v; }, df.shapeSize);
+    }
+    if (sh === 'line'){
+      slider(body, 'Shape angle', -180, 180, 1, o.shapeAngle != null ? o.shapeAngle : df.shapeAngle, function(v){ o.shapeAngle = v; }, df.shapeAngle);
+    }
     slider(body, 'Density', 0, 40, 0.5, o.density != null ? o.density : df.density, function(v){ o.density = v; }, df.density);
     slider(body, 'Speed', 0, 80, 1, o.speed != null ? o.speed : df.speed, function(v){ o.speed = v; }, df.speed);
     slider(body, 'Speed rand', 0, 80, 1, o.speedRand != null ? o.speedRand : df.speedRand, function(v){ o.speedRand = v; }, df.speedRand);
