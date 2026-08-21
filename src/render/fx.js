@@ -445,10 +445,11 @@ export function stepWater(dt){
   stepShores();
   if (view.edit) return;
   var p = S.p, pcx = p.x + p.w/2, pcy = p.y + p.h/2;
+  var wetNear = p.inWater || p.wading;
   for (var i = 0; i < FISH.length; i++){
     var f = FISH[i];
     var dx = pcx - f.x, dy = pcy - f.y;
-    var near = Math.abs(dx) < 60 && Math.abs(dy) < 34 && S.p.inWater;
+    var near = Math.abs(dx) < 60 && Math.abs(dy) < 34 && wetNear;
     if (near && (!f.big || f.scare > 0)){
       f.dir = dx > 0 ? -1 : 1;                        // мелочь и напуганные уплывают
       f.scare = Math.max(f.scare - dt, 0);

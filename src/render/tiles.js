@@ -155,6 +155,21 @@ export function addWaterRipple(wx, amp){
   if (splashRipples.length > 12) splashRipples.splice(0, splashRipples.length - 12);
 }
 export function clearWaterRipples(){ splashRipples.length = 0; }
+/* тихая/ходовая рябь пока стоим или идём в воде (не только splash enter/exit) */
+export function stepHeroWaterRipples(p, dt){
+  if (!(p.inWater || p.wading)){ p.rippleT = 0; return; }
+  p.rippleT = (p.rippleT || 0) - dt;
+  if (p.rippleT > 0) return;
+  var spd = Math.abs(p.vx) + Math.abs(p.vy) * 0.35;
+  var amp, gap;
+  if (spd > 90){ amp = 1.35; gap = 0.14; }
+  else if (spd > 40){ amp = 0.85; gap = 0.22; }
+  else if (spd > 10 || p.wading){ amp = 0.42; gap = 0.38; }
+  else { amp = 0.28; gap = 0.55; }
+  if (p.inWater && !p.atSurface) amp *= 0.45;
+  addWaterRipple(p.x + p.w * 0.5, amp);
+  p.rippleT = gap;
+}
 function pruneSplashRipples(time){
   for (var i = splashRipples.length - 1; i >= 0; i--){
     if (time - splashRipples[i].t0 > splashRipples[i].life) splashRipples.splice(i, 1);
@@ -413,6 +428,46 @@ function blitWaves(c, x, y, deep){
     (c - wStrip.c0) * T, 0, T, WAVE_H,
     Math.round(x), Math.round(y - WAVE_PAD), T, WAVE_H);
   return true;
+}
+/* гребни + лёгкий multiply поверх героя — «в воде», не снаружи */
+export function drawWaterImmersion(){
+  if (view.edit) return;
+  var S = world();
+  if (!S || !S.p) return;
+  var p = S.p;
+  if (!(p.inWater || p.wading)) return;
+  var cx = p.x + p.w * 0.5;
+  var cy = p.inWater ? (p.y + p.h * 0.5) : (p.y + p.h - 2);
+  var surfY = p.swimSurf;
+  if (surfY == null){
+    var cTry = Math.floor(cx / T), rTry = Math.floor(cy / T);
+    if (G.isWaterV(tAt(cTry, rTry))){
+      while (rTry > 0 && G.isWaterV(tAt(cTry, rTry - 1))) rTry--;
+      surfY = rTry * T;
+    }
+  }
+  if (surfY == null) return;
+  if (p.y + p.h <= surfY + 1) return;
+  var c0 = Math.floor(p.x / T) - 1;
+  var c1 = Math.floor((p.x + p.w) / T) + 1;
+  var time = view.time, c, sx, sy, row;
+  for (c = c0; c <= c1; c++){
+    row = topSurfaceRow(c, Math.floor(surfY / T) - 1, Math.floor(surfY / T) + 2);
+    if (row == null || !isWaterSurfaceAt(c, row)) continue;
+    sx = c * T - cam.x;
+    sy = row * T - cam.y;
+    if (!blitWaves(c, sx, sy, false))
+      paintWaves(sx, sy, c, time, '#49a0cf', waveBaseTravel(), waveScale());
+  }
+  var top = Math.max(surfY, p.y);
+  var bot = p.y + p.h;
+  if (bot > top + 1){
+    ctx.save();
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.globalAlpha = p.wading && !p.inWater ? 0.16 : 0.22;
+    rc(Math.round(p.x - cam.x) - 1, Math.round(top - cam.y), p.w + 2, Math.round(bot - top), '#1a3a58');
+    ctx.restore();
+  }
 }
 var _tintA = null, _tintB = null;
 function tintScratch(which, w){

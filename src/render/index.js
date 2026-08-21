@@ -1,7 +1,7 @@
 export { cv, ctx, VW, VH, BUF_W, BUF_H, hv, viewBox, cam, view, rc, viewScale, setViewScale, viewW, viewH, paintHud, clearHud } from './ctx.js';
 export { applyPal } from './palette.js';
 export { tiles, tilesFront, tilesLayer } from './tiles.js';
-export { invalidateChunk, invalidateAll, addWaterRipple, clearWaterRipples } from './tiles.js';
+export { invalidateChunk, invalidateAll, addWaterRipple, clearWaterRipples, stepHeroWaterRipples, drawWaterImmersion } from './tiles.js';
 export { applyVolumes } from './volumes.js';
 export { drawCollideOverlay } from './collide.js';
 export { clampCam, resetCam, followCam, pushCamRender, popCamRender, clearCamPan } from './camera.js';

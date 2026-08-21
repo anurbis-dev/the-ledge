@@ -8,7 +8,7 @@ import {
   beginIntro, skipIntro, dismissIntro, stepIntro, isIntroReady,
   beginOutro, skipOutro, pickOutro, stepOutro, hitOutro, isOutroReady,
   setOutroFocus, outroFocus,
-  applyPal, buildWater, stepWater, invalidateAll, addWaterRipple, clearWaterRipples, fore, rc, getFish, spark, landDust, bonkDust, emitSand,
+  applyPal, buildWater, stepWater, invalidateAll, addWaterRipple, clearWaterRipples, stepHeroWaterRipples, drawWaterImmersion, fore, rc, getFish, spark, landDust, bonkDust, emitSand,
   resetCam, followCam, pushCamRender, popCamRender, clearCamPan, paintHud, clearHud,
   setViewScale, applyVolumes, drawCollideOverlay,
   isInvOpen, invInspecting, openInv, closeInv, toggleInv, stepInv, drawInventory, handleInvPointer, handleInvWheel, handleInvKey,
@@ -47,11 +47,27 @@ var inp = { x:0, jumpHeld:false, jumpPressed:false, upHeld:false, upPressed:fals
 
 function onEvent(ev){
   var p = S.p, k = ev.split(':')[0];
-  if (k === 'jump') { blip(430, 0.08); spark(p.x+5, p.y+p.h, 4, '#b9b2e6'); }
+  if (k === 'jump') {
+    blip(430, 0.08); spark(p.x+5, p.y+p.h, 4, '#b9b2e6');
+    if (p.inWater || p.wading)
+      addWaterRipple(p.x + p.w * 0.5, Math.min(2.4, 0.9 + Math.abs(p.vy) / 90));
+  }
   else if (k === 'walljump' || k === 'backjump'){ blip(500, 0.09); spark(p.x+5, p.y+12, 7, '#cfc6ff', 90); }
-  else if (k === 'land'){ blip(160, 0.06); }
-  else if (k === 'hardland'){ blip(90, 0.2, 'sawtooth', 0.06); spark(p.x+5, p.y+p.h, 10, '#ffbba0', 110, 50); }
-  else if (k === 'rollland' || k === 'roll'){ blip(240, 0.09, 'triangle'); spark(p.x+5, p.y+p.h, 6, '#d6cdb0', 90); }
+  else if (k === 'land'){
+    blip(160, 0.06);
+    if (p.inWater || p.wading)
+      addWaterRipple(p.x + p.w * 0.5, Math.min(2.8, 1.1 + Math.abs(p.vy) / 80));
+  }
+  else if (k === 'hardland'){
+    blip(90, 0.2, 'sawtooth', 0.06); spark(p.x+5, p.y+p.h, 10, '#ffbba0', 110, 50);
+    if (p.inWater || p.wading)
+      addWaterRipple(p.x + p.w * 0.5, Math.min(3.2, 1.4 + Math.abs(p.vy) / 70));
+  }
+  else if (k === 'rollland' || k === 'roll'){
+    blip(240, 0.09, 'triangle'); spark(p.x+5, p.y+p.h, 6, '#d6cdb0', 90);
+    if ((k === 'rollland') && (p.inWater || p.wading))
+      addWaterRipple(p.x + p.w * 0.5, 1.6);
+  }
   else if (k === 'landdust'){ landDust(p, +ev.split(':')[1] || 0); }
   else if (k === 'bonk'){
     var bSpd = +ev.split(':')[1] || 80;
@@ -496,7 +512,7 @@ function frame(now){
     if (entitiesShown(true)){
       plats(); lifts(); caveExit(); doors(); boulders(); chests();
       lootDrops(); items(); pickables(); drawTorches(); drawHarpoons(); drawArrows(); enemies(); spiders(); fliers(); npcs();
-      ropes(); hero(); drawFish();
+      ropes(); hero(); drawWaterImmersion(); drawFish();
     }
     tilesFront();
     drawParts(dt); drawHearts(dt);
@@ -530,7 +546,7 @@ function frame(now){
     if (entitiesShown(false)){
       plats(); lifts(); caveExit(); doors(); boulders(); chests();
       lootDrops(); items(); pickables(); drawTorches(); drawHarpoons(); drawArrows(); enemies(); spiders(); fliers(); npcs();
-      ropes(); hero(); drawFish();
+      ropes(); hero(); drawWaterImmersion(); drawFish();
     }
     tilesFront(); lightPass(); applyVolumes(); drawWeeds(); tendrils();
     if (ED.showGeo) drawCollideOverlay();
@@ -600,6 +616,7 @@ function frame(now){
   if (tail.a > 3) tail.a = 3; if (tail.a < -3) tail.a = -3;
 
   stepWater(dt);
+  stepHeroWaterRipples(S.p, dt);
   var anyMoving = false;
   for (var lm = 0; lm < S.lifts.length; lm++) if (S.lifts[lm].st === 'move') anyMoving = true;
   liftSound(anyMoving);
@@ -626,6 +643,7 @@ function frame(now){
   npcs();
   ropes();
   hero();
+  drawWaterImmersion();
   drawFish();
   tilesFront();
   drawParts(dt);

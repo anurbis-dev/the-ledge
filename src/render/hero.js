@@ -1,5 +1,5 @@
 import GAME from '../core/game.js';
-import { cam, view, world, ctx, rc } from './ctx.js';
+import { cam, view, world, ctx, rc, cv, viewScale } from './ctx.js';
 import { waterTintAt } from './fx.js';
 import {
   K, IDLE_A, IDLE_B, RUN, FALLP, LANDP, SLIDEP, STUNP, SNAREP, ROLLP,
@@ -250,7 +250,7 @@ export function hero(){
   var S = world(), time = view.time, tail = view.tail;
   var p = S.p, i, k, pt = {}, frontal = (p.state === 'ladder' && p.lad.v === G.LADF) ||
       (p.state === 'hang' && p.hang.kind === 'lad' && G.tileAt(p.hang.tc, p.hang.tr) === G.LADF);
-  if (tryHeroSprite(p)) return;
+  if (tryHeroSprite(p)){ immerseHero(p); tintHeroBand(p); return; }
   var cxw = p.x + p.w/2, cyw = p.y + p.h/2;
   var wag = tail.a;
 
@@ -270,6 +270,7 @@ export function hero(){
       pt[k] = [cx + facing*pose[k][0] - cam.x + ox, cy + pose[k][1] - cam.y + oy]; }
     figure(pt, facing, wag, false, null, null, p.stick, { helmet: p.helmet, shield: p.shield });
     tintHero(p, pt, cxw, cyw);
+    immerseHero(p);
     return;
   }
   var pose2 = boxPose(p), rot = 0, cxs = 0, cys = 0, rollWhole = p.rollT > 0;
@@ -330,9 +331,82 @@ export function hero(){
   }
   tintHero(p, pt, cxw, cyw);
   if (rollWhole) ctx.restore();
+  immerseHero(p);
+}
+var _wetScratch = null;
+function wetScratch(w, h){
+  if (!_wetScratch || _wetScratch.width < w || _wetScratch.height < h){
+    _wetScratch = document.createElement('canvas');
+    _wetScratch.width = Math.max(w, 8);
+    _wetScratch.height = Math.max(h, 8);
+    _wetScratch.getContext('2d').imageSmoothingEnabled = false;
+  }
+  return _wetScratch;
+}
+function heroSurfY(p){
+  if (p.swimSurf != null) return p.swimSurf;
+  var cx = p.x + p.w * 0.5;
+  var py = p.inWater ? (p.y + p.h * 0.5) : (p.y + p.h - 1);
+  var c = Math.floor(cx / G.T), r = Math.floor(py / G.T);
+  if (!G.isWaterV(G.tileAt(c, r))) return null;
+  while (r > 0 && G.isWaterV(G.tileAt(c, r - 1))) r--;
+  return r * G.T;
+}
+/* пиксельный wobble подводной полосы + tint (sprite и stick) */
+function immerseHero(p){
+  if (!p.inWater && !p.wading) return;
+  var surfY = heroSurfY(p);
+  if (surfY == null) return;
+  if (p.y + p.h <= surfY + 1) return;
+  var pad = 4;
+  var gx0 = Math.round(p.x - cam.x) - pad;
+  var gy0 = Math.round(p.y - cam.y) - pad;
+  var gw = p.w + pad * 2 + 4;
+  var gh = p.h + pad * 2 + 4;
+  var z = viewScale || 1;
+  var px = Math.round(gx0 * z), py = Math.round(gy0 * z);
+  var pw = Math.max(1, Math.round(gw * z)), ph = Math.max(1, Math.round(gh * z));
+  if (pw > 96) pw = 96;
+  if (ph > 96) ph = 96;
+  var sc = wetScratch(pw, ph);
+  var sg = sc.getContext('2d');
+  sg.setTransform(1, 0, 0, 1, 0, 0);
+  sg.globalAlpha = 1;
+  sg.globalCompositeOperation = 'source-over';
+  sg.clearRect(0, 0, pw, ph);
+  sg.imageSmoothingEnabled = false;
+  sg.drawImage(cv, px, py, pw, ph, 0, 0, pw, ph);
+  var surfLocal = Math.round((surfY - cam.y - gy0) * z);
+  if (surfLocal < 0) surfLocal = 0;
+  if (surfLocal >= ph) return;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(px, py + surfLocal, pw, ph - surfLocal);
+  var time = view.time, row, dx;
+  for (row = surfLocal; row < ph; row++){
+    dx = Math.round(Math.sin(time * 6.2 + row * 0.55) * (p.wading && !p.inWater ? 1 : 1.6));
+    ctx.drawImage(sc, 0, row, pw, 1, px + dx, py + row, pw, 1);
+  }
+  ctx.restore();
+}
+function tintHeroBand(p){
+  if (!p.inWater && !p.wading) return;
+  var surfY = heroSurfY(p);
+  if (surfY == null || p.y + p.h <= surfY + 1) return;
+  var cxw = p.x + p.w / 2;
+  var k = waterTintAt(cxw, Math.max(surfY + 2, p.y + p.h * 0.55));
+  if (p.wading && !p.inWater) k *= 0.5;
+  if (k < 0.04) return;
+  ctx.save();
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.globalAlpha = 0.14 + k * 0.55;
+  var top = Math.max(surfY, p.y);
+  rc(Math.round(p.x - cam.x) - 1, Math.round(top - cam.y), p.w + 2, Math.round(p.y + p.h - top), '#1a3a58');
+  ctx.restore();
 }
 function tintHero(p, pt, cxw, cyw){
   if (!p.inWater && !p.wading) return;
+  var surfY = heroSurfY(p);
   var k = waterTintAt(cxw, p.inWater ? cyw : (p.y + p.h - 2));
   if (p.wading && !p.inWater) k *= 0.45;
   if (k < 0.04) return;
@@ -340,16 +414,20 @@ function tintHero(p, pt, cxw, cyw){
   ctx.globalCompositeOperation = 'multiply';
   ctx.globalAlpha = 0.16 + k * 0.8;
   var col = '#1a3a58';
-  if (pt.head) rc(pt.head[0] - 4, pt.head[1] - 5, 8, 8, col);
+  var clipY = surfY != null ? Math.round(surfY - cam.y) : null;
+  function below(y){ return clipY == null || y + 4 >= clipY; }
+  if (pt.head && below(pt.head[1])) rc(pt.head[0] - 4, pt.head[1] - 5, 8, 8, col);
   if (pt.neck && pt.hip){
     var nx = Math.min(pt.neck[0], pt.hip[0]) - 5;
     var ny = Math.min(pt.neck[1], pt.hip[1]);
-    rc(nx, ny, 12, Math.abs(pt.hip[1] - pt.neck[1]) + 6, col);
+    var nh = Math.abs(pt.hip[1] - pt.neck[1]) + 6;
+    if (clipY != null && ny < clipY){ nh -= clipY - ny; ny = clipY; }
+    if (nh > 0) rc(nx, ny, 12, nh, col);
   }
-  if (pt.hip) rc(pt.hip[0] - 6, pt.hip[1] - 2, 12, 8, col);
-  if (pt.kF) rc(pt.kF[0] - 3, pt.kF[1] - 2, 6, 8, col);
-  if (pt.kB) rc(pt.kB[0] - 3, pt.kB[1] - 2, 6, 8, col);
-  if (pt.fF) rc(pt.fF[0] - 3, pt.fF[1] - 2, 6, 5, col);
-  if (pt.fB) rc(pt.fB[0] - 3, pt.fB[1] - 2, 6, 5, col);
+  if (pt.hip && below(pt.hip[1])) rc(pt.hip[0] - 6, pt.hip[1] - 2, 12, 8, col);
+  if (pt.kF && below(pt.kF[1])) rc(pt.kF[0] - 3, pt.kF[1] - 2, 6, 8, col);
+  if (pt.kB && below(pt.kB[1])) rc(pt.kB[0] - 3, pt.kB[1] - 2, 6, 8, col);
+  if (pt.fF && below(pt.fF[1])) rc(pt.fF[0] - 3, pt.fF[1] - 2, 6, 5, col);
+  if (pt.fB && below(pt.fB[1])) rc(pt.fB[0] - 3, pt.fB[1] - 2, 6, 5, col);
   ctx.restore();
 }
