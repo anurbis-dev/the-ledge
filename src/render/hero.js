@@ -2,7 +2,7 @@ import GAME from '../core/game.js';
 import { cam, view, world, ctx, rc } from './ctx.js';
 import { waterTintAt } from './fx.js';
 import {
-  K, IDLE_A, IDLE_B, RUN, JUMPP, FALLP, LANDP, SLIDEP, STUNP, SNAREP, ROLLP,
+  K, IDLE_A, IDLE_B, RUN, FALLP, LANDP, SLIDEP, STUNP, SNAREP, ROLLP,
   LADP0, LADP1, LADF0, LADF1, ATK0, ATK1, ATK2, CROUCH, CROUCH_W,
   PRONE0, PRONE1, BARS0, BARS1, LADD0, LADD1, SWIM0, SWIM1,
   HANGL, HANG_A, HANG_B, lerpPose, climbPose, stancePose, pickPose, wallPickPose, throwPose, getupPose,
@@ -74,7 +74,7 @@ export function heroClip(p){
   }
   if (!p.onGround){
     if (p.sliding) return ['slide', 0];
-    return [p.vy < -40 ? 'jump' : (p.vy > 60 ? 'fall' : 'jump'), 0];
+    return ['fall', 0];                                 // в воздухе всегда fall
   }
   if (p.landT > 0) return ['land', 0];
   if (p.pushWall) return ['wallPush', 0];
@@ -238,7 +238,7 @@ export function boxPose(p){
     return lerpPose(HANGL, (p.lad && p.lad.v === G.LADF) ? LADF0 : LADP0, p.climb.p);
   if (!p.onGround){
     if (p.sliding) return SLIDEP;
-    return p.vy < -40 ? JUMPP : (p.vy > 60 ? FALLP : lerpPose(JUMPP, FALLP, 0.5));
+    return FALLP;                                       // в воздухе всегда fall
   }
   if (p.landT > 0) return LANDP;
   if (p.pushWall) return WALLPUSH;                   // жмёт в стену — руки на уровне груди по стене

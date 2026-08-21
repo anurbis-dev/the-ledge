@@ -585,7 +585,7 @@ export function grabTo(p, cx, cy, facing, kind, tc, tr){
   dryOff(p);
   var b = hangBox(cx, cy, facing, kind === 'lad' ? 'lad' : 'ledge', p);
   p.x = b.x; p.y = b.y; p.w = b.w; p.h = b.h; p.vx = 0; p.vy = 0; p.facing = facing;
-  p.state = 'hang'; p.onGround = false;
+  p.state = 'hang'; p.onGround = false; p.ride = null;
   p.hang = { cx: cx, cy: cy, kind: kind, tc: tc, tr: tr, lt: tileAt(tc, tr) };
   p.events.push('grab');
 }
@@ -678,7 +678,7 @@ export function tryCrawlEdge(S, p, dir){
   if (tryDescend(S, p, dir)) return 2;
   return -1;
 }
-function findDescend(p, want){
+function findDescendTile(p, want){
   var gy = Math.floor((p.y + p.h + 2) / T) * T;
   // если у края вплотную стоит лестница — кромка не работает, уходим на лестницу
   var lc0 = Math.floor((p.x + p.w/2) / T), lr0 = Math.floor((gy + 2) / T);
@@ -701,6 +701,31 @@ function findDescend(p, want){
     return { cx: cx, gy: gy, facing: f, drop: dir };
   }
   return null;
+}
+/* слезание с края движущейся платформы (не лифта) */
+function findDescendPlat(p, want){
+  var S = runtime.W;
+  if (!S) return null;
+  var q = p.ride;
+  if (!q || q.floors) q = platUnder(S, { x: footCenterX(p) - 1, y: p.y, w: 2, h: p.h }, p.y + p.h + 1);
+  if (!q || q.floors) return null;                         // lifts имеют floors
+  var midX = p.x + p.w / 2;
+  if (midX < q.x || midX > q.x + q.w) return null;
+  var order = want ? [want, -want] : [p.facing, -p.facing];
+  for (var i = 0; i < order.length; i++){
+    var dir = order[i];
+    var edge = dir > 0 ? q.x + q.w : q.x;
+    var dist = dir > 0 ? edge - midX : midX - edge;
+    if (dist < 0 || dist > Math.max(p.w, 10)) continue;    // ещё не у кромки
+    var f = -dir;                                         // лицом к платформе
+    var hb = hangBox(edge, q.y, f, 'ledge', p);
+    if (!rectFree(hb.x, hb.y, hb.w, hb.h)) continue;
+    return { cx: edge, gy: q.y, facing: f, drop: dir, plat: q };
+  }
+  return null;
+}
+function findDescend(p, want){
+  return findDescendTile(p, want) || findDescendPlat(p, want);
 }
 export function canDescend(p, want){
   return !!findDescend(p, want);
@@ -762,6 +787,8 @@ export function tryDescend(S, p, want){
   if (!d) return false;
   startClimb(p, -1, d.cx, d.gy, d.facing, 'ledge');
   p.climb.keepAx = d.drop;                            // ход в пропасть не срывает вис, пока не отпустят
+  if (d.plat) p.climb.plat = d.plat;
+  p.ride = null;
   return true;
 }
 export function startClimb(p, dir, cx, cy, facing, kind, land){
@@ -788,7 +815,7 @@ export function startClimb(p, dir, cx, cy, facing, kind, land){
 }
 export function releaseHang(p, push){
   p.state = 'normal'; p.hang = null; p.grabCd = C.GRAB_CD;
-  p.vy = 12; p.onGround = false; p.apexY = p.y;
+  p.vy = 12; p.onGround = false; p.apexY = p.y; p.ride = null;
   if (push){ p.vx = push * 48; p.facing = push; }
   p.events.push('release');
 }
@@ -798,6 +825,14 @@ export function updateHang(S, p, dt, inp){
     var q = p.hang.plat;
     p.hang.cx += q.dx; p.hang.cy = q.y;
     p.x += q.dx; p.y = q.y - handOffY(p);
+    var hb = hangBox(p.hang.cx, p.hang.cy, p.facing, 'ledge', p);
+    if (!rectFree(hb.x, hb.y, hb.w, hb.h) || !rectFree(p.x, p.y, p.w, p.h)){
+      releaseHang(p, 0);                  // защемило о стену/потолок — урон и падение
+      p.vy = 90;
+      damage(S, 1, 0.3);
+      p.events.push('crush');
+      return;
+    }
   }
   var ax = Math.abs(inp.x) > 0.35 ? (inp.x > 0 ? 1 : -1) : 0;
   if (p.hang.keepAx){
@@ -814,7 +849,7 @@ export function updateHang(S, p, dt, inp){
   }
   if (inp.jumpPressed){
     if (away){                                       // прыжок спиной от стены
-      p.state = 'normal'; p.hang = null; p.grabCd = C.GRAB_CD;
+      p.state = 'normal'; p.hang = null; p.grabCd = C.GRAB_CD; p.ride = null;
       p.vx = away * C.WJ_X * 0.9; p.vy = C.WJ_Y; p.facing = away;
       p.lock = C.WJ_LOCK; p.apexY = p.y; p.events.push('backjump');
       return;
@@ -830,8 +865,17 @@ export function updateHang(S, p, dt, inp){
 export function tryClimbUp(p){
   if (p.hang.kind === 'lad'){ startClimb(p, 1, p.hang.cx, p.hang.cy, p.facing, 'lad'); return true; }
   var land = bestLand(p.hang.cx, p.hang.cy, p.facing);
+  if (!land && p.hang.plat){                          // верх платформы — не тайл
+    var q = p.hang.plat, b = stanceBox(0);
+    var x = p.hang.cx + p.facing * C.STAND_OFF - b.w / 2;
+    if (x < q.x) x = q.x;
+    if (x + b.w > q.x + q.w) x = q.x + q.w - b.w;
+    var y = q.y - b.h;
+    if (rectFree(x, y, b.w, b.h)) land = { x: x, y: y, w: b.w, h: b.h, stance: 0 };
+  }
   if (!land) return false;
   startClimb(p, 1, p.hang.cx, p.hang.cy, p.facing, 'ledge', land);
+  if (p.hang.plat) p.climb.plat = p.hang.plat;
   return true;
 }
 export function ease(t){ return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2)/2; }
@@ -856,12 +900,14 @@ export function updateClimb(S, p, dt){
       }
       p.state = 'normal'; p.onGround = true; p.coyote = C.COYOTE; p.landT = 0.08;
       p.hang = null; p.climb = null; p.events.push('mantled');
+      if (cl.plat) p.ride = cl.plat;
     } else {
       p.state = 'hang'; p.hang = { cx: cl.cx, cy: cl.cy, kind: 'ledge',
         tc: Math.floor((cl.facing > 0 ? cl.cx : cl.cx - 1) / T), tr: Math.floor(cl.cy / T),
         keepAx: cl.keepAx || 0 };
       p.hang.lt = tileAt(p.hang.tc, p.hang.tr);
-      p.climb = null; p.grabCd = 0; p.events.push('hanged');
+      if (cl.plat) p.hang.plat = cl.plat;
+      p.climb = null; p.grabCd = 0; p.ride = null; p.events.push('hanged');
     }
     return;
   }
