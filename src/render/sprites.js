@@ -4,14 +4,18 @@ import { P } from './palette.js';
 import { drawItemIcon } from './icons.js';
 import { spriteFrameImage, getSpriteDef, getFrameAnchor } from '../core/spriteset.js';
 
-function blitEntSprite(id, anim, frame, wx, wy, dir){
+/* pinCell: wx/wy = угол клетки 16×16, без origin (иконки предметов к тайлу) */
+function blitEntSprite(id, anim, frame, wx, wy, dir, pinCell){
   var img = spriteFrameImage(id, anim, frame);
   if (!img) return false;
   var def = getSpriteDef(id);
   if (!def) return false;
-  var origin = getFrameAnchor(id, anim, frame, 'origin');
-  var ox = origin ? origin.x : (def.ox || 0);
-  var oy = origin ? origin.y : (def.oy || 0);
+  var ox = 0, oy = 0, origin;
+  if (!pinCell){
+    origin = getFrameAnchor(id, anim, frame, 'origin');
+    ox = origin ? origin.x : (def.ox || 0);
+    oy = origin ? origin.y : (def.oy || 0);
+  }
   var x = Math.round(wx - ox - cam.x);
   var y = Math.round(wy - oy - cam.y);
   ctx.save();
@@ -584,7 +588,7 @@ export function items(){
     var bob = Math.sin(time*2.4 + it.ph)*2;
     var x = Math.round(it.x - cam.x), y = Math.round(it.y - cam.y + bob);
     if (x < -12 || x > viewW()+12) continue;
-    if (it.spriteId && blitEntSprite(it.spriteId, 'idle', 0, it.x - 8, it.y - 8 + bob, 1)) continue;
+    if (it.spriteId && blitEntSprite(it.spriteId, 'idle', 0, it.x - 8, it.y - 8 + bob, 1, true)) continue;
     if (it.kind === 'gem'){
       rc(x-1,y-4,2,1,P.gem); rc(x-3,y-3,6,2,P.gem); rc(x-2,y-1,4,3,P.gemD);
       rc(x-1,y+2,2,2,P.gemD); rc(x-2,y-3,1,2,'#ffffff');
