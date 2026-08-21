@@ -1,3 +1,3 @@
 # Changelog (unreleased)
 
-- Sprites: LS overlay only when `preferLocal`; Bake pulls LS frames before dump; world/loot/icons use baked sprite frames (e.g. coin) before procedural fallback.
+- Dev: `start-dev-server.bat` / `npm run dev:74` всегда поднимает Vite на **5174** (`strictPort --open`).

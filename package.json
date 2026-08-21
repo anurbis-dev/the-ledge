@@ -1,10 +1,11 @@
 {
   "name": "the-ledge",
-  "version": "0.22.1",
+  "version": "0.22.2",
   "description": "the LEDGE — caves and ledges",
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:74": "vite --port 5174 --strictPort --open",
     "build": "node scripts/build.mjs",
     "preview": "vite preview",
     "bump:patch": "node scripts/bump-version.mjs patch",
