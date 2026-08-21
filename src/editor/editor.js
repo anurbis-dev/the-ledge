@@ -31,6 +31,7 @@ import {
   isLootRole, isLootOnlyRole, objectSpriteDef, updateObject, listObjects
 } from '../core/objectset.js';
 import { bakeBuiltinTileSrc, bakeSpriteFrameSrc } from '../render/sprite-bake.js';
+import { migrateEditorGraphics, migrateTilePicture } from './migrate-graphics.js';
 import { setEditorRooms, stepRooms } from '../core/rooms.js';
 import { showLayersPanel, bindLayersPanel } from './layers-panel.js';
 import { bindIntroPanel, renderIntroPanel } from './intro-panel.js';
@@ -315,6 +316,8 @@ bindTileset({
     edRefresh();
   }
 });
+/* До bindSpriteset: иначе каждый baked idle дергает scheduleBake. */
+migrateEditorGraphics();
 bindSpriteset({
   onChange: function(){
     clearThumbCache();
@@ -1013,20 +1016,24 @@ function materializeBakesInto(id){
 }
 
 function addIconTileAndSprite(label, paintKind, src){
-  var tile = addTile({
-    name: label + ' icon',
-    src: src,
-    collide: 'none',
-    overlay: true
-  });
-  var tileSrc = (tile && tile.src) || src;
   /* kind = id спрайта, не template: иначе spriteDefForKind('coin') находит custom. */
-  return addSpriteDef({
+  var spr = addSpriteDef({
     name: label,
     fw: 16, fh: 16, ox: 0, oy: 0,
     anims: [{ id: 'idle', name: 'Idle', n: 1 }],
-    src: tileSrc
+    src: src
   });
+  if (spr){
+    var tile = addTile({
+      name: label + ' icon',
+      collide: 'none',
+      overlay: true,
+      spriteId: spr.id
+    });
+    if (tile && !getTileSpriteId(tile.id)) setTileSpriteId(tile.id, spr.id);
+  }
+  void paintKind;
+  return spr;
 }
 
 /**
@@ -1059,7 +1066,6 @@ function materializeObjVisual(meta, nameSuffix){
         if (!spriteHasIdlePic(own.id)){
           var ownSrc = bakeObjIconSrc(paintKind);
           setSpriteFrame(own.id, 'idle', 0, ownSrc, true);
-          addTile({ name: label + ' icon', src: ownSrc, collide: 'none', overlay: true });
         }
         updateObject(meta.kind, { spriteId: own.id });
         meta.spriteId = own.id;
@@ -1072,7 +1078,6 @@ function materializeObjVisual(meta, nameSuffix){
     if (!spriteHasIdlePic(cloned.id)){
       var cSrc = bakeObjIconSrc(paintKind);
       setSpriteFrame(cloned.id, 'idle', 0, cSrc, true);
-      addTile({ name: label + suffix + ' icon', src: cSrc, collide: 'none', overlay: true });
     }
     return cloned;
   }
@@ -1249,6 +1254,8 @@ function duplicatePalTile(){
   if (!patch.spriteId && !patch.src && !(patch.frames && patch.frames.length)){ endOp(); return false; }
   var t = addTile(patch);
   if (!t){ endOp(); return false; }
+  if (!getTileSpriteId(t.id) && (t.src || (t.frames && t.frames.length)))
+    migrateTilePicture(t.id, { name: t.name, src: t.src, frames: t.frames });
   noteOp();
   endOp();
   ED.tool = 'tile';
@@ -2917,7 +2924,11 @@ function importImageFiles(files){
                 overlay: ov,
                 collide: ov ? 'none' : 'full'
               });
-              if (t) added.push(t);
+              if (t){
+                migrateTilePicture(t.id, { name: t.name, src: sl.src });
+                t = getTileDef(t.id) || t;
+                added.push(t);
+              }
             });
           })(slices[j]));
         }
@@ -2935,7 +2946,9 @@ function importImageFiles(files){
     edRefresh();
     if (added[0]) openTileEdit({
       name: added[0].name, id: added[0].id, custom: true,
-      overlay: added[0].overlay, src: added[0].src
+      overlay: added[0].overlay,
+      spriteId: getTileSpriteId(added[0].id) || added[0].spriteId || null,
+      src: added[0].src
     });
   }).catch(function(){});
 }

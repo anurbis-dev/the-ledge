@@ -43,7 +43,7 @@
 - `Esc` закрыть редактор.
 - `Ctrl+Z` undo.
 - `Ctrl+Y` или `Ctrl+Shift+Z` redo.
-- `Ctrl+D` — дубль кисти палитры: на **Tiles** → новый кастом-тайл (`src` / `frames` / флаги); на **Sprites** → `cloneSpriteDef`; на **Objects** → новый custom kind (+ sprite: клон каталога или bake tile+sprite для процедурки — см. §6). Не map-sel.
+- `Ctrl+D` — дубль кисти палитры: на **Tiles** → новый кастом-тайл (+ сразу `migrateTilePicture` → spriteId); на **Sprites** → `cloneSpriteDef`; на **Objects** → новый custom kind (+ sprite: клон каталога или bake tile+sprite для процедурки — см. §6). Не map-sel.
 - `Delete` / `Backspace` (без map-sel / без выбранного объекта): вкладка **Tiles** на кастом-сваче — `deleteCustomTileById` (см. §4); вкладка **Sprites** на custom — clear refs на tiles/objects/spawn → `removeSpriteDef` (см. §5).
 - `G` включить/выключить Geo overlay.
 - `0` сброс зума в `1:1`.
@@ -56,9 +56,9 @@
 - `Ctrl + колесо` на вкладках `Tiles` / `Sprites` / `Objects`: размер иконок палитры. То же — `Ctrl + ПКМ-драг` по панели палитры (вверх крупнее).
 - `Ctrl + LMB` без движения: пипетка (тайл/объект; если есть декорация — её). В Cover — только cover-тайл. В Color — grade клетки в слайдеры.
 - `Ctrl + drag` на тайловом слое: рамка выделения. LMB внутри — перенос куска, Shift+LMB — копия, `Ctrl+C`/`Ctrl+V` — буфер, `Delete` стирает. `Esc` сначала снимает выделение.
-- Даблклик по тайлу (палитра или канва): окно `#edTileEdit` — флаги/коллизия + слот **Sprite** (графика). Без `spriteId`: Paint/Pick правят пиксели (LMB красит, RMB стирает). С привязанным спрайтом — Paint / Re-import / Reset picture скрыты; кадры правятся на вкладке **Sprites** (или Edit). Hit — красная рамка коллизии (не пиксели). Legacy: без `spriteId` — `src`/`frames`/`tileGfx` как раньше.
-- Details (`#edTileEdit`): даблклик по свачу (Tiles / Sprites / Objects). Если окно уже открыто — **одиночный клик** (без движения) по свачу **переключает** цель; **клик-драг** кисть не меняет цель и годится для дропа на Sprite slot / кадр action. **Sprites**: даблклик → `openSpriteEdit`. Objects без спрайта — Name / Type(role) / Sprite slot. `Hero` → кадры (`hero`); `Start` — slot → `spawn.spriteId`. Драг kind `sprite` → `{ spriteId }` на слот Tile/Object (`applySpriteSlotPayload` / `setTileSpriteId`) или на thumb кадра (`applyFrameSlotPayload`). Каждая анимация — **одна строка кадров**; сепаратор тянется вниз. **Play** / Stop (~8 fps). У `enemy*` / `flier*` / `spider*` при открытии bake материализуется во все слоты.
-- Драг-дроп PNG: на вкладке **Tiles** — `addTile` (сетка 16×16 → `src/tiles/tN.png`); на **Sprites** — `addSpriteDef` (не `addTile`).
+- Даблклик по тайлу (палитра или канва): `#edTileEdit` в tile-mode — слот **Sprite** + collision/flags/params (Hit = красная рамка коллизии). **Paint только на вкладке Sprites** (`canPaint()` = sprite-mode); у тайла нет Paint / Re-import / Reset picture. Кадры — Edit / dblclick слота → `openSpriteEdit`, либо вкладка Sprites.
+- Details (`#edTileEdit`): даблклик по свачу (Tiles / Sprites / Objects). Если окно уже открыто — **одиночный клик** (без движения) по свачу **переключает** цель; **клик-драг** кисть не меняет цель и годится для дропа на Sprite slot / кадр action. **Sprites**: даблклик → `openSpriteEdit`. **Objects** (вкл. Hero / Light / foes): всегда `openObjectEdit` — params + Sprite slot (не редирект в Paint); Edit / dblclick слота → `openSpriteEdit`. `Start` — slot → `spawn.spriteId`. Драг kind `sprite` → `{ spriteId }` на слот Tile/Object (`applySpriteSlotPayload` / `setTileSpriteId`) или на thumb кадра в sprite-mode (`applyFrameSlotPayload`). Каждая анимация — **одна строка кадров**; сепаратор тянется вниз. **Play** / Stop (~8 fps). У `enemy*` / `flier*` / `spider*` при открытии sprite-edit bake материализуется во все слоты.
+- Драг-дроп PNG: на вкладке **Tiles** — `addTile` + сразу `migrateTilePicture` → spriteId; на **Sprites** — `addSpriteDef` (не `addTile`).
 - `Alt + LMB` в Cover: штамп текущей карты в cover (`base` → `cover`; пустая клетка = лаз).
 - Долгое нажатие LMB (примерно 450 мс): переход в стирание с протяжкой.
 
@@ -78,13 +78,13 @@
 Особенности:
 - Повторный клик той же кистью по той же клетке у тайлов с `varN` переключает вариант (`Auto/1..N`).
 - Для `Water` доступны пресеты оттенка воды.
-- Для `Fall` в Details — слайдер **Speed** (0–200, дефолт 70): скорость процедурных струй; пишется в `tileGfx[14].speed` (Reset picture meta не сбрасывает).
+- Для `Fall` в Details — слайдер **Speed** (0–200, дефолт 70): скорость процедурных струй; пишется в `tileGfx[14].speed`.
 - Для `Water` в Details — **Shift** (−100…100, дефолт 100 = канон вправо; 0 = стоячая база): общий дрейф реки; **Wave X** (0–100, дефолт 50): амплитуда гребня/bob. `Fall` сверху/с края усиливает амплитуду и даёт расходящуюся рябь с затуханием (не ломает фазу на стыках). Meta в `tileGfx[13].shift` / `waveX`.
 - Если в клетке уже вода, повторный клик водой меняет только shade.
 - `Color` не `varN` и не Cover: тот же тайл, другой grade на клетке.
 - Overlay-тайлы (зелёная точка на сваче) пишутся в канал `deco` поверх `base`. Коллизия остаётся у основного тайла. RMB сначала стирает декор, потом грунт.
-- Details (`#edTileEdit`): слот **Sprite** (лейбл Sprite, не Tile) — дроп только с готовым `{ spriteId }` (вкладка Sprites; или Tiles/Objects у которых уже есть spriteId) → `setTileSpriteId` (custom → `tile.spriteId`, builtin → `tileGfx.spriteId`). Clear / Edit. С linked sprite: нет Paint / Re-import / Reset picture — кадры на **Sprites**; collision/flags остаются на тайле. Без `spriteId` — legacy `src`/`frames`/`tileGfx` (Paint/Pick, Re-import, Reset picture). Resolve в игре: `getTileSpriteId` / `tileFrameSrc` / `tileImage` берут idle (или первый anim) спрайта. Thumbs: `tileThumb` учитывает `spriteId`.
-- Кастом-тайл без spriteId: даблклик → пиксели + overlay / front / climb / one-way / collision. Красный контур = хитбокс. Hit или Collision → Custom box. Re-import PNG / дроп на окно заменяет `src`; широкий шит → кадры. `Ctrl+D` клонирует тайл. Builtin без spriteId: Paint → `tileGfx`, Reset picture снимает картинку.
+- Details (`#edTileEdit`, `fillTileParamsOnly`): слот **Sprite** + collision/flags/params only. Дроп `{ spriteId }` → `setTileSpriteId` (custom → `tile.spriteId`, builtin → `tileGfx.spriteId`). Clear / Edit / dblclick слота → `openSpriteEdit`. Нет Paint / Re-import / Reset picture — пиксели только на **Sprites**. Resolve: `getTileSpriteId` / `tileFrameSrc` / `tileImage` берут idle (или первый anim) спрайта; иначе legacy `src`/`frames`. Boot/`Ctrl+D`/PNG-drop мигрируют picture → sprite (`migrateTilePicture`). Thumbs: `tileThumb` учитывает `spriteId`.
+- Кастом-тайл: даблклик → Sprite slot + overlay / front / climb / one-way / collision (Hit / Collision → Custom box). `Ctrl+D` клонирует тайл и мигрирует picture → spriteId.
 - Удаление кастом-тайла: `Delete`/`Backspace` при кисти на кастом-сваче (без map-sel / без выбранного объекта) или кнопка **Delete** в `#edTileEdit` → `deleteCustomTileById`. Скан всех уровней (`findLevelsUsingTile`: live layers текущего + `_stash` остальных). Если id где-то есть — confirm со списком `name (count)`; затем `wipeTileIdEverywhere` (base/deco/cover/stamp/stampDeco + paired vary) → `removeTile` → `flushAllLevelsStore`. Встроенные id не удаляются.
 
 Ограничения:
@@ -109,10 +109,11 @@
 
 ## 5. Вкладка Sprites
 
-Палитра = `listSpriteDefs()` (builtins + customs, `src/core/spriteset.js` / `ledge.dev.sprites`). Thumbs: `spriteThumb`.
+Палитра = `listSpriteDefs()` (builtins + customs, `src/core/spriteset.js` / `ledge.dev.sprites`). Thumbs: `spriteThumb`. **Единственное место Paint** (`canPaint()` = sprite-mode): пиксели, Re-import, Reset frame, якоря.
 
+- Каталог `SPRITE_DEFS`: персонажи (hero / enemy* / flier* / spider* / npc_*) **и** placeable object icons (coin, chest, door, torch, gear, markers, ropes/plats/lift, …). Персонажи без авто-bake иконок; icon-каталог при boot получает dirty idle через `ensureCatalogIconFrames` (`migrate-graphics.js` → `paintObjIcon` / `bakeSpriteFrameSrc`).
 - Даблклик свача → `openSpriteEdit` (кадры / якоря в `#edTileEdit`).
-- Драг kind `sprite` → payload `{ spriteId }` на Tile/Object **Sprite** slot или на thumb кадра action.
+- Драг kind `sprite` → payload `{ spriteId }` на Tile/Object **Sprite** slot или на thumb кадра action (в sprite-mode).
 - Drop PNG на вкладку → `addSpriteDef` (не `addTile`); широкий шит → idle frames.
 - `Ctrl+D` → `cloneSpriteDef` («… copy»), открывает клон.
 - `Delete` / `Backspace` на **custom**: confirm → `clearSpriteRefs` (tiles / tileGfx / objects / spawn→`hero`) → `removeSpriteDef`. Builtins не удаляются.
@@ -120,31 +121,31 @@
 
 ## 6. Вкладка Objects
 
-Палитра = placeable `ED_OBJS` (`BUILTIN_OBJS` + customs из `ledge.dev.objects`). Каталог спрайтов — вкладка **Sprites**; Objects по-прежнему открывают Details / place.
+Палитра = placeable `ED_OBJS` (`BUILTIN_OBJS` + customs из `ledge.dev.objects`). Каталог спрайтов — вкладка **Sprites**; Objects открывают params Details / place (кадры — через Sprite slot → Edit).
 
 Палитра включает:
-- `Hero` (`kind: 'hero'`) — не placeable; Details правит кадры персонажа (в т.ч. Rope climb / Rope swing).
+- `Hero` (`kind: 'hero'`) — не placeable; Details = params + Sprite slot (`hero`); кадры — Edit / dblclick слота → `openSpriteEdit`.
 - `Start` (`kind: 'player_start'`) — spawn уровня; Details: sprite slot → `spawn.spriteId` → `activeHeroId()`.
 - `Exit` (`kind: 'level_exit'`) — переход уровня (несколько на карту).
 - `Door` (`kind: 'door'`) — парная дверь (warp между двумя точками).
-- Враги/птицы/пауки/щупальца — Details → кадры при наличии sprite def.
+- Враги/птицы/пауки/щупальца — Details = params + Sprite slot; кадры через Edit / Sprites (не авто-Paint).
 - Предметы и лут.
 - Сундуки (`Chest`, `Locked`).
-- `Sound`, `Light`, `Volume` — у Light Details открывает спрайт фонаря, если есть def.
+- `Sound`, `Light`, `Volume` — Light: params + Sprite slot (по умолчанию `lantern`); Edit → кадры фонаря.
 - `FX Sand` (`kind: 'fx_sand'`) — непрерывный песчаный эмиттер (`LV.emitters` / `S.emitters`, `mkEmitterAt`); role `marker`. Постановка сразу выбирает объект и открывает Inspect/гизмо `move` (позиция = `x,y`). Форма спавна: `shape` point|square|circle|line (`EMIT_SHAPES`), `shapeSize` (px: сторона / диаметр / длина), `shapeAngle` (deg, только line); `stepEmitters` → `sampleEmitterPoint` → `emitSand`. Те же частицы, что у CRUMB (`SAND_DEF`).
 - `Boulder`.
 - `Rope V` (`kind: 'rope_v'`) / `Rope H` (`kind: 'rope_h'`) — вертикальный / горизонтальный канат (`LV.ropes`). Постановка `mkRopeAt`; гизмо: handles `a`/`b` + move span; клик → `#edRopeSettings` (H: Length+ 0=длина=span, сдвиг добавляет px; Segments; Elasticity 0..1 с кривой ^2.6; Swing force только V; Wind; Climb; Grab). Play: V — лёгкий wobble при хвате, ↑↓ после отпускания захвата, тап L/R; H — bars, ↓ отцеп. В Play канат сталкивается с solid-тайлами (новых контролов в редакторе нет). Persist `packRope` (`lengthExtra`/`length` для H). Role `marker`.
 - `Plat H` (`kind: 'plat_h'`) / `Plat V` (`kind: 'plat_v'`) — движущаяся платформа (`LV.plats` / `S.plats`, `mkPlatAt`; `vert` из kind). Role `marker`. Постановка сразу выбирает объект и открывает Inspect; гизмо `move` (сдвиг всего пути) + ручки `platA`/`platB` (концы A=min / B=max). Persist `packPlat`. History `OBJ_KEYS` включает `plats`.
 - `Lift` (`kind: 'lift'`) — лифт по этажам (`LV.lifts` / `S.lifts`, `mkLiftAt` + `syncLiftFloors` / `buildGates`). Role `marker`. Постановка сразу выбирает объект и открывает Inspect; гизмо `move` + ручки `liftFloor` по `floors[]`. Persist `packLift`. History включает `lifts`. Call-кнопки на этажах работают только при `trigger==='call'`.
-- NPC (`Hermit`, `Wanderer`) — Details → кадры NPC.
+- NPC (`Hermit`, `Wanderer`) — Details = params + Sprite slot; кадры через Edit.
 - Custom kinds (после `Ctrl+D`) — в конце палитры.
 
 ### Details (`#edTileEdit`)
 
-- Открывается **даблкликом** по любому Objects-свачу. Если окно уже открыто — **одиночный клик** переключает цель (то же для Tiles / Sprites).
-- С привязанным спрайтом — редактор кадров/якорей (как раньше).
-- Без спрайта — шапка Name / Type(role) / Sprite slot; пиксельный холст после привязки.
-- **Sprite slot**: предпочтительно дроп с вкладки **Sprites** (`{ spriteId }` → `applySpriteSlotPayload`). Objects-свач со своим spriteId тоже даёт `{ spriteId }`. Слот **больше не** создаёт sprite из Tiles `tileSrc` / `makeTile` (только готовый `spriteId`). Frame-replace на thumb кадра может всё ещё принять `tileSrc` с Tiles (`applyFrameSlotPayload`). Менять slot у **customs** и `Start`; прочие builtins — сначала `Ctrl+D`. У custom — Clear снимает `spriteId`. После assign — `clearThumbCache` + `fillPal`.
+- Открывается **даблкликом** по любому Objects-свачу → всегда `openObjectEdit` (не редирект в Paint). Если окно уже открыто — **одиночный клик** переключает цель (то же для Tiles / Sprites).
+- Всегда params: Name / Type(role) / Sprite slot (+ hint). Пиксельный холст **не** в object-mode.
+- Edit / dblclick слота → `openSpriteEdit` (кадры/якоря; `keepObject` сохраняет шапку объекта).
+- **Sprite slot**: предпочтительно дроп с вкладки **Sprites** (`{ spriteId }` → `applySpriteSlotPayload`). Objects-свач со своим spriteId тоже даёт `{ spriteId }`. Слот **не** создаёт sprite из Tiles `tileSrc` / `makeTile` (только готовый `spriteId`). Frame-replace — только в sprite-mode (`applyFrameSlotPayload`). Менять slot у **customs** и `Start`; прочие builtins — сначала `Ctrl+D`. У custom — Clear снимает `spriteId`. После assign — `clearThumbCache` + `fillPal`.
 
 ### Role / Type
 
@@ -160,9 +161,9 @@
 - Клон `Hero` → sprite `family: 'hero'`. У `Start` sprite slot пишет `LV.spawn.spriteId` (playable через `activeHeroId`).
 - Свачи палитры: `objThumb(palKind, size, spriteId, paintKind)` всегда отдаёт **новый** canvas (иначе Coin и Coin copy делят DOM); кэш по palKind+spriteId; dirty idle0 перекрывает процедурную `paintObjIcon`.
 
-### Редактор спрайтов (Sprites tab / Objects Details)
+### Редактор спрайтов (Sprites tab / Edit со слота)
 
-- Каталог и импорт PNG — вкладка **Sprites**; Objects/`Hero`/`Light` по-прежнему открывают тот же `#edTileEdit` в sprite-mode.
+- Каталог и импорт PNG / Paint — вкладка **Sprites**; из Objects/Tiles Details — только через Edit / dblclick Sprite slot → `openSpriteEdit` (тот же `#edTileEdit` в sprite-mode).
 - Каждая анимация — своя строка кадров; сепаратор увеличивает высоту. `+` / драг-reorder / Play·Stop. У врагов/птиц/пауков открытие материализует bake во все слоты. Клик по кадру — пиксели. Красная коробка — хитбокс (Box / Hit); origin верх-лево; Hands золотой; weapon пурпурный. Reset anchors / Reset frame. Size — `fw×fh`. Origin/box/Hands → Bake `BAKED.sprites`; кадры → `ledge.dev.sprites`.
 - Сущности (items / enemies / fliers / npcs) могут нести `spriteId` при постановке — draw/persist.
 

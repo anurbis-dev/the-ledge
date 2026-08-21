@@ -177,9 +177,8 @@ function tileHasLinkedSprite(){
   return !!(getTileSpriteId(current.id) || current.spriteId);
 }
 function canPaint(){
-  if (isSprite()) return true;
-  if (tileHasLinkedSprite()) return false;
-  return isCustomTile() || (mode === 'tile' && current && current.id);
+  /* Пиксели только в режиме спрайта — у тайла/объекта слот + параметры. */
+  return isSprite();
 }
 
 export function openTileEdit(spec, clientX, clientY){
@@ -196,7 +195,7 @@ export function openTileEdit(spec, clientX, clientY){
   root.classList.remove('ed-sprite');
   root.classList.remove('ed-object');
   root.hidden = false;
-  if (titleEl) titleEl.textContent = spec.custom ? 'Tile' : 'Tile (sprite)';
+  if (titleEl) titleEl.textContent = 'Tile';
   fillBody();
   if (!hasFloatPos(root))
     placeFloat(root, innerWidth - 320, 48);
@@ -223,10 +222,11 @@ function materializeBakes(id){
   }
 }
 
-export function openSpriteEdit(def, clientX, clientY){
+export function openSpriteEdit(def, clientX, clientY, keepObject){
   if (!root || !def) return;
   stopPlay();
   mode = 'sprite';
+  if (!keepObject) objCurrent = null;
   if (objCurrent) root.classList.add('ed-object');
   else root.classList.remove('ed-object');
   if (isFoeSprite(def.id)) materializeBakes(def.id);
@@ -245,26 +245,11 @@ export function openSpriteEdit(def, clientX, clientY){
   void clientX; void clientY;
 }
 
-/** Details for an Objects palette entry (builtin or custom). */
+/** Details for an Objects palette entry (builtin or custom) — params + Sprite slot only. */
 export function openObjectEdit(meta, clientX, clientY){
   if (!root || !meta) return;
-  objCurrent = meta;
-  var tmpl = meta.template || meta.kind;
-  /* Hero — только кадры спрайта; Start — маркер спавна (sprite slot → spawn.spriteId) */
-  if (tmpl === 'hero' || meta.kind === 'hero'){
-    var heroSid = meta.spriteId || 'hero';
-    var heroSd = getSpriteDef(heroSid) || getSpriteDef('hero');
-    if (heroSd){ openSpriteEdit(heroSd, clientX, clientY); return; }
-  }
-  if (tmpl !== 'player_start' && meta.kind !== 'player_start'){
-    var sid = meta.spriteId;
-    var sd = sid ? getSpriteDef(sid) : null;
-    if (sd){
-      openSpriteEdit(sd, clientX, clientY);
-      return;
-    }
-  }
   stopPlay();
+  objCurrent = meta;
   mode = 'object';
   current = meta;
   fw = 16; fh = 16;
@@ -410,8 +395,8 @@ function fillObjectHeader(parent){
   var slot = document.createElement('div');
   slot.className = 'ed-sprite-slot';
   slot.title = objCurrent.custom || objCurrent.kind === 'player_start'
-    ? 'Drop a Sprites swatch here to set the sprite'
-    : 'Built-in sprite — Ctrl+D to clone, then replace';
+    ? 'Drop a Sprites swatch here · double-click to edit frames'
+    : 'Built-in sprite — Edit frames, or Ctrl+D to clone then replace';
   spriteSlotEl = slot;
   var sid = objCurrent.spriteId;
   if (!sid && (objCurrent.template === 'player_start' || objCurrent.kind === 'player_start'))
@@ -419,46 +404,32 @@ function fillObjectHeader(parent){
   var thumb = document.createElement('canvas');
   thumb.width = 32; thumb.height = 32;
   thumb.className = 'ed-sprite-slot-img';
-  var ctx = thumb.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
-  ctx.fillStyle = '#2a2640';
-  ctx.fillRect(0, 0, 32, 32);
-  if (sid){
-    var sd = getSpriteDef(sid);
-    var anim0 = sd && sd.anims && sd.anims[0] ? sd.anims[0].id : 'idle';
-    var img = spriteFrameImage(sid, anim0, 0);
-    if (!img){
-      var src = getSpriteFrameSrc(sid, anim0, 0);
-      if (src){
-        var im = new Image();
-        im.onload = function(){
-          ctx.clearRect(0, 0, 32, 32);
-          ctx.fillStyle = '#2a2640';
-          ctx.fillRect(0, 0, 32, 32);
-          ctx.drawImage(im, 0, 0, 32, 32);
-        };
-        im.src = src;
-      } else {
-        ctx.fillStyle = '#6a628f';
-        ctx.fillRect(8, 8, 16, 16);
-      }
-    } else {
-      ctx.drawImage(img, 0, 0, 32, 32);
-    }
-  } else {
-    ctx.strokeStyle = '#6a628f';
-    ctx.strokeRect(4.5, 4.5, 23, 23);
-    ctx.fillStyle = '#8a8399';
-    ctx.font = '9px sans-serif';
-    ctx.fillText('drop', 6, 20);
-  }
+  paintSlotThumb(thumb.getContext('2d'), sid);
   slot.appendChild(thumb);
+  slot.addEventListener('dblclick', function(e){
+    e.preventDefault();
+    if (!sid) return;
+    var sd0 = getSpriteDef(sid);
+    if (sd0) openSpriteEdit(sd0, e.clientX, e.clientY, true);
+  });
   var slotLab = document.createElement('div');
   slotLab.className = 'ed-field';
   var sp = document.createElement('span');
   sp.textContent = 'Sprite';
   slotLab.appendChild(sp);
   slotLab.appendChild(slot);
+  if (sid){
+    var editBtn = document.createElement('button');
+    editBtn.type = 'button';
+    editBtn.className = 'edb';
+    editBtn.textContent = 'Edit';
+    editBtn.title = 'Open sprite frames';
+    editBtn.addEventListener('click', function(){
+      var sd1 = getSpriteDef(sid);
+      if (sd1) openSpriteEdit(sd1, undefined, undefined, true);
+    });
+    slotLab.appendChild(editBtn);
+  }
   if (objCurrent.custom && objCurrent.spriteId){
     var clr = document.createElement('button');
     clr.type = 'button';
@@ -491,11 +462,15 @@ function fillObjectBody(){
   stripsEl = null;
   splitEl = null;
   spriteSlotEl = null;
-  /* temporarily point field() at body */
   fillObjectHeader(body);
   var hint = document.createElement('div');
   hint.className = 'ed-tile-note';
-  hint.textContent = 'No sprite yet — drop a Sprites swatch onto the Sprite slot, then edit frames.';
+  var sid = objCurrent && objCurrent.spriteId;
+  if (!sid && objCurrent && (objCurrent.template === 'player_start' || objCurrent.kind === 'player_start'))
+    sid = (runtime.LV && runtime.LV.spawn && runtime.LV.spawn.spriteId) || 'hero';
+  hint.textContent = sid
+    ? 'Pixels — Sprites tab or Edit on the slot. Here: parameters and Sprite slot only.'
+    : 'No sprite yet — drop a Sprites swatch onto the Sprite slot, then Edit frames.';
   body.appendChild(hint);
 }
 
@@ -1721,6 +1696,225 @@ function scaleOf(){
   return s;
 }
 
+/** Tile Details: Sprite slot + collision/flags only (no pixel paint). */
+function fillTileParamsOnly(){
+  var custom = isCustomTile();
+  var def = custom ? getTileDef(current.id) : null;
+  spriteSlotEl = null;
+  fillTileSpriteSlot(body);
+
+  var sc = scaleOf();
+  var can = document.createElement('canvas');
+  can.width = fw * sc;
+  can.height = fh * sc;
+  can.className = 'ed-tilegeo';
+  can.style.aspectRatio = fw + ' / ' + fh;
+  body.appendChild(can);
+  preview = can;
+
+  hitLab = document.createElement('div');
+  hitLab.className = 'ed-tile-hitlab';
+  body.appendChild(hitLab);
+
+  var nameInp = document.createElement('input');
+  nameInp.type = 'text';
+  nameInp.value = current.name || '';
+  nameInp.maxLength = 24;
+  nameInp.disabled = !custom;
+  nameInp.addEventListener('keydown', function(e){ e.stopPropagation(); });
+  nameInp.addEventListener('change', function(){
+    if (!def) return;
+    markOp();
+    updateTile(def.id, { name: nameInp.value.trim() || def.name });
+    current.name = nameInp.value.trim() || current.name;
+    notify();
+  });
+  field('Name', nameInp);
+
+  var over = document.createElement('input');
+  over.type = 'checkbox';
+  over.checked = !!(def ? def.overlay : false);
+  over.disabled = !custom;
+  over.addEventListener('change', function(){
+    if (!def) return;
+    markOp();
+    updateTile(def.id, { overlay: over.checked, collide: over.checked ? 'none' : (def.collide === 'none' ? 'full' : def.collide) });
+    current.overlay = over.checked;
+    notify();
+    fillBody();
+  });
+  var overRow = document.createElement('label');
+  overRow.className = 'ed-check';
+  overRow.appendChild(over);
+  overRow.appendChild(document.createTextNode(' Overlay — decoration on top of the main tile (no collision)'));
+  body.appendChild(overRow);
+
+  var front = document.createElement('input');
+  front.type = 'checkbox';
+  front.checked = !!(def && def.front);
+  front.disabled = !custom;
+  front.addEventListener('change', function(){
+    if (!def) return;
+    markOp();
+    updateTile(def.id, { front: front.checked });
+    notify();
+  });
+  var frontRow = document.createElement('label');
+  frontRow.className = 'ed-check';
+  frontRow.appendChild(front);
+  frontRow.appendChild(document.createTextNode(' Draw in front of the hero'));
+  body.appendChild(frontRow);
+
+  var climb = document.createElement('input');
+  climb.type = 'checkbox';
+  climb.checked = !!(def && def.climb);
+  climb.disabled = !custom;
+  climb.addEventListener('change', function(){
+    if (!def) return;
+    markOp();
+    updateTile(def.id, { climb: climb.checked });
+    notify();
+    paintCanvas();
+  });
+  var climbRow = document.createElement('label');
+  climbRow.className = 'ed-check';
+  climbRow.appendChild(climb);
+  climbRow.appendChild(document.createTextNode(' Climbable (ladder)'));
+  body.appendChild(climbRow);
+
+  var oneWay = document.createElement('input');
+  oneWay.type = 'checkbox';
+  oneWay.checked = !!(def && def.oneWay);
+  oneWay.disabled = !custom;
+  oneWay.addEventListener('change', function(){
+    if (!def) return;
+    markOp();
+    updateTile(def.id, { oneWay: oneWay.checked });
+    notify();
+  });
+  var owRow = document.createElement('label');
+  owRow.className = 'ed-check';
+  owRow.appendChild(oneWay);
+  owRow.appendChild(document.createTextNode(' One-way — stand from above, pass from below'));
+  body.appendChild(owRow);
+
+  var sel = document.createElement('select');
+  var curCol = def ? def.collide : builtinCollide(current);
+  var i;
+  for (i = 0; i < COLLIDE.length; i++){
+    var o = document.createElement('option');
+    o.value = COLLIDE[i].id;
+    o.textContent = COLLIDE[i].name;
+    if (COLLIDE[i].id === curCol) o.selected = true;
+    sel.appendChild(o);
+  }
+  sel.disabled = !custom;
+  sel.addEventListener('change', function(){
+    if (!def) return;
+    var box = def.box;
+    if (sel.value === 'half') box = { x: 0, y: 0, w: 16, h: 8 };
+    if (sel.value === 'bar') box = { x: 0, y: 0, w: 16, h: 3 };
+    if (sel.value === 'full') box = { x: 0, y: 0, w: 16, h: 16 };
+    if (sel.value === 'none') box = def.box;
+    markOp();
+    updateTile(def.id, { collide: sel.value, box: box });
+    notify();
+    fillBody();
+  });
+  field('Collision', sel);
+
+  if (current.id === GAME.FALL){
+    var fallDef = 70;
+    var fallSpd = getTileSpeed(GAME.FALL, fallDef);
+    var spdWrap = document.createElement('label');
+    spdWrap.className = 'slider-wrap';
+    spdWrap.title = 'Procedural waterfall scroll speed (0 = frozen)';
+    spdWrap.innerHTML = '<div class="slider-label-overlay"><span>Speed</span><span></span></div>';
+    var spdInp = document.createElement('input');
+    spdInp.type = 'range';
+    spdInp.min = 0; spdInp.max = 200; spdInp.step = 1;
+    spdInp.value = fallSpd;
+    spdInp.dataset.default = String(fallDef);
+    spdInp.addEventListener('input', function(){
+      markOp();
+      setTileGfx(GAME.FALL, { speed: +spdInp.value });
+      notify();
+    });
+    spdWrap.appendChild(spdInp);
+    body.appendChild(spdWrap);
+    initSliders(spdWrap);
+  }
+
+  if (current.id === GAME.WATER){
+    var shDef = 0, wxDef = 50;
+    var shVal = getTileShift(GAME.WATER, shDef);
+    var wxVal = getTileWaveX(GAME.WATER, wxDef);
+
+    var shWrap = document.createElement('label');
+    shWrap.className = 'slider-wrap';
+    shWrap.title = 'River drift: − left, + right (0 = still unless FALL nearby)';
+    shWrap.innerHTML = '<div class="slider-label-overlay"><span>Shift</span><span></span></div>';
+    var shInp = document.createElement('input');
+    shInp.type = 'range';
+    shInp.min = -100; shInp.max = 100; shInp.step = 1;
+    shInp.value = shVal;
+    shInp.dataset.default = String(shDef);
+    shInp.addEventListener('input', function(){
+      markOp();
+      setTileGfx(GAME.WATER, { shift: +shInp.value });
+      notify();
+    });
+    shWrap.appendChild(shInp);
+    body.appendChild(shWrap);
+    initSliders(shWrap);
+
+    var wxWrap = document.createElement('label');
+    wxWrap.className = 'slider-wrap';
+    wxWrap.title = 'Wave crest / bob amplitude (0 = flat)';
+    wxWrap.innerHTML = '<div class="slider-label-overlay"><span>Wave X</span><span></span></div>';
+    var wxInp = document.createElement('input');
+    wxInp.type = 'range';
+    wxInp.min = 0; wxInp.max = 100; wxInp.step = 1;
+    wxInp.value = wxVal;
+    wxInp.dataset.default = String(wxDef);
+    wxInp.addEventListener('input', function(){
+      markOp();
+      setTileGfx(GAME.WATER, { waveX: +wxInp.value });
+      notify();
+    });
+    wxWrap.appendChild(wxInp);
+    body.appendChild(wxWrap);
+    initSliders(wxWrap);
+  }
+
+  if (!tileHasLinkedSprite()){
+    var need = document.createElement('div');
+    need.className = 'ed-tile-note';
+    need.textContent = 'No sprite — drop a Sprites swatch onto the Sprite slot. Paint lives on the Sprites tab.';
+    body.appendChild(need);
+  }
+
+  var actions = document.createElement('div');
+  actions.className = 'ed-tile-actions';
+  if (custom){
+    var del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'edb';
+    del.textContent = 'Delete';
+    del.title = 'Delete this custom tile. Warns if it is used on any level.';
+    del.addEventListener('click', function(){
+      if (!def || !onDeleteCustom) return;
+      if (!onDeleteCustom(def.id)) return;
+      notify();
+      closeTileEdit();
+    });
+    actions.appendChild(del);
+  }
+  body.appendChild(actions);
+
+  loadBuf(currentSrc(), function(){ paintCanvas(); });
+}
+
 function fillBody(){
   if (!body || !current) return;
   body.scrollTop = 0;
@@ -1740,17 +1934,15 @@ function fillBody(){
   pendingAnchor = null;
   originXEl = originYEl = weaponXEl = weaponYEl = grabXEl = grabYEl = null;
   boxWEl = boxHEl = null;
-  var custom = isCustomTile();
-  var def = custom ? getTileDef(current.id) : null;
-  var sprite = isSprite();
-  var linked = false;
   spriteSlotEl = null;
 
-  if (objCurrent && sprite) fillObjectHeader(body);
-  if (mode === 'tile' && current && current.id != null){
-    fillTileSpriteSlot(body);
-    linked = tileHasLinkedSprite();
+  if (mode === 'tile'){
+    fillTileParamsOnly();
+    return;
   }
+
+  var sprite = isSprite();
+  if (objCurrent && sprite) fillObjectHeader(body);
 
   stripsEl = document.createElement('div');
   stripsEl.className = 'ed-tile-strips';
@@ -1839,236 +2031,48 @@ function fillBody(){
 
   toolsEl = document.createElement('div');
   toolsEl.className = 'ed-tile-tools';
-  if (!linked){
-    var t, list = TOOLS;
-    for (t = 0; t < list.length; t++){
-      (function(specT){
-        var b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'edb';
-        b.setAttribute('data-tool', specT.id);
-        b.textContent = specT.name;
-        b.title = specT.title;
-        b.addEventListener('click', function(){
-          tool = specT.id;
-          syncTools();
-        });
-        toolsEl.appendChild(b);
-      })(list[t]);
-    }
-    body.appendChild(toolsEl);
-
-    hintEl = document.createElement('div');
-    hintEl.className = 'ed-tile-note';
-    body.appendChild(hintEl);
-
-    colorInp = document.createElement('input');
-    colorInp.type = 'color';
-    colorInp.value = color;
-    colorInp.title = 'Paint color';
-    colorInp.addEventListener('input', function(){
-      color = colorInp.value;
-      tool = 'pencil';
-      syncTools();
-      fillSwatches();
-    });
-    field('Color', colorInp);
-
-    swatchEl = document.createElement('div');
-    swatchEl.className = 'ed-tile-swatches';
-    body.appendChild(swatchEl);
-  } else {
-    toolsEl = null;
-    hintEl = null;
-    colorInp = null;
-    swatchEl = null;
+  var t, list = TOOLS;
+  for (t = 0; t < list.length; t++){
+    (function(specT){
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'edb';
+      b.setAttribute('data-tool', specT.id);
+      b.textContent = specT.name;
+      b.title = specT.title;
+      b.addEventListener('click', function(){
+        tool = specT.id;
+        syncTools();
+      });
+      toolsEl.appendChild(b);
+    })(list[t]);
   }
+  body.appendChild(toolsEl);
 
-  if (sprite){
-    var sNote = document.createElement('div');
-    sNote.className = 'ed-tile-note';
-    sNote.textContent = 'Red box = hitbox for this action; origin is its top-left, ground is the bottom edge. Gold hands = ledge search. Magenta weapon = this frame. Hit-tool drags a new box. Unedited frames still use the old drawing.';
-    body.appendChild(sNote);
-  } else {
-    var nameInp = document.createElement('input');
-    nameInp.type = 'text';
-    nameInp.value = current.name || '';
-    nameInp.maxLength = 24;
-    nameInp.disabled = !custom;
-    nameInp.addEventListener('keydown', function(e){ e.stopPropagation(); });
-    nameInp.addEventListener('change', function(){
-      if (!def) return;
-      markOp();
-      updateTile(def.id, { name: nameInp.value.trim() || def.name });
-      current.name = nameInp.value.trim() || current.name;
-      notify();
-    });
-    field('Name', nameInp);
+  hintEl = document.createElement('div');
+  hintEl.className = 'ed-tile-note';
+  body.appendChild(hintEl);
 
-    var over = document.createElement('input');
-    over.type = 'checkbox';
-    over.checked = !!(def ? def.overlay : false);
-    over.disabled = !custom;
-    over.addEventListener('change', function(){
-      if (!def) return;
-      markOp();
-      updateTile(def.id, { overlay: over.checked, collide: over.checked ? 'none' : (def.collide === 'none' ? 'full' : def.collide) });
-      current.overlay = over.checked;
-      notify();
-      fillBody();
-    });
-    var overRow = document.createElement('label');
-    overRow.className = 'ed-check';
-    overRow.appendChild(over);
-    overRow.appendChild(document.createTextNode(' Overlay — decoration on top of the main tile (no collision)'));
-    body.appendChild(overRow);
+  colorInp = document.createElement('input');
+  colorInp.type = 'color';
+  colorInp.value = color;
+  colorInp.title = 'Paint color';
+  colorInp.addEventListener('input', function(){
+    color = colorInp.value;
+    tool = 'pencil';
+    syncTools();
+    fillSwatches();
+  });
+  field('Color', colorInp);
 
-    var front = document.createElement('input');
-    front.type = 'checkbox';
-    front.checked = !!(def && def.front);
-    front.disabled = !custom;
-    front.addEventListener('change', function(){
-      if (!def) return;
-      markOp();
-      updateTile(def.id, { front: front.checked });
-      notify();
-    });
-    var frontRow = document.createElement('label');
-    frontRow.className = 'ed-check';
-    frontRow.appendChild(front);
-    frontRow.appendChild(document.createTextNode(' Draw in front of the hero'));
-    body.appendChild(frontRow);
+  swatchEl = document.createElement('div');
+  swatchEl.className = 'ed-tile-swatches';
+  body.appendChild(swatchEl);
 
-    var climb = document.createElement('input');
-    climb.type = 'checkbox';
-    climb.checked = !!(def && def.climb);
-    climb.disabled = !custom;
-    climb.addEventListener('change', function(){
-      if (!def) return;
-      markOp();
-      updateTile(def.id, { climb: climb.checked });
-      notify();
-      paintCanvas();
-    });
-    var climbRow = document.createElement('label');
-    climbRow.className = 'ed-check';
-    climbRow.appendChild(climb);
-    climbRow.appendChild(document.createTextNode(' Climbable (ladder)'));
-    body.appendChild(climbRow);
-
-    var oneWay = document.createElement('input');
-    oneWay.type = 'checkbox';
-    oneWay.checked = !!(def && def.oneWay);
-    oneWay.disabled = !custom;
-    oneWay.addEventListener('change', function(){
-      if (!def) return;
-      markOp();
-      updateTile(def.id, { oneWay: oneWay.checked });
-      notify();
-    });
-    var owRow = document.createElement('label');
-    owRow.className = 'ed-check';
-    owRow.appendChild(oneWay);
-    owRow.appendChild(document.createTextNode(' One-way — stand from above, pass from below'));
-    body.appendChild(owRow);
-
-    var sel = document.createElement('select');
-    var curCol = def ? def.collide : builtinCollide(current);
-    var i;
-    for (i = 0; i < COLLIDE.length; i++){
-      var o = document.createElement('option');
-      o.value = COLLIDE[i].id;
-      o.textContent = COLLIDE[i].name;
-      if (COLLIDE[i].id === curCol) o.selected = true;
-      sel.appendChild(o);
-    }
-    sel.disabled = !custom;
-    sel.addEventListener('change', function(){
-      if (!def) return;
-      var box = def.box;
-      if (sel.value === 'half') box = { x: 0, y: 0, w: 16, h: 8 };
-      if (sel.value === 'bar') box = { x: 0, y: 0, w: 16, h: 3 };
-      if (sel.value === 'full') box = { x: 0, y: 0, w: 16, h: 16 };
-      if (sel.value === 'none') tool = tool === 'hitbox' ? 'pencil' : tool;
-      if (sel.value === 'custom') tool = 'hitbox';
-      markOp();
-      updateTile(def.id, { collide: sel.value, box: box });
-      notify();
-      fillBody();
-    });
-    field('Collision', sel);
-
-    if (current.id === GAME.FALL){
-      var fallDef = 70;
-      var fallSpd = getTileSpeed(GAME.FALL, fallDef);
-      var spdWrap = document.createElement('label');
-      spdWrap.className = 'slider-wrap';
-      spdWrap.title = 'Procedural waterfall scroll speed (0 = frozen)';
-      spdWrap.innerHTML = '<div class="slider-label-overlay"><span>Speed</span><span></span></div>';
-      var spdInp = document.createElement('input');
-      spdInp.type = 'range';
-      spdInp.min = 0; spdInp.max = 200; spdInp.step = 1;
-      spdInp.value = fallSpd;
-      spdInp.dataset.default = String(fallDef);
-      spdInp.addEventListener('input', function(){
-        markOp();
-        setTileGfx(GAME.FALL, { speed: +spdInp.value });
-        notify();
-      });
-      spdWrap.appendChild(spdInp);
-      body.appendChild(spdWrap);
-      initSliders(spdWrap);
-    }
-
-    if (current.id === GAME.WATER){
-      var shDef = 100, wxDef = 50;
-      var shVal = getTileShift(GAME.WATER, shDef);
-      var wxVal = getTileWaveX(GAME.WATER, wxDef);
-
-      var shWrap = document.createElement('label');
-      shWrap.className = 'slider-wrap';
-      shWrap.title = 'River drift: − left, + right (100 = canon, 0 = still base)';
-      shWrap.innerHTML = '<div class="slider-label-overlay"><span>Shift</span><span></span></div>';
-      var shInp = document.createElement('input');
-      shInp.type = 'range';
-      shInp.min = -100; shInp.max = 100; shInp.step = 1;
-      shInp.value = shVal;
-      shInp.dataset.default = String(shDef);
-      shInp.addEventListener('input', function(){
-        markOp();
-        setTileGfx(GAME.WATER, { shift: +shInp.value });
-        notify();
-      });
-      shWrap.appendChild(shInp);
-      body.appendChild(shWrap);
-      initSliders(shWrap);
-
-      var wxWrap = document.createElement('label');
-      wxWrap.className = 'slider-wrap';
-      wxWrap.title = 'Wave crest / bob amplitude (0 = flat)';
-      wxWrap.innerHTML = '<div class="slider-label-overlay"><span>Wave X</span><span></span></div>';
-      var wxInp = document.createElement('input');
-      wxInp.type = 'range';
-      wxInp.min = 0; wxInp.max = 100; wxInp.step = 1;
-      wxInp.value = wxVal;
-      wxInp.dataset.default = String(wxDef);
-      wxInp.addEventListener('input', function(){
-        markOp();
-        setTileGfx(GAME.WATER, { waveX: +wxInp.value });
-        notify();
-      });
-      wxWrap.appendChild(wxInp);
-      body.appendChild(wxWrap);
-      initSliders(wxWrap);
-    }
-
-    if (!custom && !linked){
-      var bNote = document.createElement('div');
-      bNote.className = 'ed-tile-note';
-      bNote.textContent = 'Paint replaces the picture with a sprite. Built-in collision stays. Reset picture goes back to the old drawing.';
-      body.appendChild(bNote);
-    }
-  }
+  var sNote = document.createElement('div');
+  sNote.className = 'ed-tile-note';
+  sNote.textContent = 'Red box = hitbox for this action; origin is its top-left, ground is the bottom edge. Gold hands = ledge search. Magenta weapon = this frame. Hit-tool drags a new box. Unedited frames still use the old drawing.';
+  body.appendChild(sNote);
 
   var actions = document.createElement('div');
   actions.className = 'ed-tile-actions';
@@ -2084,79 +2088,48 @@ function fillBody(){
   });
   actions.appendChild(fileInp);
 
-  if (!linked){
-    var reimp = document.createElement('button');
-    reimp.type = 'button';
-    reimp.className = 'edb wide';
-    reimp.textContent = 'Re-import PNG';
-    reimp.title = sprite
-      ? 'Replace this frame, or a whole row if the sheet is a strip of frames.'
-      : 'Replace this tile’s picture. A sheet becomes animation frames. Flags stay.';
-    reimp.addEventListener('click', function(){ fileInp.click(); });
-    actions.appendChild(reimp);
-  }
+  var reimp = document.createElement('button');
+  reimp.type = 'button';
+  reimp.className = 'edb wide';
+  reimp.textContent = 'Re-import PNG';
+  reimp.title = 'Replace this frame, or a whole row if the sheet is a strip of frames.';
+  reimp.addEventListener('click', function(){ fileInp.click(); });
+  actions.appendChild(reimp);
 
-  if (sprite){
-    var rst = document.createElement('button');
-    rst.type = 'button';
-    rst.className = 'edb';
-    rst.textContent = 'Reset frame';
-    rst.title = 'Forget the painted frame; the game uses the old drawing again.';
-    rst.addEventListener('click', function(){
-      markOp();
-      clearSpriteFrame(current.id, animId, frameI);
-      notify();
-      loadBuf(currentSrc(), function(){
-        fillSwatches();
-        syncTools();
-        paintStrips();
-      });
-    });
-    actions.appendChild(rst);
-    var rstA = document.createElement('button');
-    rstA.type = 'button';
-    rstA.className = 'edb';
-    rstA.textContent = 'Reset anchors';
-    rstA.title = 'Forget origin, box, hands and weapon points for this action.';
-    rstA.addEventListener('click', function(){
-      markOp();
-      clearAnimAnchors(current.id, animId);
-      notify();
-      paintCanvas();
+  var rst = document.createElement('button');
+  rst.type = 'button';
+  rst.className = 'edb';
+  rst.textContent = 'Reset frame';
+  rst.title = 'Forget the painted frame; the game uses the old drawing again.';
+  rst.addEventListener('click', function(){
+    markOp();
+    clearSpriteFrame(current.id, animId, frameI);
+    notify();
+    loadBuf(currentSrc(), function(){
+      fillSwatches();
+      syncTools();
       paintStrips();
     });
-    actions.appendChild(rstA);
-  } else if (custom){
-    var del = document.createElement('button');
-    del.type = 'button';
-    del.className = 'edb';
-    del.textContent = 'Delete';
-    del.title = 'Delete this custom tile. Warns if it is used on any level.';
-    del.addEventListener('click', function(){
-      if (!def || !onDeleteCustom) return;
-      if (!onDeleteCustom(def.id)) return;
-      notify();
-      closeTileEdit();
-    });
-    actions.appendChild(del);
-  } else if (!linked){
-    var rstT = document.createElement('button');
-    rstT.type = 'button';
-    rstT.className = 'edb';
-    rstT.textContent = 'Reset picture';
-    rstT.addEventListener('click', function(){
-      markOp();
-      clearTileGfx(current.id);
-      notify();
-      fillBody();
-    });
-    actions.appendChild(rstT);
-  }
+  });
+  actions.appendChild(rst);
+  var rstA = document.createElement('button');
+  rstA.type = 'button';
+  rstA.className = 'edb';
+  rstA.textContent = 'Reset anchors';
+  rstA.title = 'Forget origin, box, hands and weapon points for this action.';
+  rstA.addEventListener('click', function(){
+    markOp();
+    clearAnimAnchors(current.id, animId);
+    notify();
+    paintCanvas();
+    paintStrips();
+  });
+  actions.appendChild(rstA);
   body.appendChild(actions);
 
   paintStrips();
   loadBuf(currentSrc(), function(){
-    if (!linked) fillSwatches();
+    fillSwatches();
     syncTools();
   });
   bindPreview(can);
