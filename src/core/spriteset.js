@@ -3,6 +3,7 @@
    и BAKED.spriteDefs (кастом-клоны). Пустой кадр = скелет / rc. */
 import { BAKED } from './defaults.js';
 import { C } from './constants.js';
+import { preferLocal, notifyDraftChange } from './persist.js';
 
 var KEY = 'ledge.dev.sprites';
 
@@ -361,18 +362,22 @@ function applyCustomDefs(list){
   }
 }
 
+function applyLocalOverlay(loc){
+  if (!loc) return;
+  if (loc.sprites) overlaySprites(saved, loc.sprites);
+  else overlaySprites(saved, loc);
+  if (loc.defs && loc.defs.length) applyCustomDefs(loc.defs);
+}
+
 function boot(){
   saved = {};
   customDefs = [];
   overlaySprites(saved, (BAKED && BAKED.sprites) || {});
   if (BAKED && BAKED.spriteDefs && BAKED.spriteDefs.length)
     applyCustomDefs(BAKED.spriteDefs);
-  var loc = readLocal();
-  if (loc){
-    if (loc.sprites) overlaySprites(saved, loc.sprites);
-    else overlaySprites(saved, loc);
-    if (loc.defs && loc.defs.length) applyCustomDefs(loc.defs);
-  }
+  /* Как тайлы: LS только если preferLocal. Иначе file:///dist со старым
+     catalog-bake в LS затирает свежий BAKED. */
+  if (preferLocal()) applyLocalOverlay(readLocal());
   rebuildById();
   loadAll();
 }
@@ -381,7 +386,15 @@ boot();
 
 function emit(why){
   writeLocal();
+  notifyDraftChange();
   if (onChange) onChange(why || 'change');
+}
+
+/** Перед Bake: подтянуть кадры из LS, даже если preferLocal ещё false. */
+export function pullLocalSpritesForBake(){
+  applyLocalOverlay(readLocal());
+  rebuildById();
+  loadAll();
 }
 
 export function bindSpriteset(hooks){

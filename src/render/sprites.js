@@ -437,7 +437,8 @@ export function lootDrops(){
     if (x < -10 || x > viewW() + 10) continue;
     var bl = l.t < 3 && Math.sin(time*12) < 0;               // мигает перед исчезновением
     if (bl) continue;
-    if (l.kind === 'coin'){ rc(x-2, y-3, 4, 6, P.coin); rc(x-3, y-2, 6, 4, P.coin); }
+    if (l.kind && blitEntSprite(l.kind, 'idle', 0, l.x - 8, l.y - 8 + bob, 1, true)) { /* sprite */ }
+    else if (l.kind === 'coin'){ rc(x-2, y-3, 4, 6, P.coin); rc(x-3, y-2, 6, 4, P.coin); }
     else if (l.kind === 'gem'){ rc(x-3, y-2, 6, 2, P.gem); rc(x-2, y, 4, 3, P.gemD); }
     else if (l.kind === 'key'){ rc(x-1, y-4, 4, 4, P.key); rc(x, y, 2, 5, P.key); }
     else if (l.kind === 'shroom'){ rc(x-1, y, 2, 3, P.stem); rc(x-3, y-3, 6, 3, P.shroom); }
@@ -589,6 +590,7 @@ export function items(){
     var x = Math.round(it.x - cam.x), y = Math.round(it.y - cam.y + bob);
     if (x < -12 || x > viewW()+12) continue;
     if (it.spriteId && blitEntSprite(it.spriteId, 'idle', 0, it.x - 8, it.y - 8 + bob, 1, true)) continue;
+    if (it.kind && blitEntSprite(it.kind, 'idle', 0, it.x - 8, it.y - 8 + bob, 1, true)) continue;
     if (it.kind === 'gem'){
       rc(x-1,y-4,2,1,P.gem); rc(x-3,y-3,6,2,P.gem); rc(x-2,y-1,4,3,P.gemD);
       rc(x-1,y+2,2,2,P.gemD); rc(x-2,y-3,1,2,'#ffffff');

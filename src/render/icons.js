@@ -1,5 +1,6 @@
-import { rc } from './ctx.js';
+import { ctx, rc } from './ctx.js';
 import { P } from './palette.js';
+import { spriteFrameImage, getSpriteDef } from '../core/spriteset.js';
 
 function px(ox, oy, sc, x, y, w, h, col){
   rc(ox + x * sc, oy + y * sc, Math.max(sc, w * sc), Math.max(sc, h * sc), col);
@@ -8,6 +9,17 @@ function px(ox, oy, sc, x, y, w, h, col){
 /* иконка 16×16, sc — масштаб пикселя */
 export function drawItemIcon(type, ox, oy, sc){
   sc = sc || 1;
+  var img = type ? spriteFrameImage(type, 'idle', 0) : null;
+  if (img){
+    var def = getSpriteDef(type);
+    var fw = def && def.fw ? def.fw : img.naturalWidth || 16;
+    var fh = def && def.fh ? def.fh : img.naturalHeight || 16;
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, 0, 0, fw, fh, ox, oy, Math.max(1, fw * sc), Math.max(1, fh * sc));
+    ctx.restore();
+    return;
+  }
   var gc = P.gearCol[type] || null;
   var a = gc ? gc[0] : '#cfc6ff';
   var b = gc ? gc[1] : '#7a72a8';

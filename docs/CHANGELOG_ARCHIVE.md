@@ -2,6 +2,10 @@
 
 ## 2026-08-21 (pre-commit)
 
+- Bake: `BAKED.sprites` includes PNG frames (+ `spriteDefs` for clones); no JSON download fallback on Bake failure.
+
+## 2026-08-21 (pre-commit)
+
 - Persist: auto-bake off — `defaults.js` only via Bake button; levels no longer use `ledge.dev.levels` (session mem + `BAKED.levels` only).
 
 ## 2026-08-21 (pre-commit)
