@@ -319,8 +319,10 @@ function resolveDropSrc(payload){
   if (!payload) return '';
   if (payload.tileSrc) return payload.tileSrc;
   if (payload.spriteId){
-    return getSpriteFrameSrc(payload.spriteId, 'idle', 0) ||
-      bakeSpriteFrameSrc(payload.spriteId, 'idle', 0) || '';
+    var pd = getSpriteDef(payload.spriteId);
+    var pAnim = (pd && pd.anims && pd.anims[0]) ? pd.anims[0].id : 'idle';
+    return getSpriteFrameSrc(payload.spriteId, pAnim, 0) ||
+      bakeSpriteFrameSrc(payload.spriteId, pAnim, 0) || '';
   }
   return '';
 }

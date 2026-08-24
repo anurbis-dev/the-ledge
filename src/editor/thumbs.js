@@ -1,7 +1,13 @@
 import { P } from '../render/palette.js';
 import { getTileGfx, getTileSpriteId, tileFrameSrc } from '../core/tileset.js';
-import { getSpriteFrameSrc, isSpriteFrameDirty } from '../core/spriteset.js';
+import { getSpriteFrameSrc, isSpriteFrameDirty, getSpriteDef } from '../core/spriteset.js';
 import { bakeSpriteFrameSrc } from '../render/sprite-bake.js';
+
+/** Первая анимация спрайта (у большинства — 'idle', у птиц — 'flap'). */
+function primaryAnim(sid){
+  var def = getSpriteDef(sid);
+  return (def && def.anims && def.anims[0]) ? def.anims[0].id : 'idle';
+}
 
 function px(c, x, y, w, h, col){
   c.fillStyle = col;
@@ -289,8 +295,9 @@ var tileCache = {}, objCache = {};
 export function tileThumb(spec, size){
   var sid = (spec && spec.spriteId) || (spec.id != null ? getTileSpriteId(spec.id) : null);
   var gfx = spec.src ? spec : (spec.id ? getTileGfx(spec.id) : null);
+  var sAnim = sid ? primaryAnim(sid) : '';
   var src = sid
-    ? (tileFrameSrc(spec.id, 0) || getSpriteFrameSrc(sid, 'idle', 0) || bakeSpriteFrameSrc(sid, 'idle', 0) || '')
+    ? (tileFrameSrc(spec.id, 0) || getSpriteFrameSrc(sid, sAnim, 0) || bakeSpriteFrameSrc(sid, sAnim, 0) || '')
     : ((spec.src) || (gfx && gfx.src) || '');
   var key = spec.id + ':' + (spec.slope || '') + ':' + size + ':' + (sid || '') + ':' + src.length + ':' + (spec.name || '');
   if (tileCache[key]) return tileCache[key];
@@ -357,7 +364,8 @@ export function spriteThumb(def, size){
 export function objThumb(palKind, size, spriteId, paintKind){
   paintKind = paintKind || palKind;
   var sid = spriteId || '';
-  var src = (sid && isSpriteFrameDirty(sid, 'idle', 0)) ? (getSpriteFrameSrc(sid, 'idle', 0) || '') : '';
+  var oAnim = sid ? primaryAnim(sid) : '';
+  var src = (sid && isSpriteFrameDirty(sid, oAnim, 0)) ? (getSpriteFrameSrc(sid, oAnim, 0) || '') : '';
   var key = palKind + ':' + sid + ':' + size + ':' + (src ? src.length : 0);
   var cv = document.createElement('canvas');
   cv.width = size; cv.height = size;
