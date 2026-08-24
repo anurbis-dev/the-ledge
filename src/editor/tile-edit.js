@@ -94,6 +94,8 @@ var boxWEl = null, boxHEl = null;
 var playTimer = 0;
 var playBtn = null;
 var frameDrag = null;
+var animFilter = '';
+var animFilterEl = null;
 
 try {
   var savedStrip = parseInt(localStorage.getItem(STRIP_KEY), 10);
@@ -163,6 +165,7 @@ export function closeTileEdit(){
   painting = null;
   boxDrag = null;
   frameDrag = null;
+  animFilterEl = null;
   mode = 'tile';
   if (root){
     root.hidden = true;
@@ -193,6 +196,7 @@ export function openTileEdit(spec, clientX, clientY){
   fw = 16; fh = 16;
   animId = '';
   frameI = 0;
+  animFilter = '';
   current = Object.assign({}, spec, {
     spriteId: (spec.id != null ? getTileSpriteId(spec.id) : null) || spec.spriteId || null
   });
@@ -239,6 +243,7 @@ export function openSpriteEdit(def, clientX, clientY, keepObject){
   fh = current.fh || 16;
   animId = def.anims && def.anims[0] ? def.anims[0].id : '';
   frameI = 0;
+  animFilter = '';
   root.classList.add('ed-sprite');
   root.hidden = false;
   if (titleEl) titleEl.textContent = (objCurrent && objCurrent.name) || def.name || 'Sprite';
@@ -259,6 +264,7 @@ export function openObjectEdit(meta, clientX, clientY){
   fw = 16; fh = 16;
   animId = '';
   frameI = 0;
+  animFilter = '';
   root.classList.remove('ed-sprite');
   root.classList.add('ed-object');
   root.hidden = false;
@@ -1334,6 +1340,15 @@ function bindPreview(can){
   });
 }
 
+/** Step the current animation's frame by ±1 (wraps). Returns false if nothing to step. */
+export function stepDetailsFrame(dir){
+  if (!isDetailsOpen() || !isSprite() || !current) return false;
+  var n = getAnimFrameCount(current.id, animId);
+  if (n < 2) return false;
+  selectFrame(animId, ((frameI + dir) % n + n) % n);
+  return true;
+}
+
 function selectFrame(nextAnim, nextI, keepPlay){
   if (!keepPlay) stopPlay();
   if (nextAnim === animId && nextI === frameI){
@@ -1581,6 +1596,8 @@ function paintStrips(){
     applyStripH();
     return;
   }
+  var hadFilterFocus = animFilterEl && document.activeElement === animFilterEl;
+  var filterSelStart = hadFilterFocus ? animFilterEl.selectionStart : null;
   stripsEl.hidden = false;
   stripsEl.textContent = '';
   var head = document.createElement('div');
@@ -1596,9 +1613,40 @@ function paintStrips(){
     togglePlay();
   });
   head.appendChild(playBtn);
+  var visRows = rows;
+  if (isSprite() && rows.length > 1){
+    var searchInp = document.createElement('input');
+    searchInp.type = 'text';
+    searchInp.className = 'ed-tile-anim-search';
+    searchInp.placeholder = 'Find animation…';
+    searchInp.value = animFilter;
+    searchInp.addEventListener('keydown', function(e){ e.stopPropagation(); });
+    searchInp.addEventListener('input', function(){
+      animFilter = searchInp.value;
+      paintStrips();
+    });
+    head.appendChild(searchInp);
+    animFilterEl = searchInp;
+  } else {
+    animFilterEl = null;
+  }
   stripsEl.appendChild(head);
+  if (hadFilterFocus && animFilterEl){
+    animFilterEl.focus();
+    if (filterSelStart != null) animFilterEl.setSelectionRange(filterSelStart, filterSelStart);
+  }
+  if (isSprite() && animFilter){
+    var q = animFilter.toLowerCase();
+    visRows = rows.filter(function(rw){ return (rw.name || '').toLowerCase().indexOf(q) !== -1; });
+    if (!visRows.length){
+      var none = document.createElement('div');
+      none.className = 'ed-tile-note';
+      none.textContent = 'No animations match "' + animFilter + '"';
+      stripsEl.appendChild(none);
+    }
+  }
   var r;
-  for (r = 0; r < rows.length; r++){
+  for (r = 0; r < visRows.length; r++){
     (function(row){
       var wrap = document.createElement('div');
       wrap.className = 'ed-tile-anim';
@@ -1649,7 +1697,7 @@ function paintStrips(){
       bar.appendChild(add);
       wrap.appendChild(bar);
       stripsEl.appendChild(wrap);
-    })(rows[r]);
+    })(visRows[r]);
   }
   applyStripH();
 }

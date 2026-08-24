@@ -77,6 +77,12 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
   background:#1a152ecc;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
 .ed-swatch.on{background:#4d3f86dd;border-color:#ffd9a0}
 .ed-swatch-img{display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+.ed-swatch-named{flex-direction:column;gap:2px;padding:2px 3px 3px;height:auto!important}
+.ed-swatch-name{font-size:9px;line-height:1.15;color:#cfc6ff;width:var(--ed-icon,32px);
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;pointer-events:none}
+.ed-swatch-name-edit{font:inherit;font-size:9px;line-height:1.15;width:var(--ed-icon,32px);
+  max-width:100%;box-sizing:border-box;background:#150f26;color:#e9e4ff;
+  border:1px solid #8f88bb;border-radius:3px;padding:0 2px;text-align:center}
 .ed-params{flex:1;min-height:0;display:flex;flex-direction:column;gap:6px;overflow:hidden}
 .ed-params[hidden]{display:none!important}
 .ed-param-bar{display:flex;gap:6px;flex-shrink:0}
@@ -241,6 +247,8 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
 .ed-tile-split[hidden]{display:none}
 .ed-tile-anim{display:flex;flex-direction:column;gap:2px;flex:0 0 auto}
 .ed-tile-anim-toolbar{display:flex;gap:4px;align-items:center}
+.ed-tile-anim-search{flex:1;min-width:0;height:24px;border-radius:6px;border:1px solid #3a3460;
+  background:#150f26;color:#e9e4ff;font:inherit;font-size:11px;padding:0 8px}
 .ed-tile-anim-name{font-size:10px;color:#cfc6ff;line-height:1.2}
 .ed-tile-anim-frames{display:flex;gap:3px;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;align-items:center}
 .ed-tile-frame{width:28px;height:auto;flex:0 0 auto;image-rendering:pixelated;image-rendering:crisp-edges;

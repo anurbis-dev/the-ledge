@@ -20,7 +20,8 @@ import {
 } from '../core/tileset.js';
 import {
   bindTileEdit, openTileEdit, openSpriteEdit, openObjectEdit, closeTileEdit,
-  isDetailsOpen, hitDetailsDrop, pointerOverDetails, applyDetailsDrop, refreshTileEdit
+  isDetailsOpen, hitDetailsDrop, pointerOverDetails, applyDetailsDrop, refreshTileEdit,
+  stepDetailsFrame
 } from './tile-edit.js';
 import {
   spriteDefForKind, getSpriteDef, bindSpriteset, cloneSpriteDef,
@@ -445,18 +446,25 @@ function syncTabs(){
   if (edGear) edGear.hidden = ED.tab !== 'gear';
 }
 
-function swatch(parent, canvas, label, active, onPick, kind, pal, onClick){
+function swatch(parent, canvas, label, active, onPick, kind, pal, onClick, showLabel){
   var b = document.createElement('button');
   b.type = 'button';
-  b.className = 'ed-swatch' + (active ? ' on' : '');
+  b.className = 'ed-swatch' + (active ? ' on' : '') + (showLabel ? ' ed-swatch-named' : '');
   b.title = label + ' — drag onto canvas';
   b.style.width = (ED.icon + 6) + 'px';
-  b.style.height = (ED.icon + 6) + 'px';
+  if (!showLabel) b.style.height = (ED.icon + 6) + 'px';
   var img = canvas;
   img.className = 'ed-swatch-img';
   img.style.width = ED.icon + 'px';
   img.style.height = ED.icon + 'px';
   b.appendChild(img);
+  if (showLabel){
+    var nameEl = document.createElement('div');
+    nameEl.className = 'ed-swatch-name';
+    nameEl.textContent = label;
+    b.appendChild(nameEl);
+    b._nameLabel = nameEl;
+  }
   b.addEventListener('pointerdown', function(e){
     if (e.button !== 0) return;
     if (e.detail >= 2) return;
@@ -611,6 +619,52 @@ function markActiveSwatch(btn){
   for (i = 0; i < list.length; i++) list[i].classList.toggle('on', list[i] === btn);
 }
 
+/** F2 on the Objects palette: rename the selected custom object inline. */
+function renamePaletteObject(){
+  if (!edPal || ED.tab !== 'obj') return false;
+  var spec = ED_OBJS[ED.pal];
+  var meta = palObjMeta(spec);
+  if (!meta || !meta.custom) return false;
+  var sw = edPal.querySelector('.ed-swatch.on');
+  if (!sw || !sw._nameLabel || sw._renaming) return false;
+  startInlineRename(sw, spec, meta);
+  return true;
+}
+
+function startInlineRename(sw, spec, meta){
+  var lab = sw._nameLabel;
+  sw._renaming = true;
+  var input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'ed-swatch-name-edit';
+  input.value = meta.name || '';
+  input.maxLength = 32;
+  lab.replaceWith(input);
+  input.focus();
+  input.select();
+  var done = false;
+  function commit(save){
+    if (done) return;
+    done = true;
+    var val = input.value.trim();
+    if (save && val && val !== meta.name){
+      beginOp();
+      updateObject(spec.kind, { name: val });
+      endOp();
+      rebuildEdObjs();
+      refreshTileEdit();
+    }
+    fillPal();
+  }
+  input.addEventListener('pointerdown', function(e){ e.stopPropagation(); });
+  input.addEventListener('keydown', function(e){
+    e.stopPropagation();
+    if (e.key === 'Enter'){ e.preventDefault(); commit(true); }
+    else if (e.key === 'Escape'){ e.preventDefault(); commit(false); }
+  });
+  input.addEventListener('blur', function(){ commit(true); });
+}
+
 function extraBtn(parent, label, active, onClick){
   var b = document.createElement('button');
   b.type = 'button';
@@ -666,7 +720,7 @@ function fillPal(){
           ED.pal = k;
         }, 'obj', k, function(){
           if (isDetailsOpen()) openPalDetails(spec);
-        });
+        }, true);
         if (palIsLootOnly(spec)) sw.title = spec.name + ' — drag onto a chest, enemy or bird';
         else if (thumbKind === 'hero') sw.title = 'Hero — Details edits character frames (Rope climb/swing, …)';
         else if (thumbKind === 'player_start') sw.title = 'Start — place spawn point · Details: spawn sprite slot';
@@ -1958,23 +2012,6 @@ export function edExportText(){
     out.push('// узоры (варианты рисунка, import varR из core/map.js)');
     out.push(varRuns.join('\n'));
   }
-  var flipRuns = [];
-  for (var rf = r0; rf < r1; rf++){
-    var cf = c0e;
-    while (cf < c1e){
-      var vf = G.tileFlipAt(cf, rf);
-      if (!vf){ cf++; continue; }
-      var nf = 1;
-      while (cf + nf < c1e && G.tileFlipAt(cf + nf, rf) === vf) nf++;
-      flipRuns.push('flipR(' + cf + ', ' + rf + ', ' + nf + ', 1, ' + vf + ');');
-      cf += nf;
-    }
-  }
-  if (flipRuns.length){
-    out.push('');
-    out.push('// флип тайлов (бит0=H, бит1=V; import flipR из core/map.js)');
-    out.push(flipRuns.join('\n'));
-  }
   out.push('');
   out.push('// objects');
   out.push('enemies: [' + S.enemies.map(function(e){
@@ -3029,6 +3066,16 @@ addEventListener('keydown', function(e){
   if (ED.on && (e.key === 'y' || e.key === 'Y') && !e.ctrlKey && !e.metaKey){
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
     ED.flipV = true;
+  }
+  if (ED.on && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && isDetailsOpen()){
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (stepDetailsFrame(e.key === 'ArrowLeft' ? -1 : 1)) e.preventDefault();
+    return;
+  }
+  if (ED.on && e.key === 'F2' && ED.tab === 'obj'){
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (renamePaletteObject()) e.preventDefault();
+    return;
   }
   if (ED.on && (e.key === 'Delete' || e.key === 'Backspace') && ED.selTiles && ED.tool === 'tile'){
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;

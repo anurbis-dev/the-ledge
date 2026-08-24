@@ -16,9 +16,9 @@
 
 ## 2. Панель редактора
 
-Основная панель `#edbar` содержит вкладки:
-- `Tiles`
-- `Sprites` (`data-tab=sprite`)
+Основная панель `#edbar` содержит вкладки (в порядке слева направо):
+- `Sprites` (`data-tab=sprite`) — **первая в порядке кнопок** (но дефолт активен `Tiles`)
+- `Tiles` — **дефолт активен** (`data-tab=tile`)
 - `Objects`
 - `Params`
 - `Intro`
@@ -127,6 +127,10 @@
 
 Палитра = placeable `ED_OBJS` (`BUILTIN_OBJS` + customs из `ledge.dev.objects`). Каталог спрайтов — вкладка **Sprites**; Objects открывают params Details / place (кадры — через Sprite slot → Edit).
 
+**Имена объектов под свачами**: в палитре Objects каждый сватч теперь показывает имя объекта в небольшой подписи внизу (`.ed-swatch-name` / `.ed-swatch-named` в стилях). Это отличает Objects палитру от Tiles/Sprites, где объекты подписаны только в тултипе.
+
+**F2 inline rename**: при активной вкладке Objects наведите указатель на **кастомный** объект и нажмите **F2** — его имя превратится в редактируемое текстовое поле (`.ed-swatch-name-edit`); нажмите Enter чтобы подтвердить (срабатывает `updateObject()` с undo/redo), Escape чтобы отменить. Встроенные (non-custom) объекты не переименовываются через F2 (тихо игнорируется). Переименование встроенных объектов как и прежде недоступно.
+
 Палитра включает:
 - `Hero` (`kind: 'hero'`) — не placeable; Details = params + Sprite slot (`hero`); кадры — Edit / dblclick слота → `openSpriteEdit`.
 - `Start` (`kind: 'player_start'`) — spawn уровня; Details: sprite slot → `spawn.spriteId` → `activeHeroId()`.
@@ -168,7 +172,7 @@
 ### Редактор спрайтов (Sprites tab / Edit со слота)
 
 - Каталог и импорт PNG / Paint — вкладка **Sprites**; из Objects/Tiles Details — только через Edit / dblclick Sprite slot → `openSpriteEdit` (тот же `#edTileEdit` в sprite-mode).
-- Каждая анимация — своя строка кадров; сепаратор увеличивает высоту. `+` / драг-reorder / Play·Stop. У врагов/птиц/пауков открытие материализует bake во все слоты. Клик по кадру — пиксели. Красная коробка — хитбокс (Box / Hit); origin верх-лево; Hands золотой; weapon пурпурный. Reset anchors / Reset frame. Size — `fw×fh`. Bake пишет в `BAKED.sprites` якоря **и** PNG-кадры (+ `BAKED.spriteDefs`); черновик по-прежнему в `ledge.dev.sprites`.
+- Каждая анимация — своя строка кадров; сепаратор увеличивает высоту. `+` / драг-reorder / Play·Stop. **Animation search filter** (`.ed-tile-anim-search`, placeholder «Find animation…»): текстовое поле над списком анимаций появляется, если спрайт имеет более одной анимации; фильтрует анимации по названию (case-insensitive substring); фильтр сбрасывается при каждом открытии Details. **Frame stepping** в Details sprite-mode: клавиши `ArrowLeft`/`ArrowRight` переключают текущий кадр в анимации на ±1 с циклическим замыканием; работает только если окно открыто, не срабатывает если фокус в текстовом поле/textarea. Экспортирован `stepDetailsFrame(dir)` в `src/editor/tile-edit.js`, вызывается из `src/editor/editor.js` (глобальный keydown handler). У врагов/птиц/пауков открытие материализует bake во все слоты. Клик по кадру — пиксели. Красная коробка — хитбокс (Box / Hit); origin верх-лево; Hands золотой; weapon пурпурный. Reset anchors / Reset frame. Size — `fw×fh`. Bake пишет в `BAKED.sprites` якоря **и** PNG-кадры (+ `BAKED.spriteDefs`); черновик по-прежнему в `ledge.dev.sprites`.
 - Сущности (items / enemies / fliers / npcs) могут нести `spriteId` при постановке — draw/persist.
 
 ### Логика постановки
