@@ -127,54 +127,6 @@ function drawWaterBubbles(c, r, x, y, time, k){
   rc(x + ((c * 7) % 9), y + 12, 2, 1, mixHex('#6fb8dd', '#143044', k));
 }
 
-/* декор скосов по варианту: [dx, dy, w, h, hi] — hi=1 подсветка, 0 тень; рисуется только там, где точка внутри тела скоса */
-var SLOPE_DECOR = [
-  [[6, 10, 3, 1, 1]],
-  [[3, 11, 1, 1, 1], [11, 9, 1, 1, 0]],
-  [[5, 9, 2, 1, 0], [9, 12, 1, 2, 1]],
-  [[2, 8, 1, 3, 0], [10, 10, 2, 1, 1]],
-  [[7, 7, 1, 2, 1], [4, 13, 2, 1, 0], [12, 11, 1, 1, 1]]
-];
-
-/* закэшированный спрайт скоса: ключ (id, глубина, вариант декора) — геометрия локальна к тайлу (c=0), от c/r не зависит. */
-var slopeBakeCache = {};
-function bakeSlope(v, deepS, sPick){
-  var key = v + '|' + (deepS ? 1 : 0) + '|' + sPick;
-  var can = slopeBakeCache[key];
-  if (can) return can;
-  can = document.createElement('canvas');
-  can.width = T; can.height = T;
-  var bctx = can.getContext('2d');
-  var saved = getCtx();
-  setCtx(bctx);
-  try {
-    var bsS = deepS ? TINT.deepA : TINT.rock, bdS = deepS ? TINT.deepB : TINT.rockD, blS = deepS ? TINT.deepC : TINT.rockL;
-    var k2, yy, di, dd, decoS;
-    setFill(bsS);
-    ctx.beginPath();
-    ctx.moveTo(0, T);
-    for (k2 = 0; k2 <= T; k2 += 2) ctx.lineTo(k2, G.slopeTop(v, 0, k2));
-    ctx.lineTo(T, T);
-    ctx.closePath(); ctx.fill();
-    for (k2 = 0; k2 < T; k2 += 2){
-      yy = G.slopeTop(v, 0, k2);
-      rc(k2, yy, 2, 2, P.edgeL);
-      rc(k2, yy + 2, 2, 1, bdS);
-    }
-    if (sPick >= 0){
-      decoS = SLOPE_DECOR[sPick];
-      for (di = 0; di < decoS.length; di++){
-        dd = decoS[di];
-        if (dd[1] >= G.slopeTop(v, 0, dd[0]))
-          rc(dd[0], dd[1], dd[2], dd[3], dd[4] ? blS : bdS);
-      }
-    }
-  } finally {
-    setCtx(saved);
-  }
-  slopeBakeCache[key] = can;
-  return can;
-}
 
 var WAVE_PAD = 4, WAVE_H = 20;
 var WAVE_TRAVEL_K = 2.2; /* канон: фазовая скорость базовой волны */
@@ -851,13 +803,7 @@ function paintTileId(v, c, r, x, y, dyn){
   }
   if (paintCustom(v, x, y)) return;
   if (G.isLadV(v)){ drawLadder(c, r, v, x, y); return; }
-  if (G.isSlopeV(v)){                                    // скос (любой угол / дуга) — из закэшированного спрайта
-    var deepS = r > 30;
-    var hhS = hashT(c, r), mvS = vAt(c, r);
-    var sPick = mvS > 0 ? (mvS - 1) % SLOPE_DECOR.length : (hhS % 3 === 0 ? hhS % SLOPE_DECOR.length : -1);
-    ctx.drawImage(bakeSlope(v, deepS, sPick), Math.round(x), Math.round(y));
-    return;
-  }
+  if (G.isSlopeV(v)) return;                             // скос без своей картинки — рисует только настроенный спрайт (paintCustom выше)
   if (v === G.BAR){                                  // потолочные перекладины
     rc(x, y, T, 3, P.woodD); rc(x, y, T, 1, P.wood);
     rc(x + 2, y + 3, 2, 4, P.woodD); rc(x + T - 4, y + 3, 2, 4, P.woodD);
