@@ -136,6 +136,46 @@ var SLOPE_DECOR = [
   [[7, 7, 1, 2, 1], [4, 13, 2, 1, 0], [12, 11, 1, 1, 1]]
 ];
 
+/* закэшированный спрайт скоса: ключ (id, глубина, вариант декора) — геометрия локальна к тайлу (c=0), от c/r не зависит. */
+var slopeBakeCache = {};
+function bakeSlope(v, deepS, sPick){
+  var key = v + '|' + (deepS ? 1 : 0) + '|' + sPick;
+  var can = slopeBakeCache[key];
+  if (can) return can;
+  can = document.createElement('canvas');
+  can.width = T; can.height = T;
+  var bctx = can.getContext('2d');
+  var saved = getCtx();
+  setCtx(bctx);
+  try {
+    var bsS = deepS ? TINT.deepA : TINT.rock, bdS = deepS ? TINT.deepB : TINT.rockD, blS = deepS ? TINT.deepC : TINT.rockL;
+    var k2, yy, di, dd, decoS;
+    setFill(bsS);
+    ctx.beginPath();
+    ctx.moveTo(0, T);
+    for (k2 = 0; k2 <= T; k2 += 2) ctx.lineTo(k2, G.slopeTop(v, 0, k2));
+    ctx.lineTo(T, T);
+    ctx.closePath(); ctx.fill();
+    for (k2 = 0; k2 < T; k2 += 2){
+      yy = G.slopeTop(v, 0, k2);
+      rc(k2, yy, 2, 2, P.edgeL);
+      rc(k2, yy + 2, 2, 1, bdS);
+    }
+    if (sPick >= 0){
+      decoS = SLOPE_DECOR[sPick];
+      for (di = 0; di < decoS.length; di++){
+        dd = decoS[di];
+        if (dd[1] >= G.slopeTop(v, 0, dd[0]))
+          rc(dd[0], dd[1], dd[2], dd[3], dd[4] ? blS : bdS);
+      }
+    }
+  } finally {
+    setCtx(saved);
+  }
+  slopeBakeCache[key] = can;
+  return can;
+}
+
 var WAVE_PAD = 4, WAVE_H = 20;
 var WAVE_TRAVEL_K = 2.2; /* канон: фазовая скорость базовой волны */
 var WAVE_FALL_D = 14;    /* радиус разбега FALL в тайлах */
@@ -811,32 +851,11 @@ function paintTileId(v, c, r, x, y, dyn){
   }
   if (paintCustom(v, x, y)) return;
   if (G.isLadV(v)){ drawLadder(c, r, v, x, y); return; }
-  if (G.isSlopeV(v)){                                    // скос (любой угол / дуга)
+  if (G.isSlopeV(v)){                                    // скос (любой угол / дуга) — из закэшированного спрайта
     var deepS = r > 30;
-    var bsS = deepS ? TINT.deepA : TINT.rock, bdS = deepS ? TINT.deepB : TINT.rockD, blS = deepS ? TINT.deepC : TINT.rockL;
-    setFill(bsS);
-    ctx.beginPath();
-    ctx.moveTo(x, y + T);
-    for (var k2 = 0; k2 <= T; k2 += 2){
-      ctx.lineTo(x + k2, y + G.slopeTop(v, c, c * T + k2));
-    }
-    ctx.lineTo(x + T, y + T);
-    ctx.closePath(); ctx.fill();
-    for (k2 = 0; k2 < T; k2 += 2){                       // кромка по поверхности
-      var yy = y + G.slopeTop(v, c, c * T + k2);
-      rc(x + k2, yy, 2, 2, P.edgeL);
-      rc(x + k2, yy + 2, 2, 1, bdS);
-    }
     var hhS = hashT(c, r), mvS = vAt(c, r);
     var sPick = mvS > 0 ? (mvS - 1) % SLOPE_DECOR.length : (hhS % 3 === 0 ? hhS % SLOPE_DECOR.length : -1);
-    if (sPick >= 0){
-      var decoS = SLOPE_DECOR[sPick];
-      for (var di = 0; di < decoS.length; di++){
-        var dd = decoS[di];
-        if (dd[1] >= G.slopeTop(v, c, c * T + dd[0]))
-          rc(x + dd[0], y + dd[1], dd[2], dd[3], dd[4] ? blS : bdS);
-      }
-    }
+    ctx.drawImage(bakeSlope(v, deepS, sPick), Math.round(x), Math.round(y));
     return;
   }
   if (v === G.BAR){                                  // потолочные перекладины

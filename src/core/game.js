@@ -9,7 +9,7 @@ import { getActiveLayer, getLayers, isTileLayer, wrapIndex, ensureStamp, ensureD
 import { COVER_AIR, ensureCover, coverRaw, coverVarRaw, stepRooms } from './rooms.js';
 import {
   isHalfV, isBarV, ladderTop, isSlopeV, isWaterV, isFlowV, isWetV, slopeSurfaceY,
-  slopeTop, slopeSpec, slopeFamily, slopeRiseRight, SLOPE_SEQ,
+  slopeTop, slopeSpec, slopeFamily, slopeRiseRight, mirrorSlopeId, SLOPE_SEQ,
   tileAt, varAt, varR, isSolidV, isLadV, solidTile, ladderTile, solidAt, ladderAt, rectFree
 } from './map.js';
 import { mkPlayer, resetPlayer, stanceH, hangBox, standBox, applyHeroBox, isInvuln, toggleInvuln, setInvuln } from './player.js';
@@ -292,7 +292,7 @@ export const GAME = {
   SLR2, SLR3, SLL2, SLL3, SLR4A, SLR4B, SLR4C, SLR4D,
   SLL4A, SLL4B, SLL4C, SLL4D, SLRCA, SLRCB, SLLCB, SLLCA,
   isSlopeV, isWaterV, isFlowV, isWetV, slopeSurfaceY, slopeTop,
-  slopeSpec, slopeFamily, slopeRiseRight, SLOPE_SEQ,
+  slopeSpec, slopeFamily, slopeRiseRight, mirrorSlopeId, SLOPE_SEQ,
   tileAt, isSolidV, isLadV,
   solidTile, ladderTile, solidAt, ladderAt,
   setTile, varAt, setVar, varR,

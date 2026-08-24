@@ -1566,7 +1566,10 @@ export function edApply(cell, isClick){
       markLevelDirty();
       return;
     }
-    if (isSlopeBrush(nv)){ edPaintSlope(cell, nv); return; }
+    if (isSlopeBrush(nv)){
+      edPaintSlope(cell, ED.flipH ? G.mirrorSlopeId(nv) : nv);
+      return;
+    }
     var old = brushTile(cell.c, cell.r);
     if (G.isWaterV(nv) && G.isWaterV(old)){
       setPondShade(cell.c, cell.r, ED.waterShade);

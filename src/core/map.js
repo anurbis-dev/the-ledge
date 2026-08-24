@@ -58,6 +58,19 @@ export function slopeRiseRight(v){
   var s = slopeSpec(v);
   return !!(s && s.y1 < s.y0);
 }
+/* горизонтальное зеркало тайла-скоса: ищет built-in id с зеркальной геометрией (y0/y1 свап, ease инверсия). Кастомные скосы без пары — без изменений. */
+export function mirrorSlopeId(v){
+  var s = SLOPE_SPEC[v];
+  if (!s) return v;
+  var wantEase = s.ease === 'in' ? 'out' : (s.ease === 'out' ? 'in' : 0);
+  var wantY0 = s.y1, wantY1 = s.y0;
+  for (var k in SLOPE_SPEC){
+    if (+k === LADR || +k === LADL) continue;              // та же геометрия, что SLR/SLL — не скос-брашь
+    var cs = SLOPE_SPEC[k];
+    if (cs.y0 === wantY0 && cs.y1 === wantY1 && (cs.ease || 0) === wantEase) return +k;
+  }
+  return v;
+}
 function easeF(f, ease){
   if (ease === 'in') return f * f;
   if (ease === 'out') return 1 - (1 - f) * (1 - f);
