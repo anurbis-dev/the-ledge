@@ -2,7 +2,7 @@ import { T, C, LADR, LADL, LADW } from './constants.js';
 import { runtime } from './runtime.js';
 import {
   tileAt, rectFree, solidAt, isSlopeV, slopeTop, slopeGrade, isLadV, ladderTop,
-  isBarV, ladderTile, solidTile, tileBlocks, isWaterV, groundYAt
+  isBarV, ladderTile, solidTile, tileBlocks, isWaterV, groundYAt, tileFlipAt
 } from './map.js';
 import { dropTorch } from '../entities/torches.js';
 import { platUnder } from '../entities/plats.js';
@@ -181,7 +181,7 @@ export function slopeUnderAt(p, px){
   for (k = -1; k <= 1; k++){
     v = tileAt(c, r + k);
     if (!isSlopeV(v)) continue;
-    sy = (r + k)*T + slopeTop(v, c, px);
+    sy = (r + k)*T + slopeTop(v, c, px, tileFlipAt(c, r + k));
     if (p.y + p.h >= sy - 12 && p.y + p.h <= sy + 20)
       if (best === null || sy < best) best = sy;
   }
@@ -203,9 +203,10 @@ export function slopeGradeUnder(p){
   for (var k = -1; k <= 1; k++){
     var v = tileAt(c, r + k);
     if (!isSlopeV(v)) continue;
-    var sy = (r + k)*T + slopeTop(v, c, px);
+    var fl = tileFlipAt(c, r + k);
+    var sy = (r + k)*T + slopeTop(v, c, px, fl);
     if (p.y + p.h >= sy - 12 && p.y + p.h <= sy + 20)
-      return slopeGrade(v, c, px);
+      return slopeGrade(v, c, px, fl);
   }
   return 0;
 }

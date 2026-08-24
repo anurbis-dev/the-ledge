@@ -10,7 +10,8 @@ import { COVER_AIR, ensureCover, coverRaw, coverVarRaw, stepRooms } from './room
 import {
   isHalfV, isBarV, ladderTop, isSlopeV, isWaterV, isFlowV, isWetV, slopeSurfaceY,
   slopeTop, slopeSpec, slopeFamily, slopeRiseRight, mirrorSlopeId, SLOPE_SEQ,
-  tileAt, varAt, varR, isSolidV, isLadV, solidTile, ladderTile, solidAt, ladderAt, rectFree
+  tileAt, varAt, varR, isSolidV, isLadV, solidTile, ladderTile, solidAt, ladderAt, rectFree,
+  tileFlipAt
 } from './map.js';
 import { mkPlayer, resetPlayer, stanceH, hangBox, standBox, applyHeroBox, isInvuln, toggleInvuln, setInvuln } from './player.js';
 import { getAnimBox } from './spriteset.js';
@@ -297,7 +298,7 @@ export const GAME = {
   solidTile, ladderTile, solidAt, ladderAt,
   setTile, varAt, setVar, varR,
   setDeco, decoAt,
-  setFlip, flipAt,
+  setFlip, flipAt, tileFlipAt,
   setTint, tintAt, gradeAt, internGrade,
   COVER_AIR, setCover, setCoverVar, coverRaw, coverVarRaw,
   buildGates: function(S){ buildGates(S); },

@@ -6,6 +6,7 @@ import {
 import { runtime, hooks, inMap, mapIx } from './runtime.js';
 import { liveTileOf, liveVarOf } from './rooms.js';
 import { getTileDef } from './tileset.js';
+import { layerFlipRaw } from './layers.js';
 
 function spec(y0, y1, ease){ return { y0: y0, y1: y1, ease: ease || 0 }; }
 
@@ -38,12 +39,15 @@ export const SLOPE_SEQ = {
   curve: { r: [SLRCA, SLRCB], l: [SLLCB, SLLCA] }
 };
 
-export function slopeSpec(v){
+/* fl (per-cell flip: бит0=H) применяется только к кастомным slope-r/slope-l из Tile Details —
+   встроенные numeric-id скосы уже зеркалятся подменой id (mirrorSlopeId), их geometry в fl не нуждается. */
+export function slopeSpec(v, fl){
   if (SLOPE_SPEC[v]) return SLOPE_SPEC[v];
   var d = getTileDef(v);
-  if (d && d.collide === 'slope-r') return spec(T, 0);
-  if (d && d.collide === 'slope-l') return spec(0, T);
-  return null;
+  var right = !!(d && d.collide === 'slope-r'), left = !!(d && d.collide === 'slope-l');
+  if (!right && !left) return null;
+  if (fl & 1){ var t = right; right = left; left = t; }
+  return right ? spec(T, 0) : spec(0, T);
 }
 export function slopeFamily(v){
   if (v === SLR || v === SLL || v === LADR || v === LADL) return '45';
@@ -54,8 +58,8 @@ export function slopeFamily(v){
   if (d && (d.collide === 'slope-r' || d.collide === 'slope-l')) return '45';
   return null;
 }
-export function slopeRiseRight(v){
-  var s = slopeSpec(v);
+export function slopeRiseRight(v, fl){
+  var s = slopeSpec(v, fl);
   return !!(s && s.y1 < s.y0);
 }
 /* горизонтальное зеркало тайла-скоса: ищет built-in id с зеркальной геометрией (y0/y1 свап, ease инверсия). Кастомные скосы без пары — без изменений. */
@@ -126,6 +130,27 @@ export function varAt(c, r){
   }
   return runtime.vary[ix];
 }
+/* флип ячейки, с учётом того, какой слой реально "выиграл" тайл в этой клетке (как tileAt) */
+export function tileFlipAt(c, r){
+  if (!inMap(c, r)) return 0;
+  var ls = runtime.layers, ix = mapIx(c, r);
+  if (!ls || !ls.length) return 0;
+  var i, v, L;
+  for (i = ls.length - 1; i >= 0; i--){
+    L = ls[i];
+    if (!L.collide || !L.base) continue;
+    v = liveTileOf(L, c, r, L.base[ix]);
+    if (v) return layerFlipRaw(L, c, r);
+  }
+  return 0;
+}
+function flipBox(box, fl){
+  if (!fl || !box) return box;
+  var x = box.x, y = box.y;
+  if (fl & 1) x = T - box.x - box.w;
+  if (fl & 2) y = T - box.y - box.h;
+  return { x: x, y: y, w: box.w, h: box.h };
+}
 export function isSolidV(v){
   var d = getTileDef(v);
   if (d) return d.collide === 'full' || d.collide === 'half';
@@ -136,16 +161,16 @@ export function isWaterV(v){ return v === WATER; }          // плавание 
 export function isFlowV(v){ return v === FALL; }            // падающая вода — не жидкость для физики
 export function isWetV(v){ return v === WATER || v === FALL; }
 /* высота поверхности скоса внутри тайла: 0 у верха тайла, T у низа */
-export function slopeTop(v, c, px){
-  var s = slopeSpec(v);
+export function slopeTop(v, c, px, fl){
+  var s = slopeSpec(v, fl);
   if (!s) return 0;
   var f = (px - c*T) / T;
   if (f < 0) f = 0; if (f > 1) f = 1;
   return s.y0 + (s.y1 - s.y0) * easeF(f, s.ease);
 }
 /* |dy/dx| в точке — для скорости вдоль склона */
-export function slopeGrade(v, c, px){
-  var s = slopeSpec(v);
+export function slopeGrade(v, c, px, fl){
+  var s = slopeSpec(v, fl);
   if (!s) return 0;
   var f = (px - c*T) / T;
   if (f < 0) f = 0; if (f > 1) f = 1;
@@ -157,7 +182,7 @@ export function slopeGrade(v, c, px){
 export function slopeSurfaceY(c, r, px){
   var v = tileAt(c, r);
   if (!isSlopeV(v)) return null;
-  return r*T + slopeTop(v, c, px);
+  return r*T + slopeTop(v, c, px, tileFlipAt(c, r));
 }
 export function isHalfV(v){
   var d = getTileDef(v);
@@ -196,12 +221,16 @@ export function solidAt(px, py){
   var d = defOf(v);
   if (d){
     if (d.climb || d.collide === 'none') return false;
-    if (d.collide === 'slope-r' || d.collide === 'slope-l') return py >= r * T + slopeTop(v, c, px);
-    if (d.collide === 'bar') return py < r * T + 3;
-    if (d.collide === 'half') return py < r * T + 8;
-    if (d.collide === 'custom' && d.box){
+    var fl = tileFlipAt(c, r);
+    if (d.collide === 'slope-r' || d.collide === 'slope-l') return py >= r * T + slopeTop(v, c, px, fl);
+    var box = d.collide === 'custom' ? d.box
+      : d.collide === 'half' ? { x: 0, y: 0, w: T, h: 8 }
+      : d.collide === 'bar' ? { x: 0, y: 0, w: T, h: 3 }
+      : null;
+    if (box){
+      box = flipBox(box, fl);
       var lx = px - c * T, ly = py - r * T;
-      return lx >= d.box.x && lx < d.box.x + d.box.w && ly >= d.box.y && ly < d.box.y + d.box.h;
+      return lx >= box.x && lx < box.x + box.w && ly >= box.y && ly < box.y + box.h;
     }
     if (d.collide === 'full') return solidTile(c, r);
     return false;
@@ -217,10 +246,13 @@ export function tileBlocks(c, r, y, h, x, w){
   if (d){
     if (d.climb || d.collide === 'none') return false;
     if (d.collide === 'slope-r' || d.collide === 'slope-l') return false;
-    if (d.collide === 'bar') return y < r * T + 3 && y + h > r * T;
-    if (d.collide === 'half') return y < r * T + 8;
-    var box = d.collide === 'custom' ? d.box : (d.collide === 'full' ? { x: 0, y: 0, w: T, h: T } : null);
+    var box = d.collide === 'custom' ? d.box
+      : d.collide === 'full' ? { x: 0, y: 0, w: T, h: T }
+      : d.collide === 'half' ? { x: 0, y: 0, w: T, h: 8 }
+      : d.collide === 'bar' ? { x: 0, y: 0, w: T, h: 3 }
+      : null;
     if (box){
+      box = flipBox(box, tileFlipAt(c, r));
       var bx = c * T + box.x, by = r * T + box.y;
       var yHit = y < by + box.h && y + h > by;
       if (d.oneWay) yHit = yHit && (y + h <= by + 4);
@@ -244,9 +276,9 @@ export function waterSurfaceY(px, py){
 export function groundYAt(px, py){
   var c = Math.floor(px / T), r = Math.floor(py / T);
   for (var k = 0; k < 2; k++){
-    var rr = r + k, v = tileAt(c, rr);
+    var rr = r + k, v = tileAt(c, rr), fl = tileFlipAt(c, rr);
     if (isSlopeV(v)){
-      var sy = rr*T + slopeTop(v, c, px);
+      var sy = rr*T + slopeTop(v, c, px, fl);
       if (py <= sy + 2) return sy;
     }
     if (ladderTop(c, rr)){
@@ -256,14 +288,16 @@ export function groundYAt(px, py){
     }
     var d = defOf(v);
     if (d && d.collide === 'custom' && d.box){
-      var top = rr * T + d.box.y;
+      var box = flipBox(d.box, fl);
+      var top = rr * T + box.y;
       var lx = px - c * T;
-      if (lx >= d.box.x && lx < d.box.x + d.box.w &&
-          py >= top - 2 && py <= top + d.box.h + 2) return top;
+      if (lx >= box.x && lx < box.x + box.w &&
+          py >= top - 2 && py <= top + box.h + 2) return top;
       continue;
     }
     if (d && d.collide === 'bar'){
-      var bt = rr * T;
+      var bbox = flipBox({ x: 0, y: 0, w: T, h: 3 }, fl);
+      var bt = rr * T + bbox.y;
       if (py <= bt + 5) return bt;
       continue;
     }

@@ -1567,6 +1567,7 @@ export function edApply(cell, isClick){
       return;
     }
     if (isSlopeBrush(nv)){
+      G.setFlip(cell.c, cell.r, 0);      // сторона скоса кодируется id (mirrorSlopeId), не бит-каналом flip
       edPaintSlope(cell, ED.flipH ? G.mirrorSlopeId(nv) : nv);
       return;
     }

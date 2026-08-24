@@ -1,6 +1,6 @@
 import { T, C } from '../core/constants.js';
 import { runtime } from '../core/runtime.js';
-import { rectFree, isSlopeV, slopeGrade, slopeRiseRight, slopeTop, tileAt } from '../core/map.js';
+import { rectFree, isSlopeV, slopeGrade, slopeRiseRight, slopeTop, tileAt, tileFlipAt } from '../core/map.js';
 import { damage, isInvuln } from '../core/player.js';
 import { allocId } from './ids.js';
 
@@ -49,8 +49,9 @@ function slopeSurfaceUnder(bx, by){
   for (var k = -1; k <= 1; k++){
     var v = tileAt(c, r + k);
     if (!isSlopeV(v)) continue;
-    var sy = (r + k)*T + slopeTop(v, c, px);
-    if (by + BH >= sy - 6 && by + BH <= sy + 10) return { y: sy, v: v, c: c };
+    var fl = tileFlipAt(c, r + k);
+    var sy = (r + k)*T + slopeTop(v, c, px, fl);
+    if (by + BH >= sy - 6 && by + BH <= sy + 10) return { y: sy, v: v, c: c, fl: fl };
   }
   return null;
 }
@@ -71,8 +72,8 @@ export function stepBoulders(S, dt){
       var rollMax = bRollMax(b);
       if (slope){
         b.y = slope.y - BH;                       // держимся ровно на поверхности склона
-        var dir = slopeRiseRight(slope.v) ? -1 : 1;
-        var grade = slopeGrade(slope.v, slope.c, b.x + BW/2);
+        var dir = slopeRiseRight(slope.v, slope.fl) ? -1 : 1;
+        var grade = slopeGrade(slope.v, slope.c, b.x + BW/2, slope.fl);
         b.vx += dir * (50 + grade * 80) * dt;
         if (b.vx > rollMax) b.vx = rollMax; if (b.vx < -rollMax) b.vx = -rollMax;
       } else {                                    // на ровном — трение гасит накат (инерция после толчка)
