@@ -1567,7 +1567,8 @@ export function edApply(cell, isClick){
       return;
     }
     if (isSlopeBrush(nv)){
-      G.setFlip(cell.c, cell.r, 0);      // сторона скоса кодируется id (mirrorSlopeId), не бит-каналом flip
+      // H зеркалится подменой id (mirrorSlopeId), V — битом flip (потолочный скос, см. map.js ceilYAt)
+      G.setFlip(cell.c, cell.r, ED.flipV ? 2 : 0);
       edPaintSlope(cell, ED.flipH ? G.mirrorSlopeId(nv) : nv);
       return;
     }

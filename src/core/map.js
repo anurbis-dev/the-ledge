@@ -5,7 +5,7 @@ import {
 } from './constants.js';
 import { runtime, hooks, inMap, mapIx } from './runtime.js';
 import { liveTileOf, liveVarOf } from './rooms.js';
-import { getTileDef } from './tileset.js';
+import { getTileDef, tileBaseId } from './tileset.js';
 import { layerFlipRaw } from './layers.js';
 
 function spec(y0, y1, ease){ return { y0: y0, y1: y1, ease: ease || 0 }; }
@@ -157,16 +157,20 @@ export function isSolidV(v){
   return v === ROCK || v === CRUMB || v === HTOP || v === RNDA || v === RNDB || v === PLANK || v === GIVE;
 }
 export function isSlopeV(v){ return !!slopeSpec(v); }
-export function isWaterV(v){ return v === WATER; }          // плавание только в бассейнах
-export function isFlowV(v){ return v === FALL; }            // падающая вода — не жидкость для физики
-export function isWetV(v){ return v === WATER || v === FALL; }
-/* высота поверхности скоса внутри тайла: 0 у верха тайла, T у низа */
+/* потолочный скос: та же геометрия, но V-бит флипа зеркалит поверхность вниз с потолка */
+export function isCeilSlope(v, fl){ return isSlopeV(v) && !!(fl & 2); }
+export function isWaterV(v){ return tileBaseId(v) === WATER; } // + custom с baseId=WATER
+export function isFlowV(v){ return tileBaseId(v) === FALL; }   // + custom с baseId=FALL
+export function isWetV(v){ return isWaterV(v) || isFlowV(v); }
+/* высота поверхности скоса внутри тайла: 0 у верха тайла, T у низа.
+   fl&2 (V-флип) зеркалит геометрию по вертикали — тайл работает как потолочный скос. */
 export function slopeTop(v, c, px, fl){
   var s = slopeSpec(v, fl);
   if (!s) return 0;
   var f = (px - c*T) / T;
   if (f < 0) f = 0; if (f > 1) f = 1;
-  return s.y0 + (s.y1 - s.y0) * easeF(f, s.ease);
+  var y = s.y0 + (s.y1 - s.y0) * easeF(f, s.ease);
+  return (fl & 2) ? T - y : y;
 }
 /* |dy/dx| в точке — для скорости вдоль склона */
 export function slopeGrade(v, c, px, fl){
@@ -222,7 +226,10 @@ export function solidAt(px, py){
   if (d){
     if (d.climb || d.collide === 'none') return false;
     var fl = tileFlipAt(c, r);
-    if (d.collide === 'slope-r' || d.collide === 'slope-l') return py >= r * T + slopeTop(v, c, px, fl);
+    if (d.collide === 'slope-r' || d.collide === 'slope-l'){
+      var slopeSy = r * T + slopeTop(v, c, px, fl);
+      return (fl & 2) ? py <= slopeSy : py >= slopeSy;
+    }
     var box = d.collide === 'custom' ? d.box
       : d.collide === 'half' ? { x: 0, y: 0, w: T, h: 8 }
       : d.collide === 'bar' ? { x: 0, y: 0, w: T, h: 3 }
@@ -277,7 +284,7 @@ export function groundYAt(px, py){
   var c = Math.floor(px / T), r = Math.floor(py / T);
   for (var k = 0; k < 2; k++){
     var rr = r + k, v = tileAt(c, rr), fl = tileFlipAt(c, rr);
-    if (isSlopeV(v)){
+    if (isSlopeV(v) && !(fl & 2)){
       var sy = rr*T + slopeTop(v, c, px, fl);
       if (py <= sy + 2) return sy;
     }
@@ -302,6 +309,18 @@ export function groundYAt(px, py){
       continue;
     }
     if (solidTile(c, rr)) return rr*T;
+  }
+  return null;
+}
+/* нижняя грань потолочного скоса над точкой (V-флип) — аналог groundYAt для движения вверх */
+export function ceilYAt(px, py){
+  var c = Math.floor(px / T), r = Math.floor(py / T);
+  for (var k = 0; k < 2; k++){
+    var rr = r - k, v = tileAt(c, rr), fl = tileFlipAt(c, rr);
+    if (isCeilSlope(v, fl)){
+      var sy = rr*T + slopeTop(v, c, px, fl);
+      if (py >= sy - 2) return sy;
+    }
   }
   return null;
 }

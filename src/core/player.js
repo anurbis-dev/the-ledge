@@ -2,7 +2,7 @@ import { T, C, LADR, LADL, LADW } from './constants.js';
 import { runtime } from './runtime.js';
 import {
   tileAt, rectFree, solidAt, isSlopeV, slopeTop, slopeGrade, isLadV, ladderTop,
-  isBarV, ladderTile, solidTile, tileBlocks, isWaterV, groundYAt, tileFlipAt
+  isBarV, ladderTile, solidTile, tileBlocks, isWaterV, groundYAt, tileFlipAt, ceilYAt
 } from './map.js';
 import { dropTorch } from '../entities/torches.js';
 import { platUnder } from '../entities/plats.js';
@@ -127,9 +127,21 @@ export function moveX(S, p, dx){
 }
 export function moveY(S, p, dy){
   var oldB = p.y + p.h;
+  var oldT = p.y;
   var prevVy = p.vy;
-  var cx, gy, i, q;
+  var cx, gy, cy, i, q;
   p.y += dy;
+  if (dy < 0){                                  // потолочный скос не блокирует AABB — своя проверка
+    cx = footCenterX(p);
+    cy = ceilYAt(cx, oldT - 1);
+    if (cy == null) cy = ceilYAt(cx, p.y);
+    if (cy != null && oldT >= cy - 2 && p.y <= cy){
+      p.y = cy;
+      if (prevVy < -36) p.events.push('bonk:' + Math.round(-prevVy));
+      p.vy = 0; p.ride = null;
+      return;
+    }
+  }
   if (!rectFree(p.x, p.y, p.w, p.h)){
     if (dy > 0){
       cx = footCenterX(p);
@@ -177,11 +189,12 @@ export function ladderTopUnder(p, probeY){
 }
 export function slopeUnderAt(p, px){
   var c = Math.floor(px / T), r = Math.floor((p.y + p.h + 1) / T);
-  var k, v, sy, best = null;
+  var k, v, sy, fl, best = null;
   for (k = -1; k <= 1; k++){
     v = tileAt(c, r + k);
-    if (!isSlopeV(v)) continue;
-    sy = (r + k)*T + slopeTop(v, c, px, tileFlipAt(c, r + k));
+    fl = tileFlipAt(c, r + k);
+    if (!isSlopeV(v) || (fl & 2)) continue;         // потолочный скос — не опора
+    sy = (r + k)*T + slopeTop(v, c, px, fl);
     if (p.y + p.h >= sy - 12 && p.y + p.h <= sy + 20)
       if (best === null || sy < best) best = sy;
   }
@@ -202,8 +215,8 @@ export function slopeGradeUnder(p){
   var c = Math.floor(px / T), r = Math.floor((p.y + p.h + 1) / T);
   for (var k = -1; k <= 1; k++){
     var v = tileAt(c, r + k);
-    if (!isSlopeV(v)) continue;
     var fl = tileFlipAt(c, r + k);
+    if (!isSlopeV(v) || (fl & 2)) continue;
     var sy = (r + k)*T + slopeTop(v, c, px, fl);
     if (p.y + p.h >= sy - 12 && p.y + p.h <= sy + 20)
       return slopeGrade(v, c, px, fl);

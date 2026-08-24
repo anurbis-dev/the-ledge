@@ -8,10 +8,10 @@ import { runtime, setWorld, hooks, ensureMap, mapIx, inMap, mapMinC, mapMaxC, ma
 import { getActiveLayer, getLayers, isTileLayer, wrapIndex, ensureStamp, ensureDeco, ensureTint, ensureFlip, internGrade, layerTintRaw, layerGrade } from './layers.js';
 import { COVER_AIR, ensureCover, coverRaw, coverVarRaw, stepRooms } from './rooms.js';
 import {
-  isHalfV, isBarV, ladderTop, isSlopeV, isWaterV, isFlowV, isWetV, slopeSurfaceY,
+  isHalfV, isBarV, ladderTop, isSlopeV, isCeilSlope, isWaterV, isFlowV, isWetV, slopeSurfaceY,
   slopeTop, slopeSpec, slopeFamily, slopeRiseRight, mirrorSlopeId, SLOPE_SEQ,
   tileAt, varAt, varR, isSolidV, isLadV, solidTile, ladderTile, solidAt, ladderAt, rectFree,
-  tileFlipAt
+  tileFlipAt, ceilYAt
 } from './map.js';
 import { mkPlayer, resetPlayer, stanceH, hangBox, standBox, applyHeroBox, isInvuln, toggleInvuln, setInvuln } from './player.js';
 import { getAnimBox } from './spriteset.js';
@@ -292,10 +292,10 @@ export const GAME = {
   SLR, SLL, RNDA, RNDB, WATER, FALL,
   SLR2, SLR3, SLL2, SLL3, SLR4A, SLR4B, SLR4C, SLR4D,
   SLL4A, SLL4B, SLL4C, SLL4D, SLRCA, SLRCB, SLLCB, SLLCA,
-  isSlopeV, isWaterV, isFlowV, isWetV, slopeSurfaceY, slopeTop,
+  isSlopeV, isCeilSlope, isWaterV, isFlowV, isWetV, slopeSurfaceY, slopeTop,
   slopeSpec, slopeFamily, slopeRiseRight, mirrorSlopeId, SLOPE_SEQ,
   tileAt, isSolidV, isLadV,
-  solidTile, ladderTile, solidAt, ladderAt,
+  solidTile, ladderTile, solidAt, ladderAt, ceilYAt,
   setTile, varAt, setVar, varR,
   setDeco, decoAt,
   setFlip, flipAt, tileFlipAt,
