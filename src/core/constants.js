@@ -14,6 +14,7 @@ export const C = {
   W: 10, H: 22, RH: 12, CRH: 14, PRH: 8, PRW: 17,
   GRAV: 700, MAXFALL: 340, RUN: 92, ACC: 950, FRIC: 1200,
   SLOPE_ALONG: 0.9,                                    // вдоль скоса чуть тише бега (не гипотенуза)
+  STEP_UP: 3,                                           // авто-подъём ноги на ступеньку при ходьбе (px, moveX)
   JUMP: -236, CUT: 0.45, COYOTE: 0.09, BUF: 0.12,
   HAND: 3, TOL_UP: 3, TOL_DN: 6, GRAB_VY: -130, GRAB_CD: 0.2,
   /* plat grab: |handX−lip| и |handY−deck|; отдельно от tile TOL_UP/DN */

@@ -2,7 +2,6 @@ let originC = 0, originR = 0;
 let MAP_W = 186, MAP_H = 48;
 let base = new Uint8Array(MAP_W * MAP_H);
 let vary = new Uint8Array(MAP_W * MAP_H);   // ручной выбор узора тайла: 0 — авто (по хэшу), 1..N — конкретный вариант
-let flip = new Uint8Array(MAP_W * MAP_H);   // бит0=H, бит1=V — как L.flip у слоя, но для безслойной base-карты
 let layers = [];
 let activeLayer = 0;
 let soloLayer = 0;
@@ -25,8 +24,6 @@ export const runtime = {
   set base(v){ base = v; },
   get vary(){ return vary; },
   set vary(v){ vary = v; },
-  get flip(){ return flip; },
-  set flip(v){ flip = v; },
   get layers(){ return layers; },
   set layers(v){ layers = v || []; },
   get activeLayer(){ return activeLayer; },
@@ -67,7 +64,6 @@ export function resetMap(w, h){
   MAP_W = Math.max(1, w); MAP_H = Math.max(1, h);
   base = new Uint8Array(MAP_W * MAP_H);
   vary = new Uint8Array(MAP_W * MAP_H);
-  flip = new Uint8Array(MAP_W * MAP_H);
   layers = [];
   activeLayer = 0;
   soloLayer = 0;
@@ -123,11 +119,10 @@ export function ensureMap(c, r){
     if (!main){
       for (i = 0; i < layers.length; i++) if (layers[i].base){ main = layers[i]; break; }
     }
-    if (main){ base = main.base; vary = main.vary; flip = main.flip; }
+    if (main){ base = main.base; vary = main.vary; }
   } else {
     base = growBuf(base);
     vary = growBuf(vary);
-    flip = growBuf(flip);
   }
   if (W){
     if (W.gone) W.gone = remapPacked(W.gone, oc, or, ow, nc0, nr0, nw);

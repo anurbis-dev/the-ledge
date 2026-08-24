@@ -39,7 +39,8 @@ export var PARAM_GROUPS = [
     { key: 'CROUCH_V', label: 'Crouch speed', min: 8, max: 100, step: 1, hint: 'Макс. скорость в приседе.' },
     { key: 'PRONE_V', label: 'Prone speed', min: 4, max: 80, step: 1, hint: 'Макс. скорость лёжа / ползком.' },
     { key: 'DASH_V', label: 'Dash speed', min: 40, max: 280, step: 1, hint: 'Скорость рывка (и потолок под водой с dash).' },
-    { key: 'SLOPE_ALONG', label: 'Slope along', min: 0.4, max: 1.2, step: 0.01, hint: 'Множитель скорости вдоль скоса (1 = как по ровному).' }
+    { key: 'SLOPE_ALONG', label: 'Slope along', min: 0.4, max: 1.2, step: 0.01, hint: 'Множитель скорости вдоль скоса (1 = как по ровному).' },
+    { key: 'STEP_UP', label: 'Auto step height', min: 0, max: 8, step: 1, hint: 'Макс. высота ступеньки, на которую нога заходит сама при ходьбе, без mantle (px).' }
   ]},
   { id: 'jump', name: 'Jump / Gravity', items: [
     { key: 'GRAV', label: 'Gravity', min: 200, max: 1600, step: 10, hint: 'Ускорение вниз в воздухе (px/s²).' },

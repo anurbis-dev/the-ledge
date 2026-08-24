@@ -114,7 +114,7 @@ export function moveX(S, p, dx){
   if (!rectFree(p.x, p.y, p.w, p.h)){
     cx = footCenterX(p);
     if (p.vy < 48 && (footSupported(p) || slopeUnderAt(p, cx) !== null)){
-      for (k = 1; k <= 3; k++){
+      for (k = 1; k <= C.STEP_UP; k++){
         if (rectFree(p.x, p.y - k, p.w, p.h)){ p.y -= k; return; }
       }
     }

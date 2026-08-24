@@ -16,8 +16,8 @@
 | Модуль | Суть |
 |--------|------|
 | `core/constants.js` | `T=16`, ids тайлов, физика `C` |
-| `core/runtime.js` | `MAP_W/H`, `base` Uint8Array, `vary`/`flip` Uint8Array (per-tile), `LV`, `W` |
-| `core/map.js` | запросы тайлов, скосы (`SLOPE_SPEC`: 45°, 2:1, 4:1, дуги), `rectFree`, `flipR` для уровней (бит0=H, бит1=V) |
+| `core/runtime.js` | `MAP_W/H`, `base` Uint8Array, `vary` Uint8Array, `LV`, `W` |
+| `core/map.js` | запросы тайлов, скосы (`SLOPE_SPEC`: 45°, 2:1, 4:1, дуги; `slopeSpec` зеркалит H и для built-in id через `fl&1`), `rectFree`/`tileBlocks` (потолочный V-флип скоса блокирует AABB как обычный блок) |
 | `core/player.js` | хват кромки, лаз, лестницы, перекладины, вода (`inWater`/`wading`/`wasWet`/`rippleT`); ступень +1 тайл — `tryMantle` только вперёд+↑; `groundSurfaceUnder` — 3-probe с fallback на `groundYAt` для плоских тайлов |
 | `core/step.js` | один тик мира; вода: `wetContact` splash; на скосе `dx` режется на `SLOPE_ALONG/√2` (~90% бега вдоль склона); onGround Y-snap: `groundSurfaceUnder` вместо `slopeUnder` |
 | `levels/` | 5 карт, `build()` пишет в `base` |

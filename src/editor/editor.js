@@ -1621,9 +1621,9 @@ export function edApply(cell, isClick){
       return;
     }
     if (isSlopeBrush(nv)){
-      // H зеркалится подменой id (mirrorSlopeId), V — битом flip (потолочный скос, см. map.js ceilYAt)
-      G.setFlip(cell.c, cell.r, ED.flipV ? 2 : 0);
-      edPaintSlope(cell, ED.flipH ? G.mirrorSlopeId(nv) : nv);
+      // общий канал flip (бит0=H, бит1=V) — один спрайт зеркалится канвасом, geometry через slopeSpec(v,fl)
+      G.setFlip(cell.c, cell.r, (ED.flipH ? 1 : 0) | (ED.flipV ? 2 : 0));
+      edPaintSlope(cell, nv);
       return;
     }
     var old = brushTile(cell.c, cell.r);

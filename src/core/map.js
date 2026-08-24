@@ -39,10 +39,15 @@ export const SLOPE_SEQ = {
   curve: { r: [SLRCA, SLRCB], l: [SLLCB, SLLCA] }
 };
 
-/* fl (per-cell flip: бит0=H) применяется только к кастомным slope-r/slope-l из Tile Details —
-   встроенные numeric-id скосы уже зеркалятся подменой id (mirrorSlopeId), их geometry в fl не нуждается. */
+/* fl&1 (H-флип) зеркалит geometry на месте (y0/y1 свап, ease инверсия) — единая картинка одного id
+   отражается канвасом (см. render/tiles.js drawTile) и коллизия отражается тем же способом, без
+   подмены id на другой built-in номер (тот обычно без своего отдельного спрайта). */
 export function slopeSpec(v, fl){
-  if (SLOPE_SPEC[v]) return SLOPE_SPEC[v];
+  var s = SLOPE_SPEC[v];
+  if (s){
+    if (!(fl & 1)) return s;
+    return spec(s.y1, s.y0, s.ease === 'in' ? 'out' : (s.ease === 'out' ? 'in' : 0));
+  }
   var d = getTileDef(v);
   var right = !!(d && d.collide === 'slope-r'), left = !!(d && d.collide === 'slope-l');
   if (!right && !left) return null;
@@ -92,11 +97,6 @@ export function varR(c, r, w, h, v){                  // ручной узор �
     for (var x = c; x < c + w; x++)
       if (inMap(x, y)) runtime.vary[mapIx(x, y)] = v;
 }
-export function flipR(c, r, w, h, v){                  // флип тайла (бит0=H, бит1=V) поверх прямоугольника
-  for (var y = r; y < r + h; y++)
-    for (var x = c; x < c + w; x++)
-      if (inMap(x, y)) runtime.flip[mapIx(x, y)] = v;
-}
 export function slopeRun(c, r, n, dir, downTo){        // косой уступ с телом под ним
   for (var i = 0; i < n; i++){
     var cc = c + dir*i, rr = r - i;
@@ -139,7 +139,7 @@ export function varAt(c, r){
 export function tileFlipAt(c, r){
   if (!inMap(c, r)) return 0;
   var ls = runtime.layers, ix = mapIx(c, r);
-  if (!ls || !ls.length) return runtime.flip[ix] || 0;
+  if (!ls || !ls.length) return 0;
   var i, v, L;
   for (i = ls.length - 1; i >= 0; i--){
     L = ls[i];
@@ -250,21 +250,32 @@ export function solidAt(px, py){
   return solidTile(c, r);
 }
 export function ladderAt(px, py){ return ladderTile(Math.floor(px / T), Math.floor(py / T)); }
+/* потолочный скос (V-флип) блокирует AABB по нижней точке среза в пересечении бокса с тайлом по X —
+   иначе бег/присед/степ его вообще не видят (раньше только moveY при dy<0 через отдельный ceilYAt-проб). */
+function ceilSlopeBlocks(v, c, r, fl, x, y, w){
+  var xa = x == null ? c*T : Math.max(x, c*T);
+  var xb = x == null ? c*T + T : Math.min(x + w, c*T + T);
+  if (xa >= xb) return false;
+  var loY = Math.max(slopeTop(v, c, xa, fl), slopeTop(v, c, xb, fl));
+  return y < r*T + loY;
+}
 export function tileBlocks(c, r, y, h, x, w){
   // ladderTop не блокирует AABB: опора через groundYAt / footSupported (как скос),
   // иначе mid-сход вбок ловит slab top+4 и «магнитит» обратно
   var v = tileAt(c, r);
+  var fl = tileFlipAt(c, r);
   var d = defOf(v);
   if (d){
     if (d.climb || d.collide === 'none') return false;
-    if (d.collide === 'slope-r' || d.collide === 'slope-l') return false;
+    if (d.collide === 'slope-r' || d.collide === 'slope-l')
+      return isCeilSlope(v, fl) ? ceilSlopeBlocks(v, c, r, fl, x, y, w) : false;
     var box = d.collide === 'custom' ? d.box
       : d.collide === 'full' ? { x: 0, y: 0, w: T, h: T }
       : d.collide === 'half' ? { x: 0, y: 0, w: T, h: 8 }
       : d.collide === 'bar' ? { x: 0, y: 0, w: T, h: 3 }
       : null;
     if (box){
-      box = flipBox(box, tileFlipAt(c, r));
+      box = flipBox(box, fl);
       var bx = c * T + box.x, by = r * T + box.y;
       var yHit = y < by + box.h && y + h > by;
       if (d.oneWay) yHit = yHit && (y + h <= by + 4);
@@ -275,7 +286,7 @@ export function tileBlocks(c, r, y, h, x, w){
     return false;
   }
   if (isHalfV(v)) return y < r*T + 8;            // занята только верхняя половина
-  if (isSlopeV(v)) return false;                 // скос не блокирует — работает как поверхность
+  if (isSlopeV(v)) return isCeilSlope(v, fl) ? ceilSlopeBlocks(v, c, r, fl, x, y, w) : false;
   return solidTile(c, r);
 }
 /* высота земли под точкой с учётом скосов */
