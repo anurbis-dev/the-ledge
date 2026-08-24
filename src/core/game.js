@@ -5,7 +5,7 @@ import {
   SLL4A, SLL4B, SLL4C, SLL4D, SLRCA, SLRCB, SLLCB, SLLCA, PLANK, GIVE
 } from './constants.js';
 import { runtime, setWorld, hooks, ensureMap, mapIx, inMap, mapMinC, mapMaxC, mapMinR, mapMaxR } from './runtime.js';
-import { getActiveLayer, getLayers, isTileLayer, wrapIndex, ensureStamp, ensureDeco, ensureTint, internGrade, layerTintRaw, layerGrade } from './layers.js';
+import { getActiveLayer, getLayers, isTileLayer, wrapIndex, ensureStamp, ensureDeco, ensureTint, ensureFlip, internGrade, layerTintRaw, layerGrade } from './layers.js';
 import { COVER_AIR, ensureCover, coverRaw, coverVarRaw, stepRooms } from './rooms.js';
 import {
   isHalfV, isBarV, ladderTop, isSlopeV, isWaterV, isFlowV, isWetV, slopeSurfaceY,
@@ -140,6 +140,37 @@ function decoAt(c, r){
   return L.deco[mapIx(c, r)] || 0;
 }
 
+function setFlip(c, r, v){
+  var L = getActiveLayer();
+  if (L && L.locked) return false;
+  if (L && !isTileLayer(L)) return false;
+  v = v & 3;
+  if (L && L.wrap){
+    ensureStamp(L);
+    if (!L.stampFlip) L.stampFlip = new Uint8Array(L.stamp.length);
+    L.stampFlip[wrapIndex(L, c, r)] = v;
+    L._stampCan = null;
+    if (hooks.onSetTile) hooks.onSetTile(c, r);
+    return true;
+  }
+  if (!inMap(c, r) && !v) return false;
+  ensureMap(c, r);
+  if (!inMap(c, r)) return false;
+  ensureFlip(L);
+  var buf = L && L.flip ? L.flip : null;
+  if (!buf) return false;
+  buf[mapIx(c, r)] = v;
+  if (hooks.onSetTile) hooks.onSetTile(c, r);
+  return true;
+}
+function flipAt(c, r){
+  var L = getActiveLayer();
+  if (!L) return 0;
+  if (L.wrap && L.stampFlip) return L.stampFlip[wrapIndex(L, c, r)] || 0;
+  if (!L.flip || !inMap(c, r)) return 0;
+  return L.flip[mapIx(c, r)] || 0;
+}
+
 function setTint(c, r, v){
   var L = getActiveLayer();
   if (L && L.locked) return false;
@@ -254,7 +285,7 @@ function mkDoorAt(S, x, y, opts){
 export const GAME = {
   T, C,
   get MAP_W(){ return runtime.MAP_W; }, get MAP_H(){ return runtime.MAP_H; }, get base(){ return runtime.base; },
-  mapMinC, mapMaxC, mapMinR, mapMaxR, mapIx, inMap,
+  mapMinC, mapMaxC, mapMinR, mapMaxR, mapIx, inMap, ensureMap,
   E, ROCK, CRUMB, LADW, LADF, LADR, LADL, HTOP, BAR, PLANK, GIVE,
   isHalfV, isBarV, ladderTop, stanceH, applyHeroBox, getAnimBox,
   SLR, SLL, RNDA, RNDB, WATER, FALL,
@@ -266,6 +297,7 @@ export const GAME = {
   solidTile, ladderTile, solidAt, ladderAt,
   setTile, varAt, setVar, varR,
   setDeco, decoAt,
+  setFlip, flipAt,
   setTint, tintAt, gradeAt, internGrade,
   COVER_AIR, setCover, setCoverVar, coverRaw, coverVarRaw,
   buildGates: function(S){ buildGates(S); },

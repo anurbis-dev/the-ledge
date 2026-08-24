@@ -106,6 +106,8 @@ export function ensureMap(c, r){
       else layers[i].deco = new Uint8Array(nw * nh);
       if (layers[i].tint) layers[i].tint = growBuf(layers[i].tint);
       else layers[i].tint = new Uint8Array(nw * nh);
+      if (layers[i].flip) layers[i].flip = growBuf(layers[i].flip);
+      else layers[i].flip = new Uint8Array(nw * nh);
       if (layers[i].cover) layers[i].cover = growBuf(layers[i].cover);
       if (layers[i].coverVary) layers[i].coverVary = growBuf(layers[i].coverVary);
       layers[i].roomOf = null;

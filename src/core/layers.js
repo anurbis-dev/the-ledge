@@ -243,6 +243,7 @@ export function initDefaultLayers(){
     base: runtime.base, vary: runtime.vary,
     deco: new Uint8Array(runtime.MAP_W * runtime.MAP_H),
     tint: new Uint8Array(runtime.MAP_W * runtime.MAP_H),
+    flip: new Uint8Array(runtime.MAP_W * runtime.MAP_H),
     grades: []
   });
   var front = takeIds(defaultFront());
@@ -280,6 +281,7 @@ export function addLayer(name){
     vary: new Uint8Array(runtime.MAP_W * runtime.MAP_H),
     deco: new Uint8Array(runtime.MAP_W * runtime.MAP_H),
     tint: new Uint8Array(runtime.MAP_W * runtime.MAP_H),
+    flip: new Uint8Array(runtime.MAP_W * runtime.MAP_H),
     grades: [],
     cover: null, coverVary: null
   };
@@ -492,6 +494,23 @@ export function ensureDeco(L){
   }
 }
 
+export function layerFlipRaw(L, c, r){
+  if (!L) return 0;
+  if (L.wrap && L.stampFlip) return L.stampFlip[wrapIndex(L, c, r)] || 0;
+  if (!L.flip || !inRange(c, r)) return 0;
+  return L.flip[(r - runtime.originR) * runtime.MAP_W + (c - runtime.originC)];
+}
+
+export function ensureFlip(L){
+  if (!L || !isTileLayer(L)) return;
+  var n = runtime.MAP_W * runtime.MAP_H;
+  if (!L.flip || L.flip.length !== n){
+    var old = L.flip;
+    L.flip = new Uint8Array(n);
+    if (old && old.length) L.flip.set(old.subarray(0, Math.min(old.length, n)));
+  }
+}
+
 /* Буферы, где лежит id тайла (не vary/tint — там индексы вариантов/grade). */
 var TILE_ID_BUFS = ['base', 'deco', 'cover', 'stamp', 'stampDeco'];
 var TILE_ID_PAIR = { base: 'vary', cover: 'coverVary', stamp: 'stampVar' };
@@ -592,10 +611,10 @@ function dumpLayer(L){
     amp: L.amp, y0: L.y0, color: L.color,
     period: L.period, hmin: L.hmin, hmax: L.hmax, col: L.col, colD: L.colD, seed: L.seed,
     base: copyBuf(L.base), vary: copyBuf(L.vary), deco: copyBuf(L.deco),
-    tint: copyBuf(L.tint), grades: copyGrades(L.grades),
+    tint: copyBuf(L.tint), flip: copyBuf(L.flip), grades: copyGrades(L.grades),
     cover: copyBuf(L.cover), coverVary: copyBuf(L.coverVary),
     stamp: copyBuf(L.stamp), stampVar: copyBuf(L.stampVar), stampDeco: copyBuf(L.stampDeco),
-    stampTint: copyBuf(L.stampTint),
+    stampTint: copyBuf(L.stampTint), stampFlip: copyBuf(L.stampFlip),
     _stampW: L._stampW || 0, _stampH: L._stampH || 0
   };
 }
@@ -610,10 +629,10 @@ function loadLayer(L){
     amp: L.amp, y0: L.y0, color: L.color,
     period: L.period, hmin: L.hmin, hmax: L.hmax, col: L.col, colD: L.colD, seed: L.seed,
     base: copyBuf(L.base), vary: copyBuf(L.vary), deco: copyBuf(L.deco),
-    tint: copyBuf(L.tint), grades: copyGrades(L.grades),
+    tint: copyBuf(L.tint), flip: copyBuf(L.flip), grades: copyGrades(L.grades),
     cover: copyBuf(L.cover), coverVary: copyBuf(L.coverVary),
     stamp: copyBuf(L.stamp), stampVar: copyBuf(L.stampVar), stampDeco: copyBuf(L.stampDeco),
-    stampTint: copyBuf(L.stampTint),
+    stampTint: copyBuf(L.stampTint), stampFlip: copyBuf(L.stampFlip),
     _stampW: L._stampW || 0, _stampH: L._stampH || 0,
     _roomsDirty: true
   };

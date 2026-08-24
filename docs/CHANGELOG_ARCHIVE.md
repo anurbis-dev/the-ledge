@@ -1,5 +1,9 @@
 # Changelog archive
 
+## 2026-08-24 (pre-commit)
+
+- Fall **Taper Len** default 3→6, range 1–12 (hanging tip fades over more tiles).
+
 ## 2026-08-21 (pre-commit)
 
 - Fall foam/spray at column tip: impact when **any** tile below (water/solid/slope…); empty below = no bottom foam (`fallTipKind` `hit` vs `air`).

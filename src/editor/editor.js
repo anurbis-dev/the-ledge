@@ -10,12 +10,13 @@ import { BOULDER_DEF } from '../entities/boulders.js';
 import { isSlopeBrush, fitSlopeStroke } from './slopes.js';
 import { tileThumb, objThumb, spriteThumb, paintObjIcon, clearThumbCache } from './thumbs.js';
 import { renderParams, resetAllParams } from './params.js';
-import { getActiveLayer, getLayers, layerTile, layerVar, layerDeco, layerTileRaw, layerVarRaw, isTileLayer, internGrade, layerGrade, copyGrade, GRADE_DEF, stashLayers, findLevelsUsingTile, wipeTileIdEverywhere } from '../core/layers.js';
+import { getActiveLayer, getLayers, setActiveLayer, layerTile, layerVar, layerDeco, layerTileRaw, layerVarRaw, layerFlipRaw, isTileLayer, internGrade, layerGrade, copyGrade, GRADE_DEF, stashLayers, findLevelsUsingTile, wipeTileIdEverywhere } from '../core/layers.js';
+import { runtime } from '../core/runtime.js';
 import { initSliders } from './slider.js';
 import {
   customSpecs, addTile, loadImageFile, sliceSheet, guessOverlay, bindTileset, isCustomId,
   getTileDef, updateTile, getTileGfx, removeTile, canvasToPng, listTiles, snapshotGfx,
-  setTileSpriteId, getTileSpriteId
+  setTileSpriteId, getTileSpriteId, cloneTileGfxMeta
 } from '../core/tileset.js';
 import {
   bindTileEdit, openTileEdit, openSpriteEdit, openObjectEdit, closeTileEdit,
@@ -43,7 +44,7 @@ import { bindBoulderSettings, openBoulderSettings, closeBoulderSettings } from '
 import { bindRopeSettings, openRopeSettings, closeRopeSettings } from './rope-settings.js';
 import { rebuildRope, packRope, ropeHitDist } from '../entities/ropes.js';
 import { packPlat } from '../entities/plats.js';
-import { packLift } from '../entities/lifts.js';
+import { packLift, syncLiftFloors } from '../entities/lifts.js';
 function ropeHitDistSafe(r, x, y){
   try { return ropeHitDist(r, x, y).dist; } catch (_){ return 999; }
 }
@@ -81,6 +82,7 @@ export var ED = {
   sel: null, dragPal: null, giz: false,
   hitObj: null, pendHit: null,
   selTiles: null, boxing: null, moving: null, ctrlGest: null, clip: null,
+  shiftAll: null, flipH: false, flipV: false,
   doorPending: null
 };
 
@@ -742,7 +744,7 @@ function fillExtra(){
     return;
   }
   var spec = palSpec();
-  if (spec && spec.id === G.WATER){
+  if (spec && G.isWaterV(spec.id)){
     for (var s = 0; s < WATER_SHADE_PRESETS.length; s++){
       (function(k){
         var pr = WATER_SHADE_PRESETS[k];
@@ -1204,13 +1206,14 @@ function duplicatePalTile(){
   var spec = palSpec();
   if (!spec || spec.id == null) return false;
   beginOp();
-  var src = '', frames = null, name, collide = 'full', patch;
+  var src = '', frames = null, name, collide = 'full', patch, baseId = 0;
   if (spec.custom || isCustomId(spec.id)){
     var def = getTileDef(spec.id);
     if (!def){ endOp(); return false; }
     src = def.src || '';
     frames = def.frames && def.frames.length ? def.frames.slice() : null;
     name = (def.name || 'Tile') + ' copy';
+    baseId = (def.baseId | 0) || 0;
     patch = {
       name: name,
       src: src,
@@ -1221,7 +1224,8 @@ function duplicatePalTile(){
       box: def.box ? { x: def.box.x, y: def.box.y, w: def.box.w, h: def.box.h } : undefined,
       oneWay: !!def.oneWay,
       climb: !!def.climb,
-      front: !!def.front
+      front: !!def.front,
+      baseId: baseId
     };
   } else {
     var g = getTileGfx(spec.id);
@@ -1229,6 +1233,7 @@ function duplicatePalTile(){
     src = (g && g.src) || (gSid ? '' : bakeBuiltinTileSrc(spec));
     frames = g && g.frames && g.frames.length ? g.frames.slice() : null;
     name = (spec.name || 'Tile') + ' copy';
+    baseId = spec.id | 0;
     collide = 'full';
     if (G.isLadV(spec.id)) collide = 'climb';
     else if (G.isBarV(spec.id)) collide = 'bar';
@@ -1241,12 +1246,16 @@ function duplicatePalTile(){
       spriteId: gSid || null,
       overlay: !!spec.overlay,
       collide: collide,
-      climb: collide === 'climb'
+      climb: collide === 'climb',
+      baseId: baseId
     };
   }
-  if (!patch.spriteId && !patch.src && !(patch.frames && patch.frames.length)){ endOp(); return false; }
+  if (!patch.spriteId && !patch.src && !(patch.frames && patch.frames.length) && !baseId){
+    endOp(); return false;
+  }
   var t = addTile(patch);
   if (!t){ endOp(); return false; }
+  cloneTileGfxMeta(spec.id, t.id);
   if (!getTileSpriteId(t.id) && (t.src || (t.frames && t.frames.length)))
     migrateTilePicture(t.id, { name: t.name, src: t.src, frames: t.frames });
   noteOp();
@@ -1256,6 +1265,7 @@ function duplicatePalTile(){
   fillPal();
   var tiles = palTiles(), i;
   for (i = 0; i < tiles.length; i++) if (tiles[i].id === t.id){ ED.pal = i; break; }
+  openTileEdit(tiles[ED.pal] || { id: t.id, name: t.name, custom: true });
   edRefresh();
   return true;
 }
@@ -1526,6 +1536,7 @@ export function edApply(cell, isClick){
     if (!spec) return;
     if (spec.overlay && !ED.cover){
       G.setDeco(cell.c, cell.r, spec.id);
+      G.setFlip(cell.c, cell.r, (ED.flipH ? 1 : 0) | (ED.flipV ? 2 : 0));
       markLevelDirty();
       return;
     }
@@ -1557,15 +1568,16 @@ export function edApply(cell, isClick){
     }
     if (isSlopeBrush(nv)){ edPaintSlope(cell, nv); return; }
     var old = brushTile(cell.c, cell.r);
-    if (nv === G.WATER && old === G.WATER){
+    if (G.isWaterV(nv) && G.isWaterV(old)){
       setPondShade(cell.c, cell.r, ED.waterShade);
       return;
     }
     G.setTile(cell.c, cell.r, nv);
+    G.setFlip(cell.c, cell.r, (ED.flipH ? 1 : 0) | (ED.flipV ? 2 : 0));
     G.buildGates(S);
-    if (old === G.WATER || old === G.FALL || nv === G.WATER || nv === G.FALL){
+    if (G.isWaterV(old) || G.isFlowV(old) || G.isWaterV(nv) || G.isFlowV(nv)){
       buildWater();
-      if (nv === G.WATER) setPondShade(cell.c, cell.r, ED.waterShade);
+      if (G.isWaterV(nv)) setPondShade(cell.c, cell.r, ED.waterShade);
     }
     markLevelDirty();
   } else if (ED.tool === 'obj'){
@@ -1608,10 +1620,10 @@ function edErase(cell, wcell){
     return;
   }
   var oldE = (actE && isTileLayer(actE)) ? brushTile(cell.c, cell.r) : G.tileAt(cell.c, cell.r);
-  if (!actE || isTileLayer(actE)) G.setTile(cell.c, cell.r, 0);
+  if (!actE || isTileLayer(actE)){ G.setTile(cell.c, cell.r, 0); G.setFlip(cell.c, cell.r, 0); }
   edEraseObjects(wcell || cell);
   G.buildGates(S);
-  if (oldE === G.WATER || oldE === G.FALL) buildWater();
+  if (G.isWaterV(oldE) || G.isFlowV(oldE)) buildWater();
 }
 function edEraseObjects(cell){
   var S = world();
@@ -2137,8 +2149,42 @@ export function edDrawOverlay(){
   }
   if (ED.hover && !box){
     var hx = ED.hover.c*T - camx, hy = ED.hover.r*T - camy;
-    rc(hx, hy, T, 2, '#ffd9a0'); rc(hx, hy + T - 2, T, 2, '#ffd9a0');
-    rc(hx, hy, 2, T, '#ffd9a0'); rc(hx + T - 2, hy, 2, T, '#ffd9a0');
+    var previewDrawn = false;
+    if (ED.tool === 'tile' && !ED.color && !ED.cover){
+      var bSpec = palSpec();
+      var bThumb = bSpec && bSpec.id ? tileThumb(bSpec, T) : null;
+      if (bThumb){
+        ctx.save();
+        ctx.globalAlpha = 0.55;
+        ctx.translate(hx + (ED.flipH ? T : 0), hy + (ED.flipV ? T : 0));
+        ctx.scale(ED.flipH ? -1 : 1, ED.flipV ? -1 : 1);
+        ctx.drawImage(bThumb, 0, 0, T, T);
+        ctx.restore();
+        previewDrawn = true;
+      }
+    } else if (ED.color && ED.tool === 'tile'){
+      ctx.globalAlpha = 0.4;
+      rc(hx, hy, T, T, gradeWash(ED.grade));
+      ctx.globalAlpha = 1;
+      previewDrawn = true;
+    } else if (ED.cover && ED.tool === 'tile'){
+      var cSpec = palSpec();
+      var cThumb = cSpec && cSpec.id ? tileThumb(cSpec, T) : null;
+      if (cThumb){
+        ctx.save();
+        ctx.translate(hx + (ED.flipH ? T : 0), hy + (ED.flipV ? T : 0));
+        ctx.scale(ED.flipH ? -1 : 1, ED.flipV ? -1 : 1);
+        ctx.drawImage(cThumb, 0, 0, T, T);
+        ctx.restore();
+      }
+      rc(hx, hy, T, 1, '#ffd9a0'); rc(hx, hy + T - 1, T, 1, '#ffd9a0');
+      rc(hx, hy, 1, T, '#ffd9a0'); rc(hx + T - 1, hy, 1, T, '#ffd9a0');
+      previewDrawn = true;
+    }
+    if (!previewDrawn){
+      rc(hx, hy, T, 2, '#ffd9a0'); rc(hx, hy + T - 2, T, 2, '#ffd9a0');
+      rc(hx, hy, 2, T, '#ffd9a0'); rc(hx + T - 2, hy, 2, T, '#ffd9a0');
+    }
     if (brushDeco(ED.hover.c, ED.hover.r))
       rc(hx + 2, hy + 2, 3, 3, '#7fc47f');
   }
@@ -2164,6 +2210,7 @@ export function edDrawOverlay(){
   if (ED.selTiles && !ED.boxing) label = 'Select · move / Del';
   if (ED.boxing) label = 'Select';
   if (ED.moving) label = ED.moving.copy ? 'Copy tiles' : 'Move tiles';
+  if (ED.shiftAll) label = 'Shift level ' + ED.shiftAll.dc + ',' + ED.shiftAll.dr;
   if (ED.clip && !ED.selTiles) label += ' · copied';
   if (ED.erasing) label = ED.cover ? 'Cover erase' : (ED.color ? 'Color erase' : 'Erase');
   if (ED.dragObj) label = ED.dragObj.copied ? 'Copy · ' + ED.dragObj.entry.type : 'Move · ' + ED.dragObj.entry.type;
@@ -2213,15 +2260,17 @@ function readCells(c0, r0, c1, r1){
         v: L ? layerTileRaw(L, c, r) : G.tileAt(c, r),
         va: L ? layerVarRaw(L, c, r) : G.varAt(c, r),
         d: brushDeco(c, r),
-        g: copyGrade(layerGrade(L, c, r))
+        g: copyGrade(layerGrade(L, c, r)),
+        f: layerFlipRaw(L, c, r)
       });
   return out;
 }
-function writeCell(c, r, v, va, d, g){
+function writeCell(c, r, v, va, d, g, f){
   G.setTile(c, r, v || 0);
   if (va) G.setVar(c, r, va);
   G.setDeco(c, r, d || 0);
   G.setTint(c, r, v ? internGrade(getActiveLayer(), g) : 0);
+  G.setFlip(c, r, f || 0);
 }
 function eraseSelTiles(){
   if (!ED.selTiles) return;
@@ -2249,7 +2298,7 @@ function pasteSelTiles(){
   beginOp();
   for (i = 0; i < ED.clip.cells.length; i++){
     p = ED.clip.cells[i];
-    writeCell(c0 + p.dc, r0 + p.dr, p.v, p.va, p.d, p.g);
+    writeCell(c0 + p.dc, r0 + p.dr, p.v, p.va, p.d, p.g, p.f);
   }
   ED.selTiles = { c0: c0, r0: r0, c1: c0 + ED.clip.w, r1: r0 + ED.clip.h };
   G.buildGates(world());
@@ -2276,7 +2325,8 @@ function snapshotCell(c, r){
     v: L ? layerTileRaw(L, c, r) : G.tileAt(c, r),
     va: L ? layerVarRaw(L, c, r) : G.varAt(c, r),
     d: brushDeco(c, r),
-    g: copyGrade(layerGrade(L, c, r))
+    g: copyGrade(layerGrade(L, c, r)),
+    f: layerFlipRaw(L, c, r)
   };
 }
 function applyMoveSel(cell){
@@ -2289,7 +2339,7 @@ function applyMoveSel(cell){
   if (m.under){
     for (i = 0; i < m.under.length; i++){
       u = m.under[i];
-      writeCell(u.c, u.r, u.v, u.va, u.d, u.g);
+      writeCell(u.c, u.r, u.v, u.va, u.d, u.g, u.f);
     }
   } else if (!m.copy){
     for (i = 0; i < m.cells.length; i++){
@@ -2304,7 +2354,7 @@ function applyMoveSel(cell){
   }
   for (i = 0; i < m.cells.length; i++){
     p = m.cells[i];
-    writeCell(nc + p.dc, nr + p.dr, p.v, p.va, p.d, p.g);
+    writeCell(nc + p.dc, nr + p.dr, p.v, p.va, p.d, p.g, p.f);
   }
   m.posC = nc; m.posR = nr;
   ED.selTiles = { c0: nc, r0: nr, c1: nc + m.w, r1: nr + m.h };
@@ -2374,7 +2424,7 @@ function pickColor(cell){
   edRefresh();
 }
 
-function eyedrop(e, cell, wcell){
+function eyedrop(e, cell, wcell, silent){
   if (ED.color && ED.tool === 'tile'){
     pickColor(cell);
     return true;
@@ -2393,10 +2443,110 @@ function eyedrop(e, cell, wcell){
   setTab('tile');
   ED.pal = pal;
   var spec = palTiles()[pal];
-  if (spec && spec.varN && tileMatchesBrush(spec, v))
+  if (!silent && spec && spec.varN && tileMatchesBrush(spec, v))
     openVarMenu(cell, spec, e.clientX, e.clientY);
   edRefresh();
   return true;
+}
+var eyedropKey = null;
+function sampleEyedrop(e, cell, wcell){
+  var key = cell.c + ':' + cell.r;
+  if (key === eyedropKey) return;
+  eyedropKey = key;
+  eyedrop(e, cell, wcell, true);
+}
+function beginCtrlMove(cell, wcell){
+  var hit = findObjectAt(wcell.x, wcell.y);
+  if (hit && isSpecialKind(hit.type)){
+    ED.giz = true;
+    applyHit({ type: hit.type, obj: hit.obj });
+    beginGizmo({ kind: 'move', type: hit.type, obj: hit.obj }, wcell.x, wcell.y);
+    return;
+  }
+  if (hit){
+    ED.dragObj = { entry: hit, at: { c: wcell.c, r: wcell.r }, copied: false };
+    return;
+  }
+  if (brushTile(cell.c, cell.r) || brushDeco(cell.c, cell.r)){
+    ED.selTiles = { c0: cell.c, r0: cell.r, c1: cell.c, r1: cell.r };
+    beginMoveSel(cell, false);
+  }
+}
+function beginShiftAll(cell){
+  ED.shiftAll = { c0: cell.c, r0: cell.r, dc: 0, dr: 0 };
+}
+function shiftWorldBy(dc, dr){
+  var c0 = G.mapMinC(), r0 = G.mapMinR(), c1 = G.mapMaxC() - 1, r1 = G.mapMaxR() - 1;
+  G.ensureMap(c0 + dc, r0 + dr);
+  G.ensureMap(c1 + dc, r1 + dr);
+  var layers = getLayers(), savedActive = layers.indexOf(getActiveLayer());
+  var li, L, cells, i, p;
+  for (li = 0; li < layers.length; li++){
+    L = layers[li];
+    if (!L || L.wrap || !isTileLayer(L)) continue;
+    setActiveLayer(li);
+    cells = readCells(c0, r0, c1, r1);
+    for (i = 0; i < cells.length; i++){
+      p = cells[i];
+      if (p.v || p.d) writeCell(c0 + p.dc, r0 + p.dr, 0, 0, 0, null);
+    }
+    for (i = 0; i < cells.length; i++){
+      p = cells[i];
+      if (p.v || p.d) writeCell(c0 + p.dc + dc, r0 + p.dr + dr, p.v, p.va, p.d, p.g, p.f);
+    }
+  }
+  if (savedActive >= 0) setActiveLayer(savedActive);
+  shiftAllObjects(dc * G.T, dr * G.T);
+  G.buildGates(world());
+  buildWater();
+  markLevelDirty();
+}
+function shiftEntries(arr, fields){
+  var i, o, k;
+  if (!arr) return;
+  for (i = 0; i < arr.length; i++){
+    o = arr[i];
+    for (k = 0; k < fields.length; k++) o[fields[k][0]] += fields[k][1];
+  }
+}
+function shiftAllObjects(dx, dy){
+  var S = world(), LV = runtime.LV, i, o;
+  if (!S) return;
+  shiftEntries(S.enemies, [['x',dx],['y',dy],['x0',dx],['x1',dx]]);
+  shiftEntries(S.fliers, [['x',dx],['y',dy],['x0',dx],['x1',dx]]);
+  shiftEntries(S.spiders, [['x',dx],['y',dy],['hx',dx],['hy',dy]]);
+  shiftEntries(S.tendrils, [['bx',dx],['by',dy],['tx',dx],['ty',dy],['col',dx/G.T],['row',dy/G.T]]);
+  shiftEntries(S.torches, [['x',dx],['y',dy],['hx',dx],['hy',dy]]);
+  shiftEntries(S.chests, [['x',dx],['y',dy]]);
+  shiftEntries(S.items, [['x',dx],['y',dy]]);
+  shiftEntries(S.boulders, [['x',dx],['y',dy]]);
+  shiftEntries(S.npcs, [['x',dx],['y',dy]]);
+  shiftEntries(S.doors, [['x',dx],['y',dy]]);
+  shiftEntries(S.lights, [['x',dx],['y',dy]]);
+  shiftEntries(S.sounds, [['x',dx],['y',dy]]);
+  shiftEntries(S.emitters, [['x',dx],['y',dy]]);
+  shiftEntries(S.volumes, [['x',dx],['y',dy]]);
+  shiftEntries(S.plats, [['x',dx],['y',dy],['x0',dx],['x1',dx],['y0',dy],['y1',dy]]);
+  if (S.ropes){
+    for (i = 0; i < S.ropes.length; i++){
+      o = S.ropes[i];
+      o.ax += dx; o.ay += dy; o.bx += dx; o.by += dy;
+      rebuildRope(o);
+    }
+  }
+  if (S.lifts){
+    for (i = 0; i < S.lifts.length; i++){
+      o = S.lifts[i];
+      o.x += dx; o.y += dy;
+      if (o.floors) o.floors = o.floors.map(function(fy){ return fy + dy; });
+      syncLiftFloors(o);
+    }
+  }
+  if (LV && LV.spawn){
+    LV.spawn.x += dx; LV.spawn.y += dy;
+    if (S.respawn){ S.respawn.x += dx; S.respawn.y += dy; }
+  }
+  if (LV && LV.exits) shiftEntries(LV.exits, [['x',dx],['y',dy]]);
 }
 
 export function snapEditCam(){
@@ -2544,22 +2694,21 @@ cv.addEventListener('pointerdown', function(e){
   closeBoulderSettings();
   closeRopeSettings();
   if (e.ctrlKey || e.metaKey){
-    if (ED.color && ED.tool === 'tile'){
-      pickColor(cell);
-      return;
-    }
-    if (ED.tool !== 'tile' || ED.cover){
-      eyedrop(e, cell, wcell);
-      return;
-    }
-    ED.ctrlGest = { x: e.clientX, y: e.clientY, cell: cell, wcell: wcell };
-    ED.boxing = null;
+    beginOp();
+    if (e.shiftKey) beginShiftAll(cell);
+    else beginCtrlMove(cell, wcell);
     try { cv.setPointerCapture(e.pointerId); } catch(_){}
     return;
   }
   if (ED.selTiles && ED.tool === 'tile' && !ED.cover && inSelTiles(cell.c, cell.r)){
     beginOp();
     beginMoveSel(cell, !!e.shiftKey);
+    try { cv.setPointerCapture(e.pointerId); } catch(_){}
+    return;
+  }
+  if (e.shiftKey){
+    ED.ctrlGest = { x: e.clientX, y: e.clientY, cell: cell, wcell: wcell };
+    ED.boxing = null;
     try { cv.setPointerCapture(e.pointerId); } catch(_){}
     return;
   }
@@ -2616,6 +2765,15 @@ cv.addEventListener('pointermove', function(e){
   var cell = edCell(e.clientX, e.clientY, ED.tool === 'obj');
   var wcell = edCell(e.clientX, e.clientY, true);
   ED.hover = cell;
+  if (e.altKey && !ED.painting && !ED.erasing){
+    sampleEyedrop(e, cell, wcell);
+    return;
+  }
+  if (ED.shiftAll){
+    ED.shiftAll.dc = cell.c - ED.shiftAll.c0;
+    ED.shiftAll.dr = cell.r - ED.shiftAll.r0;
+    return;
+  }
   if (ED.ctrlGest){
     if (Math.abs(e.clientX - ED.ctrlGest.x) > 4 || Math.abs(e.clientY - ED.ctrlGest.y) > 4){
       var a = ED.ctrlGest.cell;
@@ -2672,9 +2830,12 @@ function edUp(e){
   if (e && e.pointerId === ED.panId) ED.panId = -1;
   if (ED.ctrlGest){
     if (ED.boxing) ED.selTiles = normBox(ED.boxing);
-    else if (e && e.type === 'pointerup') eyedrop(e, ED.ctrlGest.cell, ED.ctrlGest.wcell);
     ED.ctrlGest = null;
     ED.boxing = null;
+  }
+  if (ED.shiftAll){
+    if (ED.shiftAll.dc || ED.shiftAll.dr) shiftWorldBy(ED.shiftAll.dc, ED.shiftAll.dr);
+    ED.shiftAll = null;
   }
   if (ED.moving){
     if (world()) G.buildGates(world());
@@ -2800,6 +2961,11 @@ function bindResize(){
 bindResize();
 restoreHeight();
 
+addEventListener('keyup', function(e){
+  if (e.key === 'x' || e.key === 'X') ED.flipH = false;
+  if (e.key === 'y' || e.key === 'Y') ED.flipV = false;
+});
+addEventListener('blur', function(){ ED.flipH = false; ED.flipV = false; });
 addEventListener('keydown', function(e){
   var tag = (e.target && e.target.tagName) || '';
   if (e.key === 'Tab'){
@@ -2833,6 +2999,14 @@ addEventListener('keydown', function(e){
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
     e.preventDefault();
     toggleGeo();
+  }
+  if (ED.on && (e.key === 'x' || e.key === 'X')){
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    ED.flipH = true;
+  }
+  if (ED.on && (e.key === 'y' || e.key === 'Y') && !e.ctrlKey && !e.metaKey){
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    ED.flipV = true;
   }
   if (ED.on && (e.key === 'Delete' || e.key === 'Backspace') && ED.selTiles && ED.tool === 'tile'){
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;

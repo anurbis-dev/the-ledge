@@ -1,7 +1,7 @@
 import GAME from '../core/game.js';
 import { hooks } from '../core/runtime.js';
 import { COVER_AIR, coverRaw, coverVarRaw, roomCoverA, rebuildRooms } from '../core/rooms.js';
-import { getLayers, layerShown, lastCollideIndex, layerTileRaw, layerVarRaw, layerDeco, isTileLayer, wrapSize, layerCssFilter, layerGrade, gradeCssFilter } from '../core/layers.js';
+import { getLayers, layerShown, lastCollideIndex, layerTileRaw, layerVarRaw, layerDeco, layerFlipRaw, isTileLayer, wrapSize, layerCssFilter, layerGrade, gradeCssFilter } from '../core/layers.js';
 import { getTileDef, tileImage, tileFrameImage, tileFrameCount, getTileSpeed, getTileShift, getTileWaveX, getTileSplash, getTileLength, getTileWave, getTileRandom, getTileOffset, getTileFade, getTileSpeed2, getTileLength2, getTileDensity2, getTileWave2, getTileFoam, getTileSpray, getTileFoamSize, getTileFoamRandom, getTileFoamSpeed, getTileSpraySpeed, getTileTaper, getTileTaperLen } from '../core/tileset.js';
 import { buildWater } from './fx.js';
 import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH, viewScale } from './ctx.js';
@@ -30,6 +30,7 @@ function vAt(c, r){
   return G.varAt(c, r);
 }
 function dAt(c, r){ return _L ? layerDeco(_L, c, r) : (G.decoAt ? G.decoAt(c, r) : 0); }
+function flAt(c, r){ return _L ? layerFlipRaw(_L, c, r) : (G.flipAt ? G.flipAt(c, r) : 0); }
 function cellCoverA(c, r){
   if (!_L || !_L.cover || !_L.collide || _L.wrap) return 0;
   if (!G.inMap(c, r)) return 0;
@@ -521,20 +522,21 @@ function fallTipKind(c, tipR){
  * Светлая нить: яркая снизу → плавно прозрачнее вверх (по всей length).
  * Слой 2: speed2 (−100…100 оффсет к Speed), length2, density2, wave2.
  * Висячий кончик: taper/taperLen — края→точки→пропаж, центр дольше линией.
- * length/wave/random/offset/fade + L2 + taper meta — tileGfx[14]. */
-function paintFallStrands(c, r, x, y, time, w1, fadeK){
+ * length/wave/random/offset/fade + L2 + taper meta — tileGfx[id] (FALL или копия). */
+function paintFallStrands(c, r, x, y, time, w1, fadeK, tileId){
   if (fadeK == null) fadeK = 0;
-  var spd = getTileSpeed(G.FALL, 70);
-  var lenP = getTileLength(G.FALL, 25);
-  var waveP = getTileWave(G.FALL, 15);
-  var randP = getTileRandom(G.FALL, 35);
-  var offP = getTileOffset(G.FALL, 55);
-  var spd2Off = getTileSpeed2(G.FALL, -8);
-  var len2P = getTileLength2(G.FALL, 20);
-  var dens2P = getTileDensity2(G.FALL, 50);
-  var wave2P = getTileWave2(G.FALL, 20);
-  var taperP = getTileTaper(G.FALL, 60);
-  var taperLenP = getTileTaperLen(G.FALL, 6);
+  if (tileId == null) tileId = G.FALL;
+  var spd = getTileSpeed(tileId, 70);
+  var lenP = getTileLength(tileId, 25);
+  var waveP = getTileWave(tileId, 15);
+  var randP = getTileRandom(tileId, 35);
+  var offP = getTileOffset(tileId, 55);
+  var spd2Off = getTileSpeed2(tileId, -8);
+  var len2P = getTileLength2(tileId, 20);
+  var dens2P = getTileDensity2(tileId, 50);
+  var wave2P = getTileWave2(tileId, 20);
+  var taperP = getTileTaper(tileId, 60);
+  var taperLenP = getTileTaperLen(tileId, 6);
   var lightBase = Math.max(2, Math.round(2 + (lenP / 100) * 22));
   var lightBase2 = Math.max(2, Math.round(2 + (len2P / 100) * 22));
   var periodBase = Math.max(lightBase + 8, 18);
@@ -692,19 +694,20 @@ function paintFallSpray(x, yOrigin, time, c, sprayP, spraySpdP, aMul, prevA){
     }
   }
 }
-function paintFallEnds(c, r, x, y, time, fadeK){
+function paintFallEnds(c, r, x, y, time, fadeK, tileId){
   if (fadeK == null) fadeK = 0;
-  var foamP = getTileFoam(G.FALL, 45);
-  var sprayP = getTileSpray(G.FALL, 55);
+  if (tileId == null) tileId = G.FALL;
+  var foamP = getTileFoam(tileId, 45);
+  var sprayP = getTileSpray(tileId, 55);
   if (foamP <= 0 && sprayP <= 0) return;
-  var foamSizeP = getTileFoamSize(G.FALL, 40);
-  var foamRandP = getTileFoamRandom(G.FALL, 40);
-  var foamSpdP = getTileFoamSpeed(G.FALL, 100);
-  var spraySpdP = getTileSpraySpeed(G.FALL, 100);
-  var isTop = tAt(c, r - 1) !== G.FALL;
+  var foamSizeP = getTileFoamSize(tileId, 40);
+  var foamRandP = getTileFoamRandom(tileId, 40);
+  var foamSpdP = getTileFoamSpeed(tileId, 100);
+  var spraySpdP = getTileSpraySpeed(tileId, 100);
+  var isTop = !G.isFlowV(tAt(c, r - 1));
   /* удар: под FALL любой тайл (вода, земля, склон…) — не пусто и не продолжение FALL */
   var below = tAt(c, r + 1);
-  var hitTile = !!below && below !== G.FALL;
+  var hitTile = !!below && !G.isFlowV(below);
   if (!isTop && !hitTile) return;
   var prevA = ctx.globalAlpha;
   var aMul = 1 - fadeK * 0.55;
@@ -720,29 +723,37 @@ function paintFallEnds(c, r, x, y, time, fadeK){
 }
 
 export function drawTile(c, r, x, y, dyn){
+  var fl = flAt(c, r);
+  if (fl){
+    ctx.save();
+    ctx.translate(fl & 1 ? 2 * x + T : 0, fl & 2 ? 2 * y + T : 0);
+    ctx.scale(fl & 1 ? -1 : 1, fl & 2 ? -1 : 1);
+  }
   paintGraded(c, r, x, y, function(px, py){
     var v = tAt(c, r);
     if (!isFrontId(v)) paintTileId(v, c, r, px, py, dyn);
     var d = dAt(c, r);
     if (d && !isFrontId(d)) paintTileId(d, c, r, px, py, dyn);
   });
+  if (fl) ctx.restore();
 }
 function paintTileId(v, c, r, x, y, dyn){
   if (!v) return;
-  if (paintCustom(v, x, y)) return;
   var time = view.time;
   var S = world();
-  if (G.isLadV(v)){ drawLadder(c, r, v, x, y); return; }
-  if (v === G.WATER || v === G.FALL){
+  var isWater = G.isWaterV(v);
+  var isFlow = G.isFlowV(v);
+  /* процедурные Water/Fall — до paintCustom (у копии может быть bake-картинка) */
+  if (isWater || isFlow){
     var deepW = r > 30;
-    var kW = v === G.WATER ? waterDepthK(c, r) : 0;
-    var w0 = v === G.WATER ? mixHex('#2a78a8', '#040910', kW) : (deepW ? '#1d5a86' : '#2a78a8');
-    var w1 = v === G.WATER ? mixHex('#49a0cf', '#16344c', kW) : (deepW ? '#2f7fae' : '#49a0cf');
-    if (v === G.FALL){                                   // поток: нити по world Y
-      var fadeK = Math.max(0, Math.min(1, getTileFade(G.FALL, 0) / 100));
+    var kW = isWater ? waterDepthK(c, r) : 0;
+    var w0 = isWater ? mixHex('#2a78a8', '#040910', kW) : (deepW ? '#1d5a86' : '#2a78a8');
+    var w1 = isWater ? mixHex('#49a0cf', '#16344c', kW) : (deepW ? '#2f7fae' : '#49a0cf');
+    if (isFlow){                                   // поток: нити по world Y
+      var fadeK = Math.max(0, Math.min(1, getTileFade(v, 0) / 100));
       var prevFallA = ctx.globalAlpha;
-      var taperPFill = getTileTaper(G.FALL, 60);
-      var taperLenFill = getTileTaperLen(G.FALL, 6);
+      var taperPFill = getTileTaper(v, 60);
+      var taperLenFill = getTileTaperLen(v, 6);
       var hangAmtFill = Math.max(0, Math.min(1, taperPFill / 100));
       var tipFill = hangAmtFill > 0.001 ? fallColumnTip(c, r) : r;
       var hangFill = hangAmtFill > 0.001 && fallTipKind(c, tipFill) === 'air';
@@ -770,8 +781,8 @@ function paintTileId(v, c, r, x, y, dyn){
           ctx.globalAlpha = prevFallA;
         }
       }
-      paintFallStrands(c, r, x, y, time, w1, fadeK);
-      paintFallEnds(c, r, x, y, time, fadeK);
+      paintFallStrands(c, r, x, y, time, w1, fadeK, v);
+      paintFallEnds(c, r, x, y, time, fadeK, v);
     } else {                                             // спокойная вода: бегущая волна
       rc(x, y, T, T, w0);
       var top = !G.isWaterV(tAt(c, r - 1));
@@ -784,9 +795,9 @@ function paintTileId(v, c, r, x, y, dyn){
         drawWaterBubbles(c, r, x, y, time, kW);
         return;
       }
-      if (!blitWaves(c, x, y, false)){
-        paintWaves(x, y, c, time, w1, waveBaseTravel(), waveScale());
-      }
+      /* builtin WATER — strip; копия — свои gfx */
+      if (v === G.WATER && blitWaves(c, x, y, false)){ /* ok */ }
+      else paintWaves(x, y, c, time, w1, waveBaseTravel(v), waveScale(v));
       drawWaterBubbles(c, r, x, y, time, kW);
       var shoreL = !G.isWaterV(tAt(c - 1, r));
       var shoreR = !G.isWaterV(tAt(c + 1, r));
@@ -798,6 +809,8 @@ function paintTileId(v, c, r, x, y, dyn){
     }
     return;
   }
+  if (paintCustom(v, x, y)) return;
+  if (G.isLadV(v)){ drawLadder(c, r, v, x, y); return; }
   if (G.isSlopeV(v)){                                    // скос (любой угол / дуга)
     var deepS = r > 30;
     var bsS = deepS ? TINT.deepA : TINT.rock, bdS = deepS ? TINT.deepB : TINT.rockD, blS = deepS ? TINT.deepC : TINT.rockL;
@@ -1030,7 +1043,7 @@ function paintAny(c, r, x, y){
   });
 }
 function isDynId(v){
-  return v === G.CRUMB || v === G.WATER || v === G.FALL || v === G.PLANK || v === G.GIVE;
+  return v === G.CRUMB || G.isWaterV(v) || G.isFlowV(v) || v === G.PLANK || v === G.GIVE;
 }
 /** Вода/поток/кадры — не в cover-bake, рисуются каждый кадр. */
 function isAnimId(v){
@@ -1179,7 +1192,7 @@ export function chunkOf(cx, cy){
       for (var c = cx*CH; c < (cx+1)*CH; c++){
         if (!G.inMap(c, r)) continue;
         var vv0 = tAt(c, r);
-        if (vv0 === G.CRUMB || vv0 === G.WATER || vv0 === G.FALL ||
+        if (vv0 === G.CRUMB || G.isWaterV(vv0) || G.isFlowV(vv0) ||
             vv0 === G.PLANK || vv0 === G.GIVE) continue;                     // динамика — мимо кэша
         drawTile(c, r, (c - cx*CH)*T + PAD, (r - cy*CH)*T + PAD, false);
       }
@@ -1252,7 +1265,7 @@ function blitLayer(camx, camy){
   for (r = r0; r <= r1; r++){
     for (c = c0; c <= c1; c++){
       vd = tAt(c, r);
-      if (vd === G.CRUMB || vd === G.WATER || vd === G.FALL || vd === G.PLANK || vd === G.GIVE)
+      if (vd === G.CRUMB || G.isWaterV(vd) || G.isFlowV(vd) || vd === G.PLANK || vd === G.GIVE)
         drawTile(c, r, c*T - camx, r*T - camy, true);
     }
   }
