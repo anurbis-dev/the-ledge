@@ -210,6 +210,22 @@ export function slopeUnder(p){
   }
   return best;
 }
+/* высота опоры под ногами для финального снапа по Y за кадр: как slopeUnder, но проба у самой
+   кромки склона, ушедшая в соседнюю плоскую клетку, доезжает до неё через groundYAt, а не
+   выпадает из выбора best — без этого нога у края скоса на 1-2 кадра "проваливается" на высоту
+   опорного тайла под склоном, пока не выйдет из допуска slopeUnderAt (виден дёрг Y на переходе
+   косой пол -> прямой). Не трогает slopeUnder/slopeUnderAt — их null-семантика "именно на скосе"
+   используется отдельно (упор в стену, боулдеры/энемики/npc). */
+export function groundSurfaceUnder(p){
+  var best = null, i, sy, px;
+  for (i = 0; i <= 2; i++){
+    px = p.x + 1 + (p.w - 2) * (i / 2);
+    sy = slopeUnderAt(p, px);
+    if (sy === null) sy = groundYAt(px, p.y + p.h + 1);
+    if (sy !== null && (best === null || sy < best)) best = sy;
+  }
+  return best;
+}
 export function slopeGradeUnder(p){
   var px = footCenterX(p);
   var c = Math.floor(px / T), r = Math.floor((p.y + p.h + 1) / T);

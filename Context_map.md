@@ -16,10 +16,10 @@
 | Модуль | Суть |
 |--------|------|
 | `core/constants.js` | `T=16`, ids тайлов, физика `C` |
-| `core/runtime.js` | `MAP_W/H`, `base` Uint8Array, `LV`, `W` |
-| `core/map.js` | запросы тайлов, скосы (`SLOPE_SPEC`: 45°, 2:1, 4:1, дуги), `rectFree` |
-| `core/player.js` | хват кромки, лаз, лестницы, перекладины, вода (`inWater`/`wading`/`wasWet`/`rippleT`); ступень +1 тайл — `tryMantle` только вперёд+↑ |
-| `core/step.js` | один тик мира; вода: `wetContact` splash; на скосе `dx` режется на `SLOPE_ALONG/√2` (~90% бега вдоль склона) |
+| `core/runtime.js` | `MAP_W/H`, `base` Uint8Array, `vary`/`flip` Uint8Array (per-tile), `LV`, `W` |
+| `core/map.js` | запросы тайлов, скосы (`SLOPE_SPEC`: 45°, 2:1, 4:1, дуги), `rectFree`, `flipR` для уровней (бит0=H, бит1=V) |
+| `core/player.js` | хват кромки, лаз, лестницы, перекладины, вода (`inWater`/`wading`/`wasWet`/`rippleT`); ступень +1 тайл — `tryMantle` только вперёд+↑; `groundSurfaceUnder` — 3-probe с fallback на `groundYAt` для плоских тайлов |
+| `core/step.js` | один тик мира; вода: `wetContact` splash; на скосе `dx` режется на `SLOPE_ALONG/√2` (~90% бега вдоль склона); onGround Y-snap: `groundSurfaceUnder` вместо `slopeUnder` |
 | `levels/` | 5 карт, `build()` пишет в `base` |
 | `entities/` | mk/step врагов, лифтов (`lifts.js`), платформ (`plats.js`), факелов, сундуков, щупалец, канатов (`ropes.js`), FX-эмиттеров (`emitters.js` → `S.emitters` / `LV.emitters`), NPC |
 | `entities/ids.js` | `findById` / `allocId` — двери и объекты по id, не по индексу |

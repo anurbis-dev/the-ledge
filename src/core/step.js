@@ -3,7 +3,7 @@ import { runtime, setWorld } from './runtime.js';
 import { tileAt, rectFree, isWaterV, waterSurfaceY, ladderTile } from './map.js';
 import {
   moveX, moveY, damage, isInvuln, updateBars, ease, updateClimb, updateHang, updateLadder,
-  setStance, setH, slopeUnder, slopeUnderAt, slopeGradeUnder, grounded, autoLadder, tryBars,
+  setStance, setH, slopeUnder, slopeUnderAt, slopeGradeUnder, groundSurfaceUnder, grounded, autoLadder, tryBars,
   tryLadder, tryGrab, tryClimbOut, tryCrawlEdge, ladderTopUnder, attach, mountLad, towardLadAxis, tryDescend,
   tryMantle, footCenterX, snapFeet, wallSlideDir, unstickFromWall,
   markGap, canDescend, awayFromEdge, startFallRecover, finishFallRecover,
@@ -518,9 +518,9 @@ export function step(S, dt, inp){
              && !inp.downHeld && !inp.downPressed)
       tryClimbOut(S, p, inp.x > 0 ? 1 : -1);
   } else {
-    var slY = slopeUnder(p);
+    var slY = groundSurfaceUnder(p);
     if (slY !== null && !p.ride){
-      p.y = slY - p.h;                   // держимся ровно на поверхности склона
+      p.y = slY - p.h;                   // держимся ровно на поверхности склона/пола без дёрга на стыке
     } else if (!p.ride){
       var pq = platUnder(S, { x: footCenterX(p) - 1, y: p.y, w: 2, h: p.h }, p.y + p.h + 1);
       if (pq && rectFree(p.x, pq.y - p.h, p.w, p.h)){ p.ride = pq; p.y = pq.y - p.h; }

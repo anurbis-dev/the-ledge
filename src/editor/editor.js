@@ -1958,6 +1958,23 @@ export function edExportText(){
     out.push('// узоры (варианты рисунка, import varR из core/map.js)');
     out.push(varRuns.join('\n'));
   }
+  var flipRuns = [];
+  for (var rf = r0; rf < r1; rf++){
+    var cf = c0e;
+    while (cf < c1e){
+      var vf = G.tileFlipAt(cf, rf);
+      if (!vf){ cf++; continue; }
+      var nf = 1;
+      while (cf + nf < c1e && G.tileFlipAt(cf + nf, rf) === vf) nf++;
+      flipRuns.push('flipR(' + cf + ', ' + rf + ', ' + nf + ', 1, ' + vf + ');');
+      cf += nf;
+    }
+  }
+  if (flipRuns.length){
+    out.push('');
+    out.push('// флип тайлов (бит0=H, бит1=V; import flipR из core/map.js)');
+    out.push(flipRuns.join('\n'));
+  }
   out.push('');
   out.push('// objects');
   out.push('enemies: [' + S.enemies.map(function(e){

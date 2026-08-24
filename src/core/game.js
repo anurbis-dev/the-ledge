@@ -157,18 +157,18 @@ function setFlip(c, r, v){
   if (!inMap(c, r) && !v) return false;
   ensureMap(c, r);
   if (!inMap(c, r)) return false;
-  ensureFlip(L);
-  var buf = L && L.flip ? L.flip : null;
-  if (!buf) return false;
+  if (L) ensureFlip(L);
+  var buf = L && L.flip ? L.flip : runtime.flip;
   buf[mapIx(c, r)] = v;
   if (hooks.onSetTile) hooks.onSetTile(c, r);
   return true;
 }
 function flipAt(c, r){
   var L = getActiveLayer();
-  if (!L) return 0;
+  if (!inMap(c, r)) return 0;
+  if (!L) return runtime.flip[mapIx(c, r)] || 0;
   if (L.wrap && L.stampFlip) return L.stampFlip[wrapIndex(L, c, r)] || 0;
-  if (!L.flip || !inMap(c, r)) return 0;
+  if (!L.flip) return 0;
   return L.flip[mapIx(c, r)] || 0;
 }
 

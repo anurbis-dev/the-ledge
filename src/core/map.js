@@ -92,6 +92,11 @@ export function varR(c, r, w, h, v){                  // ручной узор �
     for (var x = c; x < c + w; x++)
       if (inMap(x, y)) runtime.vary[mapIx(x, y)] = v;
 }
+export function flipR(c, r, w, h, v){                  // флип тайла (бит0=H, бит1=V) поверх прямоугольника
+  for (var y = r; y < r + h; y++)
+    for (var x = c; x < c + w; x++)
+      if (inMap(x, y)) runtime.flip[mapIx(x, y)] = v;
+}
 export function slopeRun(c, r, n, dir, downTo){        // косой уступ с телом под ним
   for (var i = 0; i < n; i++){
     var cc = c + dir*i, rr = r - i;
@@ -134,7 +139,7 @@ export function varAt(c, r){
 export function tileFlipAt(c, r){
   if (!inMap(c, r)) return 0;
   var ls = runtime.layers, ix = mapIx(c, r);
-  if (!ls || !ls.length) return 0;
+  if (!ls || !ls.length) return runtime.flip[ix] || 0;
   var i, v, L;
   for (i = ls.length - 1; i >= 0; i--){
     L = ls[i];
