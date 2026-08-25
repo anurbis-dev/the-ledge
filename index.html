@@ -60,6 +60,7 @@ body[data-boot="pending"]{visibility:hidden}
       <button type="button" class="ed-tab" data-tab="gear">Gear</button>
       <button type="button" class="ed-tab" data-tab="mix">Mix</button>
     </div>
+    <div class="ed-head-search"><input id="edPalSearch" type="search" placeholder="Find…" autocomplete="off"></div>
     <div class="ed-head-acts">
       <button type="button" class="edb" id="edUndo" title="Undo (Ctrl+Z)" disabled>Undo</button>
       <button type="button" class="edb" id="edRedo" title="Redo (Ctrl+Y)" disabled>Redo</button>
@@ -111,6 +112,7 @@ body[data-boot="pending"]{visibility:hidden}
 <div id="edGhost" hidden></div>
 <div id="edout"><textarea id="edtext" readonly></textarea><button class="mini" id="edOk">Close</button></div>
 <div id="edVarMenu" class="ed-varmenu" hidden></div>
+<div id="edPalMenu" hidden></div>
 <div id="edChestAdd" class="ed-chestadd" hidden></div>
 <div id="edChestList" class="ed-float ed-chestlist" hidden>
   <div class="ed-float-head">

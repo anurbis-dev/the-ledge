@@ -60,10 +60,14 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
 .ed-resize:hover,.ed-resize:active{background:#4d3f86}
 .ed-head{display:flex;align-items:center;gap:8px;padding:4px 6px;
   border-bottom:1px solid #2a2444;flex-shrink:0}
-.ed-tabs{display:flex;gap:3px;flex:1;min-width:0}
+.ed-tabs{display:flex;gap:3px;flex:0 0 auto;min-width:0}
 .ed-tab{height:26px;padding:0 10px;border-radius:6px;border:2px solid #4a4370;
   background:#1a152ecc;color:#cfc6ff;font-size:11px;letter-spacing:.06em}
 .ed-tab.on{background:#4d3f86dd;border-color:#8f88bb;color:#fff}
+.ed-head-search{flex:1 1 auto;display:flex;justify-content:center;min-width:0}
+.ed-head-search[hidden]{display:none}
+#edPalSearch{width:100%;max-width:240px;height:26px;border-radius:6px;border:1px solid #3a3460;
+  background:#150f26;color:#e9e4ff;font:inherit;font-size:11px;padding:0 8px}
 .ed-head-acts{display:flex;gap:4px;flex-shrink:0}
 .ed-body{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding:6px}
 .ed-pal{display:flex;gap:4px;flex-wrap:wrap;align-content:flex-start;
@@ -139,6 +143,13 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
 #edVarMenu{position:fixed;z-index:25;display:flex;gap:4px;padding:6px;flex-wrap:wrap;max-width:220px;
   background:#0d0a18f2;border:2px solid #4a4370;border-radius:8px;box-shadow:0 10px 30px #000a}
 #edVarMenu[hidden]{display:none}
+#edPalMenu{position:fixed;z-index:25;display:flex;flex-direction:column;gap:2px;padding:4px;min-width:170px;
+  background:#0d0a18f2;border:2px solid #4a4370;border-radius:8px;box-shadow:0 10px 30px #000a}
+#edPalMenu[hidden]{display:none}
+.ed-palmenu-item{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:5px;border:none;
+  background:transparent;color:#e9e4ff;font-size:11px;text-align:left;white-space:nowrap}
+.ed-palmenu-item:hover{background:#4d3f8680}
+.ed-palmenu-check{width:12px;flex:0 0 12px;color:#ffd9a0}
 .ed-chestadd{position:fixed;z-index:26;display:flex;align-items:center;gap:6px;padding:6px;
   background:#0d0a18f2;border:2px solid #4a4370;border-radius:8px;box-shadow:0 10px 30px #000a}
 .ed-chestadd[hidden]{display:none}

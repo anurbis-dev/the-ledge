@@ -70,6 +70,7 @@ var ICON_MIN = 16, ICON_MAX = 56;
 var HKEY = 'ledge.ed.h';
 var IKEY = 'ledge.ed.icon';
 var GKEY = 'ledge.ed.geo';
+var NAMESKEY = 'ledge.ed.showNames';
 
 export var ED = {
   on: false, tab: 'tile', tool: 'tile', pal: 0, painting: false, erasing: false,
@@ -78,7 +79,7 @@ export var ED = {
   zoom: 1, icon: 28, hover: null,
   clickCell: null, clickBrush: -1,
   holdT: null, holdErased: false, holdX: 0, holdY: 0,
-  dragObj: null, showGeo: false, cover: false, stampCover: false,
+  dragObj: null, showGeo: false, showNames: true, cover: false, stampCover: false,
   color: false, grade: { hue: 0, sat: 1, bright: 0.15, contrast: 1 },
   sel: null, dragPal: null, giz: false,
   hitObj: null, pendHit: null,
@@ -277,6 +278,8 @@ var edOut = document.getElementById('edout'), edText = document.getElementById('
 var edParams = document.getElementById('edParams');
 var edParamList = document.getElementById('edParamList');
 var edParamQ = document.getElementById('edParamQ');
+var edPalSearch = document.getElementById('edPalSearch');
+var edPalMenu = document.getElementById('edPalMenu');
 var paramsBuilt = false;
 var onOpen = null, onNewLevel = null, onDelLevel = null;
 
@@ -284,6 +287,8 @@ try {
   var ih = +localStorage.getItem(IKEY);
   if (ih >= ICON_MIN && ih <= ICON_MAX) ED.icon = ih;
   ED.showGeo = localStorage.getItem(GKEY) === '1';
+  var ns = localStorage.getItem(NAMESKEY);
+  if (ns != null) ED.showNames = ns === '1';
 } catch (_){}
 
 bindLayersPanel({ onChange: function(){ markLevelDirty(); } });
@@ -436,6 +441,7 @@ function syncTabs(){
   }
   var hidePal = ED.tab === 'params' || ED.tab === 'intro' || ED.tab === 'mix' || ED.tab === 'gear';
   if (edPal) edPal.hidden = hidePal;
+  if (edPalSearch) edPalSearch.parentNode.hidden = hidePal;
   if (edExtra) edExtra.hidden = hidePal || ED.tab === 'sprite';
   if (edParams) edParams.hidden = ED.tab !== 'params';
   var edIntro = document.getElementById('edIntro');
@@ -464,6 +470,12 @@ function swatch(parent, canvas, label, active, onPick, kind, pal, onClick, showL
     nameEl.textContent = label;
     b.appendChild(nameEl);
     b._nameLabel = nameEl;
+  }
+  if (kind === 'obj'){
+    b.addEventListener('pointerenter', function(){ hoverPalSwatch = { btn: b, pal: pal }; });
+    b.addEventListener('pointerleave', function(){
+      if (hoverPalSwatch && hoverPalSwatch.btn === b) hoverPalSwatch = null;
+    });
   }
   b.addEventListener('pointerdown', function(e){
     if (e.button !== 0) return;
@@ -619,13 +631,15 @@ function markActiveSwatch(btn){
   for (i = 0; i < list.length; i++) list[i].classList.toggle('on', list[i] === btn);
 }
 
-/** F2 on the Objects palette: rename the selected custom object inline. */
+var hoverPalSwatch = null;
+
+/** F2 while hovering an Objects palette swatch: rename the custom object inline. */
 function renamePaletteObject(){
-  if (!edPal || ED.tab !== 'obj') return false;
-  var spec = ED_OBJS[ED.pal];
+  if (!edPal || ED.tab !== 'obj' || !hoverPalSwatch) return false;
+  var spec = ED_OBJS[hoverPalSwatch.pal];
   var meta = palObjMeta(spec);
   if (!meta || !meta.custom) return false;
-  var sw = edPal.querySelector('.ed-swatch.on');
+  var sw = hoverPalSwatch.btn;
   if (!sw || !sw._nameLabel || sw._renaming) return false;
   startInlineRename(sw, spec, meta);
   return true;
@@ -676,20 +690,23 @@ function extraBtn(parent, label, active, onClick){
 
 function fillPal(){
   if (!edPal) return;
+  hoverPalSwatch = null;
   edPal.textContent = '';
   edPal.style.setProperty('--ed-icon', ED.icon + 'px');
+  var palQuery = (edPalSearch && edPalSearch.value || '').trim().toLowerCase();
   if (ED.tab === 'tile' || (ED.tab === 'params' && ED.tool === 'tile')){
     if (ED.tab !== 'tile') return;
     var tiles = palTiles();
-    for (var j = 0; j < tiles.length; j++){
-      (function(k){
-        var spec = tiles[k];
+    var visTiles = palQuery ? tiles.filter(function(t){ return (t.name || '').toLowerCase().indexOf(palQuery) !== -1; }) : tiles;
+    for (var j = 0; j < visTiles.length; j++){
+      (function(spec){
+        var k = tiles.indexOf(spec);
         var sw = swatch(edPal, tileThumb(spec, ED.icon), spec.name + (spec.overlay ? ' (overlay)' : ''), ED.tool === 'tile' && ED.pal === k, function(){
           ED.tool = 'tile';
           ED.pal = k;
         }, 'tile', k, function(){
           if (isDetailsOpen()) openTileEdit(spec);
-        });
+        }, ED.showNames);
         if (spec.overlay) sw.classList.add('deco');
         sw.addEventListener('dblclick', function(e){
           e.preventDefault(); e.stopPropagation();
@@ -697,17 +714,19 @@ function fillPal(){
           openTileEdit(spec, e.clientX, e.clientY);
           edRefresh();
         });
-      })(j);
+      })(visTiles[j]);
     }
+    if (palQuery && !visTiles.length) edPal.appendChild(palNoMatch(palQuery));
     var hint = document.createElement('div');
     hint.className = 'ed-pal-hint';
     hint.textContent = 'Drop PNG to add tiles · double-click to edit · Ctrl+D clone · Delete removes custom · Ctrl+drag selects a block';
     edPal.appendChild(hint);
   } else if (ED.tab === 'obj'){
     clearThumbCache();
-    for (var m = 0; m < ED_OBJS.length; m++){
-      (function(k){
-        var spec = ED_OBJS[k];
+    var visObjs = palQuery ? ED_OBJS.filter(function(o){ return (o.name || '').toLowerCase().indexOf(palQuery) !== -1; }) : ED_OBJS;
+    for (var m = 0; m < visObjs.length; m++){
+      (function(spec){
+        var k = ED_OBJS.indexOf(spec);
         var meta = palObjMeta(spec);
         var thumbKind = (meta && meta.template) || spec.kind;
         var thumbSid = meta && meta.spriteId;
@@ -720,7 +739,7 @@ function fillPal(){
           ED.pal = k;
         }, 'obj', k, function(){
           if (isDetailsOpen()) openPalDetails(spec);
-        }, true);
+        }, ED.showNames);
         if (palIsLootOnly(spec)) sw.title = spec.name + ' — drag onto a chest, enemy or bird';
         else if (thumbKind === 'hero') sw.title = 'Hero — Details edits character frames (Rope climb/swing, …)';
         else if (thumbKind === 'player_start') sw.title = 'Start — place spawn point · Details: spawn sprite slot';
@@ -732,8 +751,9 @@ function fillPal(){
           openPalDetails(spec, e.clientX, e.clientY);
           edRefresh();
         });
-      })(m);
+      })(visObjs[m]);
     }
+    if (palQuery && !visObjs.length) edPal.appendChild(palNoMatch(palQuery));
     var oh = document.createElement('div');
     oh.className = 'ed-pal-hint';
     oh.textContent = 'Double-click Details · drag Sprites (or object with sprite) onto Sprite slot / frames';
@@ -742,14 +762,15 @@ function fillPal(){
   } else if (ED.tab === 'sprite'){
     clearThumbCache();
     var defs = listSpriteDefs();
-    for (var si = 0; si < defs.length; si++){
-      (function(k){
-        var def = defs[k];
+    var visDefs = palQuery ? defs.filter(function(d){ return (d.name || '').toLowerCase().indexOf(palQuery) !== -1; }) : defs;
+    for (var si = 0; si < visDefs.length; si++){
+      (function(def){
+        var k = defs.indexOf(def);
         var sw = swatch(edPal, spriteThumb(def, ED.icon), def.name + (def.custom ? ' (custom)' : ''), ED.pal === k, function(){
           ED.pal = k;
         }, 'sprite', k, function(){
           if (isDetailsOpen()) openSpriteEdit(def);
-        });
+        }, ED.showNames);
         sw.title = def.name + ' — drag onto Tile/Object Sprite slot · double-click to edit frames';
         sw.addEventListener('dblclick', function(e){
           e.preventDefault(); e.stopPropagation();
@@ -757,8 +778,9 @@ function fillPal(){
           openSpriteEdit(def, e.clientX, e.clientY);
           edRefresh();
         });
-      })(si);
+      })(visDefs[si]);
     }
+    if (palQuery && !visDefs.length) edPal.appendChild(palNoMatch(palQuery));
     var atl = document.createElement('div');
     atl.className = 'ed-pal-hint';
     atl.textContent = 'Atlases — soon';
@@ -770,6 +792,13 @@ function fillPal(){
     edPal.appendChild(sh);
     edPal.scrollTop = 0;
   }
+}
+
+function palNoMatch(query){
+  var none = document.createElement('div');
+  none.className = 'ed-pal-hint';
+  none.textContent = 'No matches for "' + query + '"';
+  return none;
 }
 
 function extraSlider(parent, label, min, max, step, val, set){
@@ -884,6 +913,7 @@ export function edClose(){
   ED.selTiles = null;
   endGizmo();
   closeVarMenu();
+  closePalMenu();
   closeChestAdd();
   closeChestList();
   ED.dragObj = null;
@@ -1418,6 +1448,40 @@ function openVarMenu(cell, spec, clientX, clientY){
   edVarMenu.style.left = Math.max(4, Math.min(clientX, innerWidth - mw - 4)) + 'px';
   edVarMenu.style.top = Math.max(4, Math.min(clientY, innerHeight - mh - 4)) + 'px';
   setTimeout(function(){ document.addEventListener('pointerdown', onVarMenuOutside, true); }, 0);
+}
+
+function closePalMenu(){
+  if (!edPalMenu || edPalMenu.hidden) return;
+  edPalMenu.hidden = true;
+  edPalMenu.textContent = '';
+  document.removeEventListener('pointerdown', onPalMenuOutside, true);
+}
+function onPalMenuOutside(e){
+  if (edPalMenu && !edPalMenu.contains(e.target)) closePalMenu();
+}
+function openPalMenu(clientX, clientY){
+  if (!edPalMenu) return;
+  edPalMenu.textContent = '';
+  var item = document.createElement('button');
+  item.type = 'button';
+  item.className = 'ed-palmenu-item';
+  var check = document.createElement('span');
+  check.className = 'ed-palmenu-check';
+  check.textContent = ED.showNames ? '✓' : '';
+  item.appendChild(check);
+  item.appendChild(document.createTextNode('Display Names'));
+  item.title = 'Show object/tile/sprite names under palette icons (whole window)';
+  item.addEventListener('click', function(e){
+    e.stopPropagation();
+    ED.showNames = !ED.showNames;
+    try { localStorage.setItem(NAMESKEY, ED.showNames ? '1' : '0'); } catch (_){}
+    fillPal();
+    closePalMenu();
+  });
+  edPalMenu.appendChild(item);
+  edPalMenu.hidden = false;
+  clampPopup(edPalMenu, clientX, clientY);
+  setTimeout(function(){ document.addEventListener('pointerdown', onPalMenuOutside, true); }, 0);
 }
 
 function lootIcon(kind, size){
@@ -2959,7 +3023,10 @@ if (edBar){
     }
   }, { passive: false });
   edBar.addEventListener('contextmenu', function(e){
-    if (e.ctrlKey || e.metaKey) e.preventDefault();
+    if (e.ctrlKey || e.metaKey){ e.preventDefault(); return; }
+    if (!ED.on) return;
+    e.preventDefault();
+    openPalMenu(e.clientX, e.clientY);
   });
   edBar.addEventListener('pointerdown', function(e){
     if (!ED.on) return;
@@ -2983,6 +3050,17 @@ if (edParamQ){
   edParamQ.addEventListener('input', function(){ showParams(); });
   edParamQ.addEventListener('keydown', function(e){
     if (e.key === 'Escape'){ e.stopPropagation(); edClose(); }
+  });
+}
+if (edPalSearch){
+  edPalSearch.addEventListener('input', function(){ fillPal(); });
+  edPalSearch.addEventListener('keydown', function(e){
+    e.stopPropagation();
+    if (e.key === 'Escape' && edPalSearch.value){
+      e.preventDefault();
+      edPalSearch.value = '';
+      fillPal();
+    }
   });
 }
 var edReset = document.getElementById('edParamReset');
