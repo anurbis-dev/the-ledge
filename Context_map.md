@@ -19,9 +19,10 @@
 | `core/runtime.js` | `MAP_W/H`, `base` Uint8Array, `vary` Uint8Array, `LV`, `W` |
 | `core/map.js` | запросы тайлов, скосы (`SLOPE_SPEC`: 45°, 2:1, 4:1, дуги; `slopeSpec` зеркалит H и для built-in id через `fl&1`), `rectFree`/`tileBlocks` (потолочный V-флип скоса блокирует AABB как обычный блок) |
 | `core/player.js` | хват кромки, лаз, лестницы, перекладины, вода (`inWater`/`wading`/`wasWet`/`rippleT`); ступень +1 тайл — `tryMantle` только вперёд+↑; `groundSurfaceUnder` — 3-probe с fallback на `groundYAt` для плоских тайлов |
-| `core/step.js` | один тик мира; вода: `wetContact` splash; на скосе `dx` режется на `SLOPE_ALONG/√2` (~90% бега вдоль склона); onGround Y-snap: `groundSurfaceUnder` вместо `slopeUnder` |
+| `core/step.js` | один тик мира; вода: `wetContact` splash; на скосе `dx` режется на `SLOPE_ALONG/√2` (~90% бега вдоль склона); onGround Y-snap: `groundSurfaceUnder` вместо `slopeUnder`; декремент `digT`/`digCd` каждый кадр |
+| `core/tileset.js` | дефиниции кастом-тайлов (id 64–255); новое поле `durability` в whitelist `normalizeTile()` (default 0 = неразрушаемый), перечисляется в `addTile()` (раньше терялось при создании); экспорт `tileDurability(id)` — встроенные тайлы всегда неразрушаемы |
 | `levels/` | 5 карт, `build()` пишет в `base` |
-| `entities/` | mk/step врагов, лифтов (`lifts.js`), платформ (`plats.js`), факелов, сундуков, щупалец, канатов (`ropes.js`), FX-эмиттеров (`emitters.js` → `S.emitters` / `LV.emitters`), NPC |
+| `entities/` | mk/step врагов, лифтов (`lifts.js`), платформ (`plats.js`), факелов, сундуков, щупалец, канатов (`ropes.js`), FX-эмиттеров (`emitters.js` → `S.emitters` / `LV.emitters`), NPC; копание киркой (`mining.js`, `tryDig` — двигает `S.digHp[mapIx]` по `durability`, уничтожает в `S.gone` как CRUMB) |
 | `entities/ids.js` | `findById` / `allocId` — двери и объекты по id, не по индексу |
 
 Двери: `pair` / `doorId` / `warp.to` — это `id`, не индекс массива. Поля `need` (bag kind|null), `consume`, `locked=!!need`; редактор ставит пару за 2 клика (`mkDoorAt`). Факел в руке — `p.torch` = id.
@@ -44,7 +45,11 @@ CRUMB (id=2): idle/crack drip и burst осыпания — `emitSand` (`render/
 
 Лифты (`entities/lifts.js`): `LV.lifts` / `S.lifts` — `normLift` / `mkLiftAt` / `packLift` / `syncLiftFloors` / `stepLifts`. Параметры: `w,hh,v,dwell`, `floors[]`, `homeIdx`, `travel`/`loop`, `trigger` (`call`|`auto`|`ride`), `onLeave` (`stay`|`return`). Палитра `lift` (MARKER); Inspect (+/− Floor) + гизмо `move`/`liftFloor`. Call-кнопки в `step.js` только при `trigger==='call'`.
 
-Гарпун (`p.gear.harpoon`, рука `p.hand`): в воде — болт как лук (`fireHarpoon`, без подтяга, стрелы подбираются). На суше — крюк (`fireGrapple`): 45° вперёд, при удержании ↑ — строго вверх; длина `C.HARPOON_LEN`, тяга `C.HARPOON_PULL`, отстёгивается за `C.HARPOON_DETACH` и летит по импульсу+гравитации. Смена руки (палка/лук/гарпун): Q или тап по иконке оружия в HUD (`cycleHand`).
+Гарпун (`p.gear.harpoon`, рука `p.hand`): в воде — болт как лук (`fireHarpoon`, без подтяга, стрелы подбираются). На суше — крюк (`fireGrapple`): 45° вперёд, при удержании ↑ — строго вверх; длина `C.HARPOON_LEN`, тяга `C.HARPOON_PULL`, отстёгивается за `C.HARPOON_DETACH` и летит по импульсу+гравитации.
+
+Кирка (`p.gear.pickaxe`, рука `p.hand`): отдельный hand-слот (не переиспользует `weapon`), новая ветка в `giveGear`/`wearGear`/`listHand`/`handIndex` (`gear.js`). При экипировке триггер `tryDig(S)` из `tryAction` в `torches.js`. Две анимации: `dig` (замах в стену впереди, горизонтально через `DIG0-2`), `digDown` (замах в пол впереди, по диагонали через `DIGD0-2`). Уменьшает `S.digHp[mapIx]` на 1 за удар; при обнулении тайл прыгает в `S.gone` (перестаёт быть solid и не рисуется). Неразрушаемый тайл (`durability:0`) с каждым ударом генерирует spark-эффект, но не разрушается. Вода — полный отказ без анимации (`isWaterV` проверка). События: `'dighit'` (sparks + осколки), `'digclank'` (только sparks, unbreakable), `'digbreak'` (большое облако пыли + крупные куски).
+
+Смена руки (палка/лук/гарпун/кирка): Q или тап по иконке оружия в HUD (`cycleHand`).
 
 Подбор факела/палки (`tryAction` в `entities/torches.js`) — `tryAction` только ставит `p.pickPend`/`p.pickT`; фактический attach (`t.held`/`p.torch`/`giveGear`) делает `resolvePickup` (вызывается из `step.js` каждый кадр) на нижней точке приседа (доля `PICK_APEX=0.45`, синхронно с `render/poses.js:pickPose`). Бросок факела симметрично: `p.throwT`/`p.throwPend`, сам `dropTorch(S,true)` срабатывает в `resolvePickup` на доле `THROW_REL=0.4` (синхронно с `throwPose`). Ничего не блокирует управление — это оверлей позы поверх `state==='normal'`.
 

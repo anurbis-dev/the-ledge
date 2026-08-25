@@ -6,12 +6,13 @@ import { ignitePlank } from './planks.js';
 import { dropLootFor, tryGroundPickup, takeGroundPend } from './loot.js';
 import { tryChest } from './chests.js';
 import { tryTalk } from './npcs.js';
-import { giveGear, isHarpoonHand, isBowHand, isMeleeHand } from './gear.js';
+import { giveGear, isHarpoonHand, isBowHand, isMeleeHand, isPickaxeHand } from './gear.js';
 import { attack } from './enemies.js';
 import { findById } from './ids.js';
 import { fireHarpoon, fireGrapple, tryHarpoonPickup } from './harpoons.js';
 import { fireArrow, tryArrowPickup } from './arrows.js';
 import { grantOne } from './craft.js';
+import { tryDig } from './mining.js';
 
 export function mkTorches(){
   var LV = runtime.LV;
@@ -195,6 +196,7 @@ export function tryAction(S, inp){
     if (p.throwT <= 0){ p.throwT = C.THROW_T; p.throwPend = true; }
     return true;
   }
+  if (isPickaxeHand(p)) return tryDig(S);
   if (p.state === 'snare' && isMeleeHand(p)) return attack(S);
   if (isHarpoonHand(p)){
     if (p.inWater) return fireHarpoon(S);                // в воде — болт, без подтяга

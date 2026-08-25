@@ -10,7 +10,7 @@ export var TABS = [
 
 /* dev-хоткеи: клавиша → набор в пак */
 export var DEV_KITS = {
-  '1': { name: 'WEAPONS', types: ['stick', 'spear', 'sword', 'blade', 'bow', 'harpoon'], qty: 1 },
+  '1': { name: 'WEAPONS', types: ['stick', 'spear', 'sword', 'blade', 'bow', 'harpoon', 'pickaxe'], qty: 1 },
   '2': { name: 'ITEMS',   types: ['coin', 'gem', 'relic', 'key', 'tank', 'stone', 'idol'], qty: 5 },
   '3': { name: 'FOOD',    types: ['shroom'], qty: 6 },
   '4': { name: 'ARMOR',   types: ['wshield', 'ishield', 'gshield', 'lhelm', 'ihelm', 'ghelm', 'scuba', 'flippers'], qty: 1 },
@@ -38,6 +38,7 @@ export var ITEMS = {
   blade:   { name:'FINE BLADE',   cat:'gear', tab:'gear', desc:'THIN STEEL. REACHES FARTHER THAN IRON.' },
   bow:     { name:'SHORT BOW',    cat:'gear', tab:'gear', desc:'QUIET SHOTS. THE STRING WEARS FAST.' },
   harpoon: { name:'HARPOON',      cat:'gear', tab:'gear', desc:'BOLT IN WATER. HOOK ON LAND. PULLS YOU IN.' },
+  pickaxe: { name:'PICKAXE',      cat:'gear', tab:'gear', desc:'DIGS SOFT STONE. WATER AND HARD ROCK DO NOT YIELD.' },
   wshield: { name:'WOOD SHIELD',  cat:'gear', tab:'gear', desc:'PLANKS AND HOPE. TAKES A HIT, THEN SPLITS.' },
   ishield: { name:'IRON SHIELD',  cat:'gear', tab:'gear', desc:'HOLDS LONGER THAN WOOD. RINGS WHEN STRUCK.' },
   gshield: { name:'GILDED SHIELD',cat:'gear', tab:'gear', desc:'GOLD RIM. HARD TO BREAK, HEAVY ON THE ARM.' },
@@ -49,12 +50,12 @@ export var ITEMS = {
 };
 
 var SLOT_NAME = {
-  weapon: 'HAND', harpoon: 'HAND', helmet: 'HEAD',
+  weapon: 'HAND', harpoon: 'HAND', pickaxe: 'HAND', helmet: 'HEAD',
   shield: 'ARM', scuba: 'LUNG', flippers: 'FEET'
 };
 
 var BAG_ORDER = ['coin', 'gem', 'shroom', 'relic', 'idol', 'tank', 'key', 'stone'];
-var GEAR_SLOTS = ['weapon', 'harpoon', 'helmet', 'shield', 'scuba', 'flippers'];
+var GEAR_SLOTS = ['weapon', 'harpoon', 'pickaxe', 'helmet', 'shield', 'scuba', 'flippers'];
 
 export function itemInfo(type){
   return ITEMS[type] || { name: String(type || '?').toUpperCase(), cat: 'bag', tab: 'find', desc: 'UNKNOWN FIND.' };

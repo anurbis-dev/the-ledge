@@ -57,7 +57,7 @@ function sAt(c, r){
   if (!_L) return G.solidTile(c, r);
   var v = tAt(c, r);
   if (!G.isSolidV(v)) return false;
-  if (v === G.CRUMB && world() && world().gone && world().gone[G.mapIx(c, r)] > 0) return false;
+  if (world() && world().gone && world().gone[G.mapIx(c, r)] > 0) return false;
   if (v === G.PLANK && world() && world().burnt && world().burnt[G.mapIx(c, r)]) return false;
   return true;
 }
@@ -866,7 +866,7 @@ function paintTileId(v, c, r, x, y, dyn){
   }
   if (!G.isSolidV(v)) return;
   var k = G.mapIx(c, r), crumb = (v === G.CRUMB), hh = hashT(c, r);
-  if (crumb && !sAt(c, r)) return;                   // осыпался — ничего не оставляем
+  if (!sAt(c, r)) return;                             // осыпался / выкопан — ничего не оставляем
   var sx = 0;
   var cracking = crumb && S.crumbT && S.crumbT[k] !== undefined;
   if (cracking) sx = Math.round(Math.sin(time*46)*1.2);

@@ -15,6 +15,7 @@ var propsEl = document.getElementById('edLayerProps');
 var onChange = null;
 var drag = { from: -1, y: 0, live: false, ptr: -1, slot: null };
 var dropSlot = null;
+var hoverRename = null;
 
 function eyeSvg(){
   var s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -49,9 +50,33 @@ export function showLayersPanel(on){
   if (on){ renderLayersPanel(); raiseFloat(root); }
 }
 
+function beginRename(row, name, L){
+  var inp = document.createElement('input');
+  inp.type = 'text';
+  inp.className = 'layername-edit';
+  inp.value = L.name;
+  inp.addEventListener('pointerdown', function(ev){ ev.stopPropagation(); });
+  inp.addEventListener('keydown', function(ev){
+    ev.stopPropagation();
+    if (ev.key === 'Enter') inp.blur();
+    if (ev.key === 'Escape'){ inp.value = L.name; inp.blur(); }
+  });
+  inp.addEventListener('blur', function(){
+    if (inp.value && inp.value !== L.name){
+      beginOp();
+      L.name = inp.value;
+      notify();
+      endOp();
+    } else notify();
+  });
+  row.replaceChild(inp, name);
+  inp.focus(); inp.select();
+}
+
 export function renderLayersPanel(){
   if (!listEl) return;
   listEl.textContent = '';
+  hoverRename = null;
   var ls = getLayers();
   var solo = runtime.soloLayer;
   // сверху — передний слой (как в Pixis)
@@ -96,30 +121,17 @@ export function renderLayersPanel(){
       var name = document.createElement('span');
       name.className = 'layername';
       name.textContent = L.name + (L.collide ? '  ▣' : '') + (L.wrap ? '  ▦' : '');
-      name.title = 'Double-click to rename';
+      name.title = 'Double-click or hover + F2 to rename';
       name.addEventListener('dblclick', function(e){
         e.stopPropagation();
-        var inp = document.createElement('input');
-        inp.type = 'text';
-        inp.className = 'layername-edit';
-        inp.value = L.name;
-        inp.addEventListener('pointerdown', function(ev){ ev.stopPropagation(); });
-        inp.addEventListener('keydown', function(ev){
-          if (ev.key === 'Enter') inp.blur();
-          if (ev.key === 'Escape'){ inp.value = L.name; inp.blur(); }
-        });
-        inp.addEventListener('blur', function(){
-          if (inp.value && inp.value !== L.name){
-            beginOp();
-            L.name = inp.value;
-            notify();
-            endOp();
-          } else notify();
-        });
-        row.replaceChild(inp, name);
-        inp.focus(); inp.select();
+        beginRename(row, name, L);
       });
       row.appendChild(name);
+
+      row.addEventListener('pointerenter', function(){ hoverRename = { row: row, name: name, L: L }; });
+      row.addEventListener('pointerleave', function(){
+        if (hoverRename && hoverRename.row === row) hoverRename = null;
+      });
 
       row.addEventListener('pointerdown', function(e){
         if (e.button !== 0) return;
@@ -361,4 +373,13 @@ if (delBtn) delBtn.addEventListener('click', function(){
   beginOp();
   if (deleteLayer(runtime.activeLayer | 0)) notify();
   endOp();
+});
+
+addEventListener('keydown', function(e){
+  if (e.key !== 'F2' || !hoverRename) return;
+  if (root && root.hidden) return;
+  e.preventDefault();
+  var hr = hoverRename;
+  hoverRename = null;
+  beginRename(hr.row, hr.name, hr.L);
 });

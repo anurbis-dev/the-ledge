@@ -33,6 +33,7 @@ export function heroBoxAnim(p){
   if (p.stance === 1) return Math.abs(p.vx) > 4 ? 'crouchWalk' : 'crouch';
   if (p.grapple) return 'grapple';
   if (p.atkT > 0) return 'attack';
+  if (p.digT > 0) return p.digMode || 'dig';
   if (p.bowT > 0 || p.bowReady) return 'bow';
   if (p.state === 'stun') return 'stun';
   if (p.throwT > 0) return 'throw';

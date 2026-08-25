@@ -14,7 +14,8 @@ import {
   isSpriteFrameDirty, getFrameAnchor, setFrameAnchor, setSpriteSize,
   clearAnimAnchors, getAnimBox, setAnimBox,
   getAnimFrameCount, setAnimFrameCount, reorderAnimFrames,
-  addSpriteDef, spriteFrameImage
+  getAnimSpeed, setAnimSpeed,
+  addSpriteDef, spriteFrameImage, addAnimDef
 } from '../core/spriteset.js';
 import { updateObject, getObjectDef } from '../core/objectset.js';
 import { runtime } from '../core/runtime.js';
@@ -40,9 +41,8 @@ var onDeleteCustom = null;
 var onObjectChange = null;
 
 var TOOLS = [
-  { id: 'pencil', name: 'Paint', title: 'Paint pixels (LMB). RMB erases.' },
-  { id: 'pick', name: 'Pick', title: 'Pick color from a pixel. Cursor is a pipette while this is on.' },
-  { id: 'hitbox', name: 'Hit', title: 'Drag the collision box. For a sprite this is the action hitbox (origin = top-left).' }
+  { id: 'pencil', name: 'Paint', title: 'Paint pixels (LMB). RMB erases. Alt+click picks a color.' },
+  { id: 'hitbox', name: 'Collision', title: 'Drag the collision box (origin = top-left). Box and anchors only show while this is active.' }
 ];
 
 var COLLIDE = [
@@ -57,9 +57,8 @@ var COLLIDE = [
 
 var HINT = {
   pencil: 'LMB paint · RMB erase · Alt pick. Pixels are only a picture.',
-  pick: 'LMB take color from a pixel. Pipette cursor while Pick is on.',
   hitbox: 'Drag the red frame. That box is collision — the picture does not change it.',
-  sprite: 'Red box = collision for this action (origin is its top-left). Gold = hands, magenta = weapon. Hit-tool drags a new box.'
+  sprite: 'Collision tool: red box = hitbox for this action (origin is its top-left), gold = hands, magenta = weapon. Drag to set a new box.'
 };
 
 var STRIP_KEY = 'ledge.ed.tileStripH';
@@ -1062,7 +1061,7 @@ function numInp(val, min, max){
   return el;
 }
 
-function xyRow(label, cls, a, b, sep){
+function xyRow(label, cls, a, b, sep, parent){
   var row = document.createElement('label');
   row.className = 'ed-field' + (cls ? ' ' + cls : '');
   var sp = document.createElement('span');
@@ -1077,7 +1076,7 @@ function xyRow(label, cls, a, b, sep){
   wrap.appendChild(mid);
   wrap.appendChild(b);
   row.appendChild(wrap);
-  body.appendChild(row);
+  (parent || body).appendChild(row);
   return row;
 }
 
@@ -1141,7 +1140,7 @@ function applySpriteSize(nw, nh){
 
 function syncCursor(){
   if (!preview) return;
-  var pick = tool === 'pick' || altPick;
+  var pick = altPick;
   var onMark = isSprite() && !!pendingAnchor;
   preview.classList.toggle('tool-pick', pick && !onMark);
   preview.classList.toggle('tool-hit', tool === 'hitbox' && !pick);
@@ -1150,9 +1149,7 @@ function syncCursor(){
     ? (isSprite()
       ? 'Drag the red box: origin becomes its top-left, size is collision for this action'
       : 'Drag to set the collision box (what the hero hits)')
-    : (pick ? 'Pick color' : (isSprite()
-      ? 'Paint · RMB erase · drag cyan/magenta marks'
-      : 'Paint pixel · RMB erase'));
+    : (pick ? 'Pick color' : 'Paint pixel · RMB erase · Alt+click picks');
 }
 
 function paintCanvas(){
@@ -1165,9 +1162,11 @@ function paintCanvas(){
   fillChecker(cx, fw, fh, sx, sy);
   if (buf) cx.drawImage(buf, 0, 0, fw, fh, 0, 0, can.width, can.height);
   else if (current && mode === 'tile' && !current.custom) paintTileIcon(cx, current, can.width);
-  if (isSprite()) drawSpriteBox(cx, sx, tool === 'hitbox');
-  else drawHitShape(cx, can.width, sx, tool === 'hitbox');
-  if (isSprite()) drawAnchors(cx, sx);
+  if (isSprite()){
+    if (tool === 'hitbox'){ drawSpriteBox(cx, sx, true); drawAnchors(cx, sx); }
+  } else {
+    drawHitShape(cx, can.width, sx, tool === 'hitbox');
+  }
   if (hitLab){
     if (isSprite()){
       animName = (current.anims.filter(function(an){ return an.id === animId; })[0] || { name: animId }).name;
@@ -1249,7 +1248,7 @@ function bindPreview(can){
     e.stopPropagation();
     try { can.setPointerCapture(e.pointerId); } catch (_){}
     altPick = e.altKey;
-    if (e.button === 0 && isSprite() && !e.altKey){
+    if (e.button === 0 && isSprite() && tool === 'hitbox' && !e.altKey){
       var hit = hitAnchor(e, can);
       if (hit){
         var a0 = liveAnchors();
@@ -1274,7 +1273,7 @@ function bindPreview(can){
       applyBox(a.x, a.y, a.x, a.y);
       return;
     }
-    if (e.button === 0 && (tool === 'pick' || e.altKey)){
+    if (e.button === 0 && e.altKey){
       pickAt(e);
       return;
     }
@@ -1297,9 +1296,9 @@ function bindPreview(can){
       return;
     }
     if (!painting && !boxDrag && isSprite() && preview){
-      var over = hitAnchor(e, can);
+      var over = tool === 'hitbox' ? hitAnchor(e, can) : null;
       preview.classList.toggle('tool-anchor', !!over);
-      preview.classList.toggle('tool-pick', (tool === 'pick' || altPick) && !over);
+      preview.classList.toggle('tool-pick', altPick && !over);
     }
     if (boxDrag){
       var b = edgeOf(e, can);
@@ -1433,6 +1432,27 @@ function addAnimFrame(rowId){
   fillBody();
 }
 
+function addNewAnim(){
+  if (!isSprite() || !current || !current.custom) return;
+  var n = 1, id;
+  do { id = 'anim' + n; n++; } while (animOf(current, id));
+  markOp();
+  var res = addAnimDef(current.id, id, 'New', 1);
+  if (!res) return;
+  current = res;
+  notify();
+  selectFrame(id, 0);
+  fillBody();
+}
+
+function animOf(def, animId){
+  var i;
+  if (!def || !def.anims) return null;
+  for (i = 0; i < def.anims.length; i++)
+    if (def.anims[i].id === animId) return def.anims[i];
+  return null;
+}
+
 function reorderTileFrames(fromI, toI){
   var frames = tileFramesList(), item;
   if (fromI === toI || fromI < 0 || toI < 0 || fromI >= frames.length || toI >= frames.length) return;
@@ -1503,12 +1523,14 @@ function bindFrameDrag(th, rowId, ii, n){
 }
 
 function togglePlay(){
-  var rows, row, n;
+  var rows, row, n, fps;
   if (playTimer){ stopPlay(); return; }
   if (isSprite()){
     n = getAnimFrameCount(current.id, animId);
+    fps = getAnimSpeed(current.id, animId);
   } else {
     n = tileFrameCount(current.id);
+    fps = 8;
   }
   if (n < 2) return;
   if (playBtn){
@@ -1521,7 +1543,7 @@ function togglePlay(){
     else n = tileFrameCount(current.id);
     if (n < 2){ stopPlay(); return; }
     selectFrame(animId, (frameI + 1) % n, true);
-  }, 125);
+  }, 1000 / fps);
   void rows; void row;
 }
 
@@ -1585,7 +1607,7 @@ function paintStrips(){
   if (isSprite()){
     current = getSpriteDef(current.id) || current;
     rows = (current.anims || []).map(function(a){
-      return { id: a.id, name: a.name, n: getAnimFrameCount(current.id, a.id) };
+      return { id: a.id, name: a.name, n: getAnimFrameCount(current.id, a.id), speed: getAnimSpeed(current.id, a.id) };
     });
   } else {
     var n0 = tileFrameCount(current.id);
@@ -1594,7 +1616,6 @@ function paintStrips(){
   if (!rows.length){
     stripsEl.hidden = true;
     stripsEl.textContent = '';
-    playBtn = null;
     applyStripH();
     return;
   }
@@ -1602,49 +1623,52 @@ function paintStrips(){
   var filterSelStart = hadFilterFocus ? animFilterEl.selectionStart : null;
   stripsEl.hidden = false;
   stripsEl.textContent = '';
-  var head = document.createElement('div');
-  head.className = 'ed-tile-anim-toolbar';
-  playBtn = document.createElement('button');
-  playBtn.type = 'button';
-  playBtn.className = 'edb' + (playTimer ? ' on' : '');
-  playBtn.textContent = playTimer ? 'Stop' : 'Play';
-  playBtn.title = 'Play all frames of the current animation';
-  playBtn.addEventListener('click', function(e){
-    e.preventDefault();
-    e.stopPropagation();
-    togglePlay();
-  });
-  head.appendChild(playBtn);
   var visRows = rows;
-  if (isSprite() && rows.length > 1){
-    var searchInp = document.createElement('input');
-    searchInp.type = 'text';
-    searchInp.className = 'ed-tile-anim-search';
-    searchInp.placeholder = 'Find animation…';
-    searchInp.value = animFilter;
-    searchInp.addEventListener('keydown', function(e){ e.stopPropagation(); });
-    searchInp.addEventListener('input', function(){
-      animFilter = searchInp.value;
-      paintStrips();
+  if (isSprite()){
+    var head = document.createElement('div');
+    head.className = 'ed-tile-anim-toolbar';
+    if (rows.length > 1){
+      var searchInp = document.createElement('input');
+      searchInp.type = 'text';
+      searchInp.className = 'ed-tile-anim-search';
+      searchInp.placeholder = 'Find animation…';
+      searchInp.value = animFilter;
+      searchInp.addEventListener('keydown', function(e){ e.stopPropagation(); });
+      searchInp.addEventListener('input', function(){
+        animFilter = searchInp.value;
+        paintStrips();
+      });
+      head.appendChild(searchInp);
+      animFilterEl = searchInp;
+    } else {
+      animFilterEl = null;
+    }
+    var addAnimBtn = document.createElement('button');
+    addAnimBtn.type = 'button';
+    addAnimBtn.className = 'edb ed-tile-frame-add';
+    addAnimBtn.textContent = '+';
+    addAnimBtn.title = current.custom ? 'Add a new animation' : 'Custom sprites only — clone first (Ctrl+D)';
+    addAnimBtn.disabled = !current.custom;
+    addAnimBtn.addEventListener('click', function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      addNewAnim();
     });
-    head.appendChild(searchInp);
-    animFilterEl = searchInp;
-  } else {
-    animFilterEl = null;
-  }
-  stripsEl.appendChild(head);
-  if (hadFilterFocus && animFilterEl){
-    animFilterEl.focus();
-    if (filterSelStart != null) animFilterEl.setSelectionRange(filterSelStart, filterSelStart);
-  }
-  if (isSprite() && animFilter){
-    var q = animFilter.toLowerCase();
-    visRows = rows.filter(function(rw){ return (rw.name || '').toLowerCase().indexOf(q) !== -1; });
-    if (!visRows.length){
-      var none = document.createElement('div');
-      none.className = 'ed-tile-note';
-      none.textContent = 'No animations match "' + animFilter + '"';
-      stripsEl.appendChild(none);
+    head.appendChild(addAnimBtn);
+    stripsEl.appendChild(head);
+    if (hadFilterFocus && animFilterEl){
+      animFilterEl.focus();
+      if (filterSelStart != null) animFilterEl.setSelectionRange(filterSelStart, filterSelStart);
+    }
+    if (animFilter){
+      var q = animFilter.toLowerCase();
+      visRows = rows.filter(function(rw){ return (rw.name || '').toLowerCase().indexOf(q) !== -1; });
+      if (!visRows.length){
+        var none = document.createElement('div');
+        none.className = 'ed-tile-note';
+        none.textContent = 'No animations match "' + animFilter + '"';
+        stripsEl.appendChild(none);
+      }
     }
   }
   var r;
@@ -1652,10 +1676,33 @@ function paintStrips(){
     (function(row){
       var wrap = document.createElement('div');
       wrap.className = 'ed-tile-anim';
+      var head = document.createElement('div');
+      head.className = 'ed-tile-anim-head';
       var lab = document.createElement('div');
       lab.className = 'ed-tile-anim-name';
       lab.textContent = row.name;
-      wrap.appendChild(lab);
+      head.appendChild(lab);
+      if (row.id){
+        var spdWrap = document.createElement('label');
+        spdWrap.className = 'ed-tile-anim-speed';
+        spdWrap.title = 'Playback speed, frames/sec — same value drives editor Play and the game';
+        var spdLab = document.createElement('span');
+        spdLab.textContent = 'fps';
+        var spdInp = numInp(row.speed, 0.1, 60);
+        spdInp.step = '0.1';
+        spdInp.addEventListener('change', function(){
+          var v = parseFloat(spdInp.value);
+          if (isNaN(v) || v <= 0){ spdInp.value = String(row.speed); return; }
+          markOp();
+          setAnimSpeed(current.id, row.id, v);
+          notify();
+          if (playTimer && animId === row.id) { stopPlay(); togglePlay(); }
+        });
+        spdWrap.appendChild(spdInp);
+        spdWrap.appendChild(spdLab);
+        head.appendChild(spdWrap);
+      }
+      wrap.appendChild(head);
       var bar = document.createElement('div');
       bar.className = 'ed-tile-anim-frames';
       var i;
@@ -1852,6 +1899,24 @@ function fillTileParamsOnly(){
   owRow.appendChild(document.createTextNode(' One-way — stand from above, pass from below'));
   body.appendChild(owRow);
 
+  var dur = document.createElement('input');
+  dur.type = 'number';
+  dur.min = '0';
+  dur.step = '1';
+  dur.value = String((def && def.durability) || 0);
+  dur.disabled = !custom;
+  dur.addEventListener('change', function(){
+    if (!def) return;
+    markOp();
+    updateTile(def.id, { durability: Math.max(0, dur.value | 0) });
+    notify();
+  });
+  var durRow = document.createElement('label');
+  durRow.className = 'ed-check';
+  durRow.appendChild(document.createTextNode('Durability (pickaxe hits, 0 = unbreakable) '));
+  durRow.appendChild(dur);
+  body.appendChild(durRow);
+
   var sel = document.createElement('select');
   var curCol = def ? def.collide : builtinCollide(current);
   var i;
@@ -2031,6 +2096,7 @@ function fillBody(){
   originXEl = originYEl = weaponXEl = weaponYEl = grabXEl = grabYEl = null;
   boxWEl = boxHEl = null;
   spriteSlotEl = null;
+  playBtn = null;
 
   if (mode === 'tile'){
     fillTileParamsOnly();
@@ -2065,6 +2131,23 @@ function fillBody(){
   body.appendChild(hitLab);
 
   if (sprite){
+    var rollWrap = document.createElement('div');
+    rollWrap.className = 'ed-rollout';
+    var rollHead = document.createElement('button');
+    rollHead.type = 'button';
+    rollHead.className = 'ed-rollout-head';
+    rollHead.textContent = '▸ Size / Box / Anchors';
+    var rollBody = document.createElement('div');
+    rollBody.className = 'ed-rollout-body';
+    rollBody.hidden = true;
+    rollHead.addEventListener('click', function(){
+      rollBody.hidden = !rollBody.hidden;
+      rollHead.textContent = (rollBody.hidden ? '▸' : '▾') + ' Size / Box / Anchors';
+    });
+    rollWrap.appendChild(rollHead);
+    rollWrap.appendChild(rollBody);
+    body.appendChild(rollWrap);
+
     var sizeW = numInp(fw, SIZE_MIN, SIZE_MAX);
     var sizeH = numInp(fh, SIZE_MIN, SIZE_MAX);
     function onSize(){
@@ -2072,7 +2155,7 @@ function fillBody(){
     }
     sizeW.addEventListener('change', onSize);
     sizeH.addEventListener('change', onSize);
-    xyRow('Size', '', sizeW, sizeH, '×');
+    xyRow('Size', '', sizeW, sizeH, '×', rollBody);
 
     originXEl = numInp(0, 0, fw - 1);
     originYEl = numInp(0, 0, fh - 1);
@@ -2080,7 +2163,7 @@ function fillBody(){
     bindAnchorInp(originYEl, 'origin', 'y');
     originXEl.title = 'World attach for this action (every frame in the row)';
     originYEl.title = originXEl.title;
-    xyRow('Origin', 'ed-anchor-o', originXEl, originYEl, ',');
+    xyRow('Origin', 'ed-anchor-o', originXEl, originYEl, ',', rollBody);
 
     boxWEl = numInp(10, 2, fw);
     boxHEl = numInp(22, 2, fh);
@@ -2106,7 +2189,7 @@ function fillBody(){
       syncAnchorFields();
       paintCanvas();
     });
-    xyRow('Box', 'ed-anchor-b', boxWEl, boxHEl, '×');
+    xyRow('Box', 'ed-anchor-b', boxWEl, boxHEl, '×', rollBody);
 
     grabXEl = numInp(0, 0, fw - 1);
     grabYEl = numInp(0, 0, fh - 1);
@@ -2114,7 +2197,7 @@ function fillBody(){
     grabYEl.title = grabXEl.title;
     bindAnchorInp(grabXEl, 'grab', 'x');
     bindAnchorInp(grabYEl, 'grab', 'y');
-    xyRow('Hands', 'ed-anchor-g', grabXEl, grabYEl, ',');
+    xyRow('Hands', 'ed-anchor-g', grabXEl, grabYEl, ',', rollBody);
 
     weaponXEl = numInp(0, 0, fw - 1);
     weaponYEl = numInp(0, 0, fh - 1);
@@ -2122,7 +2205,7 @@ function fillBody(){
     weaponYEl.title = weaponXEl.title;
     bindAnchorInp(weaponXEl, 'weapon', 'x');
     bindAnchorInp(weaponYEl, 'weapon', 'y');
-    xyRow('Weapon', 'ed-anchor-w', weaponXEl, weaponYEl, ',');
+    xyRow('Weapon', 'ed-anchor-w', weaponXEl, weaponYEl, ',', rollBody);
   }
 
   toolsEl = document.createElement('div');
@@ -2141,6 +2224,19 @@ function fillBody(){
         syncTools();
       });
       toolsEl.appendChild(b);
+      if (specT.id === 'pencil'){
+        playBtn = document.createElement('button');
+        playBtn.type = 'button';
+        playBtn.className = 'edb' + (playTimer ? ' on' : '');
+        playBtn.textContent = playTimer ? 'Stop' : 'Play';
+        playBtn.title = 'Play all frames of the current animation';
+        playBtn.addEventListener('click', function(e){
+          e.preventDefault();
+          e.stopPropagation();
+          togglePlay();
+        });
+        toolsEl.appendChild(playBtn);
+      }
     })(list[t]);
   }
   body.appendChild(toolsEl);

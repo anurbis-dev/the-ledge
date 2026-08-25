@@ -3,14 +3,14 @@ import { cam, view, world, ctx, rc, cv, viewScale } from './ctx.js';
 import { waterTintAt } from './fx.js';
 import {
   K, IDLE_A, IDLE_B, RUN, FALLP, LANDP, SLIDEP, STUNP, SNAREP, ROLLP,
-  LADP0, LADP1, LADF0, LADF1, ATK0, ATK1, ATK2, CROUCH, CROUCH_W,
+  LADP0, LADP1, LADF0, LADF1, ATK0, ATK1, ATK2, DIG0, DIG1, DIG2, DIGD0, DIGD1, DIGD2, CROUCH, CROUCH_W,
   PRONE0, PRONE1, BARS0, BARS1, LADD0, LADD1, SWIM0, SWIM1,
   HANGL, HANG_A, HANG_B, lerpPose, climbPose, stancePose, pickPose, wallPickPose, throwPose, getupPose,
   BOW_STANCE, bowPose, bowHandOnString, bowReleaseFx,
   WALLPUSH, GRAPPLE_D, GRAPPLE_U
 } from './poses.js';
 import { figure, drawBow, drawHeldWeapon } from './figure.js';
-import { isBowHand, isHarpoonHand } from '../entities/gear.js';
+import { isBowHand, isHarpoonHand, isPickaxeHand } from '../entities/gear.js';
 import { spriteFrameImage, getSpriteDef, getFrameAnchor } from '../core/spriteset.js';
 import { activeHeroId } from '../core/player.js';
 import { defaultFrameAnchors } from './sprite-anchors.js';
@@ -41,6 +41,10 @@ export function heroClip(p){
   if (p.atkT > 0){
     var t = 1 - p.atkT / C.ATK_T;
     return ['attack', t < 0.32 ? 0 : (t < 0.66 ? 1 : 2)];
+  }
+  if (p.digT > 0){
+    var dtp = 1 - p.digT / C.DIG_T;
+    return [p.digMode || 'dig', dtp < 0.32 ? 0 : (dtp < 0.66 ? 1 : 2)];
   }
   if (isBow(p) && p.bowT > 0){
     var bt = 1 - p.bowT / C.BOW_ANIM_T;
@@ -128,9 +132,9 @@ function spriteLocalScreen(wx, wy, facing, origin, def, lx, ly){
 }
 
 function heroWeaponState(p){
-  var bow = isBow(p), harp = isHarpoonHand(p);
+  var bow = isBow(p), harp = isHarpoonHand(p), pick = isPickaxeHand(p);
   var staticIdle = p.onGround && p.state === 'normal' && p.stance === 0 && p.stanceT <= 0 &&
-    !p.gettingUp && !p.grapple && p.atkT <= 0 && p.rollT <= 0 && p.pickT <= 0 && p.throwT <= 0 &&
+    !p.gettingUp && !p.grapple && p.atkT <= 0 && p.digT <= 0 && p.rollT <= 0 && p.pickT <= 0 && p.throwT <= 0 &&
     p.landT <= 0 && !p.pushWall && Math.abs(p.vx) <= 8 && !p.inWater;
   var bowHeld = bow && (p.bowT > 0 || (p.bowReady && staticIdle));
   var hs = null, onBack = false;
@@ -138,6 +142,12 @@ function heroWeaponState(p){
     if (p.grapple){
       var ga = Math.atan2(p.grapple.y - (p.y + 8), p.grapple.x - (p.x + p.w / 2));
       hs = { ang: ga, type: 'harpoon' };
+    } else onBack = true;
+  } else if (pick){
+    if (p.digT > 0){
+      var td = 1 - p.digT / C.DIG_T;
+      var a0d = p.digMode === 'digDown' ? (-0.3 + td*1.9) : (-2.1 + td*3.5);
+      hs = { ang: p.facing > 0 ? a0d : Math.PI - a0d, type: 'pickaxe' };
     } else onBack = true;
   } else if (p.stick && !bow){
     if (p.atkT > 0){
@@ -193,7 +203,7 @@ export function boxPose(p){
   // стойка стрельбы держится только пока героиня неподвижна после выстрела —
   // любое иное действие сбрасывает готовность до следующего нажатия атаки
   var staticIdle = p.onGround && p.state === 'normal' && p.stance === 0 && p.stanceT <= 0 &&
-    !p.gettingUp && !p.grapple && p.atkT <= 0 && p.rollT <= 0 && p.pickT <= 0 && p.throwT <= 0 &&
+    !p.gettingUp && !p.grapple && p.atkT <= 0 && p.digT <= 0 && p.rollT <= 0 && p.pickT <= 0 && p.throwT <= 0 &&
     p.landT <= 0 && !p.pushWall && Math.abs(p.vx) <= 8 && !p.inWater;
   if (!staticIdle) p.bowReady = false;
   if (p.state === 'snare') return SNAREP;
@@ -211,6 +221,13 @@ export function boxPose(p){
   if (p.atkT > 0){
     var t = 1 - p.atkT / C.ATK_T;
     return t < 0.32 ? lerpPose(ATK0, ATK1, t/0.32) : lerpPose(ATK1, ATK2, (t-0.32)/0.68);
+  }
+  if (p.digT > 0){
+    var td2 = 1 - p.digT / C.DIG_T;
+    var d0 = p.digMode === 'digDown' ? DIGD0 : DIG0;
+    var d1 = p.digMode === 'digDown' ? DIGD1 : DIG1;
+    var d2 = p.digMode === 'digDown' ? DIGD2 : DIG2;
+    return td2 < 0.32 ? lerpPose(d0, d1, td2/0.32) : lerpPose(d1, d2, (td2-0.32)/0.68);
   }
   if (isBow(p) && p.bowT > 0) return bowPose(1 - p.bowT / C.BOW_ANIM_T);  // натяжение/спуск лука
   if (p.state === 'stun') return STUNP;
@@ -293,12 +310,18 @@ export function hero(){
     }
     pt[k] = [Math.round(p.x) + lxp - cam.x, Math.round(oy) + ly - cam.y];
   }
-  var hs = null, onBack = false, bow = isBow(p), harp = isHarpoonHand(p);
+  var hs = null, onBack = false, bow = isBow(p), harp = isHarpoonHand(p), pick = isPickaxeHand(p);
   var bowHeld = bow && (p.bowT > 0 || pose2 === BOW_STANCE);  // держит в руках только стоя на месте / в цикле выстрела
   if (harp){
     if (p.grapple){
       var ga = Math.atan2(p.grapple.y - (p.y + 8), p.grapple.x - (p.x + p.w / 2));
       hs = { ang: ga, type: 'harpoon' };
+    } else onBack = true;
+  } else if (pick){
+    if (p.digT > 0){
+      var tdv = 1 - p.digT / C.DIG_T;
+      var a0dv = p.digMode === 'digDown' ? (-0.3 + tdv*1.9) : (-2.1 + tdv*3.5);
+      hs = { ang: p.facing > 0 ? a0dv : Math.PI - a0dv, type: 'pickaxe' };
     } else onBack = true;
   } else if (p.stick && !bow){
     if (p.atkT > 0){
@@ -321,7 +344,7 @@ export function hero(){
     helmet: p.helmet, shield: p.shield,
     helmType: p.gear.helmet && p.gear.helmet.type,
     shieldType: p.gear.shield && p.gear.shield.type,
-    weaponType: harp ? 'harpoon' : (p.gear.weapon && p.gear.weapon.type),
+    weaponType: harp ? 'harpoon' : (pick ? 'pickaxe' : (p.gear.weapon && p.gear.weapon.type)),
     bash: p.bashT,
     eyesClosed: p.knockedOut
   }, headTilt);

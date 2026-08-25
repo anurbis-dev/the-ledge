@@ -28,6 +28,7 @@ function clampPix(n){ n = n | 0; return n < 0 ? 0 : n > 16 ? 16 : n; }
 
 export function normalizeTile(t){
   if (!t) return null;
+  var baseId = t.baseId | 0;
   return {
     id: t.id | 0,
     name: String(t.name || ('Tile ' + t.id)),
@@ -39,8 +40,37 @@ export function normalizeTile(t){
     oneWay: !!t.oneWay,
     climb: !!t.climb,
     front: !!t.front,
-    frames: Array.isArray(t.frames) ? t.frames.filter(Boolean) : []
+    frames: Array.isArray(t.frames) ? t.frames.filter(Boolean) : [],
+    /* builtin, от которого унаследовано поведение (Fall/Water/…) */
+    baseId: baseId > 0 ? baseId : 0,
+    /* прочность на копание киркой; 0 = неразрушаемый */
+    durability: Math.max(0, t.durability | 0)
   };
+}
+
+/** Прочность тайла на копание. Билтины (без custom-записи) неразрушаемы. */
+export function tileDurability(id){
+  var t = byId[id | 0];
+  return t ? (t.durability | 0) : 0;
+}
+
+/** Поведение тайла: baseId у custom, иначе сам id. */
+export function tileBaseId(id){
+  id = id | 0;
+  if (id <= 0) return 0;
+  var t = byId[id];
+  if (t && (t.baseId | 0) > 0) return t.baseId | 0;
+  return id;
+}
+
+/** Скопировать procedural meta (speed/foam/…) с from → to. */
+export function cloneTileGfxMeta(fromId, toId){
+  fromId = fromId | 0;
+  toId = toId | 0;
+  if (!fromId || !toId || fromId === toId) return false;
+  var g = gfx[fromId];
+  if (!g || !gfxHasMeta(g)) return false;
+  return !!setTileGfx(toId, copyGfxMeta(g, {}));
 }
 
 function rebuild(){
@@ -595,7 +625,9 @@ export function addTile(partial){
     oneWay: partial && partial.oneWay,
     climb: partial && partial.climb,
     front: partial && partial.front,
-    frames: partial && partial.frames
+    frames: partial && partial.frames,
+    baseId: partial && partial.baseId,
+    durability: partial && partial.durability
   });
   tiles.push(t);
   rebuild();

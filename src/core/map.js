@@ -214,7 +214,7 @@ function defOf(v){ return getTileDef(v); }
 export function solidTile(c, r){
   var v = tileAt(c, r);
   if (!isSolidV(v)) return hooks.gateClosed(c, r);
-  if (v === CRUMB && runtime.W && runtime.W.gone[mapIx(c, r)] > 0) return false;
+  if (runtime.W && runtime.W.gone[mapIx(c, r)] > 0) return false;
   if (v === PLANK && runtime.W && runtime.W.burnt && runtime.W.burnt[mapIx(c, r)]) return false;
   return true;
 }

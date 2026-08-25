@@ -26,6 +26,14 @@ export function spark(x, y, n, col, spd, up){
                  t:0.3+Math.random()*0.3, c:col||'#e9e4ff', g: 140 });
 }
 
+/* крупные каменные осколки — без dust-затухания, просто летят и падают */
+export function rockChunks(x, y, n, sz){
+  var parts = view.parts, cols = dustCols();
+  for (var i = 0; i < n; i++)
+    parts.push({ x:x, y:y, vx:(Math.random()-0.5)*70, vy:-(20+Math.random()*40),
+                 t:0.4+Math.random()*0.35, c:cols[i%cols.length], g:220, sz: sz||2 });
+}
+
 function puff(x, y, vx, vy, life, col, sz, g, drag){
   view.parts.push({
     x: x, y: y, vx: vx, vy: vy, t: life, life: life, c: col,
@@ -314,7 +322,7 @@ export function shadePresetName(shade){
 
 export function buildWater(){
   WEEDS = []; FISH = []; SHORES = []; PONDS = [];
-  var MW = G.MAP_W, MH = G.MAP_H, WATER = G.WATER;
+  var MW = G.MAP_W, MH = G.MAP_H;
   var cBase = G.mapMinC(), rBase = G.mapMinR();
   var seen = new Uint8Array(MW * MH);
   pondIx = new Uint16Array(MW * MH);
@@ -323,7 +331,7 @@ export function buildWater(){
   for (var lr = 0; lr < MH; lr++){
     for (var lc = 0; lc < MW; lc++){
       var r = rBase + lr, c = cBase + lc;
-      if (G.tileAt(c, r) !== WATER || seen[ix(c, r)]) continue;
+      if (!G.isWaterV(G.tileAt(c, r)) || seen[ix(c, r)]) continue;
       var stack = [[c, r]], cols = {}, c0 = c, c1 = c, top = r, bot = r;
       var cells = [[c, r]];
       seen[ix(c, r)] = 1;
@@ -340,7 +348,7 @@ export function buildWater(){
         for (var n = 0; n < 4; n++){
           var nc = nbs[n][0], nr = nbs[n][1];
           if (!G.inMap(nc, nr)) continue;
-          if (seen[ix(nc, nr)] || G.tileAt(nc, nr) !== WATER) continue;
+          if (seen[ix(nc, nr)] || !G.isWaterV(G.tileAt(nc, nr))) continue;
           seen[ix(nc, nr)] = 1;
           cells.push([nc, nr]);
           stack.push([nc, nr]);

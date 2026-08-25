@@ -71,6 +71,8 @@ export function step(S, dt, inp){
   if (S.p.bashT > 0) S.p.bashT -= dt;
   if (S.p.atkT > 0) S.p.atkT -= dt;
   if (S.p.atkCd > 0) S.p.atkCd -= dt;
+  if (S.p.digT > 0) S.p.digT -= dt;
+  if (S.p.digCd > 0) S.p.digCd -= dt;
   if (S.p.pickT > 0) S.p.pickT -= dt;
   if (S.p.throwT > 0) S.p.throwT -= dt;
   if (S.p.bowT > 0){ S.p.bowT -= dt; if (S.p.bowT <= 0) S.p.bowReady = true; }

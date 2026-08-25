@@ -5,7 +5,7 @@ export { invalidateChunk, invalidateAll, addWaterRipple, clearWaterRipples, step
 export { applyVolumes } from './volumes.js';
 export { drawCollideOverlay } from './collide.js';
 export { clampCam, resetCam, followCam, pushCamRender, popCamRender, clearCamPan } from './camera.js';
-export { sky, fore, stepWater, buildWater, drawWeeds, drawFish, drawParts, drawHearts, vignette, getFish, spark, landDust, bonkDust, emitSand, SAND_DEF, waterTintAt, waterDepthK, getPondShade, setPondShade, waterExport, shadePresetName, WATER_SHADE_PRESETS } from './fx.js';
+export { sky, fore, stepWater, buildWater, drawWeeds, drawFish, drawParts, drawHearts, vignette, getFish, spark, landDust, bonkDust, emitSand, rockChunks, SAND_DEF, waterTintAt, waterDepthK, getPondShade, setPondShade, waterExport, shadePresetName, WATER_SHADE_PRESETS } from './fx.js';
 export { plats, lifts, caveExit, doors, chests, lootDrops, items, pickables, drawTorches, drawHarpoons, drawArrows, enemies, spiders, fliers, tendrils, ropes, boulders, npcs } from './sprites.js';
 export { drawBubbles } from './bubbles.js';
 export { hero } from './hero.js';

@@ -2,7 +2,7 @@ import { noteFirstItem } from '../speech/runtime.js';
 import { runtime } from '../core/runtime.js';
 
 /* слоты, которые крутятся в руке (Q / тап по иконке) */
-export var HAND_SLOTS = { weapon: 1, harpoon: 1 };
+export var HAND_SLOTS = { weapon: 1, harpoon: 1, pickaxe: 1 };
 
 /* оружие, чью durability можно настраивать по уровням в редакторе */
 export var WEAPON_TYPES = ['stick', 'spear', 'sword', 'blade', 'bow', 'harpoon'];
@@ -26,7 +26,8 @@ export var GEAR = {
   ghelm:  { slot:'helmet', uses:10, name:'helm' },
   scuba:    { slot:'scuba',    uses:1, name:'scuba' },
   flippers: { slot:'flippers', uses:1, name:'flippers' },
-  harpoon:  { slot:'harpoon',  uses:15, name:'harpoon' }
+  harpoon:  { slot:'harpoon',  uses:15, name:'harpoon' },
+  pickaxe:  { slot:'pickaxe',  uses:20, name:'pickaxe' }
 };
 
 /* durability оружия — берём переопределение уровня (редактор), иначе дефолт из GEAR.
@@ -61,6 +62,10 @@ export function giveGear(S, type){
     p.harpoonGun = true;
     if (!p.gear.weapon) p.hand = 'harpoon';
   }
+  if (it.slot === 'pickaxe'){
+    p.hasPick = true;
+    if (!p.gear.weapon && !p.gear.harpoon) p.hand = 'pickaxe';
+  }
   if (AMMO_START[type]) giveAmmo(S, AMMO_KIND[type], AMMO_START[type]);
   noteFirstItem(S, type);
   p.events.push('gear:' + type);
@@ -82,6 +87,10 @@ export function wearGear(S, slot, n){
     p.harpoonGun = !!p.gear.harpoon;
     if (!p.gear.harpoon && p.hand === 'harpoon') p.hand = 'weapon';
   }
+  if (slot === 'pickaxe'){
+    p.hasPick = !!p.gear.pickaxe;
+    if (!p.gear.pickaxe && p.hand === 'pickaxe') p.hand = 'weapon';
+  }
   p.events.push('broke:' + slot + (p.gear[slot] ? ':next' : ''));
   return !!p.gear[slot];
 }
@@ -95,8 +104,11 @@ export function isBowHand(p){
 export function isMeleeHand(p){
   return !isHarpoonHand(p) && !!p.stick && !isBowHand(p);
 }
+export function isPickaxeHand(p){
+  return !!(p && p.hand === 'pickaxe' && p.gear && p.gear.pickaxe);
+}
 
-var HAND_RANK = { stick: 0, spear: 1, sword: 2, blade: 3, bow: 4, harpoon: 5 };
+var HAND_RANK = { stick: 0, spear: 1, sword: 2, blade: 3, bow: 4, harpoon: 5, pickaxe: 6 };
 
 export function listHand(p){
   var out = [], i;
@@ -107,6 +119,10 @@ export function listHand(p){
   if (p.gear.harpoon) out.push({ slot: 'harpoon', item: p.gear.harpoon, equipped: true });
   for (i = 0; i < p.spare.length; i++){
     if (p.spare[i].slot === 'harpoon') out.push({ slot: 'harpoon', item: p.spare[i], equipped: false });
+  }
+  if (p.gear.pickaxe) out.push({ slot: 'pickaxe', item: p.gear.pickaxe, equipped: true });
+  for (i = 0; i < p.spare.length; i++){
+    if (p.spare[i].slot === 'pickaxe') out.push({ slot: 'pickaxe', item: p.spare[i], equipped: false });
   }
   out.sort(function(a, b){
     var ra = HAND_RANK[a.item.type], rb = HAND_RANK[b.item.type];
@@ -119,7 +135,7 @@ export function listHand(p){
 
 export function handIndex(p){
   var list = listHand(p), i;
-  var want = (p.hand === 'harpoon') ? p.gear.harpoon : p.gear.weapon;
+  var want = (p.hand === 'harpoon') ? p.gear.harpoon : (p.hand === 'pickaxe') ? p.gear.pickaxe : p.gear.weapon;
   if (want){
     for (i = 0; i < list.length; i++) if (list[i].item === want) return i;
   }
@@ -145,7 +161,7 @@ export function cycleHand(S){
     }
     p.hand = 'weapon';
     p.stick = !!p.gear.weapon;
-  } else {
+  } else if (next.slot === 'harpoon'){
     if (!next.equipped){
       var curH = p.gear.harpoon;
       p.gear.harpoon = next.item;
@@ -154,6 +170,15 @@ export function cycleHand(S){
       }
     }
     p.hand = 'harpoon';
+  } else {
+    if (!next.equipped){
+      var curP = p.gear.pickaxe;
+      p.gear.pickaxe = next.item;
+      for (var s3 = 0; s3 < p.spare.length; s3++){
+        if (p.spare[s3] === next.item){ p.spare[s3] = curP; break; }
+      }
+    }
+    p.hand = 'pickaxe';
   }
   p.events.push('swap:' + next.item.type);
   return true;

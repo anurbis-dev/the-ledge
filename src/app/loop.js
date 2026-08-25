@@ -8,7 +8,7 @@ import {
   beginIntro, skipIntro, dismissIntro, stepIntro, isIntroReady,
   beginOutro, skipOutro, pickOutro, stepOutro, hitOutro, isOutroReady,
   setOutroFocus, outroFocus,
-  applyPal, buildWater, stepWater, invalidateAll, addWaterRipple, clearWaterRipples, stepHeroWaterRipples, drawWaterImmersion, fore, rc, getFish, spark, landDust, bonkDust, emitSand,
+  applyPal, buildWater, stepWater, invalidateAll, addWaterRipple, clearWaterRipples, stepHeroWaterRipples, drawWaterImmersion, fore, rc, getFish, spark, landDust, bonkDust, emitSand, rockChunks,
   resetCam, followCam, pushCamRender, popCamRender, clearCamPan, paintHud, clearHud,
   setViewScale, applyVolumes, drawCollideOverlay,
   isInvOpen, invInspecting, openInv, closeInv, toggleInv, stepInv, drawInventory, handleInvPointer, handleInvWheel, handleInvKey,
@@ -236,6 +236,35 @@ function onEvent(ev){
         n: 16, speed: 22, speedRand: 48, spread: 12, lift: 8,
         life: 0.4, lifeRand: 0.55, gravity: 72
       });
+    }
+  }
+  else if (k === 'dighit'){
+    blip(90, 0.06, 'square', 0.04);
+    var dk = +ev.split(':')[1];
+    if (dk === dk){
+      var dc = dk % G.MAP_W, dr = (dk / G.MAP_W) | 0;
+      spark(dc * G.T + G.T / 2, dr * G.T + G.T / 2, 4, '#ffe9a8', 55, 26);
+      rockChunks(dc * G.T + G.T / 2, dr * G.T + G.T / 2, 3, 2);
+    }
+  }
+  else if (k === 'digclank'){
+    blip(520, 0.06, 'square', 0.05);
+    var gk = +ev.split(':')[1];
+    if (gk === gk){
+      var gc = gk % G.MAP_W, gr = (gk / G.MAP_W) | 0;
+      spark(gc * G.T + G.T / 2, gr * G.T + G.T / 2, 6, '#cfe0ff', 70, 30);
+    }
+  }
+  else if (k === 'digbreak'){
+    blip(75, 0.22, 'sawtooth', 0.05);
+    var bk = +ev.split(':')[1];
+    if (bk === bk){
+      var bc = bk % G.MAP_W, br = (bk / G.MAP_W) | 0;
+      emitSand(bc * G.T + G.T / 2, br * G.T + G.T / 2, {
+        n: 20, speed: 26, speedRand: 50, spread: 14, lift: 10,
+        life: 0.45, lifeRand: 0.6, gravity: 70
+      });
+      rockChunks(bc * G.T + G.T / 2, br * G.T + G.T / 2, 6, 3);
     }
   }
   else if (k === 'plankburn'){ blip(300, 0.08, 'sawtooth', 0.04); }

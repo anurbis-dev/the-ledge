@@ -28,6 +28,8 @@ export var SPRITE_DEFS = [
       { id: 'pickProne', name: 'Pick prone', n: 1 },
       { id: 'throw', name: 'Throw', n: 1 },
       { id: 'attack', name: 'Attack', n: 3 },
+      { id: 'dig', name: 'Dig', n: 3 },
+      { id: 'digDown', name: 'Dig down', n: 3 },
       { id: 'roll', name: 'Roll', n: 1 },
       { id: 'stun', name: 'Stun', n: 1 },
       { id: 'snare', name: 'Snare', n: 1 },
@@ -149,6 +151,7 @@ var imgs = {};
 var onChange = null;
 var MIN_S = 8, MAX_S = 128;
 var defSeq = 1;
+export var DEFAULT_ANIM_FPS = 8;
 
 function rebuildById(){
   var i, d;
@@ -172,7 +175,7 @@ function cloneAnimList(anims){
   if (!anims) return out;
   for (i = 0; i < anims.length; i++){
     a = anims[i];
-    out.push({ id: a.id, name: a.name, n: a.n | 0 });
+    out.push({ id: a.id, name: a.name, n: a.n | 0, speed: a.speed > 0 ? +a.speed : undefined });
   }
   return out;
 }
@@ -304,6 +307,7 @@ function overlaySprites(dst, src){
         drec.dirty = (rec.dirty || []).slice();
       }
       if (rec.n != null) drec.n = rec.n | 0;
+      if (rec.speed != null) drec.speed = +rec.speed;
       if ('origin' in rec) drec.origin = cloneOrigin(rec.origin);
       if ('grab' in rec) drec.grab = cloneOrigin(rec.grab);
       if ('weapon' in rec) drec.weapon = clonePts(rec.weapon);
@@ -419,7 +423,7 @@ function liveAnims(b, id){
   if (!b || !b.anims) return out;
   for (i = 0; i < b.anims.length; i++){
     a = b.anims[i];
-    out.push({ id: a.id, name: a.name, n: getAnimFrameCount(id, a.id) });
+    out.push({ id: a.id, name: a.name, n: getAnimFrameCount(id, a.id), speed: getAnimSpeed(id, a.id) });
   }
   return out;
 }
@@ -430,6 +434,38 @@ export function getAnimFrameCount(id, anim){
   rec = recOf(id, anim);
   if (rec && rec.n != null && (rec.n | 0) >= 1) return rec.n | 0;
   return a.n | 0;
+}
+
+/** Кадров/сек для проигрывания анимации — редактор Play и геймплей читают одно и то же. */
+export function getAnimSpeed(id, anim){
+  var def = byId[id], a = animOf(def, anim), rec;
+  if (!def || !a) return DEFAULT_ANIM_FPS;
+  rec = recOf(id, anim);
+  if (rec && rec.speed > 0) return rec.speed;
+  return a.speed > 0 ? a.speed : DEFAULT_ANIM_FPS;
+}
+
+export function setAnimSpeed(id, anim, speed){
+  var def = byId[id], a = animOf(def, anim), rec, d;
+  if (!def || !a) return null;
+  speed = +speed;
+  d = a.speed > 0 ? a.speed : DEFAULT_ANIM_FPS;
+  if (!(speed > 0)) speed = d;
+  if (speed > 60) speed = 60;
+  rec = ensureRec(id, anim);
+  if (!rec) return null;
+  rec.speed = (speed === d) ? null : speed;
+  emit('anim');
+  return getAnimSpeed(id, anim);
+}
+
+/** Индекс кадра в момент t (сек, любой накопитель времени) — общий для editor Play и рендера. */
+export function getAnimFrame(id, anim, t){
+  var n = getAnimFrameCount(id, anim);
+  if (n <= 1) return 0;
+  var speed = getAnimSpeed(id, anim);
+  var f = Math.floor((t || 0) * speed) % n;
+  return f < 0 ? f + n : f;
 }
 
 export function setAnimFrameCount(id, anim, n){
@@ -478,6 +514,20 @@ export function reorderAnimFrames(id, anim, fromI, toI){
   loadAll();
   emit('frame');
   return { from: fromI, to: toI };
+}
+
+/** Добавить новую строку анимации кастомному спрайту (id уникален внутри def.anims). */
+export function addAnimDef(id, animId, name, n){
+  var def = byId[id];
+  if (!def || !def.custom) return null;
+  animId = String(animId || '').trim();
+  if (!animId || animOf(def, animId)) return null;
+  n = n | 0; if (n < 1) n = 1; if (n > 64) n = 64;
+  def.anims.push({ id: animId, name: name || animId, n: n });
+  writeLocal();
+  notifyDraftChange();
+  if (onChange) onChange('anim');
+  return getSpriteDef(id);
 }
 
 export function getSpriteDef(id){
@@ -550,6 +600,7 @@ function cloneSavedOne(srcRec){
       frames: rec.frames ? rec.frames.slice() : [],
       dirty: rec.dirty ? rec.dirty.slice() : [],
       n: rec.n,
+      speed: rec.speed,
       origin: cloneOrigin(rec.origin),
       grab: cloneOrigin(rec.grab),
       weapon: clonePts(rec.weapon),
@@ -824,11 +875,12 @@ export function snapshotSpriteAnchors(){
         a.dirty = (rec.dirty || []).slice();
       }
       if (rec.n != null) a.n = rec.n | 0;
+      if (rec.speed != null) a.speed = +rec.speed;
       if (rec.origin) a.origin = cloneOrigin(rec.origin);
       if (rec.grab) a.grab = cloneOrigin(rec.grab);
       if (rec.weapon && rec.weapon.length) a.weapon = clonePts(rec.weapon);
       if (rec.box) a.box = cloneBox(rec.box);
-      if (hasPic || a.origin || a.grab || a.weapon || a.box || rec.n != null) packed[anim] = a;
+      if (hasPic || a.origin || a.grab || a.weapon || a.box || rec.n != null || rec.speed != null) packed[anim] = a;
     }
     if (Object.keys(packed).length) out[id] = packed;
   }

@@ -30,7 +30,8 @@ export const P = {
              lhelm:['#a9743f','#6d4423'], ihelm:['#b8c4d8','#6f7d94'], ghelm:['#e6c357','#9a7c1e'],
              scuba:['#5a8fae','#365a70'], flippers:['#e0813f','#96521f'], harpoon:['#8a94a0','#586570'],
              bow:['#bd8347','#7d5029'], spear:['#c3bccf','#7d5029'],
-             arrow:['#bd8347','#7d5029'], harpoonBolt:['#8a94a0','#586570'] }
+             arrow:['#bd8347','#7d5029'], harpoonBolt:['#8a94a0','#586570'],
+             pickaxe:['#c9c2b0','#8a7f68'] }
 };
 
 export const PALS = {

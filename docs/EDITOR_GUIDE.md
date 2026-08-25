@@ -92,7 +92,7 @@
 - `Color` не `varN` и не Cover: тот же тайл, другой grade на клетке.
 - Overlay-тайлы (зелёная точка на сваче) пишутся в канал `deco` поверх `base`. Коллизия остаётся у основного тайла. RMB сначала стирает декор, потом грунт.
 - Details (`#edTileEdit`, `fillTileParamsOnly`): слот **Sprite** + collision/flags/params only. Дроп `{ spriteId }` → `setTileSpriteId` (custom → `tile.spriteId`, builtin → `tileGfx.spriteId`). Clear / Edit / dblclick слота → `openSpriteEdit`. Нет Paint / Re-import / Reset picture — пиксели только на **Sprites**. Resolve: `getTileSpriteId` / `tileFrameSrc` / `tileImage` берут idle (или первый anim) спрайта; иначе legacy `src`/`frames`. Boot/`Ctrl+D`/PNG-drop мигрируют picture → sprite (`migrateTilePicture`). Thumbs: `tileThumb` учитывает `spriteId`.
-- Кастом-тайл: даблклик → Sprite slot + overlay / front / climb / one-way / collision (Hit / Collision → Custom box). `Ctrl+D` клонирует тайл и мигрирует picture → spriteId.
+- Кастом-тайл: даблклик → Sprite slot + overlay / front / climb / one-way / collision (Hit / Collision → Custom box) + **Durability** (pickaxe hits, 0 = unbreakable; only for custom). `Ctrl+D` клонирует тайл и мигрирует picture → spriteId.
 - Удаление кастом-тайла: `Delete`/`Backspace` при кисти на кастом-сваче (без map-sel / без выбранного объекта) или кнопка **Delete** в `#edTileEdit` → `deleteCustomTileById`. Скан всех уровней (`findLevelsUsingTile`: live layers текущего + `_stash` остальных). Если id где-то есть — confirm со списком `name (count)`; затем `wipeTileIdEverywhere` (base/deco/cover/stamp/stampDeco + paired vary) → `removeTile` → `flushAllLevelsStore`. Встроенные id не удаляются.
 
 Ограничения:

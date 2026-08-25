@@ -127,6 +127,11 @@ export function drawItemIcon(type, ox, oy, sc){
     p(10, 5, 4, 6, '#c9d4dc'); p(11, 4, 2, 2, a);
     return;
   }
+  if (type === 'pickaxe'){
+    p(2, 8, 12, 2, a); p(2, 10, 12, 1, b);
+    p(9, 3, 3, 3, b); p(11, 2, 3, 3, a); p(12, 5, 2, 2, b);
+    return;
+  }
   if (type === 'wshield' || type === 'ishield' || type === 'gshield'){
     p(4, 2, 8, 12, a); p(5, 3, 6, 10, b); p(4, 2, 8, 2, '#ffe9a8');
     p(7, 6, 2, 4, a);
