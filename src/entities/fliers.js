@@ -50,10 +50,20 @@ export function stepFliers(S, dt){
       while (lift > 0 && !rectFree(f.x, f.y - lift, f.w, f.h)) lift -= 2;
       if (lift > 0){ f.y -= lift; f.tgt = Math.min(f.tgt, f.y); }
     }
+    // анимация: подъём -> мах, снижение/ровный полёт -> планирование, изредка взмах "для поддержания"
+    if (f.glideCd === undefined){ f.glideCd = 1.4 + Math.random()*2.2; f.flapBurstT = 0; }
+    if (f.flapBurstT > 0){ f.flapBurstT -= dt; f.anim = 'flap'; }
+    else if (stepY < -2) f.anim = 'flap';
+    else {
+      f.anim = 'glide';
+      f.glideCd -= dt;
+      if (f.glideCd <= 0){ f.flapBurstT = 0.3 + Math.random()*0.3; f.glideCd = 2.2 + Math.random()*2.6; }
+    }
     if (f.kind === 3){                                // пикировщик: бросается на героиню
       f.cd -= dt;
       f.div = f.div || 0;
       if (f.div > 0){
+        f.anim = 'flap';
         f.div -= dt;
         var dxp = (p.x + p.w/2) - (f.x + f.w/2), dyp = (p.y + 8) - (f.y + f.h/2);
         var ln = Math.sqrt(dxp*dxp + dyp*dyp) || 1;
