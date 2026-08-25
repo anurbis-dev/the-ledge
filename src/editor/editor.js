@@ -124,11 +124,11 @@ function rebuildEdObjs(){
 /* предметы, которые можно тащить в сундук/врага; часть из них (не coin/gem/shroom)
    не работают как отдельный мировой предмет — только как содержимое лута */
 var LOOT_KINDS = { coin:1, gem:1, shroom:1, key:1, helmet:1, shield:1, sword:1,
-                    scuba:1, flippers:1, harpoon:1, bow:1 };
-var LOOT_ONLY_KINDS = { key:1, helmet:1, shield:1, sword:1, scuba:1, flippers:1, harpoon:1, bow:1 };
+                    scuba:1, flippers:1, harpoon:1, bow:1, pickaxe:1 };
+var LOOT_ONLY_KINDS = { key:1, helmet:1, shield:1, sword:1, scuba:1, flippers:1, harpoon:1, bow:1, pickaxe:1 };
 var LOOT_NAMES = { key:'Key', coin:'Coin', gem:'Gem', shroom:'Shroom', helmet:'Helmet',
                     shield:'Shield', sword:'Sword', scuba:'Scuba', flippers:'Flippers',
-                    harpoon:'Harpoon', bow:'Bow' };
+                    harpoon:'Harpoon', bow:'Bow', pickaxe:'Pickaxe' };
 
 function palObjMeta(spec){
   if (!spec) return null;

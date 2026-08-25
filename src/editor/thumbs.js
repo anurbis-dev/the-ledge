@@ -265,7 +265,8 @@ export function paintObjIcon(c, kind, s){
     r(6, 3, 4, 10, '#8a94a0'); r(7, 2, 2, 2, '#8a94a0');
     r(7, 1, 2, 1, '#cfeaff'); r(7, 5, 2, 6, '#5a6874');
   } else if (kind === 'helmet' || kind === 'shield' || kind === 'sword' ||
-             kind === 'scuba' || kind === 'flippers' || kind === 'harpoon' || kind === 'bow'){
+             kind === 'scuba' || kind === 'flippers' || kind === 'harpoon' || kind === 'bow' ||
+             kind === 'pickaxe'){
     var gk = kind === 'helmet' ? 'ihelm' : kind === 'shield' ? 'ishield' : kind;
     var gc = P.gearCol[gk] || ['#cfc6ff', '#8f88bb'];
     if (kind === 'helmet'){
@@ -281,6 +282,9 @@ export function paintObjIcon(c, kind, s){
       r(3, 6, 10, 4, gc[0]); r(2, 9, 4, 4, gc[1]); r(10, 9, 4, 4, gc[1]);
     } else if (kind === 'harpoon'){
       r(1, 7, 12, 2, gc[0]); r(1, 9, 12, 1, gc[1]); r(12, 5, 3, 3, gc[0]); r(13, 4, 2, 2, '#c9d4dc');
+    } else if (kind === 'pickaxe'){
+      r(2, 8, 12, 2, gc[0]); r(2, 10, 12, 1, gc[1]);
+      r(9, 3, 3, 3, gc[1]); r(11, 2, 3, 3, gc[0]); r(12, 5, 2, 2, gc[1]);
     } else {
       r(8, 2, 2, 12, gc[1]); r(5, 3, 3, 1, gc[0]); r(10, 3, 3, 1, gc[0]);
       r(4, 12, 4, 1, gc[0]); r(10, 12, 4, 1, gc[0]); r(7, 7, 2, 2, P.string);

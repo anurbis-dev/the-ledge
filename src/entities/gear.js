@@ -5,7 +5,7 @@ import { runtime } from '../core/runtime.js';
 export var HAND_SLOTS = { weapon: 1, harpoon: 1, pickaxe: 1 };
 
 /* оружие, чью durability можно настраивать по уровням в редакторе */
-export var WEAPON_TYPES = ['stick', 'spear', 'sword', 'blade', 'bow', 'harpoon'];
+export var WEAPON_TYPES = ['stick', 'spear', 'sword', 'blade', 'bow', 'harpoon', 'pickaxe'];
 
 /* стартовый боезапас, выдаётся вместе с оружием (боезапас — отдельно от durability) */
 var AMMO_START = { bow: 6, harpoon: 4 };

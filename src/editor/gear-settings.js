@@ -4,7 +4,7 @@ import { GEAR, WEAPON_TYPES } from '../entities/gear.js';
 import { initSliders } from './slider.js';
 
 var host = null;
-var NAME = { stick: 'STICK', spear: 'SPEAR', sword: 'SWORD', blade: 'BLADE', bow: 'BOW', harpoon: 'HARPOON' };
+var NAME = { stick: 'STICK', spear: 'SPEAR', sword: 'SWORD', blade: 'BLADE', bow: 'BOW', harpoon: 'HARPOON', pickaxe: 'PICKAXE' };
 
 export function bindGearPanel(){
   host = document.getElementById('edGear');
