@@ -1,5 +1,5 @@
 import { T, C } from '../core/constants.js';
-import { mapIx, inMap } from '../core/runtime.js';
+import { mapIx, inMap, hooks } from '../core/runtime.js';
 import { tileAt, solidTile, isWaterV } from '../core/map.js';
 import { tileDurability } from '../core/tileset.js';
 
@@ -26,6 +26,7 @@ export function tryDig(S){
   if (S.digHp[k] <= 0){
     delete S.digHp[k];
     S.gone[k] = 1;
+    if (hooks.onSetTile) hooks.onSetTile(col, r);
     p.events.push('digbreak:' + k);
   } else {
     p.events.push('dighit:' + k);

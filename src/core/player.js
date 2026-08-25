@@ -1,5 +1,5 @@
 import { T, C, LADR, LADL, LADW } from './constants.js';
-import { runtime } from './runtime.js';
+import { runtime, mapIx } from './runtime.js';
 import {
   tileAt, rectFree, solidAt, isSlopeV, slopeTop, slopeGrade, isLadV, ladderTop,
   isBarV, ladderTile, solidTile, tileBlocks, isWaterV, groundYAt, tileFlipAt, ceilYAt
@@ -555,10 +555,21 @@ function platSeam(list, q, side){
   return false;
 }
 /* --- захват края / нижней перекладины --- */
+/* падаем сквозь свою же колонку, где тайл выкопан/осыпался — не цепляться за соседний край */
+function fallingThroughGone(p){
+  if (!runtime.W || !runtime.W.gone) return false;
+  var c = Math.floor(footCenterX(p) / T);
+  var r0 = Math.floor(p.y / T), r1 = Math.floor((p.y + p.h) / T);
+  for (var r = r0; r <= r1; r++){
+    if (runtime.W.gone[mapIx(c, r)] > 0) return true;
+  }
+  return false;
+}
 export function tryGrab(S, p){
   if (p.inWater) return false;                              // под водой кромки не берём
   if (p.grabCd > 0 || p.onGround || p.state !== 'normal' || p.rollT > 0) return false;
   if (p.vy < C.GRAB_VY) return false;
+  if (fallingThroughGone(p)) return false;                   // сквозь дыру от кирки/осыпи — не хватаемся
   var g = heroGrabWorld(p), handY = g.y, dir = p.facing, dy;
 
   /* plat раньше тайлов: иначе findLedge берёт губу клетки под/у палубы (~T смещение) */
