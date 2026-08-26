@@ -1,14 +1,15 @@
 /* Кастомные тайлы: флаги + опционально spriteId (графика) / legacy src.
-   Черновик — ledge.dev.tiles; в игру уезжает через Bake → BAKED.tiles / BAKED.tileGfx. */
+   Единственный источник истины — BAKED.tiles/BAKED.tileGfx (src/core/defaults.js).
+   Черновик живёт только в памяти этой вкладки; на диск попадает исключительно
+   по кнопке Bake (см. core/bake-client.js) — никакого localStorage-оверлея. */
 import { BAKED } from './defaults.js';
-import { preferLocal, notifyDraftChange } from './persist.js';
+import { notifyDraftChange } from './persist.js';
 import {
   getSpriteDef, getAnimFrameCount, getSpriteFrameSrc, spriteFrameImage
 } from './spriteset.js';
 
 export var CUSTOM_BASE = 64;
 export var CUSTOM_MAX = 255;
-var KEY = 'ledge.dev.tiles';
 
 var tiles = [];
 var byId = {};
@@ -119,21 +120,6 @@ function loadAllImgs(){
   var i, id;
   for (i = 0; i < tiles.length; i++) loadImg(tiles[i]);
   for (id in gfx) if (Object.prototype.hasOwnProperty.call(gfx, id)) loadGfx(id | 0);
-}
-
-function readLocal(){
-  try {
-    var raw = localStorage.getItem(KEY);
-    if (!raw) return null;
-    var o = JSON.parse(raw);
-    if (Array.isArray(o)) return { tiles: o, gfx: {} };
-    if (o && Array.isArray(o.tiles)) return { tiles: o.tiles, gfx: o.gfx || {} };
-    return null;
-  } catch (_){ return null; }
-}
-
-function writeLocal(){
-  try { localStorage.setItem(KEY, JSON.stringify({ tiles: tiles, gfx: gfx })); } catch (_){}
 }
 
 var GFX_META = [
@@ -268,51 +254,10 @@ export function ensureTileLegacyPictures(){
   return n;
 }
 
-/** LS после migrate мог остаться без src — подтянуть picture из BAKED. */
-function healLegacyFromBaked(){
-  var baked = (BAKED && BAKED.tiles) || [];
-  var byB = {}, i, t, b, g, bg, changed = false;
-  for (i = 0; i < baked.length; i++){
-    b = baked[i];
-    if (b && b.id) byB[b.id] = b;
-  }
-  for (i = 0; i < tiles.length; i++){
-    t = tiles[i];
-    if (!t || t.src || (t.frames && t.frames.length)) continue;
-    b = byB[t.id];
-    if (!b || !(b.src || (b.frames && b.frames.length))) continue;
-    t.src = b.src || '';
-    t.frames = Array.isArray(b.frames) ? b.frames.filter(Boolean) : [];
-    tiles[i] = normalizeTile(t);
-    changed = true;
-  }
-  bg = (BAKED && BAKED.tileGfx) || {};
-  for (i in gfx){
-    if (!Object.prototype.hasOwnProperty.call(gfx, i)) continue;
-    g = gfx[i];
-    if (!g || g.src || (g.frames && g.frames.length)) continue;
-    b = bg[i];
-    if (!b || !(b.src || (b.frames && b.frames.length))) continue;
-    g.src = b.src || '';
-    g.frames = Array.isArray(b.frames) ? b.frames.filter(Boolean) : [];
-    changed = true;
-  }
-  return changed;
-}
-
 function boot(){
-  var local = readLocal();
-  var useLocal = preferLocal() && local;
-  var baked = (BAKED && BAKED.tiles) || [];
-  if (useLocal && local.tiles && local.tiles.length) tiles = local.tiles.map(normalizeTile).filter(Boolean);
-  else tiles = baked.map(normalizeTile).filter(Boolean);
-  if (useLocal && local.gfx && Object.keys(local.gfx).length) gfx = cloneGfx(local.gfx);
-  else gfx = cloneGfx((BAKED && BAKED.tileGfx) || {});
+  tiles = ((BAKED && BAKED.tiles) || []).map(normalizeTile).filter(Boolean);
+  gfx = cloneGfx((BAKED && BAKED.tileGfx) || {});
   rebuild();
-  if (healLegacyFromBaked()){
-    rebuild();
-    try { writeLocal(); } catch (_){}
-  }
   loadAllImgs();
 }
 
@@ -606,7 +551,6 @@ function nextId(){
 }
 
 function emit(why){
-  writeLocal();
   notifyDraftChange();
   if (onChange) onChange(why || 'change');
 }
@@ -633,7 +577,6 @@ export function addTile(partial){
   rebuild();
   loadImg(t);
   emit('add');
-  pushTileFile(t);
   return t;
 }
 
@@ -649,7 +592,6 @@ export function updateTile(id, patch){
   rebuild();
   loadImg(t);
   emit('update');
-  pushTileFile(t);
   return t;
 }
 
@@ -750,23 +692,6 @@ export function guessOverlay(src){
     img.onerror = function(){ resolve(true); };
     img.src = src;
   });
-}
-
-function pushTileFile(t){
-  if (!t || !t.src) return;
-  try {
-    if (location.protocol === 'file:') return;
-    fetch('/__tile', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tile: t })
-    }).catch(function(){});
-  } catch (_){}
-}
-
-export function pushAllTileFiles(){
-  var i;
-  for (i = 0; i < tiles.length; i++) pushTileFile(tiles[i]);
 }
 
 void hasAlpha;

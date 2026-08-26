@@ -1,11 +1,16 @@
 /* Каталог спрайтов персонажей: строки анимаций, кадры — PNG.
-   Черновик — ledge.dev.sprites (кадры + якоря). Bake → BAKED.sprites (якоря + frames)
-   и BAKED.spriteDefs (кастом-клоны). Пустой кадр = скелет / rc. */
+   Единственный источник истины — BAKED.sprites/BAKED.spriteDefs (src/core/defaults.js).
+   Черновик живёт только в памяти этой вкладки; на диск попадает исключительно
+   по кнопке Bake (см. core/bake-client.js) — никакого localStorage-оверлея
+   для кадров/якорей/кастом-дефов. Пустой кадр = скелет / rc. */
 import { BAKED } from './defaults.js';
 import { C } from './constants.js';
-import { preferLocal, notifyDraftChange } from './persist.js';
+import { notifyDraftChange } from './persist.js';
 
-var KEY = 'ledge.dev.sprites';
+/* Оверрайды display-имён builtin-спрайтов — чисто UI-ярлык редактора, не
+   часть BAKED (как TILE_NAMEKEY в editor.js для тайлов). Единственный
+   источник для этого поля, поэтому читается безусловно, без гонки с BAKED. */
+var NAMEKEY = 'ledge.ed.spriteNames';
 
 /* fw/fh — размер кадра; ox/oy — куда кладётся локальная (0,0) позы при блице. */
 export var SPRITE_DEFS = [
@@ -363,21 +368,17 @@ function cloneSaved(src){
   return out;
 }
 
-function readLocal(){
+function readBuiltinNames(){
   try {
-    var raw = localStorage.getItem(KEY);
+    var raw = localStorage.getItem(NAMEKEY);
     if (!raw) return null;
     var o = JSON.parse(raw);
-    if (o && (o.sprites || o.defs)) return o;
-    if (o && typeof o === 'object') return { sprites: o, defs: [] };
-    return null;
+    return (o && typeof o === 'object') ? o : null;
   } catch (_){ return null; }
 }
 
-function writeLocal(){
-  try {
-    localStorage.setItem(KEY, JSON.stringify({ sprites: saved, defs: customDefs, names: builtinNames }));
-  } catch (_){}
+function writeBuiltinNames(){
+  try { localStorage.setItem(NAMEKEY, JSON.stringify(builtinNames)); } catch (_){}
 }
 
 function normalizeCustomDef(d){
@@ -415,17 +416,6 @@ function applyBuiltinNames(names){
   }
 }
 
-function applyLocalOverlay(loc){
-  if (!loc) return;
-  if (loc.sprites) overlaySprites(saved, loc.sprites);
-  else overlaySprites(saved, loc);
-  if (loc.defs && loc.defs.length) applyCustomDefs(loc.defs);
-  if (loc.names && typeof loc.names === 'object'){
-    builtinNames = loc.names;
-    applyBuiltinNames(builtinNames);
-  }
-}
-
 function boot(){
   saved = {};
   customDefs = [];
@@ -433,9 +423,11 @@ function boot(){
   overlaySprites(saved, (BAKED && BAKED.sprites) || {});
   if (BAKED && BAKED.spriteDefs && BAKED.spriteDefs.length)
     applyCustomDefs(BAKED.spriteDefs);
-  /* Как тайлы: LS только если preferLocal. Иначе file:///dist со старым
-     catalog-bake в LS затирает свежий BAKED. */
-  if (preferLocal()) applyLocalOverlay(readLocal());
+  var names = readBuiltinNames();
+  if (names){
+    builtinNames = names;
+    applyBuiltinNames(builtinNames);
+  }
   rebuildById();
   loadAll();
 }
@@ -443,16 +435,8 @@ function boot(){
 boot();
 
 function emit(why){
-  writeLocal();
   notifyDraftChange();
   if (onChange) onChange(why || 'change');
-}
-
-/** Перед Bake: подтянуть кадры из LS, даже если preferLocal ещё false. */
-export function pullLocalSpritesForBake(){
-  applyLocalOverlay(readLocal());
-  rebuildById();
-  loadAll();
 }
 
 export function bindSpriteset(hooks){
@@ -578,7 +562,6 @@ export function addAnimDef(id, animId, name, n){
   if (!animId || animOf(def, animId)) return null;
   n = n | 0; if (n < 1) n = 1; if (n > 64) n = 64;
   def.anims.push({ id: animId, name: name || animId, n: n });
-  writeLocal();
   notifyDraftChange();
   if (onChange) onChange('anim');
   return getSpriteDef(id);
@@ -708,6 +691,7 @@ export function renameSpriteDef(id, name){
     if (SPRITE_DEFS[i].id === id){
       SPRITE_DEFS[i].name = next;
       builtinNames[id] = next;
+      writeBuiltinNames();
       emit('update');
       return getSpriteDef(id);
     }
@@ -918,7 +902,7 @@ export function snapshotSpriteDefs(){
   return customDefs.map(normalizeCustomDef).filter(Boolean);
 }
 
-/** Полный restore ledge.dev.sprites (saved + custom defs) для undo. */
+/** Полный restore черновика спрайтов (saved + custom defs) — для undo. */
 export function applySpritesSnap(snap){
   var defs, i, m;
   saved = cloneSaved((snap && snap.sprites) || {});

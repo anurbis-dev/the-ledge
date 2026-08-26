@@ -7,7 +7,7 @@ import { settingsSnapshot } from '../ui/settings.js';
 import { mixSnapshot, scoreSnapshot } from '../audio/music.js';
 import { talkSnapshot } from '../audio/talk.js';
 import { snapshotTiles, snapshotGfx } from './tileset.js';
-import { snapshotSprites, snapshotSpriteDefs, pullLocalSpritesForBake } from './spriteset.js';
+import { snapshotSprites, snapshotSpriteDefs } from './spriteset.js';
 import { runtime } from './runtime.js';
 
 var inflight = false;
@@ -16,7 +16,6 @@ var again = false;
 var waitFull = null;
 
 export function collectAuto(){
-  pullLocalSpritesForBake();
   var o = {
     levels: levelsStoreSnapshot(),
     tiles: snapshotTiles(),

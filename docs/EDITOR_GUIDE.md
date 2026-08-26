@@ -307,12 +307,11 @@
 Уровни (карты):
 - Правка помечает dirty; через debounce `flushLevel` пишет в сессионный mem-store (`memLevels` в `persist.js`), не в `localStorage`.
 - Boot: `hydrateAll` всегда из `BAKED.levels` (`defaults.js`); legacy-ключ `ledge.dev.levels` с диска удаляется.
-- Flush уровней **не** трогает `ledge.dev.savedAt` — правки карты сами по себе не включают `preferLocal` для тайлов.
 - Reload без `Bake` теряет несохранённые правки уровней (ожидаемо). Auto-bake отключён (`scheduleBake` — no-op).
 
 Tiles / sprites / params / intro:
-- Черновики по-прежнему в `localStorage` (`ledge.dev.tiles` / `.sprites` / `.C` / `.intro` и т.п.).
-- `preferLocal` сравнивает `ledge.dev.savedAt` с `BAKED.savedAt` **только** для этих слоёв (не для карт).
+- Черновики (кроме names) больше не конкурируют за приоритет: boot() загружает тайлы и спрайты чистой из `BAKED` без localStorage race-condition (исторически `ledge.dev.savedAt` vs `BAKED.savedAt` могли создавать "старая картинка при загрузке после Bake" — удалено). Все остальные черновики (`ledge.dev.C` / `.intro` / custom objects) по-прежнему в `localStorage` как перед-Bake состояние в сессии.
+- Исключение: буквальные имена для встроенных объектов (`ledge.ed.tileNames` / `.spriteNames`) грузятся из localStorage как персист-подменение каталога (не конкурирует с `BAKED` на картинки), прежний паттерн.
 
 Ручной bake:
 - Единственный путь на диск: кнопка `Bake` → `POST /__bake` → `src/core/defaults.js` (уровни из mem-store, тайлы, спрайты).
