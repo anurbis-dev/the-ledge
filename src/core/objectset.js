@@ -6,8 +6,8 @@ import { spriteDefForKind, getSpriteDef, SPRITE_DEFS } from './spriteset.js';
 var KEY = 'ledge.dev.objects';
 var ROLES = ['actor', 'pickup', 'loot', 'prop', 'marker'];
 
-var PICKUP_KINDS = { coin:1, gem:1, shroom:1, relic:1, tank:1 };
-var LOOT_KINDS = { key:1, helmet:1, shield:1, sword:1, scuba:1, flippers:1, harpoon:1, bow:1, pickaxe:1 };
+var PICKUP_KINDS = { coin:1, gem:1, shroom:1, relic:1, tank:1, pickaxe:1 };
+var LOOT_KINDS = { key:1, helmet:1, shield:1, sword:1, scuba:1, flippers:1, harpoon:1, bow:1 };
 var PROP_KINDS = { chest:1, chestL:1, torch:1, boulder:1, light:1 };
 var MARKER_KINDS = { sound:1, volume:1, fx_sand:1, level_exit:1, door:1, player_start:1, rope_v:1, rope_h:1, plat_h:1, plat_v:1, lift:1 };
 

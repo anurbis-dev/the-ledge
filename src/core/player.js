@@ -729,12 +729,12 @@ function findDescendTile(p, want){
   if (ladderTile(lc0, lr0) || ladderTile(lc0 - 1, lr0) || ladderTile(lc0 + 1, lr0)) return null;
   var order = want ? [want, -want] : [p.facing, -p.facing];
   for (var i = 0; i < order.length; i++){
-    var dir = order[i], col = -1;
+    var dir = order[i], col = null;
     for (var d = 2; d <= 16; d += 2){
       var px = dir > 0 ? p.x + p.w - 1 + d : p.x - d;
       if (!solidAt(px, gy + 2)){ col = Math.floor(px / T) - dir; break; }
     }
-    if (col < 0 || !solidTile(col, Math.floor((gy + 2) / T))) continue;
+    if (col == null || !solidTile(col, Math.floor((gy + 2) / T))) continue;
     var midX = p.x + p.w / 2;
     // опора = центр коробки: достаточно стоять на последнем тайле.
     // midTile отсекал лёжа (PRW>T/2) — губа уже под телом, центр ещё до середины

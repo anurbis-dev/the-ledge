@@ -5,7 +5,7 @@ import {
   getTileSpeed2, getTileLength2, getTileDensity2, getTileWave2, getTileFoam, getTileSpray,
   getTileFoamSize, getTileFoamRandom, getTileFoamSpeed, getTileSpraySpeed,
   getTileTaper, getTileTaperLen,
-  getTileSpriteId, setTileSpriteId, tileBaseId,
+  getTileSpriteId, setTileSpriteId, tileBaseId, syncTileLegacyFromSprite,
   tileFrameCount, tileFrameSrc, canvasToPng, loadImageFile, sliceSheet, addTile
 } from '../core/tileset.js';
 import { initSliders } from './slider.js';
@@ -305,6 +305,7 @@ export function applySpriteSlotPayload(payload){
   if (mode === 'tile' && current && current.id != null){
     markOp();
     setTileSpriteId(current.id, payload.spriteId);
+    syncTileLegacyFromSprite(current.id);           // без этого paintCustom не находит картинку и рисует процедурно
     current.spriteId = payload.spriteId;
     notify();
     fillBody();
