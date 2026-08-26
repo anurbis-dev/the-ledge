@@ -15,7 +15,7 @@ import {
   clearAnimAnchors, getAnimBox, setAnimBox,
   getAnimFrameCount, setAnimFrameCount, reorderAnimFrames,
   getAnimSpeed, setAnimSpeed,
-  addSpriteDef, spriteFrameImage, addAnimDef
+  addSpriteDef, spriteFrameImage, addAnimDef, renameSpriteDef
 } from '../core/spriteset.js';
 import { updateObject, getObjectDef } from '../core/objectset.js';
 import { runtime } from '../core/runtime.js';
@@ -39,6 +39,7 @@ var frameI = 0;
 var onChange = null;
 var onDeleteCustom = null;
 var onObjectChange = null;
+var onRenameBuiltinTile = null;
 
 var TOOLS = [
   { id: 'pencil', name: 'Paint', title: 'Paint pixels (LMB). RMB erases. Alt+click picks a color.' },
@@ -105,6 +106,7 @@ export function bindTileEdit(hooks){
   onChange = hooks && hooks.onChange;
   onDeleteCustom = hooks && hooks.onDeleteCustom;
   onObjectChange = hooks && hooks.onObjectChange;
+  onRenameBuiltinTile = hooks && hooks.onRenameBuiltinTile;
 }
 
 export function isDetailsOpen(){
@@ -368,11 +370,9 @@ function fillObjectHeader(parent){
   nameInp.type = 'text';
   nameInp.value = objCurrent.name || '';
   nameInp.maxLength = 32;
-  nameInp.disabled = !objCurrent.custom;
   nameInp.addEventListener('keydown', function(e){ e.stopPropagation(); });
   nameInp.addEventListener('change', function(){
-    if (!objCurrent.custom) return;
-    markOp();
+    if (objCurrent.custom) markOp();
     var next = updateObject(objCurrent.kind, { name: nameInp.value.trim() || objCurrent.name });
     if (!next) return;
     objCurrent.name = next.name;
@@ -460,6 +460,25 @@ function fillObjectHeader(parent){
   }
 
   parent.insertBefore(box, parent.firstChild);
+}
+
+/** Sprite Details opened directly from the Sprites tab (no owning object): Name only. */
+function fillSpriteHeader(){
+  if (!current) return;
+  var nameInp = document.createElement('input');
+  nameInp.type = 'text';
+  nameInp.value = current.name || '';
+  nameInp.maxLength = 32;
+  nameInp.addEventListener('keydown', function(e){ e.stopPropagation(); });
+  nameInp.addEventListener('change', function(){
+    if (current.custom) markOp();
+    var next = renameSpriteDef(current.id, nameInp.value.trim() || current.name);
+    if (!next) return;
+    current.name = next.name;
+    if (titleEl) titleEl.textContent = next.name;
+    notify();
+  });
+  field('Name', nameInp);
 }
 
 function fillObjectBody(){
@@ -1822,13 +1841,16 @@ function fillTileParamsOnly(){
   nameInp.type = 'text';
   nameInp.value = current.name || '';
   nameInp.maxLength = 24;
-  nameInp.disabled = !custom;
   nameInp.addEventListener('keydown', function(e){ e.stopPropagation(); });
   nameInp.addEventListener('change', function(){
-    if (!def) return;
-    markOp();
-    updateTile(def.id, { name: nameInp.value.trim() || def.name });
-    current.name = nameInp.value.trim() || current.name;
+    var val = nameInp.value.trim() || current.name;
+    if (def){
+      markOp();
+      updateTile(def.id, { name: val });
+    } else if (onRenameBuiltinTile){
+      onRenameBuiltinTile(current.id, val);
+    }
+    current.name = val;
     notify();
   });
   field('Name', nameInp);
@@ -2106,6 +2128,7 @@ function fillBody(){
 
   var sprite = isSprite();
   if (objCurrent && sprite) fillObjectHeader(body);
+  else if (sprite) fillSpriteHeader();
 
   stripsEl = document.createElement('div');
   stripsEl.className = 'ed-tile-strips';

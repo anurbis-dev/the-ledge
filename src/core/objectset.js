@@ -64,6 +64,8 @@ var customs = [];
 var byId = {};
 var onChange = null;
 var seq = 1;
+/** Display-name overrides for builtin (non-custom) kinds — dev draft, same store as customs. */
+var builtinNames = {};
 
 function emit(why){
   writeLocal();
@@ -72,7 +74,7 @@ function emit(why){
 }
 
 function writeLocal(){
-  try { localStorage.setItem(KEY, JSON.stringify({ objects: customs })); } catch (_){}
+  try { localStorage.setItem(KEY, JSON.stringify({ objects: customs, names: builtinNames })); } catch (_){}
 }
 
 function readLocal(){
@@ -80,8 +82,8 @@ function readLocal(){
     var raw = localStorage.getItem(KEY);
     if (!raw) return null;
     var o = JSON.parse(raw);
-    if (o && Array.isArray(o.objects)) return o.objects;
-    if (Array.isArray(o)) return o;
+    if (o && Array.isArray(o.objects)) return o;
+    if (Array.isArray(o)) return { objects: o, names: {} };
     return null;
   } catch (_){ return null; }
 }
@@ -146,8 +148,10 @@ function nextId(){
 
 function boot(){
   customs = [];
+  builtinNames = {};
   if (preferLocal()){
-    var list = readLocal();
+    var loc = readLocal();
+    var list = loc && loc.objects;
     if (list && list.length){
       customs = list.map(normalizeObject).filter(Boolean);
       var i, m;
@@ -156,6 +160,7 @@ function boot(){
         if (m) seq = Math.max(seq, (+m[1]) + 1);
       }
     }
+    if (loc && loc.names && typeof loc.names === 'object') builtinNames = loc.names;
   }
   rebuild();
 }
@@ -191,7 +196,7 @@ export function resolveObject(kind){
     b = BUILTIN_OBJS[i];
     if (b.kind === kind){
       return {
-        name: b.name,
+        name: builtinNames[b.kind] || b.name,
         kind: b.kind,
         template: b.kind,
         role: builtinRole(b.kind),
@@ -209,7 +214,7 @@ export function allPaletteObjects(){
   for (i = 0; i < BUILTIN_OBJS.length; i++){
     b = BUILTIN_OBJS[i];
     out.push({
-      name: b.name,
+      name: builtinNames[b.kind] || b.name,
       kind: b.kind,
       template: b.kind,
       role: builtinRole(b.kind),
@@ -251,7 +256,18 @@ export function addObject(partial){
 
 export function updateObject(id, patch){
   var o = byId[id], k, next;
-  if (!o) return null;
+  if (!o){
+    if (patch && patch.name){
+      for (k = 0; k < BUILTIN_OBJS.length; k++){
+        if (BUILTIN_OBJS[k].kind === id){
+          builtinNames[id] = String(patch.name);
+          emit('update');
+          return resolveObject(id);
+        }
+      }
+    }
+    return null;
+  }
   next = {};
   for (k in o) if (Object.prototype.hasOwnProperty.call(o, k)) next[k] = o[k];
   for (k in patch) if (k !== 'id' && Object.prototype.hasOwnProperty.call(patch, k)) next[k] = patch[k];

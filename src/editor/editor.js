@@ -26,7 +26,7 @@ import {
 import {
   spriteDefForKind, getSpriteDef, bindSpriteset, cloneSpriteDef,
   addSpriteDef, isSpriteFrameDirty, getSpriteFrameSrc, setSpriteFrame,
-  listSpriteDefs, removeSpriteDef
+  listSpriteDefs, removeSpriteDef, renameSpriteDef
 } from '../core/spriteset.js';
 import {
   allPaletteObjects, resolveObject, cloneObjectFrom, bindObjectset,
@@ -113,6 +113,34 @@ export var ED_TILES = [
   { name: 'Plank',   id: G.PLANK, color: '#a9743f' },
   { name: 'Give',    id: G.GIVE,  color: '#4a4069' }
 ];
+
+/** Display-name overrides for builtin tiles (dev draft, not part of BAKED data). */
+var TILE_NAMEKEY = 'ledge.ed.tileNames';
+(function applyBuiltinTileNames(){
+  var i, raw, names;
+  try {
+    raw = localStorage.getItem(TILE_NAMEKEY);
+    if (!raw) return;
+    names = JSON.parse(raw);
+  } catch (_){ return; }
+  if (!names || typeof names !== 'object') return;
+  for (i = 0; i < ED_TILES.length; i++)
+    if (names[ED_TILES[i].id] != null) ED_TILES[i].name = names[ED_TILES[i].id];
+})();
+function renameBuiltinTile(id, name){
+  var i, t = null, raw, names;
+  for (i = 0; i < ED_TILES.length; i++) if (ED_TILES[i].id === id){ t = ED_TILES[i]; break; }
+  if (!t) return false;
+  t.name = name;
+  try {
+    raw = localStorage.getItem(TILE_NAMEKEY);
+    names = raw ? JSON.parse(raw) : {};
+    if (!names || typeof names !== 'object') names = {};
+    names[id] = name;
+    localStorage.setItem(TILE_NAMEKEY, JSON.stringify(names));
+  } catch (_){}
+  return true;
+}
 export var ED_OBJS = allPaletteObjects();
 
 function rebuildEdObjs(){
@@ -306,7 +334,8 @@ bindTileEdit({
     clearThumbCache();
     markLevelDirty();
     edRefresh();
-  }
+  },
+  onRenameBuiltinTile: function(id, name){ return renameBuiltinTile(id, name); }
 });
 bindObjectset({
   onChange: function(){
@@ -471,12 +500,10 @@ function swatch(parent, canvas, label, active, onPick, kind, pal, onClick, showL
     b.appendChild(nameEl);
     b._nameLabel = nameEl;
   }
-  if (kind === 'obj'){
-    b.addEventListener('pointerenter', function(){ hoverPalSwatch = { btn: b, pal: pal }; });
-    b.addEventListener('pointerleave', function(){
-      if (hoverPalSwatch && hoverPalSwatch.btn === b) hoverPalSwatch = null;
-    });
-  }
+  b.addEventListener('pointerenter', function(){ hoverPalSwatch = { btn: b, kind: kind, pal: pal }; });
+  b.addEventListener('pointerleave', function(){
+    if (hoverPalSwatch && hoverPalSwatch.btn === b) hoverPalSwatch = null;
+  });
   b.addEventListener('pointerdown', function(e){
     if (e.button !== 0) return;
     if (e.detail >= 2) return;
@@ -633,25 +660,72 @@ function markActiveSwatch(btn){
 
 var hoverPalSwatch = null;
 
-/** F2 while hovering an Objects palette swatch: rename the custom object inline. */
-function renamePaletteObject(){
-  if (!edPal || ED.tab !== 'obj' || !hoverPalSwatch) return false;
-  var spec = ED_OBJS[hoverPalSwatch.pal];
-  var meta = palObjMeta(spec);
-  if (!meta || !meta.custom) return false;
+/** F2 while hovering a Tiles/Objects/Sprites palette swatch: rename it inline (builtin or custom). */
+function renamePaletteSwatch(){
+  if (!edPal || !hoverPalSwatch) return false;
   var sw = hoverPalSwatch.btn;
-  if (!sw || !sw._nameLabel || sw._renaming) return false;
-  startInlineRename(sw, spec, meta);
-  return true;
+  if (!sw || sw._renaming) return false;
+  var kind = hoverPalSwatch.kind, pal = hoverPalSwatch.pal;
+  if (kind === 'obj'){
+    var spec = ED_OBJS[pal];
+    var meta = palObjMeta(spec);
+    if (!meta) return false;
+    var objCustom = meta.custom;
+    startInlineRename(sw, meta.name, function(val){
+      if (objCustom) beginOp();
+      updateObject(spec.kind, { name: val });
+      if (objCustom){ noteOp(); endOp(); }
+      rebuildEdObjs();
+      refreshTileEdit();
+    });
+    return true;
+  }
+  if (kind === 'tile'){
+    var tspec = palTiles()[pal];
+    if (!tspec || tspec.id == null) return false;
+    var tileCustom = isCustomId(tspec.id);
+    startInlineRename(sw, tspec.name, function(val){
+      if (tileCustom){
+        beginOp();
+        updateTile(tspec.id, { name: val });
+        noteOp();
+        endOp();
+      } else {
+        renameBuiltinTile(tspec.id, val);
+      }
+      refreshTileEdit();
+    });
+    return true;
+  }
+  if (kind === 'sprite'){
+    var def = listSpriteDefs()[pal];
+    if (!def) return false;
+    var sprCustom = def.custom;
+    startInlineRename(sw, def.name, function(val){
+      if (sprCustom) beginOp();
+      renameSpriteDef(def.id, val);
+      if (sprCustom){ noteOp(); endOp(); }
+      refreshTileEdit();
+    });
+    return true;
+  }
+  return false;
 }
 
-function startInlineRename(sw, spec, meta){
+function startInlineRename(sw, currentName, onCommit){
   var lab = sw._nameLabel;
+  if (!lab){
+    sw.classList.add('ed-swatch-named');
+    lab = document.createElement('div');
+    lab.className = 'ed-swatch-name';
+    lab.textContent = currentName || '';
+    sw.appendChild(lab);
+  }
   sw._renaming = true;
   var input = document.createElement('input');
   input.type = 'text';
   input.className = 'ed-swatch-name-edit';
-  input.value = meta.name || '';
+  input.value = currentName || '';
   input.maxLength = 32;
   lab.replaceWith(input);
   input.focus();
@@ -661,13 +735,7 @@ function startInlineRename(sw, spec, meta){
     if (done) return;
     done = true;
     var val = input.value.trim();
-    if (save && val && val !== meta.name){
-      beginOp();
-      updateObject(spec.kind, { name: val });
-      endOp();
-      rebuildEdObjs();
-      refreshTileEdit();
-    }
+    if (save && val && val !== currentName) onCommit(val);
     fillPal();
   }
   input.addEventListener('pointerdown', function(e){ e.stopPropagation(); });
@@ -1074,10 +1142,13 @@ function spriteHasIdlePic(sid){
   return !!(sid && isSpriteFrameDirty(sid, 'idle', 0) && getSpriteFrameSrc(sid, 'idle', 0));
 }
 
+/* Каталожный = встроенный (не custom-клон) спрайт — из SPRITE_DEFS, а не из редактора.
+   Раньше был захардкоженный список id ('hero', 'lantern', ...), где забыли 'shirley':
+   materializeBakesInto могла бы напрямую забэйкать статичные PNG поверх общего
+   персонажа, замораживая его вид независимо от правок в characters.js/Shirley.html. */
 function isCatalogSpriteId(id){
-  if (!id) return false;
-  if (id === 'hero' || id === 'lantern') return true;
-  return /^(enemy|flier|spider)\d+$/.test(id) || id.indexOf('npc_') === 0;
+  var def = id && getSpriteDef(id);
+  return !!(def && !def.custom);
 }
 
 /** Прописать bake во все пустые кадры спрайта (клон, не каталог). */
@@ -3150,9 +3221,9 @@ addEventListener('keydown', function(e){
     if (stepDetailsFrame(e.key === 'ArrowLeft' ? -1 : 1)) e.preventDefault();
     return;
   }
-  if (ED.on && e.key === 'F2' && ED.tab === 'obj'){
+  if (ED.on && e.key === 'F2' && (ED.tab === 'obj' || ED.tab === 'tile' || ED.tab === 'sprite')){
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-    if (renamePaletteObject()) e.preventDefault();
+    if (renamePaletteSwatch()) e.preventDefault();
     return;
   }
   if (ED.on && (e.key === 'Delete' || e.key === 'Backspace') && ED.selTiles && ED.tool === 'tile'){

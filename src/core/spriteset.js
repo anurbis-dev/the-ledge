@@ -49,6 +49,45 @@ export var SPRITE_DEFS = [
       { id: 'getup', name: 'Get up', n: 3 }
     ]
   },
+  { id: 'shirley', name: 'Shirley', fw: 40, fh: 48, ox: 16, oy: 22, fx: 5, kind: 'hero', family: 'hero',
+    anims: [
+      { id: 'idle', name: 'Idle', n: 2 },
+      { id: 'run', name: 'Run', n: 4 },
+      { id: 'jump', name: 'Jump', n: 1 },
+      { id: 'fall', name: 'Fall', n: 1 },
+      { id: 'land', name: 'Land', n: 1 },
+      { id: 'slide', name: 'Slide', n: 1 },
+      { id: 'crouch', name: 'Crouch', n: 1 },
+      { id: 'crouchWalk', name: 'Crouch walk', n: 1 },
+      { id: 'prone', name: 'Prone', n: 2 },
+      { id: 'wallPush', name: 'Wall push', n: 1 },
+      { id: 'vault', name: 'Vault', n: 1 },
+      { id: 'pick', name: 'Pick', n: 1 },
+      { id: 'pickCrouch', name: 'Pick crouch', n: 1 },
+      { id: 'pickProne', name: 'Pick prone', n: 1 },
+      { id: 'throw', name: 'Throw', n: 1 },
+      { id: 'attack', name: 'Attack', n: 3 },
+      { id: 'dig', name: 'Dig', n: 3 },
+      { id: 'digDown', name: 'Dig down', n: 3 },
+      { id: 'roll', name: 'Roll', n: 1 },
+      { id: 'stun', name: 'Stun', n: 1 },
+      { id: 'snare', name: 'Snare', n: 1 },
+      { id: 'ladder', name: 'Ladder', n: 2 },
+      { id: 'ladderF', name: 'Ladder front', n: 2 },
+      { id: 'ladderD', name: 'Ladder diag', n: 2 },
+      { id: 'ropeClimb', name: 'Rope climb', n: 2 },
+      { id: 'ropeSwing', name: 'Rope swing', n: 2 },
+      { id: 'bars', name: 'Bars', n: 2 },
+      { id: 'swim', name: 'Swim', n: 2 },
+      { id: 'dive', name: 'Dive', n: 2 },
+      { id: 'hangLad', name: 'Hang ladder', n: 1 },
+      { id: 'hang', name: 'Hang ledge', n: 2 },
+      { id: 'climb', name: 'Climb', n: 5 },
+      { id: 'bow', name: 'Bow', n: 3 },
+      { id: 'grapple', name: 'Grapple', n: 2 },
+      { id: 'getup', name: 'Get up', n: 3 }
+    ]
+  },
   { id: 'enemy0', name: 'Foe 1', fw: 16, fh: 16, ox: 2, oy: 2, kind: 'enemy0',
     anims: [{ id: 'idle', name: 'Idle', n: 2, speed: 1.9 }] },
   { id: 'enemy1', name: 'Foe 2', fw: 16, fh: 16, ox: 2, oy: 2, kind: 'enemy1',
@@ -152,6 +191,8 @@ var onChange = null;
 var MIN_S = 8, MAX_S = 128;
 var defSeq = 1;
 export var DEFAULT_ANIM_FPS = 8;
+/** Display-name overrides for builtin (non-custom) sprite defs — dev draft, same store as customDefs. */
+var builtinNames = {};
 
 function rebuildById(){
   var i, d;
@@ -335,7 +376,7 @@ function readLocal(){
 
 function writeLocal(){
   try {
-    localStorage.setItem(KEY, JSON.stringify({ sprites: saved, defs: customDefs }));
+    localStorage.setItem(KEY, JSON.stringify({ sprites: saved, defs: customDefs, names: builtinNames }));
   } catch (_){}
 }
 
@@ -366,16 +407,29 @@ function applyCustomDefs(list){
   }
 }
 
+function applyBuiltinNames(names){
+  var i, id;
+  for (i = 0; i < SPRITE_DEFS.length; i++){
+    id = SPRITE_DEFS[i].id;
+    if (names[id] != null) SPRITE_DEFS[i].name = names[id];
+  }
+}
+
 function applyLocalOverlay(loc){
   if (!loc) return;
   if (loc.sprites) overlaySprites(saved, loc.sprites);
   else overlaySprites(saved, loc);
   if (loc.defs && loc.defs.length) applyCustomDefs(loc.defs);
+  if (loc.names && typeof loc.names === 'object'){
+    builtinNames = loc.names;
+    applyBuiltinNames(builtinNames);
+  }
 }
 
 function boot(){
   saved = {};
   customDefs = [];
+  builtinNames = {};
   overlaySprites(saved, (BAKED && BAKED.sprites) || {});
   if (BAKED && BAKED.spriteDefs && BAKED.spriteDefs.length)
     applyCustomDefs(BAKED.spriteDefs);
@@ -633,6 +687,32 @@ export function addSpriteDef(partial){
     emit('add');
   }
   return getSpriteDef(id);
+}
+
+export function renameSpriteDef(id, name){
+  var i, next = String(name || '').trim();
+  if (!next) return getSpriteDef(id);
+  for (i = 0; i < customDefs.length; i++){
+    if (customDefs[i].id === id){
+      customDefs[i] = normalizeCustomDef({
+        id: customDefs[i].id, name: next, fw: customDefs[i].fw, fh: customDefs[i].fh,
+        ox: customDefs[i].ox, oy: customDefs[i].oy, fx: customDefs[i].fx,
+        kind: customDefs[i].kind, family: customDefs[i].family, anims: customDefs[i].anims
+      });
+      rebuildById();
+      emit('update');
+      return getSpriteDef(id);
+    }
+  }
+  for (i = 0; i < SPRITE_DEFS.length; i++){
+    if (SPRITE_DEFS[i].id === id){
+      SPRITE_DEFS[i].name = next;
+      builtinNames[id] = next;
+      emit('update');
+      return getSpriteDef(id);
+    }
+  }
+  return null;
 }
 
 export function removeSpriteDef(id){

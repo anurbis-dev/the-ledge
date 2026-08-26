@@ -120,7 +120,7 @@
 Палитра = `listSpriteDefs()` (builtins + customs, `src/core/spriteset.js` / `ledge.dev.sprites`). Thumbs: `spriteThumb`. **Единственное место Paint** (`canPaint()` = sprite-mode): пиксели, Re-import, Reset frame, якоря.
 
 - Каталог `SPRITE_DEFS`: персонажи (hero / enemy* / flier* / spider* / npc_*) **и** placeable object icons (coin, chest, door, torch, gear, markers, ropes/plats/lift, …). Персонажи без авто-bake иконок; icon-каталог при boot получает dirty idle через `ensureCatalogIconFrames` (`migrate-graphics.js` → `paintObjIcon` / `bakeSpriteFrameSrc`).
-- Даблклик свача → `openSpriteEdit` (кадры / якоря в `#edTileEdit`).
+- Даблклик свача → `openSpriteEdit` (кадры / якоря в `#edTileEdit`). Окно Details при открытии из Sprites-палитры теперь содержит поле **Name** (работает для builtin и custom спрайтов; нажмите Enter или используйте F2 при наведении на сватч).
 - Драг kind `sprite` → payload `{ spriteId }` на Tile/Object **Sprite** slot или на thumb кадра action (в sprite-mode).
 - Drop PNG на вкладку → `addSpriteDef` (не `addTile`); широкий шит → idle frames.
 - `Ctrl+D` → `cloneSpriteDef` («… copy»), открывает клон.
@@ -133,7 +133,7 @@
 
 **Имена под свачами**: каждый сватч (Tiles / Objects / Sprites) может показывать имя в небольшой подписи внизу (`.ed-swatch-name` / `.ed-swatch-named` в стилях) — управляется единым тумблером **Display Names** из ПКМ-меню окна ассетов (см. §2), не отдельно по вкладкам.
 
-**F2 inline rename** (только Objects, только кастомные): наведите указатель мыши на **кастомный** объект (без клика, просто hover — как в панели слоёв) и нажмите **F2** — его имя превратится в редактируемое текстовое поле (`.ed-swatch-name-edit`); нажмите Enter чтобы подтвердить (срабатывает `updateObject()` с undo/redo), Escape чтобы отменить. Переименовывается именно наведённый сватч, а не текущая выбранная кисть — можно держать один объект выбранным и переименовывать другой под курсором. Встроенные (non-custom) объекты не переименовываются через F2 (тихо игнорируется), как и прежде.
+**F2 inline rename** (все вкладки, builtin и custom): наведите указатель мыши на сватч в любой палитре (Tiles / Objects / Sprites) и нажмите **F2** — имя сватча превратится в редактируемое текстовое поле (`.ed-swatch-name-edit`); нажмите Enter чтобы подтвердить (срабатывает `updateObject()` / `renameSpriteDef()` с undo/redo для custom, или персист-редактирование встроенного элемента), Escape чтобы отменить. Переименовывается именно наведённый сватч, а не текущая выбранная кисть — можно держать один элемент выбранным и переименовывать другой под курсором. F2 работает как на встроенных (builtin) тайлах, объектах и спрайтах, так и на кастомных; для встроенных сохраняется локальный черновик-переопределение каталога (не изменяет данные в коде), для кастомных же поддерживается полный undo/redo.
 
 Палитра включает:
 - `Hero` (`kind: 'hero'`) — не placeable; Details = params + Sprite slot (`hero`); кадры — Edit / dblclick слота → `openSpriteEdit`.
