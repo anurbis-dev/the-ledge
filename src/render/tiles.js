@@ -1156,6 +1156,7 @@ export function chunkOf(cx, cy){
     for (var r = cy*CH; r < (cy+1)*CH; r++){
       for (var c = cx*CH; c < (cx+1)*CH; c++){
         if (!G.inMap(c, r)) continue;
+        if (world() && world().gone && world().gone[G.mapIx(c, r)] > 0) continue; // выкопано/осыпалось
         var vv0 = tAt(c, r);
         if (vv0 === G.CRUMB || G.isWaterV(vv0) || G.isFlowV(vv0) ||
             vv0 === G.PLANK || vv0 === G.GIVE) continue;                     // динамика — мимо кэша
