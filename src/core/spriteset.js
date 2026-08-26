@@ -371,10 +371,20 @@ function cloneSaved(src){
 function readBuiltinNames(){
   try {
     var raw = localStorage.getItem(NAMEKEY);
-    if (!raw) return null;
-    var o = JSON.parse(raw);
-    return (o && typeof o === 'object') ? o : null;
-  } catch (_){ return null; }
+    if (raw){
+      var o = JSON.parse(raw);
+      if (o && typeof o === 'object') return o;
+    }
+  } catch (_){}
+  /* Миграционный мостик: до NAMEKEY имена жили в старом комбинированном
+     ключе 'ledge.dev.sprites' вместе с кадрами/дефами. */
+  try {
+    var raw2 = localStorage.getItem('ledge.dev.sprites');
+    if (!raw2) return null;
+    var o2 = JSON.parse(raw2);
+    if (o2 && o2.names && typeof o2.names === 'object') return o2.names;
+  } catch (_){}
+  return null;
 }
 
 function writeBuiltinNames(){

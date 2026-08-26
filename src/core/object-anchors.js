@@ -1,10 +1,13 @@
 /* Якоря объекта (origin / grab / weapon / box) — ключ objectKind, не spriteId.
-   Черновик: ledge.dev.objectAnchors. Bake → BAKED.objectAnchors. */
+   Единственный источник истины — BAKED.objectAnchors, пишется по кнопке Bake.
+   Черновик живёт только в памяти вкладки; старый localStorage-ключ (KEY)
+   читается один раз как миграционный мостик, если BAKED.objectAnchors ещё
+   пуст (снапшот старее этого фикса). */
 import { BAKED } from './defaults.js';
 import { C } from './constants.js';
-import { preferLocal, notifyDraftChange } from './persist.js';
+import { notifyDraftChange } from './persist.js';
 import {
-  getSpriteDef, getSpriteMeta, isHeroSprite, snapshotSprites, stripAnchorsFromSaved
+  getSpriteDef, getSpriteMeta, isHeroSprite, snapshotSprites
 } from './spriteset.js';
 import {
   resolveObject, listObjects, BUILTIN_OBJS, builtinSpriteId
@@ -85,7 +88,8 @@ function overlay(dst, src){
   }
 }
 
-function readLocal(){
+/** Миграционный мостик: старый черновик до появления BAKED.objectAnchors. */
+function readLegacyLocal(){
   try {
     var raw = localStorage.getItem(KEY);
     if (!raw) return null;
@@ -96,12 +100,7 @@ function readLocal(){
   } catch (_){ return null; }
 }
 
-function writeLocal(){
-  try { localStorage.setItem(KEY, JSON.stringify({ anchors: saved })); } catch (_){}
-}
-
 function emit(why){
-  writeLocal();
   notifyDraftChange();
   if (onChange) onChange(why || 'change');
 }
@@ -284,8 +283,9 @@ export function migrateAnchorsFromSprites(spritesMap){
 
 function boot(){
   saved = {};
-  overlay(saved, (BAKED && BAKED.objectAnchors) || {});
-  if (preferLocal()) overlay(saved, readLocal());
+  var baked = (BAKED && BAKED.objectAnchors) || null;
+  if (baked && Object.keys(baked).length) overlay(saved, baked);
+  else overlay(saved, readLegacyLocal());
   /* Миграция: если якорей объектов мало — забрать из спрайтов (BAKED + live). */
   var need = !saved || !Object.keys(saved).length;
   if (!need){
@@ -295,9 +295,7 @@ function boot(){
   if (need){
     migrateAnchorsFromSprites((BAKED && BAKED.sprites) || {});
     migrateAnchorsFromSprites(snapshotSprites());
-    writeLocal();
   }
-  try { stripAnchorsFromSaved(); } catch (_){}
 }
 
 boot();

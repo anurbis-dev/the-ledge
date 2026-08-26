@@ -8,6 +8,8 @@ import { mixSnapshot, scoreSnapshot } from '../audio/music.js';
 import { talkSnapshot } from '../audio/talk.js';
 import { snapshotTiles, snapshotGfx } from './tileset.js';
 import { snapshotSprites, snapshotSpriteDefs } from './spriteset.js';
+import { snapshotObjects } from './objectset.js';
+import { snapshotObjectAnchors } from './object-anchors.js';
 import { runtime } from './runtime.js';
 
 var inflight = false;
@@ -23,6 +25,8 @@ export function collectAuto(){
     // Полный saved (frames+якоря); серверный spriteAnchors упакует для BAKED.
     sprites: snapshotSprites(),
     spriteDefs: snapshotSpriteDefs(),
+    objects: snapshotObjects(),
+    objectAnchors: snapshotObjectAnchors(),
     savedAt: localSavedAt() || Date.now()
   };
   var params = paramsSnapshot();

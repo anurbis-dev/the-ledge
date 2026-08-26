@@ -1,5 +1,5 @@
 /* Якоря кадра спрайта: origin (мир), grab (поиск кромки), weapon (кисть). */
-import { getSpriteDef } from '../core/spriteset.js';
+import { getSpriteDef, isHeroSprite } from '../core/spriteset.js';
 import { defaultGrabOff } from '../core/sprite-grab.js';
 import {
   IDLE_A, IDLE_B, RUN, JUMPP, FALLP, LANDP, SLIDEP, STUNP, SNAREP, ROLLP,
@@ -64,7 +64,7 @@ export function defaultFrameAnchors(id, animId, frameI){
   var grab = clipPt(origin.x + off.x, origin.y + off.y, fw, fh);
   var weapon = clipPt(ox + 6, oy + 8, fw, fh);
   var poses, pose;
-  if (id === 'hero'){
+  if (id === 'hero' || isHeroSprite(id)){
     poses = HERO_POSES[animId];
     pose = poses && poses[frameI | 0];
     if (pose && pose.hF)

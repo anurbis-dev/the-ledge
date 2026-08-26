@@ -69,14 +69,21 @@ function mergeSpriteAnim(baseAnim, nextAnim) {
   return out;
 }
 
+/* The client always sends its full current picture (boot() loads straight
+   from BAKED, no competing localStorage draft — see persist fix), so `next`
+   is authoritative for membership at both the sprite-id and per-anim level:
+   an id/anim missing from `next` was deliberately cleared client-side and
+   must not be resurrected from `base`. Only the picture bytes within an
+   anim that's present in both get borrowed from `base` when `next` lacks
+   them (mergeSpriteAnim) — that's not a membership question. */
 function mergeSprites(base, next) {
   if (!next) return base || null;
   if (!base) return next;
-  const out = { ...base };
+  const out = {};
   for (const id of Object.keys(next)) {
     const b = base[id] || {};
     const n = next[id] || {};
-    const merged = { ...b };
+    const merged = {};
     if (n._meta) merged._meta = { ...n._meta };
     else if (b._meta) merged._meta = { ...b._meta };
     for (const anim of Object.keys(n)) {
@@ -88,52 +95,45 @@ function mergeSprites(base, next) {
   return out;
 }
 
-/** Кастом-клоны. Пустой dump не стирает уже запечённые defs. */
+/** Кастом-клоны спрайтов. Дамп клиента всегда полный (см. mergeSprites) —
+ *  next авторитетен, включая удаление id, отсутствующих в next. */
 export function mergeSpriteDefs(base, next) {
   if (next == null) return base || null;
   if (!Array.isArray(next)) return base || null;
-  if (!next.length) {
-    if (Array.isArray(base) && base.length) return base;
-    return next;
-  }
-  if (!Array.isArray(base) || !base.length) return next;
-  const byId = new Map();
-  for (const d of base) if (d && d.id != null) byId.set(String(d.id), d);
-  for (const d of next) if (d && d.id != null) byId.set(String(d.id), d);
-  return [...byId.values()];
+  return next;
 }
 
-/* Paint overrides for built-in tiles. Cold tabs boot without LS and would
-   POST tileGfx:{} — do not let that erase a non-empty baked set. */
+/** Paint overrides for built-in tiles. Same authoritative-next rule as
+ *  mergeSprites — an id missing from `next` was cleared and must not be
+ *  resurrected; only borrow picture bytes for ids present in both. */
 export function mergeTileGfx(base, next) {
   if (next == null) return base || null;
-  const nextKeys = Object.keys(next);
-  if (!nextKeys.length) {
-    if (base && Object.keys(base).length) return base;
-    return next;
-  }
   if (!base) return next;
-  const out = { ...next };
-  for (const id of Object.keys(base)) {
+  const out = {};
+  for (const id of Object.keys(next)) {
+    const n = next[id];
     const b = base[id];
-    const n = out[id];
-    if (!b) continue;
-    const bPic = !!(b.src || (b.frames && b.frames.length));
-    if (!bPic) continue;
-    if (!n) {
-      out[id] = { ...b };
-      continue;
-    }
+    if (!b) { out[id] = n; continue; }
     const nPic = !!(n.src || (n.frames && n.frames.length));
-    if (!nPic) {
-      out[id] = {
-        ...n,
-        src: b.src || '',
-        frames: Array.isArray(b.frames) ? b.frames.slice() : []
-      };
-    }
+    const bPic = !!(b.src || (b.frames && b.frames.length));
+    if (nPic || !bPic) { out[id] = n; continue; }
+    out[id] = { ...n, src: b.src || '', frames: Array.isArray(b.frames) ? b.frames.slice() : [] };
   }
   return out;
+}
+
+/** Кастом-объекты редактора (kind-шаблоны). Дамп клиента всегда полный. */
+export function mergeObjects(base, next) {
+  if (next == null) return base || null;
+  if (!Array.isArray(next)) return base || null;
+  return next;
+}
+
+/** Визуальные якоря объектов (origin/grab/weapon/box по objectKind/anim). */
+export function mergeObjectAnchors(base, next) {
+  if (next == null) return base || null;
+  if (typeof next !== "object") return base || null;
+  return next;
 }
 
 /** Dump after sprite migrate may POST tiles with spriteId and empty src —
@@ -160,7 +160,8 @@ export function mergeTiles(base, next) {
 
 export function mergeBaked(existing, dump) {
   const base = existing || {
-    levels: null, params: null, settings: null, score: null, mix: null, talk: null, intro: null, tiles: null, tileGfx: null, sprites: null, spriteDefs: null
+    levels: null, params: null, settings: null, score: null, mix: null, talk: null, intro: null,
+    tiles: null, tileGfx: null, sprites: null, spriteDefs: null, objects: null, objectAnchors: null
   };
   const nextSprites = dump.sprites != null ? spriteAnchors(dump.sprites) : null;
   return {
@@ -177,7 +178,13 @@ export function mergeBaked(existing, dump) {
     sprites: nextSprites != null ? mergeSprites(base.sprites, nextSprites) : (base.sprites || null),
     spriteDefs: dump.spriteDefs !== undefined
       ? mergeSpriteDefs(base.spriteDefs, dump.spriteDefs)
-      : (base.spriteDefs || null)
+      : (base.spriteDefs || null),
+    objects: dump.objects !== undefined
+      ? mergeObjects(base.objects, dump.objects)
+      : (base.objects || null),
+    objectAnchors: dump.objectAnchors !== undefined
+      ? mergeObjectAnchors(base.objectAnchors, dump.objectAnchors)
+      : (base.objectAnchors || null)
   };
 }
 
@@ -209,8 +216,9 @@ export function parseDefaultsSource(src) {
 export function formatDefaults(merged) {
   return [
     "// Auto-generated by the editor (vite /__bake) or `npm run bake` — do not hand-edit.",
-    "// Shipped snapshot: levels, params, sprite frames+anchors (+spriteDefs), optional settings/mix/talk/intro.",
-    "// Per-browser localStorage is a draft overlay; newer savedAt wins (see persist.preferLocal).",
+    "// Single source of truth for shipped visual data: levels, params, tiles/tileGfx,",
+    "// sprite frames+anchors (+spriteDefs), objects/objectAnchors, optional settings/mix/talk/intro.",
+    "// Written only by the editor's Bake button — no localStorage draft ever overrides this file.",
     `export var BAKED = ${JSON.stringify(merged, null, 2)};`,
     ""
   ].join("\n");

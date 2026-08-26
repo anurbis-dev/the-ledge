@@ -1,9 +1,17 @@
 /* Кастомные объекты редактора: kind + template + role + spriteId.
-   Черновик — ledge.dev.objects (LS). Поведение берётся из template (builtin kind). */
-import { preferLocal, notifyDraftChange } from './persist.js';
+   Единственный источник истины — BAKED.objects (src/core/defaults.js), пишется
+   по кнопке Bake. Черновик живёт только в памяти этой вкладки. Старый ключ
+   localStorage (KEY) читается один раз как миграционный мостик, если BAKED
+   ещё не содержит objects (снапшот старее этого фикса) — после первого Bake
+   с этой версией кода BAKED побеждает навсегда. */
+import { BAKED } from './defaults.js';
+import { notifyDraftChange } from './persist.js';
 import { spriteDefForKind, getSpriteDef, SPRITE_DEFS } from './spriteset.js';
 
 var KEY = 'ledge.dev.objects';
+/* Оверрайды display-имён builtin-kind — чисто UI-ярлык редактора, не часть
+   BAKED (как TILE_NAMEKEY в editor.js / NAMEKEY в spriteset.js). */
+var NAMEKEY = 'ledge.ed.objectNames';
 var ROLES = ['actor', 'pickup', 'loot', 'prop', 'marker'];
 
 var PICKUP_KINDS = { coin:1, gem:1, shroom:1, relic:1, tank:1, pickaxe:1 };
@@ -68,16 +76,12 @@ var seq = 1;
 var builtinNames = {};
 
 function emit(why){
-  writeLocal();
   notifyDraftChange();
   if (onChange) onChange(why || 'change');
 }
 
-function writeLocal(){
-  try { localStorage.setItem(KEY, JSON.stringify({ objects: customs, names: builtinNames })); } catch (_){}
-}
-
-function readLocal(){
+/** Миграционный мостик: старый комбинированный ключ (objects+names до BAKED.objects). */
+function readLegacyLocal(){
   try {
     var raw = localStorage.getItem(KEY);
     if (!raw) return null;
@@ -86,6 +90,22 @@ function readLocal(){
     if (Array.isArray(o)) return { objects: o, names: {} };
     return null;
   } catch (_){ return null; }
+}
+
+function readBuiltinNames(){
+  try {
+    var raw = localStorage.getItem(NAMEKEY);
+    if (raw){
+      var o = JSON.parse(raw);
+      if (o && typeof o === 'object') return o;
+    }
+  } catch (_){}
+  var legacy = readLegacyLocal();
+  return (legacy && legacy.names && typeof legacy.names === 'object') ? legacy.names : null;
+}
+
+function writeBuiltinNames(){
+  try { localStorage.setItem(NAMEKEY, JSON.stringify(builtinNames)); } catch (_){}
 }
 
 function rebuild(){
@@ -149,19 +169,18 @@ function nextId(){
 function boot(){
   customs = [];
   builtinNames = {};
-  if (preferLocal()){
-    var loc = readLocal();
-    var list = loc && loc.objects;
-    if (list && list.length){
-      customs = list.map(normalizeObject).filter(Boolean);
-      var i, m;
-      for (i = 0; i < customs.length; i++){
-        m = /^o_(\d+)$/.exec(customs[i].id);
-        if (m) seq = Math.max(seq, (+m[1]) + 1);
-      }
+  var baked = (BAKED && BAKED.objects) || null;
+  var list = (baked && baked.length) ? baked : (readLegacyLocal() || {}).objects;
+  if (list && list.length){
+    customs = list.map(normalizeObject).filter(Boolean);
+    var i, m;
+    for (i = 0; i < customs.length; i++){
+      m = /^o_(\d+)$/.exec(customs[i].id);
+      if (m) seq = Math.max(seq, (+m[1]) + 1);
     }
-    if (loc && loc.names && typeof loc.names === 'object') builtinNames = loc.names;
   }
+  var names = readBuiltinNames();
+  if (names) builtinNames = names;
   rebuild();
 }
 
@@ -261,6 +280,7 @@ export function updateObject(id, patch){
       for (k = 0; k < BUILTIN_OBJS.length; k++){
         if (BUILTIN_OBJS[k].kind === id){
           builtinNames[id] = String(patch.name);
+          writeBuiltinNames();
           emit('update');
           return resolveObject(id);
         }

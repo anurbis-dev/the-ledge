@@ -268,8 +268,10 @@ export function hero(){
   var p = S.p, i, k, pt = {}, frontal = (p.state === 'ladder' && p.lad.v === G.LADF) ||
       (p.state === 'hang' && p.hang.kind === 'lad' && G.tileAt(p.hang.tc, p.hang.tr) === G.LADF);
   if (tryHeroSprite(p)){ immerseHero(p); tintHeroBand(p); return; }
+  var hid = activeHeroId();
   var cxw = p.x + p.w/2, cyw = p.y + p.h/2;
   var wag = tail.a;
+  var animId = heroClip(p)[0];
 
   if ((p.state === 'hang' && p.hang.kind === 'ledge') ||
       (p.state === 'climb' && p.climb.kind === 'ledge')){
@@ -285,7 +287,7 @@ export function hero(){
     }
     for (i = 0; i < K.length; i++){ k = K[i];
       pt[k] = [cx + facing*pose[k][0] - cam.x + ox, cy + pose[k][1] - cam.y + oy]; }
-    figure(pt, facing, wag, false, null, null, p.stick, { helmet: p.helmet, shield: p.shield });
+    figure(pt, facing, wag, false, null, null, p.stick, { helmet: p.helmet, shield: p.shield }, 0, hid, animId);
     tintHero(p, pt, cxw, cyw);
     immerseHero(p);
     return;
@@ -347,7 +349,7 @@ export function hero(){
     weaponType: harp ? 'harpoon' : (pick ? 'pickaxe' : (p.gear.weapon && p.gear.weapon.type)),
     bash: p.bashT,
     eyesClosed: p.knockedOut
-  }, headTilt);
+  }, headTilt, hid, animId);
   if (bowHeld){
     var bt = p.bowT > 0 ? (1 - p.bowT / C.BOW_ANIM_T) : 0;
     drawBow(pt, p.facing, 0, bowHandOnString(bt), bowReleaseFx(bt));

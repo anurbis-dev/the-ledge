@@ -33,7 +33,7 @@ export function bakeHeroFrame(animId, frameI, spriteId){
       if (!pose[k]) continue;
       pt[k] = [pose[k][0] + def.ox, pose[k][1] + def.oy];
     }
-    figure(pt, 1, 0, !!FRONTAL[animId], null, null, false, null, 0);
+    figure(pt, 1, 0, !!FRONTAL[animId], null, null, false, null, 0, spriteId || 'hero', animId);
   } finally {
     setCtx(saved);
   }
