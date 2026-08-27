@@ -263,6 +263,7 @@ export function tileBlocks(c, r, y, h, x, w){
   // ladderTop не блокирует AABB: опора через groundYAt / footSupported (как скос),
   // иначе mid-сход вбок ловит slab top+4 и «магнитит» обратно
   var v = tileAt(c, r);
+  if (runtime.W && runtime.W.gone[mapIx(c, r)] > 0) return false; // выкопано/осыпалось — solidTile() это уже знает, но custom-def ветка ниже его не вызывает
   var fl = tileFlipAt(c, r);
   var d = defOf(v);
   if (d){

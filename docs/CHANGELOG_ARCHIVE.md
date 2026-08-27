@@ -1,5 +1,11 @@
 # Changelog archive
 
+## 2026-08-27
+
+- **Fix: mined tiles now actually disappear — `render/tiles.js` chunk cache baked solid tiles unconditionally, ignoring `gone`.**
+  - `chunkOf()` (per-8×8-chunk static tile cache) painted every solid tile id via `drawTile` regardless of `world().gone`, so even though `entities/mining.js` calls `hooks.onSetTile` → `invalidateChunk()` on break, the rebake redrew the exact same rock texture — a mined tile stayed visually solid forever, only its collision (correctly) turned off. Added a `gone` check before the draw call, matching the pattern already used by `sAt()`/render-collision checks in the same file.
+  - The reported "falling into the mined spot snaps the player to the nearest edge" did not reproduce against current `player.js` (`fallingThroughGone()` in `tryGrab`, added in a prior fix, already bails ledge-grab correctly when the player's own column is a `gone` cell) — verified directly via `tryGrab`/`solidTile` with a freshly-dug tile. Likely the same visual-desync symptom as above (tile still drawn solid while physics already treats it as air).
+
 ## 2026-08-26 (2)
 
 - **Feat: custom objects and their visual anchors now bake into `defaults.js` — closes the last localStorage-only gap in the asset-baking pipeline.**

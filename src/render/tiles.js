@@ -868,7 +868,8 @@ function paintTileId(v, c, r, x, y, dyn){
   var k = G.mapIx(c, r), crumb = (v === G.CRUMB), hh = hashT(c, r);
   if (!sAt(c, r)) return;                             // осыпался / выкопан — ничего не оставляем
   var sx = 0;
-  var cracking = crumb && S.crumbT && S.crumbT[k] !== undefined;
+  var damaged = S.digHp && S.digHp[k] != null;         // подкопан киркой, ещё не разрушен
+  var cracking = (crumb && S.crumbT && S.crumbT[k] !== undefined) || damaged;
   if (cracking) sx = Math.round(Math.sin(time*46)*1.2);
   if (crumb){                                        // с нижней кромки сыплется песок — тайл нестабилен
     if (cracking){
@@ -1009,6 +1010,11 @@ function paintAny(c, r, x, y){
 }
 function isDynId(v){
   return v === G.CRUMB || G.isWaterV(v) || G.isFlowV(v) || v === G.PLANK || v === G.GIVE;
+}
+/** подкопанный (digHp выставлен, ещё не сломан) тайл шатается — рисуем его каждый кадр, мимо чанк-кэша. */
+function isDamaged(c, r){
+  var Sd = world();
+  return !!(Sd && Sd.digHp && Sd.digHp[G.mapIx(c, r)] != null);
 }
 /** Вода/поток/кадры — не в cover-bake, рисуются каждый кадр. */
 function isAnimId(v){
@@ -1159,7 +1165,7 @@ export function chunkOf(cx, cy){
         if (world() && world().gone && world().gone[G.mapIx(c, r)] > 0) continue; // выкопано/осыпалось
         var vv0 = tAt(c, r);
         if (vv0 === G.CRUMB || G.isWaterV(vv0) || G.isFlowV(vv0) ||
-            vv0 === G.PLANK || vv0 === G.GIVE) continue;                     // динамика — мимо кэша
+            vv0 === G.PLANK || vv0 === G.GIVE || isDamaged(c, r)) continue;   // динамика — мимо кэша
         drawTile(c, r, (c - cx*CH)*T + PAD, (r - cy*CH)*T + PAD, false);
       }
     }
@@ -1231,7 +1237,7 @@ function blitLayer(camx, camy){
   for (r = r0; r <= r1; r++){
     for (c = c0; c <= c1; c++){
       vd = tAt(c, r);
-      if (vd === G.CRUMB || G.isWaterV(vd) || G.isFlowV(vd) || vd === G.PLANK || vd === G.GIVE)
+      if (vd === G.CRUMB || G.isWaterV(vd) || G.isFlowV(vd) || vd === G.PLANK || vd === G.GIVE || isDamaged(c, r))
         drawTile(c, r, c*T - camx, r*T - camy, true);
     }
   }
