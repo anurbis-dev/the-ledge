@@ -1,3 +1,3 @@
 # Changelog (unreleased)
 
-- **Gameplay anchors (origin / grab / weapon / box) live on objectKind, not sprites.** `src/core/object-anchors.js` + draft migrate + Bake `BAKED.objectAnchors`; `spriteset` / `BAKED.sprites` = frames + `_meta` only (`stripAnchorsFromSaved` after migrate). Object Details (`openObjectEdit`) edits anchors when a sprite is linked; Sprite Details = pixels only. Runtime reads via `activeObjectKind()` / entity.`objectKind` / `legacyObjectKindFromSprite`; stamp/persist write `objectKind`. Bake: client sends `objectAnchors`, merge keeps them; `spriteAnchors()` no longer packs origin/grab/weapon/box.
+- Ctrl+D tile duplicate: `baseId` + `cloneTileGfxMeta` — Fall/Water (и любой builtin) копия показывает свои Details-слайдеры на `tileGfx[copyId]`; на карте `isFlowV`/`isWaterV` и procedural paint читают id клетки. Также копируется `durability`.

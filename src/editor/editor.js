@@ -1387,7 +1387,8 @@ function duplicatePalTile(){
       oneWay: !!def.oneWay,
       climb: !!def.climb,
       front: !!def.front,
-      baseId: baseId
+      baseId: baseId,
+      durability: def.durability | 0
     };
   } else {
     var g = getTileGfx(spec.id);
