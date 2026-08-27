@@ -231,7 +231,7 @@ function onEvent(ev){
     blip(70, 0.25, 'sawtooth', 0.05);
     var ck = +ev.split(':')[1];
     if (ck === ck){
-      var cc = ck % G.MAP_W, rr = (ck / G.MAP_W) | 0;
+      var cc = (ck % G.MAP_W) + G.mapMinC(), rr = ((ck / G.MAP_W) | 0) + G.mapMinR();
       emitSand(cc * G.T + G.T / 2, rr * G.T + G.T / 2, {
         n: 16, speed: 22, speedRand: 48, spread: 12, lift: 8,
         life: 0.4, lifeRand: 0.55, gravity: 72
@@ -242,7 +242,7 @@ function onEvent(ev){
     blip(90, 0.06, 'square', 0.04);
     var dk = +ev.split(':')[1];
     if (dk === dk){
-      var dc = dk % G.MAP_W, dr = (dk / G.MAP_W) | 0;
+      var dc = (dk % G.MAP_W) + G.mapMinC(), dr = ((dk / G.MAP_W) | 0) + G.mapMinR();
       spark(dc * G.T + G.T / 2, dr * G.T + G.T / 2, 4, '#ffe9a8', 55, 26);
       rockChunks(dc * G.T + G.T / 2, dr * G.T + G.T / 2, 3, 2);
     }
@@ -251,7 +251,7 @@ function onEvent(ev){
     blip(520, 0.06, 'square', 0.05);
     var gk = +ev.split(':')[1];
     if (gk === gk){
-      var gc = gk % G.MAP_W, gr = (gk / G.MAP_W) | 0;
+      var gc = (gk % G.MAP_W) + G.mapMinC(), gr = ((gk / G.MAP_W) | 0) + G.mapMinR();
       spark(gc * G.T + G.T / 2, gr * G.T + G.T / 2, 6, '#cfe0ff', 70, 30);
     }
   }
@@ -259,7 +259,7 @@ function onEvent(ev){
     blip(75, 0.22, 'sawtooth', 0.05);
     var bk = +ev.split(':')[1];
     if (bk === bk){
-      var bc = bk % G.MAP_W, br = (bk / G.MAP_W) | 0;
+      var bc = (bk % G.MAP_W) + G.mapMinC(), br = ((bk / G.MAP_W) | 0) + G.mapMinR();
       emitSand(bc * G.T + G.T / 2, br * G.T + G.T / 2, {
         n: 20, speed: 26, speedRand: 50, spread: 14, lift: 10,
         life: 0.45, lifeRand: 0.6, gravity: 70

@@ -801,7 +801,9 @@ function paintTileId(v, c, r, x, y, dyn){
     }
     return;
   }
-  if (paintCustom(v, x, y)) return;
+  var digShakeK = G.mapIx(c, r);
+  var digShakeX = (S && S.digHp && S.digHp[digShakeK] != null) ? Math.round(Math.sin(time*46)*1.2) : 0;
+  if (paintCustom(v, x + digShakeX, y)) return;
   if (G.isLadV(v)){ drawLadder(c, r, v, x, y); return; }
   if (G.isSlopeV(v)) return;                             // скос без своей картинки — рисует только настроенный спрайт (paintCustom выше)
   if (v === G.BAR){                                  // потолочные перекладины
