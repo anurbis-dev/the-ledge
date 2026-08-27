@@ -458,6 +458,7 @@ function setTab(tab){
     ED.tool = tab;
     ED.pal = 0;
   } else if (tab === 'sprite'){
+    ED.tool = 'sprite';
     ED.pal = 0;
   }
   edRefresh();
@@ -1279,6 +1280,7 @@ function duplicatePalSprite(){
   noteOp();
   endOp();
   clearThumbCache();
+  ED.tool = 'sprite';
   ED.tab = 'sprite';
   fillPal();
   var list = listSpriteDefs(), i;
@@ -2386,7 +2388,7 @@ export function edDrawOverlay(){
   if (S) drawGizmos(S, ED.sel);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   rc(0, 0, VW, 9, '#0d0a18cc');
-  var spec = ED.tool === 'tile' ? palSpec() : ED_OBJS[ED.pal];
+  var spec = ED.tool === 'tile' ? palSpec() : (ED.tool === 'obj' ? ED_OBJS[ED.pal] : listSpriteDefs()[ED.pal]);
   var label = spec ? spec.name : ED.tool;
   var L = getActiveLayer();
   if (L) label = L.name + (L.wrap ? ' ▦' : '') + ' · ' + label;
@@ -3376,6 +3378,7 @@ function importSpriteFiles(list){
     noteOp();
     endOp();
     clearThumbCache();
+    ED.tool = 'sprite';
     ED.tab = 'sprite';
     fillPal();
     var defs = listSpriteDefs(), i;

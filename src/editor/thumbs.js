@@ -303,7 +303,7 @@ export function tileThumb(spec, size){
   var src = sid
     ? (tileFrameSrc(spec.id, 0) || getSpriteFrameSrc(sid, sAnim, 0) || bakeSpriteFrameSrc(sid, sAnim, 0) || '')
     : ((spec.src) || (gfx && gfx.src) || '');
-  var key = spec.id + ':' + (spec.slope || '') + ':' + size + ':' + (sid || '') + ':' + src.length + ':' + (spec.name || '');
+  var key = spec.id + ':' + (spec.slope || '') + ':' + size + ':' + (sid || '') + ':' + src + ':' + (spec.name || '');
   if (tileCache[key]) return tileCache[key];
   var cv = document.createElement('canvas');
   cv.width = size; cv.height = size;
@@ -370,7 +370,7 @@ export function objThumb(palKind, size, spriteId, paintKind){
   var sid = spriteId || '';
   var oAnim = sid ? primaryAnim(sid) : '';
   var src = (sid && isSpriteFrameDirty(sid, oAnim, 0)) ? (getSpriteFrameSrc(sid, oAnim, 0) || '') : '';
-  var key = palKind + ':' + sid + ':' + size + ':' + (src ? src.length : 0);
+  var key = palKind + ':' + sid + ':' + size + ':' + src;
   var cv = document.createElement('canvas');
   cv.width = size; cv.height = size;
   var ctx = cv.getContext('2d');
