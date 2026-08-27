@@ -1,11 +1,18 @@
 /* Точка рук героини: поиск кромки / перекладины. Смещение от origin. */
 import { C, LADF, LADR, LADL } from './constants.js';
-import { getSpriteDef, getFrameAnchor } from './spriteset.js';
+import { getSpriteDef } from './spriteset.js';
+import { getFrameAnchor, legacyObjectKindFromSprite } from './object-anchors.js';
 import { runtime } from './runtime.js';
 
 function heroId(){
   var sp = runtime.LV && runtime.LV.spawn;
   return (sp && sp.spriteId) || 'hero';
+}
+
+/* Не импортировать activeObjectKind из player — цикл player ↔ sprite-grab. */
+function objectKind(){
+  var sp = runtime.LV && runtime.LV.spawn;
+  return (sp && sp.objectKind) || legacyObjectKindFromSprite(sp && sp.spriteId) || 'hero';
 }
 
 export function defaultGrabOff(){ return { x: C.W + 2, y: C.HAND }; }
@@ -75,12 +82,13 @@ function clipForGrab(p){
 
 export function heroGrabLocal(p){
   var hid = heroId();
+  var ok = objectKind();
   var def = getSpriteDef(hid);
   var ox = def ? def.ox : 16, oy = def ? def.oy : 22;
   var anim = clipForGrab(p);
-  var o = getFrameAnchor(hid, anim, 0, 'origin');
+  var o = getFrameAnchor(ok, anim, 0, 'origin');
   if (o){ ox = o.x; oy = o.y; }
-  var g = getFrameAnchor(hid, anim, 0, 'grab');
+  var g = getFrameAnchor(ok, anim, 0, 'grab');
   if (g) return { x: g.x, y: g.y, ox: ox, oy: oy };
   var d = defaultGrabOff();
   return { x: ox + d.x, y: oy + d.y, ox: ox, oy: oy };

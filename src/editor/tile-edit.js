@@ -11,16 +11,18 @@ import {
 import { initSliders } from './slider.js';
 import {
   getSpriteDef, getSpriteFrameSrc, setSpriteFrame, clearSpriteFrame,
-  isSpriteFrameDirty, getFrameAnchor, setFrameAnchor, setSpriteSize,
-  clearAnimAnchors, getAnimBox, setAnimBox,
+  isSpriteFrameDirty, setSpriteSize,
   getAnimFrameCount, setAnimFrameCount, reorderAnimFrames,
   getAnimSpeed, setAnimSpeed,
   addSpriteDef, spriteFrameImage, addAnimDef, renameSpriteDef
 } from '../core/spriteset.js';
+import {
+  getFrameAnchor, setFrameAnchor, getAnimBox, setAnimBox,
+  clearAnimAnchors, defaultObjectAnchors, spriteIdForObject
+} from '../core/object-anchors.js';
 import { updateObject, getObjectDef } from '../core/objectset.js';
 import { runtime } from '../core/runtime.js';
 import { bakeSpriteFrameSrc, bakeBuiltinTileSrc, clearBakeCache } from '../render/sprite-bake.js';
-import { defaultFrameAnchors } from '../render/sprite-anchors.js';
 import { raiseFloat, placeFloat, hasFloatPos } from './float.js';
 import { invalidateAll } from '../render/tiles.js';
 import { clearThumbCache, paintTileIcon } from './thumbs.js';
@@ -188,6 +190,32 @@ function canPaint(){
   /* Пиксели только в режиме спрайта — у тайла/объекта слот + параметры. */
   return isSprite();
 }
+/** Ключ якорей = objectKind; Start → spawn.objectKind || hero. Sprite-only → null. */
+function anchorKind(){
+  if (!objCurrent) return null;
+  if (objCurrent.kind === 'player_start' || objCurrent.template === 'player_start')
+    return (runtime.LV && runtime.LV.spawn && runtime.LV.spawn.objectKind) || 'hero';
+  return objCurrent.kind;
+}
+function canEditAnchors(){
+  return mode === 'object' && !!anchorKind() && !!current && !!current.anims;
+}
+function hasSpriteFrames(){
+  return !!(current && current.anims && (isSprite() || isObjectOnly()));
+}
+function resolveObjSpriteId(meta){
+  var sid;
+  if (!meta) return null;
+  sid = meta.spriteId;
+  if (!sid && (meta.template === 'player_start' || meta.kind === 'player_start'))
+    sid = (runtime.LV && runtime.LV.spawn && runtime.LV.spawn.spriteId) || 'hero';
+  if (!sid && meta.kind){
+    if (meta.kind === 'player_start' || meta.template === 'player_start')
+      sid = spriteIdForObject((runtime.LV && runtime.LV.spawn && runtime.LV.spawn.objectKind) || 'hero');
+    else sid = spriteIdForObject(meta.kind);
+  }
+  return sid || null;
+}
 
 export function openTileEdit(spec, clientX, clientY){
   if (!root || !spec) return;
@@ -245,6 +273,7 @@ export function openSpriteEdit(def, clientX, clientY, keepObject){
   animId = def.anims && def.anims[0] ? def.anims[0].id : '';
   frameI = 0;
   animFilter = '';
+  tool = 'pencil';
   root.classList.add('ed-sprite');
   root.hidden = false;
   if (titleEl) titleEl.textContent = (objCurrent && objCurrent.name) || def.name || 'Sprite';
@@ -255,22 +284,34 @@ export function openSpriteEdit(def, clientX, clientY, keepObject){
   void clientX; void clientY;
 }
 
-/** Details for an Objects palette entry (builtin or custom) — params + Sprite slot only. */
+/** Details for an Objects palette entry — params + якоря (если есть спрайт). */
 export function openObjectEdit(meta, clientX, clientY){
+  var sid, sd;
   if (!root || !meta) return;
   stopPlay();
   objCurrent = meta;
   mode = 'object';
-  current = meta;
-  fw = 16; fh = 16;
-  animId = '';
-  frameI = 0;
+  sid = resolveObjSpriteId(meta);
+  sd = sid ? getSpriteDef(sid) : null;
+  if (sd){
+    current = sd;
+    fw = current.fw || 16;
+    fh = current.fh || 16;
+    animId = current.anims && current.anims[0] ? current.anims[0].id : '';
+    frameI = 0;
+  } else {
+    current = meta;
+    fw = 16; fh = 16;
+    animId = '';
+    frameI = 0;
+  }
   animFilter = '';
+  tool = sd ? 'hitbox' : 'pencil';
   root.classList.remove('ed-sprite');
   root.classList.add('ed-object');
   root.hidden = false;
   if (titleEl) titleEl.textContent = meta.name || 'Object';
-  fillObjectBody();
+  fillBody();
   if (!hasFloatPos(root))
     placeFloat(root, innerWidth - 320, 48);
   raiseFloat(root);
@@ -481,27 +522,13 @@ function fillSpriteHeader(){
   field('Name', nameInp);
 }
 
-function fillObjectBody(){
+/** Object Details без спрайта — только Name/Type/Sprite slot. */
+function fillObjectBodyNoSprite(){
   if (!body) return;
-  body.textContent = '';
-  preview = null;
-  hintEl = null;
-  hitLab = null;
-  toolsEl = null;
-  swatchEl = null;
-  colorInp = null;
-  stripsEl = null;
-  splitEl = null;
-  spriteSlotEl = null;
   fillObjectHeader(body);
   var hint = document.createElement('div');
   hint.className = 'ed-tile-note';
-  var sid = objCurrent && objCurrent.spriteId;
-  if (!sid && objCurrent && (objCurrent.template === 'player_start' || objCurrent.kind === 'player_start'))
-    sid = (runtime.LV && runtime.LV.spawn && runtime.LV.spawn.spriteId) || 'hero';
-  hint.textContent = sid
-    ? 'Pixels — Sprites tab or Edit on the slot. Here: parameters and Sprite slot only.'
-    : 'No sprite yet — drop a Sprites swatch onto the Sprite slot, then Edit frames.';
+  hint.textContent = 'No sprite yet — drop a Sprites swatch onto the Sprite slot, then Edit frames.';
   body.appendChild(hint);
 }
 
@@ -628,7 +655,12 @@ export function refreshTileEdit(){
     if (titleEl) titleEl.textContent = objCurrent.name || 'Object';
   }
   if (isObjectOnly()){
-    fillObjectBody();
+    var sidR = resolveObjSpriteId(objCurrent);
+    if (sidR){
+      current = getSpriteDef(sidR) || current;
+      if (current && current.fw){ fw = current.fw; fh = current.fh || fh; }
+    }
+    fillBody();
     return;
   }
   if (isSprite() && current){
@@ -674,7 +706,7 @@ function makeBuf(){
 }
 
 function currentSrc(){
-  if (isSprite()){
+  if (hasSpriteFrames()){
     var saved = getSpriteFrameSrc(current.id, animId, frameI);
     if (saved) return saved;
     return bakeSpriteFrameSrc(current.id, animId, frameI);
@@ -915,12 +947,13 @@ function fillChecker(cx, cols, rows, tw, th){
 }
 
 function liveAnchors(){
-  var d, o, w, g;
-  if (!isSprite() || !current) return null;
-  d = defaultFrameAnchors(current.id, animId, frameI);
-  o = getFrameAnchor(current.id, animId, frameI, 'origin') || d.origin;
-  w = getFrameAnchor(current.id, animId, frameI, 'weapon') || d.weapon;
-  g = getFrameAnchor(current.id, animId, frameI, 'grab') || d.grab;
+  var ak, d, o, w, g;
+  ak = anchorKind();
+  if (!canEditAnchors() || !ak) return null;
+  d = defaultObjectAnchors(ak, animId, frameI);
+  o = getFrameAnchor(ak, animId, frameI, 'origin') || d.origin;
+  w = getFrameAnchor(ak, animId, frameI, 'weapon') || d.weapon;
+  g = getFrameAnchor(ak, animId, frameI, 'grab') || d.grab;
   if (pendingAnchor){
     if (pendingAnchor.kind === 'origin') o = { x: pendingAnchor.x, y: pendingAnchor.y };
     else if (pendingAnchor.kind === 'weapon') w = { x: pendingAnchor.x, y: pendingAnchor.y };
@@ -957,10 +990,11 @@ function drawMark(cx, pt, k, col, kind){
 }
 
 function liveBoxRect(){
-  var a = liveAnchors(), b;
+  var a = liveAnchors(), b, ak;
   if (!a || !current) return null;
   if (pendingBox) return pendingBox;
-  b = getAnimBox(current.id, animId);
+  ak = anchorKind();
+  b = getAnimBox(ak, animId);
   return { x: a.origin.x, y: a.origin.y, w: b.w, h: b.h };
 }
 
@@ -1002,13 +1036,14 @@ function drawAnchors(cx, k){
 }
 
 function drawThumbAnchors(cx, aId, ii){
-  var d, o, w, g, b;
-  if (!isSprite() || !current) return;
-  d = defaultFrameAnchors(current.id, aId, ii);
-  o = getFrameAnchor(current.id, aId, ii, 'origin') || d.origin;
-  w = getFrameAnchor(current.id, aId, ii, 'weapon') || d.weapon;
-  g = getFrameAnchor(current.id, aId, ii, 'grab') || d.grab;
-  b = getAnimBox(current.id, aId);
+  var ak, d, o, w, g, b;
+  ak = anchorKind();
+  if (!canEditAnchors() || !ak) return;
+  d = defaultObjectAnchors(ak, aId, ii);
+  o = getFrameAnchor(ak, aId, ii, 'origin') || d.origin;
+  w = getFrameAnchor(ak, aId, ii, 'weapon') || d.weapon;
+  g = getFrameAnchor(ak, aId, ii, 'grab') || d.grab;
+  b = getAnimBox(ak, aId);
   cx.strokeStyle = '#ffd0c4';
   cx.strokeRect(o.x + 0.5, o.y + 0.5, Math.max(1, b.w - 1), Math.max(1, b.h - 1));
   cx.fillStyle = ORIGIN_COL;
@@ -1061,9 +1096,10 @@ function clampCell(n, max){
 }
 
 function commitAnchor(kind, x, y){
-  if (!isSprite() || !current) return;
+  var ak = anchorKind();
+  if (!canEditAnchors() || !ak) return;
   markOp();
-  setFrameAnchor(current.id, animId, frameI, kind, x, y);
+  setFrameAnchor(ak, animId, frameI, kind, x, y);
   notify();
   syncAnchorFields();
   paintCanvas();
@@ -1161,12 +1197,12 @@ function applySpriteSize(nw, nh){
 function syncCursor(){
   if (!preview) return;
   var pick = altPick;
-  var onMark = isSprite() && !!pendingAnchor;
+  var onMark = canEditAnchors() && !!pendingAnchor;
   preview.classList.toggle('tool-pick', pick && !onMark);
   preview.classList.toggle('tool-hit', tool === 'hitbox' && !pick);
   preview.classList.toggle('tool-anchor', onMark);
   preview.title = tool === 'hitbox'
-    ? (isSprite()
+    ? (canEditAnchors()
       ? 'Drag the red box: origin becomes its top-left, size is collision for this action'
       : 'Drag to set the collision box (what the hero hits)')
     : (pick ? 'Pick color' : 'Paint pixel · RMB erase · Alt+click picks');
@@ -1182,13 +1218,13 @@ function paintCanvas(){
   fillChecker(cx, fw, fh, sx, sy);
   if (buf) cx.drawImage(buf, 0, 0, fw, fh, 0, 0, can.width, can.height);
   else if (current && mode === 'tile' && !current.custom) paintTileIcon(cx, current, can.width);
-  if (isSprite()){
+  if (canEditAnchors()){
     if (tool === 'hitbox'){ drawSpriteBox(cx, sx, true); drawAnchors(cx, sx); }
-  } else {
+  } else if (!hasSpriteFrames()){
     drawHitShape(cx, can.width, sx, tool === 'hitbox');
   }
   if (hitLab){
-    if (isSprite()){
+    if (canEditAnchors()){
       animName = (current.anims.filter(function(an){ return an.id === animId; })[0] || { name: animId }).name;
       a = liveAnchors();
       b = liveBoxRect();
@@ -1197,6 +1233,9 @@ function paintCanvas(){
           (b ? ' · box ' + b.w + '×' + b.h : '') +
           ' · hands ' + a.grab.x + ',' + a.grab.y +
           ' · weapon ' + a.weapon.x + ',' + a.weapon.y : '');
+    } else if (hasSpriteFrames()){
+      animName = (current.anims.filter(function(an){ return an.id === animId; })[0] || { name: animId }).name;
+      hitLab.textContent = 'Frame ' + (frameI + 1) + ' · ' + animName;
     } else hitLab.textContent = hitText();
   }
   syncAnchorFields();
@@ -1209,7 +1248,7 @@ function syncTools(){
     for (i = 0; i < btns.length; i++)
       btns[i].classList.toggle('on', btns[i].getAttribute('data-tool') === tool);
   }
-  if (hintEl) hintEl.textContent = isSprite()
+  if (hintEl) hintEl.textContent = canEditAnchors()
     ? HINT.sprite
     : (HINT[tool] || HINT.pencil);
   paintCanvas();
@@ -1227,12 +1266,13 @@ function applySpriteHitbox(x0, y0, x1, y1){
 }
 
 function commitSpriteHitbox(){
-  if (!isSprite() || !current || !pendingBox) return;
-  var box = pendingBox;
+  var ak = anchorKind(), box;
+  if (!canEditAnchors() || !ak || !pendingBox) return;
+  box = pendingBox;
   pendingBox = null;
   markOp();
-  setFrameAnchor(current.id, animId, frameI, 'origin', box.x, box.y);
-  setAnimBox(current.id, animId, box.w, box.h);
+  setFrameAnchor(ak, animId, frameI, 'origin', box.x, box.y);
+  setAnimBox(ak, animId, box.w, box.h);
   notify();
   syncAnchorFields();
   paintCanvas();
@@ -1262,13 +1302,13 @@ function commitBox(){
 function bindPreview(can){
   can.addEventListener('contextmenu', function(e){ e.preventDefault(); e.stopPropagation(); });
   can.addEventListener('pointerdown', function(e){
-    if (!canPaint()) return;
+    if (!canPaint() && !canEditAnchors()) return;
     if (e.button !== 0 && e.button !== 2) return;
     e.preventDefault();
     e.stopPropagation();
     try { can.setPointerCapture(e.pointerId); } catch (_){}
     altPick = e.altKey;
-    if (e.button === 0 && isSprite() && tool === 'hitbox' && !e.altKey){
+    if (e.button === 0 && canEditAnchors() && tool === 'hitbox' && !e.altKey){
       var hit = hitAnchor(e, can);
       if (hit){
         var a0 = liveAnchors();
@@ -1281,7 +1321,7 @@ function bindPreview(can){
     syncCursor();
     if (tool === 'hitbox'){
       if (e.button !== 0) return;
-      if (isSprite()){
+      if (canEditAnchors()){
         var hs = edgeOf(e, can);
         boxDrag = { x0: hs.x, y0: hs.y, sprite: true };
         applySpriteHitbox(hs.x, hs.y, hs.x, hs.y);
@@ -1293,6 +1333,7 @@ function bindPreview(can){
       applyBox(a.x, a.y, a.x, a.y);
       return;
     }
+    if (!canPaint()) return;
     if (e.button === 0 && e.altKey){
       pickAt(e);
       return;
@@ -1315,7 +1356,7 @@ function bindPreview(can){
       paintCanvas();
       return;
     }
-    if (!painting && !boxDrag && isSprite() && preview){
+    if (!painting && !boxDrag && canEditAnchors() && preview){
       var over = tool === 'hitbox' ? hitAnchor(e, can) : null;
       preview.classList.toggle('tool-anchor', !!over);
       preview.classList.toggle('tool-pick', altPick && !over);
@@ -1363,7 +1404,7 @@ function bindPreview(can){
 
 /** Step the current animation's frame by ±1 (wraps). Returns false if nothing to step. */
 export function stepDetailsFrame(dir){
-  if (!isDetailsOpen() || !isSprite() || !current) return false;
+  if (!isDetailsOpen() || !hasSpriteFrames() || !current) return false;
   var n = getAnimFrameCount(current.id, animId);
   if (n < 2) return false;
   selectFrame(animId, ((frameI + dir) % n + n) % n);
@@ -1491,7 +1532,7 @@ function bindFrameDrag(th, rowId, ii, n){
     if (e.button !== 0 || e.ctrlKey || e.metaKey || e.altKey) return;
     frameDrag = {
       anim: rowId, from: ii, startX: e.clientX, startY: e.clientY,
-      moved: false, el: th, pointerId: e.pointerId, canReorder: n >= 2
+      moved: false, el: th, pointerId: e.pointerId, canReorder: n >= 2 && canPaint()
     };
     try { th.setPointerCapture(e.pointerId); } catch (_){}
   });
@@ -1545,7 +1586,7 @@ function bindFrameDrag(th, rowId, ii, n){
 function togglePlay(){
   var rows, row, n, fps;
   if (playTimer){ stopPlay(); return; }
-  if (isSprite()){
+  if (hasSpriteFrames()){
     n = getAnimFrameCount(current.id, animId);
     fps = getAnimSpeed(current.id, animId);
   } else {
@@ -1559,7 +1600,7 @@ function togglePlay(){
   }
   playTimer = setInterval(function(){
     if (!current){ stopPlay(); return; }
-    if (isSprite()) n = getAnimFrameCount(current.id, animId);
+    if (hasSpriteFrames()) n = getAnimFrameCount(current.id, animId);
     else n = tileFrameCount(current.id);
     if (n < 2){ stopPlay(); return; }
     selectFrame(animId, (frameI + 1) % n, true);
@@ -1568,7 +1609,7 @@ function togglePlay(){
 }
 
 function frameSrcAt(aId, i){
-  if (isSprite()){
+  if (hasSpriteFrames()){
     var s = getSpriteFrameSrc(current.id, aId, i);
     return s || bakeSpriteFrameSrc(current.id, aId, i);
   }
@@ -1624,7 +1665,7 @@ function bindSplit(el){
 function paintStrips(){
   if (!stripsEl) return;
   var rows = [];
-  if (isSprite()){
+  if (hasSpriteFrames()){
     current = getSpriteDef(current.id) || current;
     rows = (current.anims || []).map(function(a){
       return { id: a.id, name: a.name, n: getAnimFrameCount(current.id, a.id), speed: getAnimSpeed(current.id, a.id) };
@@ -1644,7 +1685,7 @@ function paintStrips(){
   stripsEl.hidden = false;
   stripsEl.textContent = '';
   var visRows = rows;
-  if (isSprite()){
+  if (hasSpriteFrames()){
     var head = document.createElement('div');
     head.className = 'ed-tile-anim-toolbar';
     if (rows.length > 1){
@@ -1663,18 +1704,20 @@ function paintStrips(){
     } else {
       animFilterEl = null;
     }
-    var addAnimBtn = document.createElement('button');
-    addAnimBtn.type = 'button';
-    addAnimBtn.className = 'edb ed-tile-frame-add';
-    addAnimBtn.textContent = '+';
-    addAnimBtn.title = current.custom ? 'Add a new animation' : 'Custom sprites only — clone first (Ctrl+D)';
-    addAnimBtn.disabled = !current.custom;
-    addAnimBtn.addEventListener('click', function(e){
-      e.preventDefault();
-      e.stopPropagation();
-      addNewAnim();
-    });
-    head.appendChild(addAnimBtn);
+    if (canPaint()){
+      var addAnimBtn = document.createElement('button');
+      addAnimBtn.type = 'button';
+      addAnimBtn.className = 'edb ed-tile-frame-add';
+      addAnimBtn.textContent = '+';
+      addAnimBtn.title = current.custom ? 'Add a new animation' : 'Custom sprites only — clone first (Ctrl+D)';
+      addAnimBtn.disabled = !current.custom;
+      addAnimBtn.addEventListener('click', function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        addNewAnim();
+      });
+      head.appendChild(addAnimBtn);
+    }
     stripsEl.appendChild(head);
     if (hadFilterFocus && animFilterEl){
       animFilterEl.focus();
@@ -1702,7 +1745,7 @@ function paintStrips(){
       lab.className = 'ed-tile-anim-name';
       lab.textContent = row.name;
       head.appendChild(lab);
-      if (row.id){
+      if (row.id && canPaint()){
         var spdWrap = document.createElement('label');
         spdWrap.className = 'ed-tile-anim-speed';
         spdWrap.title = 'Playback speed, frames/sec — same value drives editor Play and the game';
@@ -1736,7 +1779,9 @@ function paintStrips(){
           th.setAttribute('data-i', String(ii));
           if (isSprite() && isSpriteFrameDirty(current.id, row.id, ii))
             th.classList.add('dirty');
-          th.title = row.name + ' ' + (ii + 1) + ' — drag to reorder · drop tile swatch to replace';
+          th.title = canPaint()
+            ? (row.name + ' ' + (ii + 1) + ' — drag to reorder · drop tile swatch to replace')
+            : (row.name + ' ' + (ii + 1));
           var cx = th.getContext('2d');
           cx.imageSmoothingEnabled = false;
           fillChecker(cx, fw, fh, 1, 1);
@@ -1748,22 +1793,24 @@ function paintStrips(){
             drawThumbAnchors(cx, row.id, ii);
           };
           img.src = frameSrcAt(row.id, ii);
-          if (isSprite()) drawThumbAnchors(cx, row.id, ii);
+          if (canEditAnchors()) drawThumbAnchors(cx, row.id, ii);
           bindFrameDrag(th, row.id, ii, row.n);
           bar.appendChild(th);
         })(i);
       }
-      var add = document.createElement('button');
-      add.type = 'button';
-      add.className = 'edb ed-tile-frame-add';
-      add.textContent = '+';
-      add.title = 'Add frame';
-      add.addEventListener('click', function(e){
-        e.preventDefault();
-        e.stopPropagation();
-        addAnimFrame(row.id);
-      });
-      bar.appendChild(add);
+      if (canPaint()){
+        var add = document.createElement('button');
+        add.type = 'button';
+        add.className = 'edb ed-tile-frame-add';
+        add.textContent = '+';
+        add.title = 'Add frame';
+        add.addEventListener('click', function(e){
+          e.preventDefault();
+          e.stopPropagation();
+          addAnimFrame(row.id);
+        });
+        bar.appendChild(add);
+      }
       wrap.appendChild(bar);
       stripsEl.appendChild(wrap);
     })(visRows[r]);
@@ -2127,7 +2174,15 @@ function fillBody(){
   }
 
   var sprite = isSprite();
-  if (objCurrent && sprite) fillObjectHeader(body);
+  var anchors = canEditAnchors();
+
+  if (isObjectOnly()){
+    if (!anchors){
+      fillObjectBodyNoSprite();
+      return;
+    }
+    fillObjectHeader(body);
+  } else if (objCurrent && sprite) fillObjectHeader(body);
   else if (sprite) fillSpriteHeader();
 
   stripsEl = document.createElement('div');
@@ -2154,87 +2209,96 @@ function fillBody(){
   hitLab.className = 'ed-tile-hitlab';
   body.appendChild(hitLab);
 
-  if (sprite){
+  if (sprite || anchors){
     var rollWrap = document.createElement('div');
     rollWrap.className = 'ed-rollout';
     var rollHead = document.createElement('button');
     rollHead.type = 'button';
     rollHead.className = 'ed-rollout-head';
-    rollHead.textContent = '▸ Size / Box / Anchors';
+    var rollTitle = anchors ? '▸ Box / Anchors' : '▸ Size';
+    rollHead.textContent = rollTitle;
     var rollBody = document.createElement('div');
     rollBody.className = 'ed-rollout-body';
     rollBody.hidden = true;
     rollHead.addEventListener('click', function(){
       rollBody.hidden = !rollBody.hidden;
-      rollHead.textContent = (rollBody.hidden ? '▸' : '▾') + ' Size / Box / Anchors';
+      rollHead.textContent = (rollBody.hidden ? '▸' : '▾') + (anchors ? ' Box / Anchors' : ' Size');
     });
     rollWrap.appendChild(rollHead);
     rollWrap.appendChild(rollBody);
     body.appendChild(rollWrap);
 
-    var sizeW = numInp(fw, SIZE_MIN, SIZE_MAX);
-    var sizeH = numInp(fh, SIZE_MIN, SIZE_MAX);
-    function onSize(){
-      applySpriteSize(parseInt(sizeW.value, 10) || fw, parseInt(sizeH.value, 10) || fh);
+    if (sprite && canPaint()){
+      var sizeW = numInp(fw, SIZE_MIN, SIZE_MAX);
+      var sizeH = numInp(fh, SIZE_MIN, SIZE_MAX);
+      function onSize(){
+        applySpriteSize(parseInt(sizeW.value, 10) || fw, parseInt(sizeH.value, 10) || fh);
+      }
+      sizeW.addEventListener('change', onSize);
+      sizeH.addEventListener('change', onSize);
+      xyRow('Size', '', sizeW, sizeH, '×', rollBody);
     }
-    sizeW.addEventListener('change', onSize);
-    sizeH.addEventListener('change', onSize);
-    xyRow('Size', '', sizeW, sizeH, '×', rollBody);
 
-    originXEl = numInp(0, 0, fw - 1);
-    originYEl = numInp(0, 0, fh - 1);
-    bindAnchorInp(originXEl, 'origin', 'x');
-    bindAnchorInp(originYEl, 'origin', 'y');
-    originXEl.title = 'World attach for this action (every frame in the row)';
-    originYEl.title = originXEl.title;
-    xyRow('Origin', 'ed-anchor-o', originXEl, originYEl, ',', rollBody);
+    if (anchors){
+      originXEl = numInp(0, 0, fw - 1);
+      originYEl = numInp(0, 0, fh - 1);
+      bindAnchorInp(originXEl, 'origin', 'x');
+      bindAnchorInp(originYEl, 'origin', 'y');
+      originXEl.title = 'World attach for this action (every frame in the row)';
+      originYEl.title = originXEl.title;
+      xyRow('Origin', 'ed-anchor-o', originXEl, originYEl, ',', rollBody);
 
-    boxWEl = numInp(10, 2, fw);
-    boxHEl = numInp(22, 2, fh);
-    boxWEl.title = 'Collision width for this action (from origin)';
-    boxHEl.title = 'Collision height for this action (from origin). Ground is the bottom edge.';
-    boxWEl.addEventListener('change', function(){
-      var n = parseInt(boxWEl.value, 10), cur;
-      if (!current || isNaN(n)) { syncAnchorFields(); return; }
-      cur = getAnimBox(current.id, animId);
-      markOp();
-      setAnimBox(current.id, animId, n, cur.h);
-      notify();
-      syncAnchorFields();
-      paintCanvas();
-    });
-    boxHEl.addEventListener('change', function(){
-      var n = parseInt(boxHEl.value, 10), cur;
-      if (!current || isNaN(n)) { syncAnchorFields(); return; }
-      cur = getAnimBox(current.id, animId);
-      markOp();
-      setAnimBox(current.id, animId, cur.w, n);
-      notify();
-      syncAnchorFields();
-      paintCanvas();
-    });
-    xyRow('Box', 'ed-anchor-b', boxWEl, boxHEl, '×', rollBody);
+      boxWEl = numInp(10, 2, fw);
+      boxHEl = numInp(22, 2, fh);
+      boxWEl.title = 'Collision width for this action (from origin)';
+      boxHEl.title = 'Collision height for this action (from origin). Ground is the bottom edge.';
+      boxWEl.addEventListener('change', function(){
+        var n = parseInt(boxWEl.value, 10), cur, ak = anchorKind();
+        if (!ak || isNaN(n)) { syncAnchorFields(); return; }
+        cur = getAnimBox(ak, animId);
+        markOp();
+        setAnimBox(ak, animId, n, cur.h);
+        notify();
+        syncAnchorFields();
+        paintCanvas();
+      });
+      boxHEl.addEventListener('change', function(){
+        var n = parseInt(boxHEl.value, 10), cur, ak = anchorKind();
+        if (!ak || isNaN(n)) { syncAnchorFields(); return; }
+        cur = getAnimBox(ak, animId);
+        markOp();
+        setAnimBox(ak, animId, cur.w, n);
+        notify();
+        syncAnchorFields();
+        paintCanvas();
+      });
+      xyRow('Box', 'ed-anchor-b', boxWEl, boxHEl, '×', rollBody);
 
-    grabXEl = numInp(0, 0, fw - 1);
-    grabYEl = numInp(0, 0, fh - 1);
-    grabXEl.title = 'Hands that search for a ledge (this action)';
-    grabYEl.title = grabXEl.title;
-    bindAnchorInp(grabXEl, 'grab', 'x');
-    bindAnchorInp(grabYEl, 'grab', 'y');
-    xyRow('Hands', 'ed-anchor-g', grabXEl, grabYEl, ',', rollBody);
+      grabXEl = numInp(0, 0, fw - 1);
+      grabYEl = numInp(0, 0, fh - 1);
+      grabXEl.title = 'Hands that search for a ledge (this action)';
+      grabYEl.title = grabXEl.title;
+      bindAnchorInp(grabXEl, 'grab', 'x');
+      bindAnchorInp(grabYEl, 'grab', 'y');
+      xyRow('Hands', 'ed-anchor-g', grabXEl, grabYEl, ',', rollBody);
 
-    weaponXEl = numInp(0, 0, fw - 1);
-    weaponYEl = numInp(0, 0, fh - 1);
-    weaponXEl.title = 'Weapon hand on this frame';
-    weaponYEl.title = weaponXEl.title;
-    bindAnchorInp(weaponXEl, 'weapon', 'x');
-    bindAnchorInp(weaponYEl, 'weapon', 'y');
-    xyRow('Weapon', 'ed-anchor-w', weaponXEl, weaponYEl, ',', rollBody);
+      weaponXEl = numInp(0, 0, fw - 1);
+      weaponYEl = numInp(0, 0, fh - 1);
+      weaponXEl.title = 'Weapon hand on this frame';
+      weaponYEl.title = weaponXEl.title;
+      bindAnchorInp(weaponXEl, 'weapon', 'x');
+      bindAnchorInp(weaponYEl, 'weapon', 'y');
+      xyRow('Weapon', 'ed-anchor-w', weaponXEl, weaponYEl, ',', rollBody);
+    }
   }
 
   toolsEl = document.createElement('div');
   toolsEl.className = 'ed-tile-tools';
-  var t, list = TOOLS;
+  var t, list = TOOLS.filter(function(specT){
+    if (anchors) return specT.id === 'hitbox';
+    if (sprite) return specT.id === 'pencil';
+    return true;
+  });
   for (t = 0; t < list.length; t++){
     (function(specT){
       var b = document.createElement('button');
@@ -2248,104 +2312,113 @@ function fillBody(){
         syncTools();
       });
       toolsEl.appendChild(b);
-      if (specT.id === 'pencil'){
-        playBtn = document.createElement('button');
-        playBtn.type = 'button';
-        playBtn.className = 'edb' + (playTimer ? ' on' : '');
-        playBtn.textContent = playTimer ? 'Stop' : 'Play';
-        playBtn.title = 'Play all frames of the current animation';
-        playBtn.addEventListener('click', function(e){
-          e.preventDefault();
-          e.stopPropagation();
-          togglePlay();
-        });
-        toolsEl.appendChild(playBtn);
-      }
     })(list[t]);
   }
+  playBtn = document.createElement('button');
+  playBtn.type = 'button';
+  playBtn.className = 'edb' + (playTimer ? ' on' : '');
+  playBtn.textContent = playTimer ? 'Stop' : 'Play';
+  playBtn.title = 'Play all frames of the current animation';
+  playBtn.addEventListener('click', function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    togglePlay();
+  });
+  toolsEl.appendChild(playBtn);
   body.appendChild(toolsEl);
 
   hintEl = document.createElement('div');
   hintEl.className = 'ed-tile-note';
   body.appendChild(hintEl);
 
-  colorInp = document.createElement('input');
-  colorInp.type = 'color';
-  colorInp.value = color;
-  colorInp.title = 'Paint color';
-  colorInp.addEventListener('input', function(){
-    color = colorInp.value;
-    tool = 'pencil';
-    syncTools();
-    fillSwatches();
-  });
-  field('Color', colorInp);
+  if (canPaint()){
+    colorInp = document.createElement('input');
+    colorInp.type = 'color';
+    colorInp.value = color;
+    colorInp.title = 'Paint color';
+    colorInp.addEventListener('input', function(){
+      color = colorInp.value;
+      tool = 'pencil';
+      syncTools();
+      fillSwatches();
+    });
+    field('Color', colorInp);
 
-  swatchEl = document.createElement('div');
-  swatchEl.className = 'ed-tile-swatches';
-  body.appendChild(swatchEl);
+    swatchEl = document.createElement('div');
+    swatchEl.className = 'ed-tile-swatches';
+    body.appendChild(swatchEl);
+  }
 
   var sNote = document.createElement('div');
   sNote.className = 'ed-tile-note';
-  sNote.textContent = 'Red box = hitbox for this action; origin is its top-left, ground is the bottom edge. Gold hands = ledge search. Magenta weapon = this frame. Hit-tool drags a new box. Unedited frames still use the old drawing.';
+  sNote.textContent = anchors
+    ? 'Red box = hitbox for this action; origin is its top-left, ground is the bottom edge. Gold hands = ledge search. Magenta weapon = this frame. Hit-tool drags a new box. Pixels — Sprites tab or Edit on the slot.'
+    : 'Paint pixels here. Collision / origin / hands / weapon live on Object Details for the linked object.';
   body.appendChild(sNote);
 
   var actions = document.createElement('div');
   actions.className = 'ed-tile-actions';
 
-  var fileInp = document.createElement('input');
-  fileInp.type = 'file';
-  fileInp.accept = 'image/png,image/gif,image/webp,image/jpeg';
-  fileInp.hidden = true;
-  fileInp.addEventListener('change', function(){
-    var f = fileInp.files && fileInp.files[0];
-    fileInp.value = '';
-    if (f) applyImportFile(f);
-  });
-  actions.appendChild(fileInp);
+  if (canPaint()){
+    var fileInp = document.createElement('input');
+    fileInp.type = 'file';
+    fileInp.accept = 'image/png,image/gif,image/webp,image/jpeg';
+    fileInp.hidden = true;
+    fileInp.addEventListener('change', function(){
+      var f = fileInp.files && fileInp.files[0];
+      fileInp.value = '';
+      if (f) applyImportFile(f);
+    });
+    actions.appendChild(fileInp);
 
-  var reimp = document.createElement('button');
-  reimp.type = 'button';
-  reimp.className = 'edb wide';
-  reimp.textContent = 'Re-import PNG';
-  reimp.title = 'Replace this frame, or a whole row if the sheet is a strip of frames.';
-  reimp.addEventListener('click', function(){ fileInp.click(); });
-  actions.appendChild(reimp);
+    var reimp = document.createElement('button');
+    reimp.type = 'button';
+    reimp.className = 'edb wide';
+    reimp.textContent = 'Re-import PNG';
+    reimp.title = 'Replace this frame, or a whole row if the sheet is a strip of frames.';
+    reimp.addEventListener('click', function(){ fileInp.click(); });
+    actions.appendChild(reimp);
 
-  var rst = document.createElement('button');
-  rst.type = 'button';
-  rst.className = 'edb';
-  rst.textContent = 'Reset frame';
-  rst.title = 'Forget the painted frame; the game uses the old drawing again.';
-  rst.addEventListener('click', function(){
-    markOp();
-    clearSpriteFrame(current.id, animId, frameI);
-    notify();
-    loadBuf(currentSrc(), function(){
-      fillSwatches();
-      syncTools();
+    var rst = document.createElement('button');
+    rst.type = 'button';
+    rst.className = 'edb';
+    rst.textContent = 'Reset frame';
+    rst.title = 'Forget the painted frame; the game uses the old drawing again.';
+    rst.addEventListener('click', function(){
+      markOp();
+      clearSpriteFrame(current.id, animId, frameI);
+      notify();
+      loadBuf(currentSrc(), function(){
+        fillSwatches();
+        syncTools();
+        paintStrips();
+      });
+    });
+    actions.appendChild(rst);
+  }
+
+  if (anchors){
+    var rstA = document.createElement('button');
+    rstA.type = 'button';
+    rstA.className = 'edb';
+    rstA.textContent = 'Reset anchors';
+    rstA.title = 'Forget origin, box, hands and weapon points for this action.';
+    rstA.addEventListener('click', function(){
+      var ak = anchorKind();
+      if (!ak) return;
+      markOp();
+      clearAnimAnchors(ak, animId);
+      notify();
+      paintCanvas();
       paintStrips();
     });
-  });
-  actions.appendChild(rst);
-  var rstA = document.createElement('button');
-  rstA.type = 'button';
-  rstA.className = 'edb';
-  rstA.textContent = 'Reset anchors';
-  rstA.title = 'Forget origin, box, hands and weapon points for this action.';
-  rstA.addEventListener('click', function(){
-    markOp();
-    clearAnimAnchors(current.id, animId);
-    notify();
-    paintCanvas();
-    paintStrips();
-  });
-  actions.appendChild(rstA);
+    actions.appendChild(rstA);
+  }
   body.appendChild(actions);
 
   paintStrips();
   loadBuf(currentSrc(), function(){
-    fillSwatches();
+    if (canPaint()) fillSwatches();
     syncTools();
   });
   bindPreview(can);

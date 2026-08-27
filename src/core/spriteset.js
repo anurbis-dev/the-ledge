@@ -1,10 +1,10 @@
-/* Каталог спрайтов персонажей: строки анимаций, кадры — PNG.
+/* Каталог спрайтов: анимации = frames + _meta (fw/fh/ox/oy/fx).
+   Якоря объектов (origin/grab/weapon/box) — object-anchors.js / BAKED.objectAnchors.
    Единственный источник истины — BAKED.sprites/BAKED.spriteDefs (src/core/defaults.js).
    Черновик живёт только в памяти этой вкладки; на диск попадает исключительно
    по кнопке Bake (см. core/bake-client.js) — никакого localStorage-оверлея
-   для кадров/якорей/кастом-дефов. Пустой кадр = скелет / rc. */
+   для кадров/кастом-дефов. Пустой кадр = скелет / rc. */
 import { BAKED } from './defaults.js';
-import { C } from './constants.js';
 import { notifyDraftChange } from './persist.js';
 
 /* Оверрайды display-имён builtin-спрайтов — чисто UI-ярлык редактора, не
@@ -187,9 +187,8 @@ var customDefs = [];
 var i0;
 for (i0 = 0; i0 < SPRITE_DEFS.length; i0++) byId[SPRITE_DEFS[i0].id] = SPRITE_DEFS[i0];
 
-/* saved[spriteId][animId] = { frames, dirty, origin, grab, weapon, box:{w,h} }
+/* saved[spriteId][animId] = { frames, dirty, n?, speed? }
    saved[spriteId]._meta = { fw, fh, ox, oy, fx } — оверрайд каталога. */
-var BOX_MIN = 2;
 var saved = {};
 var imgs = {};
 var onChange = null;
@@ -271,67 +270,6 @@ function loadAll(){
   }
 }
 
-function clonePts(arr){
-  var out = [], i, p;
-  if (!arr) return out;
-  for (i = 0; i < arr.length; i++){
-    p = arr[i];
-    out[i] = p && typeof p === 'object' ? { x: p.x | 0, y: p.y | 0 } : null;
-  }
-  return out;
-}
-
-function cloneOrigin(o){
-  if (!o) return null;
-  if (Array.isArray(o)) return clonePts(o);
-  if (typeof o === 'object' && o.x != null) return { x: o.x | 0, y: o.y | 0 };
-  return null;
-}
-
-function cloneBox(b){
-  if (!b || b.w == null || b.h == null) return null;
-  return { w: b.w | 0, h: b.h | 0 };
-}
-
-export function defaultAnimBox(id, anim){
-  if (isHeroFamily(id)){
-    if (anim === 'crouch' || anim === 'crouchWalk' || anim === 'pickCrouch') return { w: C.W, h: C.CRH };
-    if (anim === 'prone' || anim === 'pickProne') return { w: C.PRW, h: C.PRH };
-    if (anim === 'roll') return { w: C.W, h: C.RH };
-    return { w: C.W, h: C.H };
-  }
-  if (id === 'enemy2') return { w: 14, h: 18 };
-  if (id === 'enemy0' || id === 'enemy1') return { w: 11, h: 14 };
-  return { w: 10, h: 14 };
-}
-
-export function getAnimBox(id, anim){
-  var rec = recOf(id, anim), d = defaultAnimBox(id, anim), b;
-  b = rec && rec.box;
-  if (!b || b.w == null || b.h == null) return { w: d.w | 0, h: d.h | 0 };
-  return { w: b.w | 0, h: b.h | 0 };
-}
-
-export function setAnimBox(id, anim, w, h){
-  var rec = ensureRec(id, anim), meta, d, maxW, maxH, o;
-  if (!rec) return null;
-  meta = getSpriteMeta(id);
-  o = originFromRec(rec);
-  maxW = meta ? meta.fw : 16;
-  maxH = meta ? meta.fh : 16;
-  if (o){
-    maxW = Math.max(BOX_MIN, maxW - (o.x | 0));
-    maxH = Math.max(BOX_MIN, maxH - (o.y | 0));
-  }
-  w = clampS(w, BOX_MIN, maxW);
-  h = clampS(h, BOX_MIN, maxH);
-  d = defaultAnimBox(id, anim);
-  if (w === d.w && h === d.h) rec.box = null;
-  else rec.box = { w: w, h: h };
-  emit('anchor');
-  return getAnimBox(id, anim);
-}
-
 function overlaySprites(dst, src){
   var id, anim, rec, drec, m;
   if (!src) return;
@@ -354,10 +292,23 @@ function overlaySprites(dst, src){
       }
       if (rec.n != null) drec.n = rec.n | 0;
       if (rec.speed != null) drec.speed = +rec.speed;
-      if ('origin' in rec) drec.origin = cloneOrigin(rec.origin);
-      if ('grab' in rec) drec.grab = cloneOrigin(rec.grab);
-      if ('weapon' in rec) drec.weapon = clonePts(rec.weapon);
-      if ('box' in rec) drec.box = cloneBox(rec.box);
+    }
+  }
+}
+
+/** Убрать gameplay-якоря из live saved (после миграции в object-anchors). */
+export function stripAnchorsFromSaved(){
+  var id, anim, rec;
+  for (id in saved){
+    if (!Object.prototype.hasOwnProperty.call(saved, id)) continue;
+    for (anim in saved[id]){
+      if (!Object.prototype.hasOwnProperty.call(saved[id], anim) || anim === '_meta') continue;
+      rec = saved[id][anim];
+      if (!rec || typeof rec !== 'object') continue;
+      delete rec.origin;
+      delete rec.grab;
+      delete rec.weapon;
+      delete rec.box;
     }
   }
 }
@@ -536,7 +487,6 @@ export function setAnimFrameCount(id, anim, n){
   } else if (n < cur){
     rec.frames.length = n;
     rec.dirty.length = n;
-    if (rec.weapon && rec.weapon.length > n) rec.weapon.length = n;
     for (i = n; i < cur; i++) delete imgs[imgKey(id, anim, i)];
   }
   emit('frame');
@@ -544,7 +494,7 @@ export function setAnimFrameCount(id, anim, n){
 }
 
 export function reorderAnimFrames(id, anim, fromI, toI){
-  var n = getAnimFrameCount(id, anim), rec, f, d, w;
+  var n = getAnimFrameCount(id, anim), rec, f, d;
   fromI = fromI | 0; toI = toI | 0;
   if (fromI === toI || fromI < 0 || toI < 0 || fromI >= n || toI >= n) return null;
   rec = ensureRec(id, anim);
@@ -555,10 +505,6 @@ export function reorderAnimFrames(id, anim, fromI, toI){
   d = rec.dirty.splice(fromI, 1)[0];
   rec.frames.splice(toI, 0, f);
   rec.dirty.splice(toI, 0, !!d);
-  if (rec.weapon){
-    w = rec.weapon.splice(fromI, 1)[0];
-    rec.weapon.splice(toI, 0, w);
-  }
   loadAll();
   emit('frame');
   return { from: fromI, to: toI };
@@ -609,7 +555,7 @@ export function spriteDefForKind(kind){
   return null;
 }
 
-/** Deep-clone catalog entry + saved frames/anchors into a new custom sprite. */
+/** Deep-clone catalog entry + saved frames into a new custom sprite. */
 export function cloneSpriteDef(srcId, name){
   var src = byId[srcId], id, def, prefix;
   if (!src) return null;
@@ -647,11 +593,7 @@ function cloneSavedOne(srcRec){
       frames: rec.frames ? rec.frames.slice() : [],
       dirty: rec.dirty ? rec.dirty.slice() : [],
       n: rec.n,
-      speed: rec.speed,
-      origin: cloneOrigin(rec.origin),
-      grab: cloneOrigin(rec.grab),
-      weapon: clonePts(rec.weapon),
-      box: cloneBox(rec.box)
+      speed: rec.speed
     };
   }
   return out;
@@ -730,11 +672,6 @@ function clampS(n, lo, hi){
   return n;
 }
 
-function clampPt(p, fw, fh){
-  if (!p) return null;
-  return { x: clampS(p.x, 0, fw - 1), y: clampS(p.y, 0, fh - 1) };
-}
-
 function ensureRec(id, anim){
   var def = byId[id], a = animOf(def, anim);
   if (!def || !a) return null;
@@ -743,82 +680,8 @@ function ensureRec(id, anim){
   return saved[id][anim];
 }
 
-function originFromRec(rec){
-  var o, j, p;
-  if (!rec || rec.origin == null) return null;
-  o = rec.origin;
-  if (!Array.isArray(o))
-    return (o && o.x != null) ? { x: o.x | 0, y: o.y | 0 } : null;
-  for (j = 0; j < o.length; j++){
-    p = o[j];
-    if (p) return { x: p.x | 0, y: p.y | 0 };
-  }
-  return null;
-}
-
-export function getFrameAnchor(id, anim, i, kind){
-  var rec = recOf(id, anim), arr, p;
-  if (kind === 'origin') return originFromRec(rec);
-  if (kind === 'grab'){
-    if (rec && rec.grab && rec.grab.x != null) return { x: rec.grab.x | 0, y: rec.grab.y | 0 };
-    return null;
-  }
-  if (kind !== 'weapon') return null;
-  arr = rec && rec.weapon;
-  p = arr && arr[i | 0];
-  return p ? { x: p.x | 0, y: p.y | 0 } : null;
-}
-
-export function setFrameAnchor(id, anim, i, kind, x, y){
-  var rec, meta, pt;
-  if (kind !== 'origin' && kind !== 'weapon' && kind !== 'grab') return null;
-  rec = ensureRec(id, anim);
-  if (!rec) return null;
-  meta = getSpriteMeta(id);
-  pt = clampPt({ x: x, y: y }, meta.fw, meta.fh);
-  if (kind === 'origin'){
-    rec.origin = pt;
-    if (rec.box){
-      rec.box.w = clampS(rec.box.w, BOX_MIN, Math.max(BOX_MIN, meta.fw - pt.x));
-      rec.box.h = clampS(rec.box.h, BOX_MIN, Math.max(BOX_MIN, meta.fh - pt.y));
-    }
-    emit('anchor');
-    return pt;
-  }
-  if (kind === 'grab'){
-    rec.grab = pt;
-    emit('anchor');
-    return pt;
-  }
-  i = i | 0;
-  if (!rec.weapon) rec.weapon = [];
-  rec.weapon[i] = pt;
-  emit('anchor');
-  return pt;
-}
-
-export function clearFrameAnchor(id, anim, i, kind){
-  var rec = recOf(id, anim);
-  if (!rec) return;
-  if (kind === 'origin') rec.origin = null;
-  else if (kind === 'grab') rec.grab = null;
-  else if (kind === 'weapon' && rec.weapon) rec.weapon[i | 0] = null;
-  else return;
-  emit('anchor');
-}
-
-export function clearAnimAnchors(id, anim){
-  var rec = recOf(id, anim);
-  if (!rec) return;
-  rec.origin = null;
-  rec.grab = null;
-  rec.weapon = [];
-  rec.box = null;
-  emit('anchor');
-}
-
 export function setSpriteSize(id, fw, fh){
-  var def = byId[id], meta, rec, anim, i, p;
+  var def = byId[id], meta;
   if (!def) return null;
   fw = clampS(fw, MIN_S, MAX_S);
   fh = clampS(fh, MIN_S, MAX_S);
@@ -829,27 +692,6 @@ export function setSpriteSize(id, fw, fh){
   meta = getSpriteMeta(id);
   if (meta.ox > fw - 1) saved[id]._meta.ox = fw - 1;
   if (meta.oy > fh - 1) saved[id]._meta.oy = fh - 1;
-  for (anim in saved[id]){
-    if (!Object.prototype.hasOwnProperty.call(saved[id], anim) || anim === '_meta') continue;
-    rec = saved[id][anim];
-    if (!rec) continue;
-    if (rec.origin){
-      if (Array.isArray(rec.origin)){
-        for (i = 0; i < rec.origin.length; i++)
-          if (rec.origin[i]) rec.origin[i] = clampPt(rec.origin[i], fw, fh);
-      } else rec.origin = clampPt(rec.origin, fw, fh);
-    }
-    if (rec.grab) rec.grab = clampPt(rec.grab, fw, fh);
-    if (rec.weapon){
-      for (i = 0; i < rec.weapon.length; i++)
-        if (rec.weapon[i]) rec.weapon[i] = clampPt(rec.weapon[i], fw, fh);
-    }
-    if (rec.box){
-      rec.box.w = clampS(rec.box.w, BOX_MIN, fw);
-      rec.box.h = clampS(rec.box.h, BOX_MIN, fh);
-    }
-    void p;
-  }
   emit('size');
   return getSpriteMeta(id);
 }
@@ -916,6 +758,7 @@ export function snapshotSpriteDefs(){
 export function applySpritesSnap(snap){
   var defs, i, m;
   saved = cloneSaved((snap && snap.sprites) || {});
+  stripAnchorsFromSaved();
   defs = (snap && snap.defs) || [];
   customDefs = defs.map(normalizeCustomDef).filter(Boolean);
   defSeq = 1;
@@ -927,36 +770,4 @@ export function applySpritesSnap(snap){
   imgs = {};
   loadAll();
   emit('replace');
-}
-
-export function snapshotSpriteAnchors(){
-  var out = {}, id, anim, rec, m, a, packed, hasPic;
-  for (id in saved){
-    if (!Object.prototype.hasOwnProperty.call(saved, id)) continue;
-    packed = {};
-    m = saved[id] && saved[id]._meta;
-    if (m && typeof m === 'object') packed._meta = {
-      fw: m.fw, fh: m.fh, ox: m.ox, oy: m.oy, fx: m.fx
-    };
-    for (anim in saved[id]){
-      if (!Object.prototype.hasOwnProperty.call(saved[id], anim) || anim === '_meta') continue;
-      rec = saved[id][anim];
-      if (!rec) continue;
-      a = {};
-      hasPic = !!(rec.frames && rec.frames.length);
-      if (hasPic){
-        a.frames = rec.frames.slice();
-        a.dirty = (rec.dirty || []).slice();
-      }
-      if (rec.n != null) a.n = rec.n | 0;
-      if (rec.speed != null) a.speed = +rec.speed;
-      if (rec.origin) a.origin = cloneOrigin(rec.origin);
-      if (rec.grab) a.grab = cloneOrigin(rec.grab);
-      if (rec.weapon && rec.weapon.length) a.weapon = clonePts(rec.weapon);
-      if (rec.box) a.box = cloneBox(rec.box);
-      if (hasPic || a.origin || a.grab || a.weapon || a.box || rec.n != null || rec.speed != null) packed[anim] = a;
-    }
-    if (Object.keys(packed).length) out[id] = packed;
-  }
-  return out;
 }

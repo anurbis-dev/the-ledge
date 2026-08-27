@@ -7,7 +7,8 @@ import { BAKED } from './defaults.js';
 import { C } from './constants.js';
 import { notifyDraftChange } from './persist.js';
 import {
-  getSpriteDef, getSpriteMeta, isHeroSprite, snapshotSprites
+  getSpriteDef, getSpriteMeta, isHeroSprite, snapshotSprites,
+  stripAnchorsFromSaved
 } from './spriteset.js';
 import {
   resolveObject, listObjects, BUILTIN_OBJS, builtinSpriteId
@@ -296,6 +297,7 @@ function boot(){
     migrateAnchorsFromSprites((BAKED && BAKED.sprites) || {});
     migrateAnchorsFromSprites(snapshotSprites());
   }
+  stripAnchorsFromSaved();
 }
 
 boot();
@@ -409,17 +411,11 @@ export function clearAnimAnchors(objectKind, anim){
 }
 
 export function cloneObjectAnchors(fromKind, toKind){
-  var src;
+  var src, anim, rec;
   if (!fromKind || !toKind || fromKind === toKind) return false;
   src = saved[fromKind];
   if (!src) return false;
   saved[toKind] = {};
-  overlay(saved[toKind] ? saved : saved, null);
-  saved[toKind] = cloneSaved({ x: src }).x || cloneSaved({ t: src }).t;
-  /* cloneSaved expects map of kinds — simpler: */
-  saved[toKind] = {};
-  overlay({ tmp: saved[toKind] }, null);
-  var anim, rec;
   for (anim in src){
     if (!Object.prototype.hasOwnProperty.call(src, anim)) continue;
     rec = cloneAnimRec(src[anim]);

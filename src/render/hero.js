@@ -11,8 +11,9 @@ import {
 } from './poses.js';
 import { figure, drawBow, drawHeldWeapon } from './figure.js';
 import { isBowHand, isHarpoonHand, isPickaxeHand } from '../entities/gear.js';
-import { spriteFrameImage, getSpriteDef, getFrameAnchor } from '../core/spriteset.js';
-import { activeHeroId } from '../core/player.js';
+import { spriteFrameImage, getSpriteDef } from '../core/spriteset.js';
+import { getFrameAnchor } from '../core/object-anchors.js';
+import { activeHeroId, activeObjectKind } from '../core/player.js';
 import { defaultFrameAnchors } from './sprite-anchors.js';
 
 var G = GAME, C = G.C;
@@ -87,16 +88,16 @@ export function heroClip(p){
   return ['idle', Math.sin(animT * 2.6) > 0 ? 0 : 1];
 }
 
-function frameOrigin(id, anim, i, def){
-  var o = getFrameAnchor(id, anim, i, 'origin');
+function frameOrigin(objectKind, anim, i, def){
+  var o = getFrameAnchor(objectKind, anim, i, 'origin');
   if (o) return o;
   return { x: def.ox, y: def.oy };
 }
 
-function frameWeapon(id, anim, i){
-  var w = getFrameAnchor(id, anim, i, 'weapon');
+function frameWeapon(objectKind, anim, i, spriteId){
+  var w = getFrameAnchor(objectKind, anim, i, 'weapon');
   if (w) return w;
-  return defaultFrameAnchors(id, anim, i).weapon;
+  return defaultFrameAnchors(spriteId, anim, i).weapon;
 }
 
 function blitHeroSprite(img, def, wx, wy, facing, origin, rot){
@@ -165,7 +166,7 @@ function heroWeaponState(p){
 function overlayHeroWeapon(p, clip, def, wx, wy, facing, origin){
   var st = heroWeaponState(p);
   if (st.onBack || (!st.hs && !st.bowHeld)) return;
-  var weap = frameWeapon(activeHeroId(), clip[0], clip[1]);
+  var weap = frameWeapon(activeObjectKind(), clip[0], clip[1], activeHeroId());
   var xy = spriteLocalScreen(wx, wy, facing, origin, def, weap.x, weap.y);
   if (st.bowHeld){
     var bt = p.bowT > 0 ? (1 - p.bowT / C.BOW_ANIM_T) : 0;
@@ -192,7 +193,7 @@ function tryHeroSprite(p){
   } else if (p.state === 'climb' && p.climb.kind === 'ledge'){
     wx = p.climb.cx; wy = p.climb.cy; facing = p.climb.facing;
   }
-  var origin = frameOrigin(hid, clip[0], clip[1], def);
+  var origin = frameOrigin(activeObjectKind(), clip[0], clip[1], def);
   blitHeroSprite(img, def, wx, wy, facing, origin, p.rollT > 0 ? p.rollAng : 0);
   overlayHeroWeapon(p, clip, def, wx, wy, facing, origin);
   return true;

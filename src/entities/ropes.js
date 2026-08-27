@@ -6,8 +6,8 @@ import {
 import { getTileDef } from '../core/tileset.js';
 import { allocId, findById } from './ids.js';
 import { dropTorch } from './torches.js';
-import { setStance, activeHeroId, grounded, snapFeet } from '../core/player.js';
-import { getAnimBox } from '../core/spriteset.js';
+import { setStance, activeObjectKind, grounded, snapFeet } from '../core/player.js';
+import { getAnimBox } from '../core/object-anchors.js';
 import { heroGrabOffset } from '../core/sprite-grab.js';
 
 export var ROPE_DEF = {
@@ -621,7 +621,7 @@ export function attachRope(S, p, r, t){
   p.hang = null; p.lad = null; p.bars = null; p.climb = null; p.ride = null;
   p.vx = 0; p.vy = 0; p.onGround = false; p.jumping = false;
   r.rider = true;
-  var box = getAnimBox(activeHeroId(), r.orient === 'h' ? 'bars' : 'ropeClimb');
+  var box = getAnimBox(activeObjectKind(), r.orient === 'h' ? 'bars' : 'ropeClimb');
   if (box){ p.w = box.w; p.h = box.h; }
   placeOnRope(p, sampleRope(r, t), r.orient);
   unstickRopeRiderSidesHead(p);

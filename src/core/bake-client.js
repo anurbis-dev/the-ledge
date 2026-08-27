@@ -22,7 +22,7 @@ export function collectAuto(){
     levels: levelsStoreSnapshot(),
     tiles: snapshotTiles(),
     tileGfx: snapshotGfx(),
-    // Полный saved (frames+якоря); серверный spriteAnchors упакует для BAKED.
+    // Полный saved (frames only); серверный spriteAnchors упакует для BAKED.
     sprites: snapshotSprites(),
     spriteDefs: snapshotSpriteDefs(),
     objects: snapshotObjects(),

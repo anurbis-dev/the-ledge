@@ -36,16 +36,27 @@ export function mkNpcs(){
   return (LV.npcs || []).map(function(a, i){
     var x = a[0] * T + 3, y = (a[1] + 1) * T - 18;
     var dialog = a[4] && typeof a[4] === 'object' ? a[4] : null;
-    var spriteId = typeof a[5] === 'string' ? a[5] : (typeof a[4] === 'string' ? a[4] : null);
+    var spriteId = null, objectKind = null;
+    if (typeof a[5] === 'string'){
+      spriteId = a[5];
+      if (typeof a[6] === 'string') objectKind = a[6];
+    } else if (typeof a[4] === 'string'){
+      spriteId = a[4];
+      if (typeof a[5] === 'string') objectKind = a[5];
+    } else if (typeof a[6] === 'string'){
+      objectKind = a[6];
+    }
     var n = mkNpc(i, x, y, a[2] || 'hermit', a[3], dialog, i * 1.3);
     if (spriteId) n.spriteId = spriteId;
+    if (objectKind) n.objectKind = objectKind;
     return n;
   });
 }
 
-export function mkNpcAt(S, x, y, tree, facing, dialog, spriteId){
+export function mkNpcAt(S, x, y, tree, facing, dialog, spriteId, objectKind){
   var n = mkNpc(allocId(S.npcs), x - 5, y - 18, tree, facing, dialog);
   if (spriteId) n.spriteId = spriteId;
+  if (objectKind) n.objectKind = objectKind;
   S.npcs.push(n);
   return n;
 }

@@ -8,18 +8,23 @@ import { dropTorch } from '../entities/torches.js';
 import { platUnder } from '../entities/plats.js';
 import { breakTalk } from '../speech/runtime.js';
 import { heroGrabOffset, heroGrabWorld, heroHandY, heroBoxAnim } from './sprite-grab.js';
-import { getAnimBox } from './spriteset.js';
+import { getAnimBox, legacyObjectKindFromSprite } from './object-anchors.js';
 
 export function activeHeroId(){
   var sp = runtime.LV && runtime.LV.spawn;
   return (sp && sp.spriteId) || 'hero';
 }
 
+export function activeObjectKind(){
+  var sp = runtime.LV && runtime.LV.spawn;
+  return (sp && sp.objectKind) || legacyObjectKindFromSprite(sp && sp.spriteId) || 'hero';
+}
+
 /* ---------------- игрок ---------------- */
 export function mkPlayer(){
   var sx = runtime.LV.spawn.x, sy = runtime.LV.spawn.y;
   var hid = activeHeroId();
-  var box = getAnimBox(hid, 'idle');
+  var box = getAnimBox(activeObjectKind(), 'idle');
   return {
     x: sx, y: sy, w: box.w, h: box.h, vx: 0, vy: 0, facing: 1, spriteId: hid,
     state: 'normal', onGround: true, jumping: false, sliding: 0,
@@ -251,9 +256,9 @@ export function grounded(S, p, noLadTop){
 
 export function setH(p, h){ var b = p.y + p.h; p.h = h; p.y = b - h; }
 export function stanceBox(st){
-  if (st === 2) return getAnimBox(activeHeroId(), 'prone');
-  if (st === 1) return getAnimBox(activeHeroId(), 'crouch');
-  return getAnimBox(activeHeroId(), 'idle');
+  if (st === 2) return getAnimBox(activeObjectKind(), 'prone');
+  if (st === 1) return getAnimBox(activeObjectKind(), 'crouch');
+  return getAnimBox(activeObjectKind(), 'idle');
 }
 export function stanceH(st){ return stanceBox(st).h; }
 export function stanceW(st){ return stanceBox(st).w; }
@@ -291,12 +296,12 @@ export function applyHeroBox(p){
   st = p.state;
   if (st === 'hang' || st === 'climb' || st === 'ladder' || st === 'bars' || st === 'rope') return;
   if (p.warp) return;
-  b = getAnimBox(activeHeroId(), heroBoxAnim(p));
+  b = getAnimBox(activeObjectKind(), heroBoxAnim(p));
   if (p.rollT > 0) forceHeroBox(p, b.w, b.h);
   else fitHeroBox(p, b.w, b.h);
 }
 export function applyRollBox(p){
-  var b = getAnimBox(activeHeroId(), 'roll');
+  var b = getAnimBox(activeObjectKind(), 'roll');
   p.rollAng = 0;
   p.stanceT = 0;                               // не крутить lerp стойки внутри переката
   forceHeroBox(p, b.w, b.h);
@@ -319,7 +324,7 @@ function handOffY(p){
 
 export function hangBox(cx, cy, facing, kind, p){
   var hy = handOffY(p);
-  var b = getAnimBox(activeHeroId(), kind === 'lad' ? 'hangLad' : 'hang');
+  var b = getAnimBox(activeObjectKind(), kind === 'lad' ? 'hangLad' : 'hang');
   var w = b.w, h = b.h, y = cy - hy;
   if (kind === 'lad') return { x: cx - w / 2, y: y, w: w, h: h };
   return { x: facing > 0 ? cx - w : cx, y: y, w: w, h: h };
@@ -329,7 +334,7 @@ export function standBox(cx, cy, facing){
   return { x: cx + facing * C.STAND_OFF - b.w / 2, y: cy - b.h, w: b.w, h: b.h };
 }
 export function ladBox(cx, cy){
-  var b = getAnimBox(activeHeroId(), 'ladder');
+  var b = getAnimBox(activeObjectKind(), 'ladder');
   return { x: cx - b.w / 2, y: cy - b.h, w: b.w, h: b.h };
 }
 /* площадка над кромкой в стойке st: 0 стоя, 1 присед, 2 лаз */

@@ -3,6 +3,7 @@ import { snapshotLayers, applyLayerSnap } from '../core/layers.js';
 import { snapshotTiles, snapshotGfx, applyTilesSnap } from '../core/tileset.js';
 import { snapshotSprites, snapshotSpriteDefs, applySpritesSnap } from '../core/spriteset.js';
 import { snapshotObjects, applyObjectsSnap } from '../core/objectset.js';
+import { snapshotObjectAnchors, applyObjectAnchorsSnap } from '../core/object-anchors.js';
 import { clearBakeCache } from '../render/sprite-bake.js';
 
 var MAX = 60;
@@ -54,7 +55,8 @@ function capture(){
     tileGfx: snapshotGfx(),
     sprites: snapshotSprites(),
     spriteDefs: snapshotSpriteDefs(),
-    objects: snapshotObjects()
+    objects: snapshotObjects(),
+    objectAnchors: snapshotObjectAnchors()
   };
 }
 
@@ -70,6 +72,7 @@ function restore(snap){
   if (snap.tiles || snap.tileGfx) applyTilesSnap(snap.tiles || [], snap.tileGfx || {});
   if (snap.sprites || snap.spriteDefs) applySpritesSnap({ sprites: snap.sprites || {}, defs: snap.spriteDefs || [] });
   if (snap.objects) applyObjectsSnap(snap.objects);
+  if (snap.objectAnchors) applyObjectAnchorsSnap(snap.objectAnchors);
   clearBakeCache();
   if (onChange) onChange('restore');
 }

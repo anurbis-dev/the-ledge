@@ -261,26 +261,29 @@ function writeObjects(lv, S){
   lv.enemies = (S.enemies || []).filter(function(e){ return !e.dead; }).map(function(e){
     var t = [Math.round(e.x), Math.round(e.y + e.h), Math.round(e.x0), Math.round(e.x1),
              Math.round(e.v), e.kind];
-    if ((e.loot && e.loot.length) || e.spriteId){
+    if ((e.loot && e.loot.length) || e.spriteId || e.objectKind){
       t.push((e.loot || []).map(function(x){ return [x.kind, x.qty]; }));
       t.push(!!e.random);
-      if (e.spriteId) t.push(e.spriteId);
+      if (e.spriteId || e.objectKind) t.push(e.spriteId || null);
+      if (e.objectKind) t.push(e.objectKind);
     }
     return t;
   });
   lv.fliers = (S.fliers || []).map(function(f){
     var t = [Math.round(f.x), Math.round(f.y), Math.round(f.x0), Math.round(f.x1),
              Math.round(f.v), f.kind];
-    if ((f.loot && f.loot.length) || f.spriteId){
+    if ((f.loot && f.loot.length) || f.spriteId || f.objectKind){
       t.push((f.loot || []).map(function(x){ return [x.kind, x.qty]; }));
       t.push(!!f.random);
-      if (f.spriteId) t.push(f.spriteId);
+      if (f.spriteId || f.objectKind) t.push(f.spriteId || null);
+      if (f.objectKind) t.push(f.objectKind);
     }
     return t;
   });
   lv.spiders = (S.spiders || []).filter(function(s){ return !s.dead; }).map(function(s){
     var row = [Math.floor(s.hx / T), Math.floor(s.hy / T) - 1, s.kind];
-    if (s.spriteId) row.push(s.spriteId);
+    if (s.spriteId || s.objectKind) row.push(s.spriteId || null);
+    if (s.objectKind) row.push(s.objectKind);
     return row;
   });
   lv.tendrils = (S.tendrils || []).filter(function(td){ return !td.dead; }).map(function(td){
@@ -306,13 +309,18 @@ function writeObjects(lv, S){
     var row = [Math.floor((n.x + 5) / T), Math.floor((n.y + 18) / T) - 1,
                n.tree || 'hermit', n.facing != null ? n.facing : -1];
     if (n.dialog && n.dialog.nodes) row.push(JSON.parse(JSON.stringify(n.dialog)));
-    else if (n.spriteId) row.push(null);
-    if (n.spriteId) row.push(n.spriteId);
+    else if (n.spriteId || n.objectKind) row.push(null);
+    if (n.spriteId || n.objectKind) row.push(n.spriteId || null);
+    if (n.objectKind) row.push(n.objectKind);
     return row;
   });
   var items = (S.items || []).filter(function(it){ return !it.got; }).map(function(it){
     var row = [Math.floor(it.x / T), Math.floor(it.y / T), it.kind];
-    if (it.spriteId){ row.push(0); row.push(it.spriteId); }
+    if (it.spriteId || it.objectKind){
+      row.push(0);
+      row.push(it.spriteId || null);
+      if (it.objectKind) row.push(it.objectKind);
+    }
     return row;
   });
   lv.items = function(){ return items.map(function(a){ return a.slice(); }); };

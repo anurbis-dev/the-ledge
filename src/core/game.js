@@ -14,7 +14,7 @@ import {
   tileFlipAt, ceilYAt
 } from './map.js';
 import { mkPlayer, resetPlayer, stanceH, hangBox, standBox, applyHeroBox, isInvuln, toggleInvuln, setInvuln } from './player.js';
-import { getAnimBox } from './spriteset.js';
+import { getAnimBox, legacyObjectKindFromSprite } from './object-anchors.js';
 import { step } from './step.js';
 import { LEVELS, loadLevel, addBlankLevel, removeLevel } from '../levels/index.js';
 import { mkItems } from '../entities/items.js';
@@ -228,34 +228,39 @@ function setCoverVar(c, r, v){
   return true;
 }
 
-function mkItemAt(S, cx, cy, kind, spriteId){
+function mkItemAt(S, cx, cy, kind, spriteId, objectKind){
   S.items.push({
     id: allocId(S.items), x: cx, y: cy, kind: kind, got: false, ph: Math.random()*6.28,
-    spriteId: spriteId || null
+    spriteId: spriteId || null, objectKind: objectKind || null
   });
 }
-function mkEnemyAt(S, x, y, kind, loot, random, spriteId){
+function mkEnemyAt(S, x, y, kind, loot, random, spriteId, objectKind){
   var sid = spriteId || ('enemy' + (kind | 0));
-  var box = getAnimBox(sid, 'idle');
+  var ok = objectKind || legacyObjectKindFromSprite(sid) || ('enemy' + (kind | 0));
+  var box = getAnimBox(ok, 'idle');
   S.enemies.push({ id:allocId(S.enemies), x:x, y:y-box.h, w:box.w, h:box.h,
                    x0:x-64, x1:x+64, v:26, kind:kind, tough: kind===2?2:1,
                    dir:1, dead:false, hitT:0, ph:0, vy:0,
                    loot: (loot && loot.length) ? loot.map(function(e){ return { kind:e.kind, qty:e.qty }; }) : [],
                    random: !!random,
-                   spriteId: spriteId || null });
+                   spriteId: spriteId || null, objectKind: objectKind || null });
 }
-function mkFlierAt(S, x, y, kind, loot, random, spriteId){
-  S.fliers.push({ id:allocId(S.fliers), x:x, y:y, w: kind===2?16:13, h: kind===2?11:9,
+function mkFlierAt(S, x, y, kind, loot, random, spriteId, objectKind){
+  var sid = spriteId || ('flier' + (kind | 0));
+  var ok = objectKind || legacyObjectKindFromSprite(sid) || ('flier' + (kind | 0));
+  var dw = kind===2?16:13, dh = kind===2?11:9;
+  var box = (objectKind || spriteId) ? getAnimBox(ok, 'idle') : { w: dw, h: dh };
+  S.fliers.push({ id:allocId(S.fliers), x:x, y:y, w: box.w, h: box.h,
                   x0:x-80, x1:x+80, v:28, kind:kind, dir:1,
                   ph:0, cd:1.2, flap:0,
                   loot: (loot && loot.length) ? loot.map(function(e){ return { kind:e.kind, qty:e.qty }; }) : [],
                   random: !!random,
-                  spriteId: spriteId || null });
+                  spriteId: spriteId || null, objectKind: objectKind || null });
 }
-function mkSpiderAt(S, x, y, kind, spriteId){
+function mkSpiderAt(S, x, y, kind, spriteId, objectKind){
   S.spiders.push({ id:allocId(S.spiders), hx:x, hy:y, x:x, y:y, kind:kind,
                    len:0, state:'wait', t:1, dir:1, dead:false, hitT:0, ph:0, vy:0,
-                   spriteId: spriteId || null });
+                   spriteId: spriteId || null, objectKind: objectKind || null });
 }
 function mkTorchAt(S, x, y){
   S.torches.push({ id:allocId(S.torches), x:x, y:y, vx:0, vy:0, held:false, ground:true,

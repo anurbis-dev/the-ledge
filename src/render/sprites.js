@@ -2,17 +2,19 @@ import GAME from '../core/game.js';
 import { ctx, cam, view, viewW, rc, lb, world, setFill, pushEntA, popEntA, entA } from './ctx.js';
 import { P } from './palette.js';
 import { drawItemIcon } from './icons.js';
-import { spriteFrameImage, getSpriteDef, getFrameAnchor, getAnimFrame } from '../core/spriteset.js';
+import { spriteFrameImage, getSpriteDef, getAnimFrame } from '../core/spriteset.js';
+import { getFrameAnchor, legacyObjectKindFromSprite } from '../core/object-anchors.js';
 
 /* pinCell: wx/wy = угол клетки 16×16, без origin (иконки предметов к тайлу) */
-function blitEntSprite(id, anim, frame, wx, wy, dir, pinCell){
+function blitEntSprite(id, anim, frame, wx, wy, dir, pinCell, objectKind){
   var img = spriteFrameImage(id, anim, frame);
   if (!img) return false;
   var def = getSpriteDef(id);
   if (!def) return false;
-  var ox = 0, oy = 0, origin;
+  var ox = 0, oy = 0, origin, ok;
   if (!pinCell){
-    origin = getFrameAnchor(id, anim, frame, 'origin');
+    ok = objectKind || legacyObjectKindFromSprite(id) || id;
+    origin = getFrameAnchor(ok, anim, frame, 'origin');
     ox = origin ? origin.x : (def.ox || 0);
     oy = origin ? origin.y : (def.oy || 0);
   }
@@ -208,7 +210,7 @@ export function npcs(){
     var f = n.facing >= 0 ? 1 : -1;
     var bob = n.st === 'flee' ? Math.round(Math.sin(time * 10 + n.ph)) : Math.round(Math.sin(time * 2.2 + n.ph) * 0.5);
     var nKind = n.spriteId || (n.tree === 'wanderer' ? 'npc_wanderer' : 'npc_hermit');
-    if (blitEntSprite(nKind, 'idle', getAnimFrame(nKind, 'idle', time + n.ph), n.x, n.y + bob, n.facing)) continue;
+    if (blitEntSprite(nKind, 'idle', getAnimFrame(nKind, 'idle', time + n.ph), n.x, n.y + bob, n.facing, false, n.objectKind)) continue;
     var cloak = n.tree === 'wanderer' ? '#3a5a4a' : '#4a3a68';
     var cloakD = n.tree === 'wanderer' ? '#243830' : '#2e2446';
     var cx = x + 5;
@@ -335,7 +337,7 @@ export function enemies(){
     }
     var hop = Math.round(Math.sin(time*(e.kind === 1 ? 9 : 6) + e.ph)*1.5);
     var eKind = e.spriteId || ('enemy' + e.kind);
-    if (blitEntSprite(eKind, 'idle', getAnimFrame(eKind, 'idle', time + e.ph), e.x, e.y + hop, e.dir)) continue;
+    if (blitEntSprite(eKind, 'idle', getAnimFrame(eKind, 'idle', time + e.ph), e.x, e.y + hop, e.dir, false, e.objectKind)) continue;
     var bodyA = e.kind === 1 ? '#b05f7a' : (e.kind === 2 ? '#5f7fb0' : P.foeA);
     var bodyB = e.kind === 1 ? '#7a3d52' : (e.kind === 2 ? '#3d537a' : P.foeB);
     if (e.hurt) bodyA = '#d0a0a0';
@@ -364,7 +366,7 @@ export function fliers(){
       ? Math.sin(view.time * 1.4 + f.ph) * 1.5 - 2
       : Math.sin(f.flap * (f.kind === 1 ? 20 : 12) + f.ph) * (f.kind === 2 ? 6 : 4);
     var flKind = f.spriteId || ('flier' + f.kind);
-    if (blitEntSprite(flKind, anim, getAnimFrame(flKind, anim, f.flap + f.ph), f.x, f.y, f.dir)) continue;
+    if (blitEntSprite(flKind, anim, getAnimFrame(flKind, anim, f.flap + f.ph), f.x, f.y, f.dir, false, f.objectKind)) continue;
     var fa = f.kind === 1 ? '#8f6d4a' : (f.kind === 2 ? '#4a6d8f' : (f.kind === 3 ? '#8f2f3a' : '#6d5a8f'));
     var fb = f.kind === 1 ? '#c9a06a' : (f.kind === 2 ? '#7fa8cc' : (f.kind === 3 ? '#e06a6a' : '#9b83c4'));
     rc(x + 2, y + 2, f.w - 4, f.h - 3, fa);
@@ -472,8 +474,8 @@ export function spiders(){
       ctx.globalAlpha = entA(sp);
     }
     var wig = Math.sin(time * (sp.state === 'flee' ? 14 : 8) + sp.ph);
-    var spKind = 'spider' + sp.kind;
-    if (blitEntSprite(spKind, 'idle', getAnimFrame(spKind, 'idle', time + sp.ph), sp.x - 3, sp.y - 2, sp.dir)) continue;
+    var spKind = sp.spriteId || ('spider' + sp.kind);
+    if (blitEntSprite(spKind, 'idle', getAnimFrame(spKind, 'idle', time + sp.ph), sp.x - 3, sp.y - 2, sp.dir, false, sp.objectKind)) continue;
     for (var l = 0; l < 4; l++){                         // лапки
       var sgn = l < 2 ? -1 : 1, k2 = (l % 2);
       lb([x, y], [x + sgn*(4 + k2*2), y + 3 + Math.round(wig*(1 + k2))], 1, body);
@@ -595,8 +597,8 @@ export function items(){
     var bob = Math.sin(time*2.4 + it.ph)*2;
     var x = Math.round(it.x - cam.x), y = Math.round(it.y - cam.y + bob);
     if (x < -12 || x > viewW()+12) continue;
-    if (it.spriteId && blitEntSprite(it.spriteId, 'idle', 0, it.x - 8, it.y - 8 + bob, 1, true)) continue;
-    if (it.kind && blitEntSprite(it.kind, 'idle', 0, it.x - 8, it.y - 8 + bob, 1, true)) continue;
+    if (it.spriteId && blitEntSprite(it.spriteId, 'idle', 0, it.x - 8, it.y - 8 + bob, 1, true, it.objectKind)) continue;
+    if (it.kind && blitEntSprite(it.kind, 'idle', 0, it.x - 8, it.y - 8 + bob, 1, true, it.objectKind)) continue;
     if (it.kind === 'gem'){
       rc(x-1,y-4,2,1,P.gem); rc(x-3,y-3,6,2,P.gem); rc(x-2,y-1,4,3,P.gemD);
       rc(x-1,y+2,2,2,P.gemD); rc(x-2,y-3,1,2,'#ffffff');

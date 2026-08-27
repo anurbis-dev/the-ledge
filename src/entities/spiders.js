@@ -7,10 +7,13 @@ import { dropLootFor } from './loot.js';
 export function mkSpiders(){
   var LV = runtime.LV;
   return (LV.spiders || []).map(function(a, i){
+    var spriteId = typeof a[3] === 'string' ? a[3] : null;
+    var objectKind = typeof a[4] === 'string' ? a[4] : null;
     return { id:i, hx:a[0]*T + 8, hy:(a[1]+1)*T, x:a[0]*T + 8, y:(a[1]+1)*T,
              kind: a[2] !== undefined ? a[2] : (i % 3),
              len:0, state:'wait', t: 1 + i*0.6, dir: i%2 ? -1 : 1,
-             dead:false, hitT:0, ph:i*1.4, vy:0 };
+             dead:false, hitT:0, ph:i*1.4, vy:0,
+             spriteId: spriteId, objectKind: objectKind };
   });
 }
 

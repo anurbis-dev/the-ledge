@@ -9,10 +9,18 @@ export function mkItems(){
   if (typeof raw === 'function') raw = raw();
   if (!raw) raw = [];
   return raw.map(function(a, i){
+    var spriteId = null, objectKind = null;
+    if (typeof a[3] === 'string'){
+      spriteId = a[3];
+      if (typeof a[4] === 'string') objectKind = a[4];
+    } else {
+      if (typeof a[4] === 'string') spriteId = a[4];
+      if (typeof a[5] === 'string') objectKind = a[5];
+    }
     return {
       id: i, x: a[0]*T+8, y: a[1]*T+8+(typeof a[3] === 'number' ? a[3] : 0),
       kind: a[2], got: false, ph: (i*37%100)/100*6.28,
-      spriteId: typeof a[4] === 'string' ? a[4] : (typeof a[3] === 'string' ? a[3] : null)
+      spriteId: spriteId, objectKind: objectKind
     };
   });
 }

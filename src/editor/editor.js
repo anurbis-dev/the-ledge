@@ -32,6 +32,7 @@ import {
   allPaletteObjects, resolveObject, cloneObjectFrom, bindObjectset,
   isLootRole, isLootOnlyRole, objectSpriteDef, updateObject, listObjects
 } from '../core/objectset.js';
+import { cloneObjectAnchors } from '../core/object-anchors.js';
 import { bakeBuiltinTileSrc, bakeSpriteFrameSrc } from '../render/sprite-bake.js';
 import { migrateEditorGraphics, migrateTilePicture } from './migrate-graphics.js';
 import { setEditorRooms, stepRooms } from '../core/rooms.js';
@@ -1117,14 +1118,17 @@ function spawnMarker(){
   return lv.spawn;
 }
 
-function placePlayerStart(cell, spriteId){
+function placePlayerStart(cell, spriteId, objectKind){
   var spawn = spawnMarker(), S = world();
   if (!spawn) return;
   var sid = spriteId || spawn.spriteId || 'hero';
-  var T = G.T, box = G.getAnimBox(sid, 'idle') || G.getAnimBox('hero', 'idle') || { w: 10, h: 22 };
+  var ok = objectKind || spawn.objectKind || 'hero';
+  if (ok === 'player_start') ok = 'hero';
+  var T = G.T, box = G.getAnimBox(ok, 'idle') || G.getAnimBox('hero', 'idle') || { w: 10, h: 22 };
   spawn.x = Math.round(cell.c * T + 8 - box.w / 2);
   spawn.y = Math.round((cell.r + 1) * T - box.h);
   spawn.spriteId = sid;
+  spawn.objectKind = ok;
   if (S && S.respawn){ S.respawn.x = spawn.x; S.respawn.y = spawn.y; }
   selectSpecial({ type: 'player_start', obj: spawn });
 }
@@ -1255,6 +1259,7 @@ function duplicatePalObject(){
   var newSid = clonedSpr ? clonedSpr.id : null;
   var obj = cloneObjectFrom(meta.kind, newSid);
   if (!obj){ endOp(); return false; }
+  cloneObjectAnchors(meta.kind, obj.id);
   noteOp();
   endOp();
   rebuildEdObjs();
@@ -2039,6 +2044,7 @@ function edPlaceObject(cell){
   var meta = palObjMeta(spec);
   var kind = (meta && meta.template) || spec.kind;
   var spriteId = meta && meta.spriteId;
+  var objectKind = meta && meta.kind;
   if (!spriteId && kind === 'player_start'){
     var sp0 = G.levelSpec && G.levelSpec();
     spriteId = (sp0 && sp0.spawn && sp0.spawn.spriteId) || 'hero';
@@ -2046,7 +2052,7 @@ function edPlaceObject(cell){
   var itemKind = (meta && meta.itemKind) || kind;
   var cx = cell.c*T + 8, cy = cell.r*T + 8, floorY = (cell.r + 1)*T;
   if (kind === 'hero') return; /* только Details — кадры персонажа */
-  if (kind === 'player_start'){ placePlayerStart(cell, spriteId); return; }
+  if (kind === 'player_start'){ placePlayerStart(cell, spriteId, objectKind); return; }
   if (occupiedByKind(kind, cell, kind === 'door' ? ED.doorPending : null)) return;
   if (kind === 'level_exit'){ placeLevelExit(cell); return; }
   if (kind === 'door'){ placeDoorPair(cell); return; }
@@ -2076,16 +2082,16 @@ function edPlaceObject(cell){
     if (lootAt){ addLoot(lootAt.obj, itemKind, 1); return; }
     if (palIsLootOnly(spec) || LOOT_ONLY_KINDS[kind]) return;
   }
-  if (kind.indexOf('enemy') === 0) G.mkEnemyAt(S, cx - 5, floorY, +kind.slice(5), null, false, spriteId);
-  else if (kind.indexOf('flier') === 0) G.mkFlierAt(S, cx - 6, cy - 4, +kind.slice(5), null, false, spriteId);
-  else if (kind.indexOf('spider') === 0) G.mkSpiderAt(S, cx, floorY, +kind.slice(6), spriteId);
+  if (kind.indexOf('enemy') === 0) G.mkEnemyAt(S, cx - 5, floorY, +kind.slice(5), null, false, spriteId, objectKind);
+  else if (kind.indexOf('flier') === 0) G.mkFlierAt(S, cx - 6, cy - 4, +kind.slice(5), null, false, spriteId, objectKind);
+  else if (kind.indexOf('spider') === 0) G.mkSpiderAt(S, cx, floorY, +kind.slice(6), spriteId, objectKind);
   else if (kind.indexOf('tendril') === 0) G.mkTendrilAt(S, cx, cy, +kind.slice(7));
   else if (kind === 'torch') G.mkTorchAt(S, cx, floorY);
   else if (kind === 'chest') G.mkChestAt(S, cell.c*T, floorY, [{ kind:'coin', qty:5 }], false);
   else if (kind === 'chestL') G.mkChestAt(S, cell.c*T, floorY, [{ kind:'gem', qty:3 }], true);
   else if (kind === 'boulder') G.mkBoulderAt(S, cx, floorY);
-  else if (kind.indexOf('npc_') === 0) G.mkNpcAt(S, cx, floorY, kind.slice(4), null, null, spriteId);
-  else G.mkItemAt(S, cx, cy, itemKind, spriteId);
+  else if (kind.indexOf('npc_') === 0) G.mkNpcAt(S, cx, floorY, kind.slice(4), null, null, spriteId, objectKind);
+  else G.mkItemAt(S, cx, cy, itemKind, spriteId, objectKind);
 }
 function edPaintSlope(cell, brush){
   var S = world();

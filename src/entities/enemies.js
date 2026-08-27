@@ -2,7 +2,9 @@ import { C } from '../core/constants.js';
 import { runtime } from '../core/runtime.js';
 import { rectFree, solidAt } from '../core/map.js';
 import { damage, isInvuln, slopeUnder } from '../core/player.js';
-import { getAnimBox } from '../core/spriteset.js';
+import {
+  getAnimBox, legacyObjectKindFromSprite, resolveEntityObjectKind
+} from '../core/object-anchors.js';
 import { dropLootFor } from './loot.js';
 import { GEAR, wearGear } from './gear.js';
 
@@ -11,9 +13,10 @@ export function enemyBox(kind){
 }
 
 export function applyEnemyBox(e){
-  var b, feet, restFeet;
+  var b, feet, restFeet, ok;
   if (!e) return;
-  b = enemyBox(e.kind);
+  ok = resolveEntityObjectKind(e) || ('enemy' + (e.kind | 0));
+  b = getAnimBox(ok, 'idle');
   if (e.w === b.w && e.h === b.h) return;
   feet = e.y + e.h;
   restFeet = e.baseY !== undefined ? e.baseY + e.h : feet;
@@ -28,7 +31,9 @@ export function mkEnemies(){
   return (LV.enemies || []).map(function(a, i){
     var kind = a[5] !== undefined ? a[5] : (i % 3);
     var spriteId = typeof a[8] === 'string' ? a[8] : null;
-    var box = spriteId ? getAnimBox(spriteId, 'idle') : enemyBox(kind);
+    var objectKind = typeof a[9] === 'string' ? a[9] : null;
+    var ok = objectKind || legacyObjectKindFromSprite(spriteId) || ('enemy' + (kind | 0));
+    var box = getAnimBox(ok, 'idle');
     var loot = Array.isArray(a[6])
       ? a[6].map(function(e){ return { kind: e[0], qty: Math.max(1, e[1] | 0 || 1) }; })
       : [];
@@ -36,7 +41,7 @@ export function mkEnemies(){
              v: a[4] * (kind === 1 ? 1.4 : (kind === 2 ? 0.7 : 1)),
              kind: kind, tough: kind === 2 ? 2 : 1,
              dir: i%2 ? -1 : 1, dead:false, hitT:0, ph:i*1.3, vy:0,
-             loot: loot, random: !!a[7], spriteId: spriteId };
+             loot: loot, random: !!a[7], spriteId: spriteId, objectKind: objectKind };
   });
 }
 export function stepEnemies(S, dt){

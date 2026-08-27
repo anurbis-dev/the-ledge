@@ -2,6 +2,14 @@
 
 ## 2026-08-27
 
+- **Fix: pickaxe-hit shake looped continuously for the entire time a tile was damaged instead of playing once per hit.**
+  - The shake was gated on `S.digHp[k] != null` (set for the whole mid-dig duration, deleted only on break), so `paintTileId()` shook the tile every frame from the first hit until it broke. Replaced with a dedicated `S.digShakeT[k]` timer (`C.DIG_SHAKE_T = 0.18s`) set fresh on each `dighit` in `entities/mining.js`, decremented by a new `stepDigShake(S, dt)` wired into `core/step.js` next to `stepCrumbs`. `render/tiles.js`'s new `digHitShakeX(S, k)` derives the offset from elapsed-since-hit (not the global `time*46` wave), so amplitude decays to 0 over `DIG_SHAKE_T` and the tile sits still between hits. `CRUMB`'s own continuous crack-tremor (`crumbT`) is untouched.
+  - `isDamaged(c, r)` (chunk-cache exclusion) switched from `digHp` to `digShakeT` to match тАФ a damaged-but-not-currently-shaking tile now sits back in the static chunk cache instead of redrawing every frame for the tile's entire mid-dig lifetime.
+  - Because `digShakeT`'s window is short and state-based (unlike `CRUMB`, which is permanently excluded from the bake by tile id), the chunk must be explicitly invalidated on both the rising and falling edge тАФ `tryDig()` now calls `hooks.onSetTile(col, r)` when it sets `digShakeT`, and `stepDigShake()` calls it again when an entry expires тАФ otherwise the shaking dynamic draw would double up on top of a stale opaque static bake, or leave a transparent hole once the shake ends.
+  - Verified directly: after one simulated hit, the chunk-canvas pixel at the tile goes from opaque to transparent (correctly excluded); after stepping `stepDigShake` past `DIG_SHAKE_T`, `digShakeT[k]` is deleted and the chunk pixel returns to the exact same opaque value as before the hit (clean round-trip, no residual hole or duplicate layer).
+
+## 2026-08-27
+
 - **Fix: damage shake never played on custom (sprite-based) diggable tiles, only on plain rock/`CRUMB`.**
   - `paintTileId()` (`render/tiles.js`) computed the `cracking`/`sx` shake offset only in the generic procedural-rock branch, but custom tiles (id ≥ 64, e.g. "Stone TNT") exit earlier via `paintCustom(v, x, y)` returning `true` — the shake code was unreachable for them. Added a `digHp`-gated shake offset applied to the `x` passed into `paintCustom` itself, so sprite tiles wobble the same way while damaged.
   - Verified directly: chunk-canvas pixel snapshot of a `digHp`-active custom tile now differs between two `view.time` samples (previously byte-identical).

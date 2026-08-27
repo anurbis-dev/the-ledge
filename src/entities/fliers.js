@@ -2,6 +2,7 @@ import { T, C } from '../core/constants.js';
 import { runtime } from '../core/runtime.js';
 import { rectFree, solidTile } from '../core/map.js';
 import { damage, isInvuln } from '../core/player.js';
+import { getAnimBox, legacyObjectKindFromSprite } from '../core/object-anchors.js';
 import { wearGear } from './gear.js';
 
 export function mkFliers(){
@@ -11,12 +12,17 @@ export function mkFliers(){
     var loot = Array.isArray(a[6])
       ? a[6].map(function(e){ return { kind: e[0], qty: Math.max(1, e[1] | 0 || 1) }; })
       : [];
-    return { id:i, x:a[0], y:a[1], w: kind === 2 ? 16 : 13, h: kind === 2 ? 11 : 9,
+    var spriteId = typeof a[8] === 'string' ? a[8] : null;
+    var objectKind = typeof a[9] === 'string' ? a[9] : null;
+    var ok = objectKind || legacyObjectKindFromSprite(spriteId) || ('flier' + (kind | 0));
+    var dw = kind === 2 ? 16 : 13, dh = kind === 2 ? 11 : 9;
+    var box = (objectKind || spriteId) ? getAnimBox(ok, 'idle') : { w: dw, h: dh };
+    return { id:i, x:a[0], y:a[1], w: box.w, h: box.h,
              x0:a[2], x1:a[3], v: a[4] * (kind === 1 ? 1.35 : (kind === 2 ? 0.8 : 1)),
              kind: kind, dir: i%2 ? -1 : 1, ph:i*1.9,
              cd: (kind === 1 ? 0.9 : 1.4) + i*0.3, flap:0,
              loot: loot, random: !!a[7],
-             spriteId: typeof a[8] === 'string' ? a[8] : null };
+             spriteId: spriteId, objectKind: objectKind };
   });
 }
 export function stepFliers(S, dt){

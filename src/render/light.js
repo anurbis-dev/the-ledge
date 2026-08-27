@@ -1,7 +1,8 @@
 import GAME from '../core/game.js';
 import { ctx, cam, view, VW, VH, lc, lx, rc, world, entA, pushEntA, popEntA } from './ctx.js';
 import { P } from './palette.js';
-import { spriteFrameImage, getSpriteDef, getFrameAnchor } from '../core/spriteset.js';
+import { spriteFrameImage, getSpriteDef } from '../core/spriteset.js';
+import { getFrameAnchor } from '../core/object-anchors.js';
 
 var G = GAME, T = G.T;
 
@@ -40,7 +41,7 @@ function blitLightSprite(id, wx, wy, time, i){
   var fr = n > 1 && Math.sin(time * 9 + i) > 0 ? 1 : 0;
   var img = spriteFrameImage(id, anim, fr) || spriteFrameImage(id, anim, 0);
   if (!img) return false;
-  var origin = getFrameAnchor(id, anim, fr, 'origin');
+  var origin = getFrameAnchor(id === 'lantern' ? 'light' : id, anim, fr, 'origin');
   var ox = origin ? origin.x : (def.ox || 0);
   var oy = origin ? origin.y : (def.oy || 0);
   ctx.save();
