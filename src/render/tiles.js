@@ -1,4 +1,5 @@
 import GAME from '../core/game.js';
+import { C } from '../core/constants.js';
 import { hooks } from '../core/runtime.js';
 import { COVER_AIR, coverRaw, coverVarRaw, roomCoverA, rebuildRooms } from '../core/rooms.js';
 import { getLayers, layerShown, lastCollideIndex, layerTileRaw, layerVarRaw, layerDeco, layerFlipRaw, isTileLayer, wrapSize, layerCssFilter, layerGrade, gradeCssFilter } from '../core/layers.js';
@@ -98,6 +99,13 @@ export function grabby(c, r){
   return sAt(c,r) && !sAt(c,r-1) && (!sAt(c-1,r) || !sAt(c+1,r));
 }
 export function hashT(c, r){ var h = (c*73856093) ^ (r*19349663); h = (h ^ (h >> 13)) >>> 0; return h; }
+/* короткий джиттер от удара киркой — гаснет за DIG_SHAKE_T, фаза от момента удара (не от глобального time) */
+function digHitShakeX(S, k){
+  var t = S && S.digShakeT && S.digShakeT[k];
+  if (t == null) return 0;
+  var decay = Math.max(0, Math.min(1, t / C.DIG_SHAKE_T));
+  return Math.round(Math.sin((C.DIG_SHAKE_T - t) * 90) * 1.6 * decay);
+}
 
 function mixHex(a, b, t){
   if (t <= 0) return a;
@@ -801,9 +809,7 @@ function paintTileId(v, c, r, x, y, dyn){
     }
     return;
   }
-  var digShakeK = G.mapIx(c, r);
-  var digShakeX = (S && S.digHp && S.digHp[digShakeK] != null) ? Math.round(Math.sin(time*46)*1.2) : 0;
-  if (paintCustom(v, x + digShakeX, y)) return;
+  if (paintCustom(v, x + digHitShakeX(S, G.mapIx(c, r)), y)) return;
   if (G.isLadV(v)){ drawLadder(c, r, v, x, y); return; }
   if (G.isSlopeV(v)) return;                             // скос без своей картинки — рисует только настроенный спрайт (paintCustom выше)
   if (v === G.BAR){                                  // потолочные перекладины
@@ -869,10 +875,8 @@ function paintTileId(v, c, r, x, y, dyn){
   if (!G.isSolidV(v)) return;
   var k = G.mapIx(c, r), crumb = (v === G.CRUMB), hh = hashT(c, r);
   if (!sAt(c, r)) return;                             // осыпался / выкопан — ничего не оставляем
-  var sx = 0;
-  var damaged = S.digHp && S.digHp[k] != null;         // подкопан киркой, ещё не разрушен
-  var cracking = (crumb && S.crumbT && S.crumbT[k] !== undefined) || damaged;
-  if (cracking) sx = Math.round(Math.sin(time*46)*1.2);
+  var cracking = crumb && S.crumbT && S.crumbT[k] !== undefined; // Crumb: непрерывный тремор, пока трещит
+  var sx = cracking ? Math.round(Math.sin(time*46)*1.2) : digHitShakeX(S, k);
   if (crumb){                                        // с нижней кромки сыплется песок — тайл нестабилен
     if (cracking){
       if (Math.random() < 0.4)
@@ -1013,10 +1017,10 @@ function paintAny(c, r, x, y){
 function isDynId(v){
   return v === G.CRUMB || G.isWaterV(v) || G.isFlowV(v) || v === G.PLANK || v === G.GIVE;
 }
-/** подкопанный (digHp выставлен, ещё не сломан) тайл шатается — рисуем его каждый кадр, мимо чанк-кэша. */
+/** тайл трясётся от недавнего удара киркой (digShakeT) — рисуем его каждый кадр, мимо чанк-кэша, пока трясётся. */
 function isDamaged(c, r){
   var Sd = world();
-  return !!(Sd && Sd.digHp && Sd.digHp[G.mapIx(c, r)] != null);
+  return !!(Sd && Sd.digShakeT && Sd.digShakeT[G.mapIx(c, r)] != null);
 }
 /** Вода/поток/кадры — не в cover-bake, рисуются каждый кадр. */
 function isAnimId(v){

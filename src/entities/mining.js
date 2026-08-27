@@ -1,7 +1,25 @@
 import { T, C } from '../core/constants.js';
-import { mapIx, inMap, hooks } from '../core/runtime.js';
+import { mapIx, inMap, hooks, runtime, mapMinC, mapMinR } from '../core/runtime.js';
 import { tileAt, solidTile, isWaterV } from '../core/map.js';
 import { tileDurability } from '../core/tileset.js';
+
+/* короткая тряска тайла от удара киркой — сама по себе гаснет, не связана с длительностью digHp.
+ * Пока идёт (isDamaged() в render/tiles.js), тайл исключён из чанк-кэша — invalidateChunk на входе
+ * и на выходе, иначе останется дублирующийся статичный слой под анимацией или дыра после её конца. */
+export function stepDigShake(S, dt){
+  if (!S.digShakeT) return;
+  var k, w = runtime.MAP_W;
+  for (k in S.digShakeT){
+    S.digShakeT[k] -= dt;
+    if (S.digShakeT[k] <= 0){
+      delete S.digShakeT[k];
+      if (hooks.onSetTile){
+        var ik = +k;
+        hooks.onSetTile((ik % w) + mapMinC(), ((ik / w) | 0) + mapMinR());
+      }
+    }
+  }
+}
 
 /* кирка: копает тайл под ногами следующий по направлению; если впереди стена — копает её */
 export function tryDig(S){
@@ -29,6 +47,9 @@ export function tryDig(S){
     if (hooks.onSetTile) hooks.onSetTile(col, r);
     p.events.push('digbreak:' + k);
   } else {
+    if (!S.digShakeT) S.digShakeT = {};
+    S.digShakeT[k] = C.DIG_SHAKE_T;
+    if (hooks.onSetTile) hooks.onSetTile(col, r);
     p.events.push('dighit:' + k);
   }
   return true;
