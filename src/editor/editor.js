@@ -45,6 +45,8 @@ import { bindNpcTalk, openNpcTalk, closeNpcTalk } from './npc-talk.js';
 import { bindBoulderSettings, openBoulderSettings, closeBoulderSettings } from './boulder-settings.js';
 import { bindRopeSettings, openRopeSettings, closeRopeSettings } from './rope-settings.js';
 import { bindEnemySettings, openEnemySettings, closeEnemySettings } from './enemy-settings.js';
+import { enemySpeedMult } from '../entities/enemies.js';
+import { flierSpeedMult } from '../entities/fliers.js';
 import { rebuildRope, packRope, ropeHitDist } from '../entities/ropes.js';
 import { packPlat } from '../entities/plats.js';
 import { packLift, syncLiftFloors } from '../entities/lifts.js';
@@ -291,6 +293,7 @@ function cycleHit(px, py){
 function applyHit(hit){
   ED.hitObj = hit;
   if (hit && isSpecialKind(hit.type)) selectSpecial(hit);
+  else if (hit && hit.type === 'enemy'){ ED.sel = hit; showInspect(null); }
   else selectSpecial(null);
 }
 function removeObject(entry){
@@ -1701,23 +1704,13 @@ function openChestAdd(chest, kind, clientX, clientY){
 var edChestList = document.getElementById('edChestList');
 var edChestListBody = document.getElementById('edChestListBody');
 var edChestListTitle = document.getElementById('edChestListTitle');
-var edChestListAi = document.getElementById('edChestListAi');
 var chestListTarget = null;
-var chestListType = null;
 function closeChestList(){
   if (!edChestList || edChestList.hidden) return;
   edChestList.hidden = true;
   chestListTarget = null;
-  chestListType = null;
   document.removeEventListener('pointerdown', onChestListOutside, true);
 }
-if (edChestListAi) edChestListAi.addEventListener('click', function(e){
-  e.stopPropagation();
-  if (!chestListTarget) return;
-  var target = chestListTarget, x = e.clientX, y = e.clientY;
-  closeChestList();
-  openEnemySettings(target, x, y);
-});
 function onChestListOutside(e){
   if (edChestList && !edChestList.contains(e.target)) closeChestList();
 }
@@ -1787,12 +1780,10 @@ function openChestList(target, type, clientX, clientY){
   if (!edChestList) return;
   closeChestAdd();
   chestListTarget = target;
-  chestListType = type;
   if (edChestListTitle){
-    var label = type === 'enemy' ? 'Enemy' : (type === 'flier' ? 'Bird' : 'Chest');
+    var label = type === 'flier' ? 'Bird' : 'Chest';
     edChestListTitle.textContent = label + (target.locked ? ' (locked)' : '');
   }
-  if (edChestListAi) edChestListAi.hidden = type !== 'enemy';
   renderChestList();
   edChestList.hidden = false;
   if (!hasFloatPos(edChestList)) clampPopup(edChestList, clientX, clientY);
@@ -2247,7 +2238,7 @@ export function edExportText(){
   out.push('// objects');
   out.push('enemies: [' + S.enemies.map(function(e){
     var base = Math.round(e.x) + ',' + Math.round(e.y + e.h) + ',' +
-      Math.round(e.x0) + ',' + Math.round(e.x1) + ',' + Math.round(e.v) + ',' + e.kind;
+      Math.round(e.x0) + ',' + Math.round(e.x1) + ',' + Math.round(e.v / enemySpeedMult(e.kind)) + ',' + e.kind;
     var aiCfg = enemyAiCfg(e);
     if ((e.loot && e.loot.length) || aiCfg){
       var lootTxt = (e.loot || []).map(function(x){ return "['" + x.kind + "'," + x.qty + ']'; }).join(',');
@@ -2258,7 +2249,7 @@ export function edExportText(){
   }).join(',') + '],');
   out.push('fliers: [' + S.fliers.map(function(f){
     var fbase = Math.round(f.x) + ',' + Math.round(f.y) + ',' +
-      Math.round(f.x0) + ',' + Math.round(f.x1) + ',' + Math.round(f.v) + ',' + f.kind;
+      Math.round(f.x0) + ',' + Math.round(f.x1) + ',' + Math.round(f.v / flierSpeedMult(f.kind)) + ',' + f.kind;
     if (f.loot && f.loot.length){
       var flootTxt = f.loot.map(function(x){ return "['" + x.kind + "'," + x.qty + ']'; }).join(',');
       fbase += ',[' + flootTxt + '],' + !!f.random;
@@ -3140,7 +3131,9 @@ function edUp(e){
   }
   if (e && e.type === 'pointerup' && ED.pendHit){
     var ph = ED.pendHit.hit;
-    if (ph && (ph.type === 'chest' || ph.type === 'enemy' || ph.type === 'flier') && ED.pendHit.single)
+    if (ph && ph.type === 'enemy' && ED.pendHit.single)
+      openEnemySettings(ph.obj, ED.pendHit.x, ED.pendHit.y);
+    else if (ph && (ph.type === 'chest' || ph.type === 'flier') && ED.pendHit.single)
       openChestList(ph.obj, ph.type, ED.pendHit.x, ED.pendHit.y);
     else if (ph && ph.type === 'npc')
       openNpcTalk(ph.obj, ED.pendHit.x, ED.pendHit.y);
@@ -3518,7 +3511,11 @@ function deleteSelected(){
   var S = world();
   if (!S || !ED.sel) return;
   var t = ED.sel.type, o = ED.sel.obj, spawn, list, lv, pairId;
-  if (t === 'light') S.lights = (S.lights || []).filter(function(x){ return x !== o; });
+  if (t === 'enemy'){
+    S.enemies = (S.enemies || []).filter(function(x){ return x !== o; });
+    closeEnemySettings();
+  }
+  else if (t === 'light') S.lights = (S.lights || []).filter(function(x){ return x !== o; });
   else if (t === 'sound') S.sounds = (S.sounds || []).filter(function(x){ return x !== o; });
   else if (t === 'volume') S.volumes = (S.volumes || []).filter(function(x){ return x !== o; });
   else if (t === 'fx_sand') S.emitters = (S.emitters || []).filter(function(x){ return x !== o; });

@@ -30,6 +30,12 @@ var AI_DEFAULT_SIGHT = 90;
 var AI_DEFAULT_HEAR = 50;
 var AI_CHASE_MULT = 1.6;
 
+/** Множитель базовой скорости (a[4] в LV.enemies) по kind. persist.js/editor.js
+ * делят на него при записи назад — иначе каждый save/bake умножал бы v ещё раз. */
+export function enemySpeedMult(kind){
+  return kind === 1 ? 1.4 : (kind === 2 ? 0.7 : 1);
+}
+
 export function mkEnemies(){
   var LV = runtime.LV;
   return (LV.enemies || []).map(function(a, i){
@@ -41,7 +47,7 @@ export function mkEnemies(){
     var loot = Array.isArray(a[6])
       ? a[6].map(function(e){ return { kind: e[0], qty: Math.max(1, e[1] | 0 || 1) }; })
       : [];
-    var v = a[4] * (kind === 1 ? 1.4 : (kind === 2 ? 0.7 : 1));
+    var v = a[4] * enemySpeedMult(kind);
     var aiCfg = (a[10] && typeof a[10] === 'object') ? a[10] : null;
     var points = (aiCfg && Array.isArray(aiCfg.pts) && aiCfg.pts.length >= 2)
       ? aiCfg.pts.slice() : [a[2], a[3]];
@@ -59,6 +65,13 @@ export function mkEnemies(){
              hearBack: (aiCfg && aiCfg.hearBack) || AI_DEFAULT_HEAR,
              aiState: 'patrol', ptIdx: 0, ptDir: 1, pauseT: 0 };
   });
+}
+/** Пересчитывает x0/x1 (мин/макс points) и сбрасывает runtime AI-состояние —
+ * вызывать после любой правки e.points/e.pointPause (редактор, гизмо). */
+export function resyncEnemyRuntime(e){
+  e.x0 = Math.min.apply(null, e.points);
+  e.x1 = Math.max.apply(null, e.points);
+  e.aiState = 'patrol'; e.ptIdx = 0; e.ptDir = 1; e.pauseT = 0;
 }
 function nearestPointIdx(e){
   var best = 0, bd = Infinity, i, d;

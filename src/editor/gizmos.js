@@ -4,6 +4,7 @@ import { runtime } from '../core/runtime.js';
 import { findById } from '../entities/ids.js';
 import { rebuildRope, ropeHitDist } from '../entities/ropes.js';
 import { syncLiftFloors } from '../entities/lifts.js';
+import { resyncEnemyRuntime } from '../entities/enemies.js';
 import { T } from '../core/constants.js';
 import GAME from '../core/game.js';
 
@@ -190,6 +191,13 @@ export function hitGizmo(S, sel, wx, wy){
     if (wx >= o.x - 2 && wx <= o.x + o.w + 2 && wy >= o.y - o.hh - 4 && wy <= o.y + 8)
       return { kind: 'move', type: t, obj: o };
   }
+  if (t === 'enemy'){
+    var ey = o.y + o.h;
+    for (var pi = 0; pi < (o.points || []).length; pi++){
+      if (near(wx, wy, o.points[pi], ey, 9))
+        return { kind: 'enemyPoint', type: t, obj: o, pointIdx: pi };
+    }
+  }
   return null;
 }
 
@@ -209,6 +217,7 @@ export function beginGizmo(hit, wx, wy){
     ax: o.ax, ay: o.ay, bx: o.bx, by: o.by,
     lengthExtra: ropeEx,
     floorIdx: hit.floorIdx,
+    pointIdx: hit.pointIdx,
     x0p: o.x0, x1p: o.x1, y0p: o.y0, y1p: o.y1,
     floors0: o.floors ? o.floors.slice() : null
   };
@@ -276,6 +285,14 @@ export function moveGizmo(wx, wy){
         if (o.st === 'dwell') o.y = o.floors[o.idx];
       }
       S = runtime.W; if (S) GAME.buildGates(S);
+    }
+    return;
+  }
+  if (drag.kind === 'enemyPoint'){
+    var pi2 = drag.pointIdx | 0;
+    if (o.points && o.points[pi2] != null){
+      o.points[pi2] = Math.round(wx);
+      resyncEnemyRuntime(o);
     }
     return;
   }
@@ -364,6 +381,11 @@ export function drawGizmos(S, sel){
   for (i = 0; i < list.length; i++){
     o = list[i];
     drawLiftGizmo(o, sel && sel.type === 'lift' && sel.obj === o);
+  }
+  list = S.enemies || [];
+  for (i = 0; i < list.length; i++){
+    o = list[i];
+    drawEnemyGizmo(o, sel && sel.type === 'enemy' && sel.obj === o);
   }
   list = S.lights || [];
   for (i = 0; i < list.length; i++){
@@ -553,6 +575,25 @@ function drawLiftGizmo(o, on){
     fy = o.floors[i];
     handle(o.x + o.w / 2 - cam.x, fy - cam.y, on ? (i === (o.homeIdx | 0) ? '#7dffb0' : '#ffd9a0') : '#6a5888');
   }
+}
+
+function drawEnemyGizmo(o, on){
+  var pts = o.points || [], i, y = o.y + o.h - cam.y;
+  if (!pts.length) return;
+  var lo = Math.min.apply(null, pts) - cam.x, hi = Math.max.apply(null, pts) - cam.x;
+  ctx.save();
+  ctx.globalAlpha = on ? 0.9 : 0.35;
+  ctx.strokeStyle = o.canChase ? (on ? '#ff9a6a' : '#8a5a40') : (on ? '#7dffb0' : '#3a8f5c');
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  ctx.moveTo(lo, y);
+  ctx.lineTo(hi, y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+  for (i = 0; i < pts.length; i++)
+    handle(pts[i] - cam.x, y, on ? '#ffd9a0' : '#6a5888');
 }
 
 function emitSizeHandle(o){

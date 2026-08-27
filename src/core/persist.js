@@ -8,6 +8,8 @@ import { packRope } from '../entities/ropes.js';
 import { packPlat } from '../entities/plats.js';
 import { packLift } from '../entities/lifts.js';
 import { ensureLevelExits } from '../entities/doors.js';
+import { enemySpeedMult } from '../entities/enemies.js';
+import { flierSpeedMult } from '../entities/fliers.js';
 
 var LEGACY_LEVELS_KEY = 'ledge.dev.levels';
 var SAVED_KEY = 'ledge.dev.savedAt';
@@ -276,7 +278,7 @@ function writeObjects(lv, S){
   if (!lv || !S) return;
   lv.enemies = (S.enemies || []).filter(function(e){ return !e.dead; }).map(function(e){
     var t = [Math.round(e.x), Math.round(e.y + e.h), Math.round(e.x0), Math.round(e.x1),
-             Math.round(e.v), e.kind];
+             Math.round(e.v / enemySpeedMult(e.kind)), e.kind];
     var aiCfg = enemyAiCfg(e);
     if ((e.loot && e.loot.length) || e.spriteId || e.objectKind || aiCfg){
       t.push((e.loot || []).map(function(x){ return [x.kind, x.qty]; }));
@@ -289,7 +291,7 @@ function writeObjects(lv, S){
   });
   lv.fliers = (S.fliers || []).map(function(f){
     var t = [Math.round(f.x), Math.round(f.y), Math.round(f.x0), Math.round(f.x1),
-             Math.round(f.v), f.kind];
+             Math.round(f.v / flierSpeedMult(f.kind)), f.kind];
     if ((f.loot && f.loot.length) || f.spriteId || f.objectKind){
       t.push((f.loot || []).map(function(x){ return [x.kind, x.qty]; }));
       t.push(!!f.random);

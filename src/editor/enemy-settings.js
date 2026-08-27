@@ -1,6 +1,12 @@
 import { touchOp } from './history.js';
 import { placeFloat, hasFloatPos, raiseFloat } from './float.js';
 import { initSliders } from './slider.js';
+import { paintObjIcon } from './thumbs.js';
+import { resyncEnemyRuntime } from '../entities/enemies.js';
+
+var LOOT_NAMES = { key:'Key', coin:'Coin', gem:'Gem', shroom:'Shroom', helmet:'Helmet',
+                    shield:'Shield', sword:'Sword', scuba:'Scuba', flippers:'Flippers',
+                    harpoon:'Harpoon', bow:'Bow', pickaxe:'Pickaxe' };
 
 var root = document.getElementById('edEnemySettings');
 var body = document.getElementById('edEnemySettingsBody');
@@ -37,12 +43,6 @@ export function openEnemySettings(e, clientX, clientY){
   setTimeout(function(){ document.addEventListener('pointerdown', onOutside, true); }, 0);
 }
 
-function resetAiRuntime(e){
-  e.x0 = Math.min.apply(null, e.points);
-  e.x1 = Math.max.apply(null, e.points);
-  e.aiState = 'patrol'; e.ptIdx = 0; e.ptDir = 1; e.pauseT = 0;
-}
-
 function slider(parent, label, min, max, step, val, set, def){
   var wrap = document.createElement('label');
   wrap.className = 'slider-wrap';
@@ -69,25 +69,82 @@ function toggle(parent, label, val, set){
   parent.appendChild(row);
 }
 
+function lootIcon(kind, size){
+  var c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  var cx = c.getContext('2d');
+  cx.imageSmoothingEnabled = false;
+  paintObjIcon(cx, kind, size);
+  c.className = 'ed-swatch-img';
+  c.style.width = size + 'px'; c.style.height = size + 'px';
+  return c;
+}
+
+function lootSection(parent, e){
+  var loot = e.loot || [];
+  if (loot.length > 1){
+    var randRow = document.createElement('label');
+    randRow.className = 'ed-check';
+    var cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = !!e.random;
+    cb.addEventListener('change', function(){ touchOp(); e.random = cb.checked; notify(); });
+    randRow.appendChild(cb);
+    var rl = document.createElement('span');
+    rl.textContent = 'Random — drop only one';
+    randRow.appendChild(rl);
+    parent.appendChild(randRow);
+  }
+  if (!loot.length){
+    var empty = document.createElement('div');
+    empty.className = 'ed-loot-empty';
+    empty.textContent = 'No loot — drag items onto the enemy';
+    parent.appendChild(empty);
+    return;
+  }
+  loot.forEach(function(entry){
+    var row = document.createElement('div');
+    row.className = 'ed-loot-row';
+    row.appendChild(lootIcon(entry.kind, 18));
+    var name = document.createElement('span');
+    name.className = 'ed-loot-name';
+    name.textContent = LOOT_NAMES[entry.kind] || entry.kind;
+    row.appendChild(name);
+    var qtyInp = document.createElement('input');
+    qtyInp.type = 'number'; qtyInp.min = '1'; qtyInp.max = '99'; qtyInp.value = String(entry.qty);
+    qtyInp.addEventListener('keydown', function(ev){ ev.stopPropagation(); });
+    qtyInp.addEventListener('change', function(){
+      touchOp();
+      entry.qty = Math.max(1, Math.min(99, +qtyInp.value || 1));
+      notify();
+      qtyInp.value = String(entry.qty);
+    });
+    row.appendChild(qtyInp);
+    var del = document.createElement('button');
+    del.type = 'button'; del.className = 'edb'; del.textContent = '×';
+    del.addEventListener('click', function(ev){
+      ev.stopPropagation();
+      touchOp();
+      e.loot = e.loot.filter(function(en){ return en !== entry; });
+      notify();
+      fill();
+    });
+    row.appendChild(del);
+    parent.appendChild(row);
+  });
+}
+
 function pointsSection(parent, e){
   var head = document.createElement('div');
   head.className = 'ed-tile-note';
-  head.textContent = 'Patrol points';
+  head.textContent = 'Patrol points — drag the markers on the map to move them';
   parent.appendChild(head);
   e.points.forEach(function(pt, i){
     var row = document.createElement('div');
     row.className = 'ed-loot-row';
-    var xInp = document.createElement('input');
-    xInp.type = 'number'; xInp.step = '1'; xInp.value = String(Math.round(pt));
-    xInp.style.width = '64px';
-    xInp.addEventListener('keydown', function(ev){ ev.stopPropagation(); });
-    xInp.addEventListener('change', function(){
-      touchOp();
-      e.points[i] = +xInp.value || 0;
-      resetAiRuntime(e);
-      notify();
-    });
-    row.appendChild(xInp);
+    var name = document.createElement('span');
+    name.className = 'ed-loot-name';
+    name.textContent = 'Point ' + (i + 1);
+    row.appendChild(name);
     var pauseInp = document.createElement('input');
     pauseInp.type = 'number'; pauseInp.step = '0.1'; pauseInp.min = '0';
     pauseInp.value = String(e.pointPause[i] || 0);
@@ -109,7 +166,7 @@ function pointsSection(parent, e){
       touchOp();
       e.points.splice(i, 1);
       e.pointPause.splice(i, 1);
-      resetAiRuntime(e);
+      resyncEnemyRuntime(e);
       notify();
       fill();
     });
@@ -123,7 +180,7 @@ function pointsSection(parent, e){
     var last = e.points[e.points.length - 1];
     e.points.push(last + 40);
     e.pointPause.push(0);
-    resetAiRuntime(e);
+    resyncEnemyRuntime(e);
     notify();
     fill();
   });
@@ -134,6 +191,7 @@ function fill(){
   if (!body || !current) return;
   body.textContent = '';
   var e = current;
+  lootSection(body, e);
   slider(body, 'Walk speed', 8, 80, 1, e.v, function(v){ e.v = v; }, 26);
   pointsSection(body, e);
   toggle(body, 'Can chase', e.canChase, function(v){ e.canChase = v; });
