@@ -11,6 +11,8 @@ import { notifyDraftChange } from './persist.js';
    часть BAKED (как TILE_NAMEKEY в editor.js для тайлов). Единственный
    источник для этого поля, поэтому читается безусловно, без гонки с BAKED. */
 var NAMEKEY = 'ledge.ed.spriteNames';
+/* Оверрайды tag builtin-дефов — тот же принцип, отдельный ключ. */
+var TAGKEY = 'ledge.ed.spriteTags';
 
 /* fw/fh — размер кадра; ox/oy — куда кладётся локальная (0,0) позы при блице. */
 export var SPRITE_DEFS = [
@@ -197,6 +199,8 @@ var defSeq = 1;
 export var DEFAULT_ANIM_FPS = 8;
 /** Display-name overrides for builtin (non-custom) sprite defs — dev draft, same store as customDefs. */
 var builtinNames = {};
+/** Tag overrides for builtin (non-custom) sprite defs — same pattern as builtinNames. */
+var builtinTags = {};
 
 function rebuildById(){
   var i, d;
@@ -342,11 +346,27 @@ function writeBuiltinNames(){
   try { localStorage.setItem(NAMEKEY, JSON.stringify(builtinNames)); } catch (_){}
 }
 
+function readBuiltinTags(){
+  try {
+    var raw = localStorage.getItem(TAGKEY);
+    if (raw){
+      var o = JSON.parse(raw);
+      if (o && typeof o === 'object') return o;
+    }
+  } catch (_){}
+  return null;
+}
+
+function writeBuiltinTags(){
+  try { localStorage.setItem(TAGKEY, JSON.stringify(builtinTags)); } catch (_){}
+}
+
 function normalizeCustomDef(d){
   if (!d || !d.id) return null;
   return {
     id: String(d.id),
     name: String(d.name || d.id),
+    tag: String(d.tag || ''),
     fw: d.fw | 0 || 16,
     fh: d.fh | 0 || 16,
     ox: d.ox | 0,
@@ -377,6 +397,14 @@ function applyBuiltinNames(names){
   }
 }
 
+function applyBuiltinTags(tags){
+  var i, id;
+  for (i = 0; i < SPRITE_DEFS.length; i++){
+    id = SPRITE_DEFS[i].id;
+    if (tags[id] != null) SPRITE_DEFS[i].tag = tags[id];
+  }
+}
+
 function boot(){
   saved = {};
   customDefs = [];
@@ -388,6 +416,12 @@ function boot(){
   if (names){
     builtinNames = names;
     applyBuiltinNames(builtinNames);
+  }
+  builtinTags = {};
+  var tags = readBuiltinTags();
+  if (tags){
+    builtinTags = tags;
+    applyBuiltinTags(builtinTags);
   }
   rebuildById();
   loadAll();
@@ -528,7 +562,7 @@ export function getSpriteDef(id){
   if (!b) return null;
   m = getSpriteMeta(id);
   return {
-    id: b.id, name: b.name, kind: b.kind, family: b.family || null,
+    id: b.id, name: b.name, tag: b.tag || '', kind: b.kind, family: b.family || null,
     custom: !!b.custom, anims: liveAnims(b, id),
     fw: m.fw, fh: m.fh, ox: m.ox, oy: m.oy, fx: m.fx
   };
@@ -564,6 +598,7 @@ export function cloneSpriteDef(srcId, name){
   def = normalizeCustomDef({
     id: id,
     name: name || ((src.name || srcId) + ' copy'),
+    tag: src.tag || '',
     fw: src.fw, fh: src.fh, ox: src.ox, oy: src.oy, fx: src.fx,
     kind: isHeroFamily(srcId) ? 'hero' : (src.kind || id),
     family: isHeroFamily(srcId) ? 'hero' : (src.family || null),
@@ -604,6 +639,7 @@ export function addSpriteDef(partial){
   var def = normalizeCustomDef({
     id: id,
     name: (partial && partial.name) || id,
+    tag: partial && partial.tag,
     fw: (partial && partial.fw) || 16,
     fh: (partial && partial.fh) || 16,
     ox: partial && partial.ox,
@@ -630,7 +666,7 @@ export function renameSpriteDef(id, name){
   for (i = 0; i < customDefs.length; i++){
     if (customDefs[i].id === id){
       customDefs[i] = normalizeCustomDef({
-        id: customDefs[i].id, name: next, fw: customDefs[i].fw, fh: customDefs[i].fh,
+        id: customDefs[i].id, name: next, tag: customDefs[i].tag, fw: customDefs[i].fw, fh: customDefs[i].fh,
         ox: customDefs[i].ox, oy: customDefs[i].oy, fx: customDefs[i].fx,
         kind: customDefs[i].kind, family: customDefs[i].family, anims: customDefs[i].anims
       });
@@ -644,6 +680,32 @@ export function renameSpriteDef(id, name){
       SPRITE_DEFS[i].name = next;
       builtinNames[id] = next;
       writeBuiltinNames();
+      emit('update');
+      return getSpriteDef(id);
+    }
+  }
+  return null;
+}
+
+export function setSpriteTag(id, tag){
+  var i, next = String(tag || '').trim();
+  for (i = 0; i < customDefs.length; i++){
+    if (customDefs[i].id === id){
+      customDefs[i] = normalizeCustomDef({
+        id: customDefs[i].id, name: customDefs[i].name, tag: next, fw: customDefs[i].fw, fh: customDefs[i].fh,
+        ox: customDefs[i].ox, oy: customDefs[i].oy, fx: customDefs[i].fx,
+        kind: customDefs[i].kind, family: customDefs[i].family, anims: customDefs[i].anims
+      });
+      rebuildById();
+      emit('update');
+      return getSpriteDef(id);
+    }
+  }
+  for (i = 0; i < SPRITE_DEFS.length; i++){
+    if (SPRITE_DEFS[i].id === id){
+      SPRITE_DEFS[i].tag = next;
+      builtinTags[id] = next;
+      writeBuiltinTags();
       emit('update');
       return getSpriteDef(id);
     }

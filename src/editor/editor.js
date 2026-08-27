@@ -72,6 +72,7 @@ var HKEY = 'ledge.ed.h';
 var IKEY = 'ledge.ed.icon';
 var GKEY = 'ledge.ed.geo';
 var NAMESKEY = 'ledge.ed.showNames';
+var SORTKEY = 'ledge.ed.palSort';
 
 export var ED = {
   on: false, tab: 'tile', tool: 'tile', pal: 0, painting: false, erasing: false,
@@ -80,7 +81,7 @@ export var ED = {
   zoom: 1, icon: 28, hover: null,
   clickCell: null, clickBrush: -1,
   holdT: null, holdErased: false, holdX: 0, holdY: 0,
-  dragObj: null, showGeo: false, showNames: true, cover: false, stampCover: false,
+  dragObj: null, showGeo: false, showNames: true, palSort: '', cover: false, stampCover: false,
   color: false, grade: { hue: 0, sat: 1, bright: 0.15, contrast: 1 },
   sel: null, dragPal: null, giz: false,
   hitObj: null, pendHit: null,
@@ -139,6 +140,34 @@ function renameBuiltinTile(id, name){
     if (!names || typeof names !== 'object') names = {};
     names[id] = name;
     localStorage.setItem(TILE_NAMEKEY, JSON.stringify(names));
+  } catch (_){}
+  return true;
+}
+
+/** Tag overrides for builtin tiles — same pattern as TILE_NAMEKEY. */
+var TILE_TAGKEY = 'ledge.ed.tileTags';
+(function applyBuiltinTileTags(){
+  var i, raw, tags;
+  try {
+    raw = localStorage.getItem(TILE_TAGKEY);
+    if (!raw) return;
+    tags = JSON.parse(raw);
+  } catch (_){ return; }
+  if (!tags || typeof tags !== 'object') return;
+  for (i = 0; i < ED_TILES.length; i++)
+    if (tags[ED_TILES[i].id] != null) ED_TILES[i].tag = tags[ED_TILES[i].id];
+})();
+function retagBuiltinTile(id, tag){
+  var i, t = null, raw, tags;
+  for (i = 0; i < ED_TILES.length; i++) if (ED_TILES[i].id === id){ t = ED_TILES[i]; break; }
+  if (!t) return false;
+  t.tag = tag;
+  try {
+    raw = localStorage.getItem(TILE_TAGKEY);
+    tags = raw ? JSON.parse(raw) : {};
+    if (!tags || typeof tags !== 'object') tags = {};
+    tags[id] = tag;
+    localStorage.setItem(TILE_TAGKEY, JSON.stringify(tags));
   } catch (_){}
   return true;
 }
@@ -318,6 +347,8 @@ try {
   ED.showGeo = localStorage.getItem(GKEY) === '1';
   var ns = localStorage.getItem(NAMESKEY);
   if (ns != null) ED.showNames = ns === '1';
+  var srt = localStorage.getItem(SORTKEY);
+  if (srt === 'name' || srt === 'tag') ED.palSort = srt;
 } catch (_){}
 
 bindLayersPanel({ onChange: function(){ markLevelDirty(); } });
@@ -336,7 +367,8 @@ bindTileEdit({
     markLevelDirty();
     edRefresh();
   },
-  onRenameBuiltinTile: function(id, name){ return renameBuiltinTile(id, name); }
+  onRenameBuiltinTile: function(id, name){ return renameBuiltinTile(id, name); },
+  onRetagBuiltinTile: function(id, tag){ return retagBuiltinTile(id, tag); }
 });
 bindObjectset({
   onChange: function(){
@@ -758,6 +790,21 @@ function extraBtn(parent, label, active, onClick){
   parent.appendChild(b);
 }
 
+/** Sort a palette list copy by ED.palSort ('' = original order, 'name' | 'tag'). Stable, untagged last for 'tag'. */
+function sortSwatchList(list){
+  if (ED.palSort !== 'name' && ED.palSort !== 'tag') return list;
+  var key = ED.palSort;
+  return list.slice().sort(function(a, b){
+    var av = (key === 'tag' ? (a.tag || '') : (a.name || ''));
+    var bv = (key === 'tag' ? (b.tag || '') : (b.name || ''));
+    if (key === 'tag' && !av !== !bv) return av ? -1 : 1;
+    av = av.toLowerCase(); bv = bv.toLowerCase();
+    if (av < bv) return -1;
+    if (av > bv) return 1;
+    return 0;
+  });
+}
+
 function fillPal(){
   if (!edPal) return;
   hoverPalSwatch = null;
@@ -767,7 +814,7 @@ function fillPal(){
   if (ED.tab === 'tile' || (ED.tab === 'params' && ED.tool === 'tile')){
     if (ED.tab !== 'tile') return;
     var tiles = palTiles();
-    var visTiles = palQuery ? tiles.filter(function(t){ return (t.name || '').toLowerCase().indexOf(palQuery) !== -1; }) : tiles;
+    var visTiles = sortSwatchList(palQuery ? tiles.filter(function(t){ return (t.name || '').toLowerCase().indexOf(palQuery) !== -1; }) : tiles);
     for (var j = 0; j < visTiles.length; j++){
       (function(spec){
         var k = tiles.indexOf(spec);
@@ -793,7 +840,7 @@ function fillPal(){
     edPal.appendChild(hint);
   } else if (ED.tab === 'obj'){
     clearThumbCache();
-    var visObjs = palQuery ? ED_OBJS.filter(function(o){ return (o.name || '').toLowerCase().indexOf(palQuery) !== -1; }) : ED_OBJS;
+    var visObjs = sortSwatchList(palQuery ? ED_OBJS.filter(function(o){ return (o.name || '').toLowerCase().indexOf(palQuery) !== -1; }) : ED_OBJS);
     for (var m = 0; m < visObjs.length; m++){
       (function(spec){
         var k = ED_OBJS.indexOf(spec);
@@ -832,7 +879,7 @@ function fillPal(){
   } else if (ED.tab === 'sprite'){
     clearThumbCache();
     var defs = listSpriteDefs();
-    var visDefs = palQuery ? defs.filter(function(d){ return (d.name || '').toLowerCase().indexOf(palQuery) !== -1; }) : defs;
+    var visDefs = sortSwatchList(palQuery ? defs.filter(function(d){ return (d.name || '').toLowerCase().indexOf(palQuery) !== -1; }) : defs);
     for (var si = 0; si < visDefs.length; si++){
       (function(def){
         var k = defs.indexOf(def);
@@ -1538,26 +1585,51 @@ function closePalMenu(){
 function onPalMenuOutside(e){
   if (edPalMenu && !edPalMenu.contains(e.target)) closePalMenu();
 }
-function openPalMenu(clientX, clientY){
-  if (!edPalMenu) return;
-  edPalMenu.textContent = '';
+function palMenuToggle(label, checked, title, onClick){
   var item = document.createElement('button');
   item.type = 'button';
   item.className = 'ed-palmenu-item';
   var check = document.createElement('span');
   check.className = 'ed-palmenu-check';
-  check.textContent = ED.showNames ? '✓' : '';
+  check.textContent = checked ? '✓' : '';
   item.appendChild(check);
-  item.appendChild(document.createTextNode('Display Names'));
-  item.title = 'Show object/tile/sprite names under palette icons (whole window)';
+  item.appendChild(document.createTextNode(label));
+  if (title) item.title = title;
   item.addEventListener('click', function(e){
     e.stopPropagation();
-    ED.showNames = !ED.showNames;
-    try { localStorage.setItem(NAMESKEY, ED.showNames ? '1' : '0'); } catch (_){}
-    fillPal();
+    onClick();
     closePalMenu();
   });
   edPalMenu.appendChild(item);
+  return item;
+}
+
+function setPalSort(mode){
+  ED.palSort = ED.palSort === mode ? '' : mode;
+  try { localStorage.setItem(SORTKEY, ED.palSort); } catch (_){}
+  fillPal();
+}
+
+function openPalMenu(clientX, clientY){
+  if (!edPalMenu) return;
+  edPalMenu.textContent = '';
+  palMenuToggle('Display Names', ED.showNames,
+    'Show object/tile/sprite names under palette icons (whole window)', function(){
+      ED.showNames = !ED.showNames;
+      try { localStorage.setItem(NAMESKEY, ED.showNames ? '1' : '0'); } catch (_){}
+      fillPal();
+    });
+  var sep = document.createElement('div');
+  sep.className = 'ed-palmenu-sep';
+  edPalMenu.appendChild(sep);
+  palMenuToggle('Sort by Name', ED.palSort === 'name',
+    'Sort the active tab (Tiles/Objects/Sprites) alphabetically by name', function(){
+      setPalSort('name');
+    });
+  palMenuToggle('Sort by Tag', ED.palSort === 'tag',
+    'Sort the active tab (Tiles/Objects/Sprites) alphabetically by tag', function(){
+      setPalSort('tag');
+    });
   edPalMenu.hidden = false;
   clampPopup(edPalMenu, clientX, clientY);
   setTimeout(function(){ document.addEventListener('pointerdown', onPalMenuOutside, true); }, 0);

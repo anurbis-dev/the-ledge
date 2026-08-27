@@ -14,7 +14,7 @@ import {
   isSpriteFrameDirty, setSpriteSize,
   getAnimFrameCount, setAnimFrameCount, reorderAnimFrames,
   getAnimSpeed, setAnimSpeed,
-  addSpriteDef, spriteFrameImage, addAnimDef, renameSpriteDef
+  addSpriteDef, spriteFrameImage, addAnimDef, renameSpriteDef, setSpriteTag
 } from '../core/spriteset.js';
 import {
   getFrameAnchor, setFrameAnchor, getAnimBox, setAnimBox,
@@ -42,6 +42,7 @@ var onChange = null;
 var onDeleteCustom = null;
 var onObjectChange = null;
 var onRenameBuiltinTile = null;
+var onRetagBuiltinTile = null;
 
 var TOOLS = [
   { id: 'pencil', name: 'Paint', title: 'Paint pixels (LMB). RMB erases. Alt+click picks a color.' },
@@ -109,6 +110,7 @@ export function bindTileEdit(hooks){
   onDeleteCustom = hooks && hooks.onDeleteCustom;
   onObjectChange = hooks && hooks.onObjectChange;
   onRenameBuiltinTile = hooks && hooks.onRenameBuiltinTile;
+  onRetagBuiltinTile = hooks && hooks.onRetagBuiltinTile;
 }
 
 export function isDetailsOpen(){
@@ -325,7 +327,7 @@ function setObjectSpriteId(spriteId){
     var next = updateObject(objCurrent.kind, { spriteId: spriteId || null });
     if (!next) return false;
     objCurrent = {
-      name: next.name, kind: next.id, template: next.template,
+      name: next.name, tag: next.tag, kind: next.id, template: next.template,
       role: next.role, spriteId: next.spriteId, itemKind: next.itemKind, custom: true
     };
   } else if (objCurrent.template === 'player_start' || objCurrent.kind === 'player_start'){
@@ -425,6 +427,23 @@ function fillObjectHeader(parent){
   var last = body.lastChild;
   if (last) box.appendChild(last);
 
+  var tagInp = document.createElement('input');
+  tagInp.type = 'text';
+  tagInp.value = objCurrent.tag || '';
+  tagInp.maxLength = 24;
+  tagInp.placeholder = '—';
+  tagInp.addEventListener('keydown', function(e){ e.stopPropagation(); });
+  tagInp.addEventListener('change', function(){
+    if (objCurrent.custom) markOp();
+    var next = updateObject(objCurrent.kind, { tag: tagInp.value.trim() });
+    if (!next) return;
+    objCurrent.tag = next.tag;
+    if (onObjectChange) onObjectChange(objCurrent);
+  });
+  field('Tag', tagInp);
+  last = body.lastChild;
+  if (last) box.appendChild(last);
+
   var roleSel = document.createElement('select');
   ['actor', 'pickup', 'loot', 'prop', 'marker'].forEach(function(r){
     var opt = document.createElement('option');
@@ -503,7 +522,7 @@ function fillObjectHeader(parent){
   parent.insertBefore(box, parent.firstChild);
 }
 
-/** Sprite Details opened directly from the Sprites tab (no owning object): Name only. */
+/** Sprite Details opened directly from the Sprites tab (no owning object): Name + Tag. */
 function fillSpriteHeader(){
   if (!current) return;
   var nameInp = document.createElement('input');
@@ -520,6 +539,21 @@ function fillSpriteHeader(){
     notify();
   });
   field('Name', nameInp);
+
+  var tagInp = document.createElement('input');
+  tagInp.type = 'text';
+  tagInp.value = current.tag || '';
+  tagInp.maxLength = 24;
+  tagInp.placeholder = '—';
+  tagInp.addEventListener('keydown', function(e){ e.stopPropagation(); });
+  tagInp.addEventListener('change', function(){
+    if (current.custom) markOp();
+    var next = setSpriteTag(current.id, tagInp.value.trim());
+    if (!next) return;
+    current.tag = next.tag;
+    notify();
+  });
+  field('Tag', tagInp);
 }
 
 /** Object Details без спрайта — только Name/Type/Sprite slot. */
@@ -649,7 +683,7 @@ export function refreshTileEdit(){
     var od = getObjectDef(objCurrent.kind);
     if (!od){ closeTileEdit(); return; }
     objCurrent = {
-      name: od.name, kind: od.id, template: od.template,
+      name: od.name, tag: od.tag, kind: od.id, template: od.template,
       role: od.role, spriteId: od.spriteId, itemKind: od.itemKind, custom: true
     };
     if (titleEl) titleEl.textContent = objCurrent.name || 'Object';
@@ -675,7 +709,7 @@ export function refreshTileEdit(){
     var td = getTileDef(current.id);
     if (td){
       current = {
-        name: td.name, id: td.id, color: '#6a628f',
+        name: td.name, tag: td.tag || '', id: td.id, color: '#6a628f',
         overlay: !!td.overlay, custom: true, src: td.src,
         spriteId: td.spriteId || getTileSpriteId(td.id) || null
       };
@@ -1901,6 +1935,25 @@ function fillTileParamsOnly(){
     notify();
   });
   field('Name', nameInp);
+
+  var tagInp = document.createElement('input');
+  tagInp.type = 'text';
+  tagInp.value = current.tag || '';
+  tagInp.maxLength = 24;
+  tagInp.placeholder = '—';
+  tagInp.addEventListener('keydown', function(e){ e.stopPropagation(); });
+  tagInp.addEventListener('change', function(){
+    var val = tagInp.value.trim();
+    if (def){
+      markOp();
+      updateTile(def.id, { tag: val });
+    } else if (onRetagBuiltinTile){
+      onRetagBuiltinTile(current.id, val);
+    }
+    current.tag = val;
+    notify();
+  });
+  field('Tag', tagInp);
 
   var over = document.createElement('input');
   over.type = 'checkbox';

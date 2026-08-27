@@ -33,6 +33,7 @@ export function normalizeTile(t){
   return {
     id: t.id | 0,
     name: String(t.name || ('Tile ' + t.id)),
+    tag: String(t.tag || ''),
     overlay: !!t.overlay,
     src: t.src || '',
     spriteId: t.spriteId ? String(t.spriteId) : null,
@@ -491,6 +492,7 @@ export function customSpecs(){
     t = tiles[i];
     out.push({
       name: t.name,
+      tag: t.tag || '',
       id: t.id,
       color: '#6a628f',
       overlay: !!t.overlay,
@@ -561,6 +563,7 @@ export function addTile(partial){
   var t = normalizeTile({
     id: id,
     name: (partial && partial.name) || ('Tile ' + id),
+    tag: partial && partial.tag,
     overlay: partial && partial.overlay != null ? !!partial.overlay : true,
     src: (partial && partial.src) || '',
     spriteId: partial && partial.spriteId,

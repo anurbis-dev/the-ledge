@@ -2,6 +2,10 @@
 
 ## 2026-08-27
 
+- Ctrl+D tile duplicate: `baseId` + `cloneTileGfxMeta` — Fall/Water (и любой builtin) копия показывает свои Details-слайдеры на `tileGfx[copyId]`; на карте `isFlowV`/`isWaterV` и procedural paint читают id клетки. Также копируется `durability`.
+
+## 2026-08-27
+
 - **Gameplay anchors (origin / grab / weapon / box) live on objectKind, not sprites.** `src/core/object-anchors.js` + draft migrate + Bake `BAKED.objectAnchors`; `spriteset` / `BAKED.sprites` = frames + `_meta` only (`stripAnchorsFromSaved` after migrate). Object Details (`openObjectEdit`) edits anchors when a sprite is linked; Sprite Details = pixels only. Runtime reads via `activeObjectKind()` / entity.`objectKind` / `legacyObjectKindFromSprite`; stamp/persist write `objectKind`. Bake: client sends `objectAnchors`, merge keeps them; `spriteAnchors()` no longer packs origin/grab/weapon/box.
 - **Fix: pickaxe-hit shake looped continuously for the entire time a tile was damaged instead of playing once per hit.**
   - The shake was gated on `S.digHp[k] != null` (set for the whole mid-dig duration, deleted only on break), so `paintTileId()` shook the tile every frame from the first hit until it broke. Replaced with a dedicated `S.digShakeT[k]` timer (`C.DIG_SHAKE_T = 0.18s`) set fresh on each `dighit` in `entities/mining.js`, decremented by a new `stepDigShake(S, dt)` wired into `core/step.js` next to `stepCrumbs`. `render/tiles.js`'s new `digHitShakeX(S, k)` derives the offset from elapsed-since-hit (not the global `time*46` wave), so amplitude decays to 0 over `DIG_SHAKE_T` and the tile sits still between hits. `CRUMB`'s own continuous crack-tremor (`crumbT`) is untouched.

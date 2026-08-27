@@ -150,6 +150,7 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
   background:transparent;color:#e9e4ff;font-size:11px;text-align:left;white-space:nowrap}
 .ed-palmenu-item:hover{background:#4d3f8680}
 .ed-palmenu-check{width:12px;flex:0 0 12px;color:#ffd9a0}
+.ed-palmenu-sep{height:1px;margin:3px 2px;background:#4a4370}
 .ed-chestadd{position:fixed;z-index:26;display:flex;align-items:center;gap:6px;padding:6px;
   background:#0d0a18f2;border:2px solid #4a4370;border-radius:8px;box-shadow:0 10px 30px #000a}
 .ed-chestadd[hidden]{display:none}

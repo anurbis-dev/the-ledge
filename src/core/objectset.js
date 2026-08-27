@@ -12,6 +12,8 @@ var KEY = 'ledge.dev.objects';
 /* Оверрайды display-имён builtin-kind — чисто UI-ярлык редактора, не часть
    BAKED (как TILE_NAMEKEY в editor.js / NAMEKEY в spriteset.js). */
 var NAMEKEY = 'ledge.ed.objectNames';
+/* Оверрайды tag builtin-kind — тот же принцип, отдельный ключ. */
+var TAGKEY = 'ledge.ed.objectTags';
 var ROLES = ['actor', 'pickup', 'loot', 'prop', 'marker'];
 
 var PICKUP_KINDS = { coin:1, gem:1, shroom:1, relic:1, tank:1, pickaxe:1 };
@@ -74,6 +76,8 @@ var onChange = null;
 var seq = 1;
 /** Display-name overrides for builtin (non-custom) kinds — dev draft, same store as customs. */
 var builtinNames = {};
+/** Tag overrides for builtin (non-custom) kinds — same pattern as builtinNames. */
+var builtinTags = {};
 
 function emit(why){
   notifyDraftChange();
@@ -106,6 +110,21 @@ function readBuiltinNames(){
 
 function writeBuiltinNames(){
   try { localStorage.setItem(NAMEKEY, JSON.stringify(builtinNames)); } catch (_){}
+}
+
+function readBuiltinTags(){
+  try {
+    var raw = localStorage.getItem(TAGKEY);
+    if (raw){
+      var o = JSON.parse(raw);
+      if (o && typeof o === 'object') return o;
+    }
+  } catch (_){}
+  return null;
+}
+
+function writeBuiltinTags(){
+  try { localStorage.setItem(TAGKEY, JSON.stringify(builtinTags)); } catch (_){}
 }
 
 function rebuild(){
@@ -148,6 +167,7 @@ export function normalizeObject(o){
   return {
     id: String(o.id),
     name: String(o.name || 'Object'),
+    tag: String(o.tag || ''),
     template: String(template),
     role: role,
     spriteId: o.spriteId ? String(o.spriteId) : null,
@@ -181,6 +201,9 @@ function boot(){
   }
   var names = readBuiltinNames();
   if (names) builtinNames = names;
+  builtinTags = {};
+  var tags = readBuiltinTags();
+  if (tags) builtinTags = tags;
   rebuild();
 }
 
@@ -216,6 +239,7 @@ export function resolveObject(kind){
     if (b.kind === kind){
       return {
         name: builtinNames[b.kind] || b.name,
+        tag: builtinTags[b.kind] || '',
         kind: b.kind,
         template: b.kind,
         role: builtinRole(b.kind),
@@ -234,6 +258,7 @@ export function allPaletteObjects(){
     b = BUILTIN_OBJS[i];
     out.push({
       name: builtinNames[b.kind] || b.name,
+      tag: builtinTags[b.kind] || '',
       kind: b.kind,
       template: b.kind,
       role: builtinRole(b.kind),
@@ -245,6 +270,7 @@ export function allPaletteObjects(){
     c = customs[i];
     out.push({
       name: c.name,
+      tag: c.tag || '',
       kind: c.id,
       template: c.template,
       role: c.role,
@@ -261,6 +287,7 @@ export function addObject(partial){
   var o = normalizeObject({
     id: id,
     name: (partial && partial.name) || 'Object',
+    tag: partial && partial.tag,
     template: (partial && partial.template) || 'coin',
     role: partial && partial.role,
     spriteId: partial && partial.spriteId,
@@ -276,11 +303,15 @@ export function addObject(partial){
 export function updateObject(id, patch){
   var o = byId[id], k, next;
   if (!o){
-    if (patch && patch.name){
+    if (patch && (patch.name || patch.tag != null)){
       for (k = 0; k < BUILTIN_OBJS.length; k++){
         if (BUILTIN_OBJS[k].kind === id){
-          builtinNames[id] = String(patch.name);
-          writeBuiltinNames();
+          if (patch.name) builtinNames[id] = String(patch.name);
+          if (patch.tag != null){
+            builtinTags[id] = String(patch.tag);
+            writeBuiltinTags();
+          }
+          if (patch.name) writeBuiltinNames();
           emit('update');
           return resolveObject(id);
         }
@@ -317,6 +348,7 @@ export function cloneObjectFrom(kind, spriteId){
   var name = (src.name || 'Object') + ' copy';
   return addObject({
     name: name,
+    tag: src.tag || '',
     template: template,
     role: role,
     spriteId: spriteId != null ? spriteId : (src.spriteId || null),

@@ -27,7 +27,10 @@
 
 В шапке по центру (между вкладками и кнопками действий) — поле поиска `#edPalSearch`: фильтрует текущую палитру (Tiles / Objects / Sprites) по имени, live на ввод; скрыто на Params/Intro/Gear/Mix.
 
-ПКМ в любом месте панели `#edbar` (без Ctrl/Meta) открывает контекстное меню `#edPalMenu` с одним пунктом **Display Names** — глобальный тумблер (`ED.showNames`, персист `ledge.ed.showNames`) показа подписи имени под иконкой свача; действует сразу на все три палитры (Tiles/Objects/Sprites), а не по отдельности.
+ПКМ в любом месте панели `#edbar` (без Ctrl/Meta) открывает контекстное меню `#edPalMenu` с тумблерами:
+- **Display Names** — глобальный тумблер (`ED.showNames`, персист `ledge.ed.showNames`) показа подписи имени под иконкой свача; действует сразу на все три палитры (Tiles/Objects/Sprites), а не по отдельности.
+- **Sort by Name** — сортирует видимые сваши текущей вкладки (Tiles/Objects/Sprites) по алфавиту, после фильтра поиска; персист `ledge.ed.palSort='name'`; при повторном клике отключает сортировку.
+- **Sort by Tag** — сортирует по тегу (сваши с тегом впереди в алфавитном порядке, остальные в исходном порядке), персист `ledge.ed.palSort='tag'`; при повторном клике отключает сортировку. Взаимоисключается с Sort by Name.
 
 Дополнительно:
 - `New Level` создаёт пустой уровень через хук `onNewLevel`.
@@ -92,7 +95,7 @@
 - `Color` не `varN` и не Cover: тот же тайл, другой grade на клетке.
 - Overlay-тайлы (зелёная точка на сваче) пишутся в канал `deco` поверх `base`. Коллизия остаётся у основного тайла. RMB сначала стирает декор, потом грунт.
 - Details (`#edTileEdit`, `fillTileParamsOnly`): слот **Sprite** + collision/flags/params only. Дроп `{ spriteId }` → `setTileSpriteId` (custom → `tile.spriteId`, builtin → `tileGfx.spriteId`). Clear / Edit / dblclick слота → `openSpriteEdit`. Нет Paint / Re-import / Reset picture — пиксели только на **Sprites**. Resolve: `getTileSpriteId` / `tileFrameSrc` / `tileImage` берут idle (или первый anim) спрайта; иначе legacy `src`/`frames`. Boot/`Ctrl+D`/PNG-drop мигрируют picture → sprite (`migrateTilePicture`). Thumbs: `tileThumb` учитывает `spriteId`.
-- Кастом-тайл: даблклик → Sprite slot + overlay / front / climb / one-way / collision (Hit / Collision → Custom box) + **Durability** (pickaxe hits, 0 = unbreakable; only for custom). `Ctrl+D` клонирует тайл и мигрирует picture → spriteId.
+- Кастом-тайл: даблклик → Sprite slot + overlay / front / climb / one-way / collision (Hit / Collision → Custom box) + **Name** / **Tag** (текстовые поля) + **Durability** (pickaxe hits, 0 = unbreakable; only for custom). `Ctrl+D` клонирует тайл и мигрирует picture → spriteId. Builtin-тайлы также поддерживают Tag-переопределение (dev-draft, не часть BAKED, только localStorage `ledge.ed.tileTags`).
 - Удаление кастом-тайла: `Delete`/`Backspace` при кисти на кастом-сваче (без map-sel / без выбранного объекта) или кнопка **Delete** в `#edTileEdit` → `deleteCustomTileById`. Скан всех уровней (`findLevelsUsingTile`: live layers текущего + `_stash` остальных). Если id где-то есть — confirm со списком `name (count)`; затем `wipeTileIdEverywhere` (base/deco/cover/stamp/stampDeco + paired vary) → `removeTile` → `flushAllLevelsStore`. Встроенные id не удаляются.
 
 Ограничения:
@@ -120,7 +123,7 @@
 Палитра = `listSpriteDefs()` (builtins + customs, `src/core/spriteset.js` / `ledge.dev.sprites`). Thumbs: `spriteThumb`. **Единственное место Paint** (`canPaint()` = sprite-mode): пиксели, Re-import, Reset frame (без Hit/Origin/Hands/Weapon).
 
 - Каталог `SPRITE_DEFS`: персонажи (hero / enemy* / flier* / spider* / npc_*) **и** placeable object icons (coin, chest, door, torch, gear, markers, ropes/plats/lift, …). Персонажи без авто-bake иконок; icon-каталог при boot получает dirty idle через `ensureCatalogIconFrames` (`migrate-graphics.js` → `paintObjIcon` / `bakeSpriteFrameSrc`).
-- Даблклик свача → `openSpriteEdit` (кадры / пиксели в `#edTileEdit`; якоря — только в Object Details). Окно Details при открытии из Sprites-палитры содержит поле **Name** (builtin и custom; Enter или F2 на сватче).
+- Даблклик свача → `openSpriteEdit` (кадры / пиксели в `#edTileEdit`; якоря — только в Object Details). Окно Details при открытии из Sprites-палитры содержит поля **Name** и **Tag** (builtin и custom; Enter или F2 на сватче). Для custom спрайтов Tag пишется в snapshot; для builtin — dev-draft localStorage `ledge.ed.spriteTags`.
 - Драг kind `sprite` → payload `{ spriteId }` на Tile/Object **Sprite** slot или на thumb кадра action (в sprite-mode).
 - Drop PNG на вкладку → `addSpriteDef` (не `addTile`); широкий шит → idle frames.
 - `Ctrl+D` → `cloneSpriteDef` («… copy»), открывает клон.
@@ -155,7 +158,7 @@
 ### Details (`#edTileEdit`)
 
 - Открывается **даблкликом** по любому Objects-свачу → всегда `openObjectEdit` (не редирект в Paint). Если окно уже открыто — **одиночный клик** переключает цель (то же для Tiles / Sprites).
-- Всегда params: Name / Type(role) / Sprite slot (+ hint). При linked sprite — **Box / Anchors** (Origin, Hands, Weapon, Hit/box, Reset anchors) на `objectKind` → `object-anchors.js` / `BAKED.objectAnchors`. Без sprite — только header params (`fillObjectBodyNoSprite`).
+- Всегда params: Name / **Tag** / Type(role) / Sprite slot (+ hint). При linked sprite — **Box / Anchors** (Origin, Hands, Weapon, Hit/box, Reset anchors) на `objectKind` → `object-anchors.js` / `BAKED.objectAnchors`. Без sprite — только header params (`fillObjectBodyNoSprite`). Для custom объектов Tag пишется в snapshot; для builtin — dev-draft localStorage `ledge.ed.objectTags`.
 - Edit / dblclick слота → `openSpriteEdit` (только пиксели/кадры; `keepObject` сохраняет шапку объекта).
 - **Sprite slot**: предпочтительно дроп с вкладки **Sprites** (`{ spriteId }` → `applySpriteSlotPayload`). Objects-свач со своим spriteId тоже даёт `{ spriteId }`. Слот **не** создаёт sprite из Tiles `tileSrc` / `makeTile` (только готовый `spriteId`). Frame-replace — только в sprite-mode (`applyFrameSlotPayload`). Менять slot у **customs** и `Start`; прочие builtins — сначала `Ctrl+D`. У custom — Clear снимает `spriteId`. После assign — `clearThumbCache` + `fillPal`.
 
