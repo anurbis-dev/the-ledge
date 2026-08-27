@@ -256,16 +256,34 @@ function clearLegacyLevelsLs(){
   try { localStorage.removeItem(LEGACY_LEVELS_KEY); } catch (_){}
 }
 
+/** aiCfg-хвост для массива врага: null, если враг не отличается от легаси-дефолта (2 точки = x0/x1, без пауз, без chase). */
+export function enemyAiCfg(e){
+  var pts = e.points || [e.x0, e.x1];
+  var pause = e.pointPause || pts.map(function(){ return 0; });
+  var isDefault = pts.length === 2 && !pause.some(function(x){ return x; }) && !e.canChase;
+  if (isDefault) return null;
+  return {
+    pts: pts.map(function(x){ return Math.round(x); }),
+    pause: pause.slice(),
+    canChase: !!e.canChase,
+    chaseV: Math.round(e.chaseV || 0),
+    sightFwd: Math.round(e.sightFwd || 0),
+    hearBack: Math.round(e.hearBack || 0)
+  };
+}
+
 function writeObjects(lv, S){
   if (!lv || !S) return;
   lv.enemies = (S.enemies || []).filter(function(e){ return !e.dead; }).map(function(e){
     var t = [Math.round(e.x), Math.round(e.y + e.h), Math.round(e.x0), Math.round(e.x1),
              Math.round(e.v), e.kind];
-    if ((e.loot && e.loot.length) || e.spriteId || e.objectKind){
+    var aiCfg = enemyAiCfg(e);
+    if ((e.loot && e.loot.length) || e.spriteId || e.objectKind || aiCfg){
       t.push((e.loot || []).map(function(x){ return [x.kind, x.qty]; }));
       t.push(!!e.random);
-      if (e.spriteId || e.objectKind) t.push(e.spriteId || null);
-      if (e.objectKind) t.push(e.objectKind);
+      t.push(e.spriteId || null);
+      if (e.objectKind || aiCfg) t.push(e.objectKind || null);
+      if (aiCfg) t.push(aiCfg);
     }
     return t;
   });

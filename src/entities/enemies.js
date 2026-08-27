@@ -26,6 +26,10 @@ export function applyEnemyBox(e){
   if (e.baseY !== undefined) e.baseY = restFeet - e.h;
 }
 
+var AI_DEFAULT_SIGHT = 90;
+var AI_DEFAULT_HEAR = 50;
+var AI_CHASE_MULT = 1.6;
+
 export function mkEnemies(){
   var LV = runtime.LV;
   return (LV.enemies || []).map(function(a, i){
@@ -37,12 +41,38 @@ export function mkEnemies(){
     var loot = Array.isArray(a[6])
       ? a[6].map(function(e){ return { kind: e[0], qty: Math.max(1, e[1] | 0 || 1) }; })
       : [];
-    return { id:i, x:a[0], y:a[1]-box.h, w:box.w, h:box.h, x0:a[2], x1:a[3],
-             v: a[4] * (kind === 1 ? 1.4 : (kind === 2 ? 0.7 : 1)),
-             kind: kind, tough: kind === 2 ? 2 : 1,
+    var v = a[4] * (kind === 1 ? 1.4 : (kind === 2 ? 0.7 : 1));
+    var aiCfg = (a[10] && typeof a[10] === 'object') ? a[10] : null;
+    var points = (aiCfg && Array.isArray(aiCfg.pts) && aiCfg.pts.length >= 2)
+      ? aiCfg.pts.slice() : [a[2], a[3]];
+    var pointPause = (aiCfg && Array.isArray(aiCfg.pause) && aiCfg.pause.length === points.length)
+      ? aiCfg.pause.slice() : points.map(function(){ return 0; });
+    return { id:i, x:a[0], y:a[1]-box.h, w:box.w, h:box.h,
+             x0: Math.min.apply(null, points), x1: Math.max.apply(null, points),
+             v: v, kind: kind, tough: kind === 2 ? 2 : 1,
              dir: i%2 ? -1 : 1, dead:false, hitT:0, ph:i*1.3, vy:0,
-             loot: loot, random: !!a[7], spriteId: spriteId, objectKind: objectKind };
+             loot: loot, random: !!a[7], spriteId: spriteId, objectKind: objectKind,
+             points: points, pointPause: pointPause,
+             canChase: aiCfg ? !!aiCfg.canChase : false,
+             chaseV: (aiCfg && aiCfg.chaseV) || v * AI_CHASE_MULT,
+             sightFwd: (aiCfg && aiCfg.sightFwd) || AI_DEFAULT_SIGHT,
+             hearBack: (aiCfg && aiCfg.hearBack) || AI_DEFAULT_HEAR,
+             aiState: 'patrol', ptIdx: 0, ptDir: 1, pauseT: 0 };
   });
+}
+function nearestPointIdx(e){
+  var best = 0, bd = Infinity, i, d;
+  for (i = 0; i < e.points.length; i++){
+    d = Math.abs(e.points[i] - e.x);
+    if (d < bd){ bd = d; best = i; }
+  }
+  return best;
+}
+function advancePoint(e){
+  e.ptIdx += e.ptDir;
+  if (e.ptIdx >= e.points.length){ e.ptIdx = e.points.length - 2; e.ptDir = -1; }
+  else if (e.ptIdx < 0){ e.ptIdx = 1; e.ptDir = 1; }
+  e.aiState = 'patrol';
 }
 export function stepEnemies(S, dt){
   var p = S.p;
@@ -76,18 +106,46 @@ export function stepEnemies(S, dt){
       continue;
     }
     var ex0 = e.x;
-    e.x += e.v * e.dir * dt;
-    if (e.x < e.x0){ e.x = e.x0; e.dir = 1; }
-    if (e.x > e.x1){ e.x = e.x1; e.dir = -1; }
-    if (!rectFree(e.x, e.y, e.w, e.h)){              // упёрся в стену — разворот
-      e.x = ex0; e.dir = -e.dir;
-    } else if (e.vy === 0){                          // идёт по склону
+    if (e.canChase && e.aiState !== 'chase'){        // проверка обнаружения
+      var ddx = (p.x + p.w/2) - (e.x + e.w/2);
+      var vgate = Math.abs((p.y + p.h) - (e.y + e.h)) < e.h + 8;
+      var forward = ddx * e.dir > 0;
+      if (vgate && ((forward && Math.abs(ddx) <= e.sightFwd) ||
+                    (!forward && Math.abs(ddx) <= e.hearBack))){
+        e.aiState = 'chase';
+      }
+    }
+    if (e.aiState === 'pause'){
+      e.pauseT -= dt;
+      if (e.pauseT <= 0) advancePoint(e);
+    } else {
+      var targetX = e.aiState === 'chase' ? (p.x + p.w/2 - e.w/2) : e.points[e.ptIdx];
+      var spd = e.aiState === 'chase' ? e.chaseV : e.v;
+      var dxToTarget = targetX - e.x;
+      e.dir = dxToTarget >= 0 ? 1 : -1;
+      var moveAmt = spd * dt;
+      if (e.aiState !== 'chase' && Math.abs(dxToTarget) <= moveAmt) e.x = targetX;
+      else e.x += e.dir * moveAmt;
+      var blocked = !rectFree(e.x, e.y, e.w, e.h);
+      var atEdge = !blocked && e.vy === 0 && !solidAt(e.x + e.w/2, e.y + e.h + 3);
+      if (blocked || atEdge) e.x = ex0;              // стена/обрыв — стоп
+      if (e.aiState === 'chase'){
+        var loX = Math.min.apply(null, e.points), hiX = Math.max.apply(null, e.points);
+        var stillDx = (p.x + p.w/2) - (e.x + e.w/2);
+        if (blocked || atEdge || e.x <= loX || e.x >= hiX || Math.abs(stillDx) > e.sightFwd){
+          e.x = Math.max(loX, Math.min(hiX, e.x));
+          e.aiState = 'patrol';
+          e.ptIdx = nearestPointIdx(e);
+        }
+      } else if (blocked || atEdge || e.x === targetX){
+        e.aiState = 'pause';
+        e.pauseT = e.pointPause[e.ptIdx] || 0;
+      }
+    }
+    if (e.vy === 0){                                 // идёт по склону
       var eb = { x:e.x, y:e.y, w:e.w, h:e.h };
       var esl = slopeUnder(eb);
       if (esl !== null){ e.y = esl - e.h; e.baseY = e.y; }
-    }
-    if (e.vy === 0 && !solidAt(e.x + e.w/2, e.y + e.h + 3)){   // не сходит с края
-      e.dir = -e.dir; e.x += e.v * e.dir * dt;
     }
     if (e.baseY !== undefined && e.vy === 0) e.baseY = e.y;
     if (!isInvuln() && p.hurtCd <= 0 && p.state !== 'stun' &&

@@ -3,7 +3,7 @@
 // sprite frames (+spriteDefs), objects/objectAnchors, optional settings/mix/talk/intro.
 // Written only by the editor's Bake button — no localStorage draft ever overrides this file.
 export var BAKED = {
-  "savedAt": 1787832952548,
+  "savedAt": 1787843052691,
   "levels": {
     "1": {
       "id": 1,
@@ -47,7 +47,7 @@ export var BAKED = {
       ],
       "enemies": [
         [
-          867,
+          875,
           352,
           816,
           944,
@@ -59,11 +59,11 @@ export var BAKED = {
           352,
           2304,
           2464,
-          212355996110,
+          297298394554,
           1
         ],
         [
-          1835,
+          1834,
           352,
           1680,
           1840,
@@ -71,7 +71,7 @@ export var BAKED = {
           2
         ],
         [
-          2655,
+          2573,
           352,
           2496,
           2656,
@@ -79,15 +79,15 @@ export var BAKED = {
           0
         ],
         [
-          3539267098,
+          4954973739,
           612,
           176,
           496,
-          212355996110,
+          297298394554,
           1
         ],
         [
-          624,
+          635,
           640,
           624,
           912,
@@ -95,7 +95,7 @@ export var BAKED = {
           2
         ],
         [
-          1210,
+          1108,
           640,
           1072,
           1360,
@@ -107,14 +107,14 @@ export var BAKED = {
           640,
           1680,
           1968,
-          189027846819,
+          264638985547,
           1
         ]
       ],
       "fliers": [
         [
-          53,
-          36,
+          71,
+          50,
           48,
           112,
           26,
@@ -122,23 +122,23 @@ export var BAKED = {
         ],
         [
           800,
-          146,
+          144,
           800,
           896,
-          18645372805,
+          25171253287,
           1
         ],
         [
-          1609,
-          315,
+          1630,
+          311,
           1536,
           1632,
           2,
           2
         ],
         [
-          2114,
-          30,
+          2132,
+          51,
           2048,
           2176,
           32,
@@ -146,22 +146,22 @@ export var BAKED = {
         ],
         [
           2752,
-          222,
+          215,
           2576,
           2752,
-          20553730304,
+          27747535910,
           1
         ],
         [
-          346,
-          539,
+          351,
+          536,
           336,
           480,
           2,
           2
         ],
         [
-          1255,
+          1286,
           512,
           1232,
           1344,
@@ -176,17 +176,17 @@ export var BAKED = {
           0
         ],
         [
-          43,
+          48,
           14,
           1
         ],
         [
-          147,
+          146,
           14,
           2
         ],
         [
-          72,
+          70,
           16,
           0
         ],
@@ -196,7 +196,7 @@ export var BAKED = {
           1
         ],
         [
-          78,
+          81,
           11,
           2
         ],
@@ -993,7 +993,7 @@ export var BAKED = {
           "y0": 208,
           "y1": 208,
           "v": 26,
-          "dir": -1,
+          "dir": 1,
           "vert": false,
           "pause0": 0,
           "pause1": 0,
@@ -1013,7 +1013,7 @@ export var BAKED = {
           "y0": 576,
           "y1": 576,
           "v": 24,
-          "dir": 1,
+          "dir": -1,
           "vert": false,
           "pause0": 0,
           "pause1": 0,
@@ -7531,7 +7531,7 @@ export var BAKED = {
               0,
               0,
               0,
-              0,
+              32,
               0,
               0,
               0,
@@ -387864,7 +387864,7 @@ export var BAKED = {
       "tag": "",
       "overlay": false,
       "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAACOklEQVR4AaSSS0hUURzGf+fOw3FmcMSxdAwMtOxhRLaJqCAX2a5VQYKLVi3bRJtoEQgtpDZhkG1apDAQ5DIsbNOLDCQQHBltzJlR03HUO++58zh5hJm6DILQgT/3nj/f9/u+xdH4z7MvwIWbdnnjUb28NWiTZ680yH8z9wQ8ueraFfY/aJVtpy14HAUCc5Lp9wmxL8DdibQYGTi6C1GGwJRGJuhTv6bZs4FSDY3OE17Y5PX9rPjsN8TM94gpXWlqALebGmXgYpfUr/fKVx0+lv0GM10dcupYhxw70VNtpMxqTAD/+eNy5OElUoU4774FGQ3nOHfKh7XNRc/hOlo25nnT6pOdGlVQFXAHm+zWYwTfTtLd18m1/hae3TvJC6+T+FKc8a8xIiUP42tJeqVVhe9OFaBuKcPBIbxkPy1Tni6w+iHGZiKJUdYIJbfRSzkQDjyueirHBCjmNZajOYy8RM+ksNrKlKSdbKGIy9lAVnNTR4neg46KHxPA29xIXHegWTws/vqNEAI972Z+C4rCytx2AmEBS5OrFvCUgvgRT5MsFfi5ooPdQzi6vdMmt9NE8DGTAFlHX7udx7OlWoDaDK+t43I72cpYWNpIE4lniK7rBNMpGm0u2poKPF+1M5n5+x40ZazMl3xKDC+EWEsbbAg7gYwkZBjEd5K1suTyAVtFWv2aAGrrLyHGinaSDieLRSvtzS0caXAzcMbLUMRmSlf6GoBaqoovY1HCpOhfCYkJPcrgbK7GrLR/AAAA///NsXdfAAAABklEQVQDAOdM5zXDxsdDAAAAAElFTkSuQmCC",
-      "spriteId": "s_5",
+      "spriteId": null,
       "collide": "none",
       "box": {
         "x": 4,
@@ -387923,10 +387923,11 @@ export var BAKED = {
     },
     {
       "id": 70,
-      "name": "Stone2",
+      "name": "stone_blk_01",
       "tag": "",
       "overlay": false,
       "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABO0lEQVR4AZSRsUoDQRCGh+lFrA+CCIKKFrZprAQFwcrGRnyFewQrwUexTeETWCkBI6cET5RwKDYS8gBJvoX/WDabIiFfZmfm/ze7s27zz91Nb5pj3mq/R92rBQ1Nx8iien+1lOvL26k4POha0zQBdHjwhhNQWF/bMKCRQn08+TfoDx5DGw8LZ4GABAExZVkdnctMEq/JU9RX5ErOkWI+v94MMO/t7FtMURR2dnIRrkIfwgwYUAwNjL2He8tBDw04RhYpzGZrc9dy0JM+nICEQQlM1JahGdD3l+qJuBL8kQx+enzeDiXeWYJcjHXOU6ignfUK1IE8hk2pE9tnTAXkel5mwrAFRhGGqIYihhjEnC6GGnins00MSBCSzA/HFmr7x/D55/dvVGJWUSJFrkMPDdSjqqy/B+Ww7pczAAAA//96TB0SAAAABklEQVQDANQE8ciARXcCAAAAAElFTkSuQmCC",
+      "spriteId": "s_9",
       "collide": "full",
       "box": {
         "x": 0,
@@ -387942,54 +387943,12 @@ export var BAKED = {
       "durability": 0
     },
     {
-      "id": 71,
-      "name": "DiagTile",
-      "tag": "",
-      "overlay": true,
-      "src": "",
-      "spriteId": "diag_sprite_1787732869375",
-      "collide": "none",
-      "box": {
-        "x": 0,
-        "y": 0,
-        "w": 16,
-        "h": 16
-      },
-      "oneWay": false,
-      "climb": false,
-      "front": false,
-      "frames": [],
-      "baseId": 0,
-      "durability": 0
-    },
-    {
-      "id": 72,
-      "name": "DiagTile2",
-      "tag": "",
-      "overlay": true,
-      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAALklEQVR4AeyTsQ0AAAjCCC95rT/5k8YbGFggYWVoKKtnlRJiMgCEQRi8Rv4fHAAAAP//USQhMgAAAAZJREFUAwBSPSmROJvmvQAAAABJRU5ErkJggg==",
-      "spriteId": "s_4",
-      "collide": "none",
-      "box": {
-        "x": 0,
-        "y": 0,
-        "w": 16,
-        "h": 16
-      },
-      "oneWay": false,
-      "climb": false,
-      "front": false,
-      "frames": [],
-      "baseId": 0,
-      "durability": 0
-    },
-    {
       "id": 69,
-      "name": "Fall_02",
+      "name": "waterFall_02",
       "tag": "",
       "overlay": false,
       "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAUElEQVR4AeyTwQkAIAhFxRG6dwxapRUaqDnapBHaojWMf/BoHroqPBDRL3z4nPsQ0OYWgP7FOiJAd5g+yxVIpRKw/rgC1qHOQ4AoPAgPkIcLAAD//0dhKgQAAAAGSURBVAMAVrYlY6WfWbcAAAAASUVORK5CYII=",
-      "spriteId": "s_5",
+      "spriteId": null,
       "collide": "none",
       "box": {
         "x": 0,
@@ -388008,11 +387967,13 @@ export var BAKED = {
   "tileGfx": {
     "1": {
       "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABO0lEQVR4AZSRsUoDQRCGh+lFrA+CCIKKFrZprAQFwcrGRnyFewQrwUexTeETWCkBI6cET5RwKDYS8gBJvoX/WDabIiFfZmfm/ze7s27zz91Nb5pj3mq/R92rBQ1Nx8iien+1lOvL26k4POha0zQBdHjwhhNQWF/bMKCRQn08+TfoDx5DGw8LZ4GABAExZVkdnctMEq/JU9RX5ErOkWI+v94MMO/t7FtMURR2dnIRrkIfwgwYUAwNjL2He8tBDw04RhYpzGZrc9dy0JM+nICEQQlM1JahGdD3l+qJuBL8kQx+enzeDiXeWYJcjHXOU6ignfUK1IE8hk2pE9tnTAXkel5mwrAFRhGGqIYihhjEnC6GGnins00MSBCSzA/HFmr7x/D55/dvVGJWUSJFrkMPDdSjqqy/B+Ww7pczAAAA//96TB0SAAAABklEQVQDANQE8ciARXcCAAAAAElFTkSuQmCC",
-      "frames": []
+      "frames": [],
+      "spriteId": "s_9"
     },
     "9": {
       "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABFklEQVR4AZTSO0oEYRAE4GZyEeNJxEhFA1NPYGDqRTyCqUcx3cATmBooq4kiyMQie4Dd/X62h3/fD6jpV1V1z7BN7PF7fBiMa5DubEBIAMPPdyH0djJAJILB81MRyyVbDYgR12GjAbFNwODw4EiIjF3XxUaDwp49iNq2jdubu/gf/c26sd7Adqzvn49+o/eH89MLo4KVF6QYubCmD1tPjs8C8pWm7eULiAmRkIEY2WvUUT53AbEmEXJCr0Ya6vUGKbbZAJK4aKQ2h95AQZxD4jpXv769hI+Km7NiYDuxQZIQ5aBPcHV5HaBONMT+EAiA4BvUQHZBjeyVCxSQBPkqWJDIeeN0Z4KzDcQkimp9HPj6Hd5bpjcBAAD//+BFLBIAAAAGSURBVAMAGKi7EO4if9EAAAAASUVORK5CYII=",
-      "frames": []
+      "frames": [],
+      "spriteId": "s_9"
     },
     "13": {
       "src": "",
@@ -388045,11 +388006,13 @@ export var BAKED = {
     },
     "15": {
       "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABFklEQVR4AZTSO0oEYRAE4GZyEeNJxEhFA1NPYGDqRTyCqUcx3cATmBooq4kiyMQie4Dd/X62h3/fD6jpV1V1z7BN7PF7fBiMa5DubEBIAMPPdyH0djJAJILB81MRyyVbDYgR12GjAbFNwODw4EiIjF3XxUaDwp49iNq2jdubu/gf/c26sd7Adqzvn49+o/eH89MLo4KVF6QYubCmD1tPjs8C8pWm7eULiAmRkIEY2WvUUT53AbEmEXJCr0Ya6vUGKbbZAJK4aKQ2h95AQZxD4jpXv769hI+Km7NiYDuxQZIQ5aBPcHV5HaBONMT+EAiA4BvUQHZBjeyVCxSQBPkqWJDIeeN0Z4KzDcQkimp9HPj6Hd5bpjcBAAD//+BFLBIAAAAGSURBVAMAGKi7EO4if9EAAAAASUVORK5CYII=",
-      "frames": []
+      "frames": [],
+      "spriteId": "s_10"
     },
     "27": {
       "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABKUlEQVR4AYTRPUoFQRAE4GFzEeNNxEhFA1NPYGBqYuYVPIKR4FFMX+AJTA2Up4kiyMYiHuDJN1DL+H4Xiu7prqrp6e3Khu/uZjJbhavL29laA0L+07eXEgzDMObbWztlpQFxREyAoI3ypQYRE3x8vhYRfn6/y9PzYxGJYcGA2JgECHu7B0IVpZao8c8gYjcAArJc7Pu+nJ9dVDM9GA1asQaBaOTkk4f7Aof7R1oVo4ETct6cswim8BywXDWoBrn95Pi0gEYrkKtlkkS1aiAJKTlSoNai5XZuT9OS2mbyeSPnaOoE3qTY/j5iNUQ5ZEdq6VUDW0WAkCxTDhHYDzgH1SA3c0Ww6RbIzFukVg0cIAT5MrggSL/zfmOCsTXEEEVndRx4/5peu0ztDwAA//9un+q8AAAABklEQVQDAPVp9BAtu0mJAAAAAElFTkSuQmCC",
-      "frames": []
+      "frames": [],
+      "spriteId": "s_11"
     },
     "69": {
       "src": "",
@@ -388132,24 +388095,6 @@ export var BAKED = {
         },
         "frames": [
           "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAA2klEQVR4AaSQMQoCQQxFZzyHgqWH8AD2XsBi7QQbWytbG8HOLbyAtQqWHsJS0HuMvIHITJwJwi58EjL5L9n0XMcvA1zujyD6l5sBztebO7RtlICIFiwD7DYLfzpufX8wdBpWg2QAaQKEgFFjq9omRQAmNJ2twrxpHGKj5XofqKcyATQynfh+PQlOQ4oAJiMc3GMyHnlygZCLfgCpETO3oFnuQZ4qA6RmjChtJtdbRAAX1maatUpbRACNXJpYmkq9pgiQIwmk1lyqRwAPQBC5Jf0bX4Blst46Az4AAAD//8+2CE4AAAAGSURBVAMA8XFoITzG6ToAAAAASUVORK5CYII="
-        ],
-        "dirty": [
-          true
-        ]
-      }
-    },
-    "s_5": {
-      "idle": {
-        "origin": {
-          "x": 3,
-          "y": 5
-        },
-        "box": {
-          "w": 10,
-          "h": 10
-        },
-        "frames": [
-          "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAUElEQVR4AeyTwQkAIAhFxRG6dwxapRUaqDnapBHaojWMf/BoHroqPBDRL3z4nPsQ0OYWgP7FOiJAd5g+yxVIpRKw/rgC1qHOQ4AoPAgPkIcLAAD//0dhKgQAAAAGSURBVAMAVrYlY6WfWbcAAAAASUVORK5CYII="
         ],
         "dirty": [
           true
@@ -388606,26 +388551,6 @@ export var BAKED = {
       "oy": 0,
       "fx": 0,
       "kind": "s_4",
-      "family": null,
-      "anims": [
-        {
-          "id": "idle",
-          "name": "Idle",
-          "n": 1
-        }
-      ],
-      "custom": true
-    },
-    {
-      "id": "s_5",
-      "name": "Fall copy",
-      "tag": "",
-      "fw": 16,
-      "fh": 16,
-      "ox": 0,
-      "oy": 0,
-      "fx": 0,
-      "kind": "tile_69",
       "family": null,
       "anims": [
         {

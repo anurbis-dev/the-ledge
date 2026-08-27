@@ -238,12 +238,16 @@ function mkEnemyAt(S, x, y, kind, loot, random, spriteId, objectKind){
   var sid = spriteId || ('enemy' + (kind | 0));
   var ok = objectKind || legacyObjectKindFromSprite(sid) || ('enemy' + (kind | 0));
   var box = getAnimBox(ok, 'idle');
+  var v = 26;
   S.enemies.push({ id:allocId(S.enemies), x:x, y:y-box.h, w:box.w, h:box.h,
-                   x0:x-64, x1:x+64, v:26, kind:kind, tough: kind===2?2:1,
+                   x0:x-64, x1:x+64, v:v, kind:kind, tough: kind===2?2:1,
                    dir:1, dead:false, hitT:0, ph:0, vy:0,
                    loot: (loot && loot.length) ? loot.map(function(e){ return { kind:e.kind, qty:e.qty }; }) : [],
                    random: !!random,
-                   spriteId: spriteId || null, objectKind: objectKind || null });
+                   spriteId: spriteId || null, objectKind: objectKind || null,
+                   points: [x-64, x+64], pointPause: [0, 0],
+                   canChase: false, chaseV: v * 1.6, sightFwd: 90, hearBack: 50,
+                   aiState: 'patrol', ptIdx: 0, ptDir: 1, pauseT: 0 });
 }
 function mkFlierAt(S, x, y, kind, loot, random, spriteId, objectKind){
   var sid = spriteId || ('flier' + (kind | 0));

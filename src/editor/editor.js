@@ -44,6 +44,7 @@ import { showInspect, bindInspect } from './inspect.js';
 import { bindNpcTalk, openNpcTalk, closeNpcTalk } from './npc-talk.js';
 import { bindBoulderSettings, openBoulderSettings, closeBoulderSettings } from './boulder-settings.js';
 import { bindRopeSettings, openRopeSettings, closeRopeSettings } from './rope-settings.js';
+import { bindEnemySettings, openEnemySettings, closeEnemySettings } from './enemy-settings.js';
 import { rebuildRope, packRope, ropeHitDist } from '../entities/ropes.js';
 import { packPlat } from '../entities/plats.js';
 import { packLift, syncLiftFloors } from '../entities/lifts.js';
@@ -52,7 +53,7 @@ function ropeHitDistSafe(r, x, y){
 }
 import { bindAllFloats, bindMiddleScroll, placeFloat, hasFloatPos } from './float.js';
 import { pickSpecial, pickAllSpecial, hitGizmo, beginGizmo, moveGizmo, endGizmo, gizmoActive, drawGizmos } from './gizmos.js';
-import { markLevelDirty as persistDirty, flushLevel, flushAllLevelsStore, bindPersist } from '../core/persist.js';
+import { markLevelDirty as persistDirty, flushLevel, flushAllLevelsStore, bindPersist, enemyAiCfg } from '../core/persist.js';
 import { pushBake, collectFull } from '../core/bake-client.js';
 import { beginOp, endOp, noteOp, undoOp, redoOp, canUndo, canRedo, bindHistory, clearHistory } from './history.js';
 import { invalidateAll } from '../render/tiles.js';
@@ -394,6 +395,7 @@ bindSpriteset({
 bindNpcTalk({ onChange: function(){ markLevelDirty(); } });
 bindBoulderSettings({ onChange: function(){ markLevelDirty(); } });
 bindRopeSettings({ onChange: function(){ markLevelDirty(); } });
+bindEnemySettings({ onChange: function(){ markLevelDirty(); } });
 bindAllFloats();
 if (edBar) bindMiddleScroll(edBar, edPal);
 bindPersist({ water: waterExport });
@@ -1025,6 +1027,7 @@ export function edClose(){
   closeNpcTalk();
   closeBoulderSettings();
   closeRopeSettings();
+  closeEnemySettings();
   closeTileEdit();
   ED.sel = null;
   ED.selTiles = null;
@@ -1698,13 +1701,23 @@ function openChestAdd(chest, kind, clientX, clientY){
 var edChestList = document.getElementById('edChestList');
 var edChestListBody = document.getElementById('edChestListBody');
 var edChestListTitle = document.getElementById('edChestListTitle');
+var edChestListAi = document.getElementById('edChestListAi');
 var chestListTarget = null;
+var chestListType = null;
 function closeChestList(){
   if (!edChestList || edChestList.hidden) return;
   edChestList.hidden = true;
   chestListTarget = null;
+  chestListType = null;
   document.removeEventListener('pointerdown', onChestListOutside, true);
 }
+if (edChestListAi) edChestListAi.addEventListener('click', function(e){
+  e.stopPropagation();
+  if (!chestListTarget) return;
+  var target = chestListTarget, x = e.clientX, y = e.clientY;
+  closeChestList();
+  openEnemySettings(target, x, y);
+});
 function onChestListOutside(e){
   if (edChestList && !edChestList.contains(e.target)) closeChestList();
 }
@@ -1774,10 +1787,12 @@ function openChestList(target, type, clientX, clientY){
   if (!edChestList) return;
   closeChestAdd();
   chestListTarget = target;
+  chestListType = type;
   if (edChestListTitle){
     var label = type === 'enemy' ? 'Enemy' : (type === 'flier' ? 'Bird' : 'Chest');
     edChestListTitle.textContent = label + (target.locked ? ' (locked)' : '');
   }
+  if (edChestListAi) edChestListAi.hidden = type !== 'enemy';
   renderChestList();
   edChestList.hidden = false;
   if (!hasFloatPos(edChestList)) clampPopup(edChestList, clientX, clientY);
@@ -2233,9 +2248,11 @@ export function edExportText(){
   out.push('enemies: [' + S.enemies.map(function(e){
     var base = Math.round(e.x) + ',' + Math.round(e.y + e.h) + ',' +
       Math.round(e.x0) + ',' + Math.round(e.x1) + ',' + Math.round(e.v) + ',' + e.kind;
-    if (e.loot && e.loot.length){
-      var lootTxt = e.loot.map(function(x){ return "['" + x.kind + "'," + x.qty + ']'; }).join(',');
+    var aiCfg = enemyAiCfg(e);
+    if ((e.loot && e.loot.length) || aiCfg){
+      var lootTxt = (e.loot || []).map(function(x){ return "['" + x.kind + "'," + x.qty + ']'; }).join(',');
       base += ',[' + lootTxt + '],' + !!e.random;
+      if (aiCfg) base += ',null,null,' + JSON.stringify(aiCfg);
     }
     return '[' + base + ']';
   }).join(',') + '],');
@@ -2788,6 +2805,9 @@ function shiftAllObjects(dx, dy){
   var S = world(), LV = runtime.LV, i, o;
   if (!S) return;
   shiftEntries(S.enemies, [['x',dx],['y',dy],['x0',dx],['x1',dx]]);
+  (S.enemies || []).forEach(function(e){
+    if (Array.isArray(e.points)) for (var pi = 0; pi < e.points.length; pi++) e.points[pi] += dx;
+  });
   shiftEntries(S.fliers, [['x',dx],['y',dy],['x0',dx],['x1',dx]]);
   shiftEntries(S.spiders, [['x',dx],['y',dy],['hx',dx],['hy',dy]]);
   shiftEntries(S.tendrils, [['bx',dx],['by',dy],['tx',dx],['ty',dy],['col',dx/G.T],['row',dy/G.T]]);
@@ -2968,6 +2988,7 @@ cv.addEventListener('pointerdown', function(e){
   closeNpcTalk();
   closeBoulderSettings();
   closeRopeSettings();
+  closeEnemySettings();
   if (e.ctrlKey || e.metaKey){
     beginOp();
     if (e.shiftKey) beginShiftAll(cell);

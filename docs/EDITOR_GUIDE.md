@@ -143,7 +143,7 @@
 - `Start` (`kind: 'player_start'`) — spawn уровня; Details: sprite slot → `spawn.spriteId` / `objectKind` → `activeHeroId()` / `activeObjectKind()`.
 - `Exit` (`kind: 'level_exit'`) — переход уровня (несколько на карту).
 - `Door` (`kind: 'door'`) — парная дверь (warp между двумя точками).
-- Враги/птицы/пауки/щупальца — Details = params + Sprite slot + якоря; кадры через Edit / Sprites (не авто-Paint).
+- Враги/птицы/пауки/щупальца — Details = params + Sprite slot + якоря; кадры через Edit / Sprites (не авто-Paint). Клик по врагу открывает попап лута (если есть), кнопка "⚙" в его шапке открывает новое окно **Enemy AI** со слайдерами скорости ходьбы/атаки, дальности видимости/слуха и списком точек патруля (видимо только для врагов).
 - Предметы и лут.
 - Сундуки (`Chest`, `Locked`).
 - `Sound`, `Light`, `Volume` — Light: params + Sprite slot + якоря (по умолчанию `lantern`); Edit → кадры фонаря.
@@ -226,7 +226,7 @@
 
 Позиция и размер сохраняются в `localStorage` ключ `ledge.ed.float`.
 
-## 9. Inspect и гизмо (Start / Exit / Door / Sound / Light / Volume / FX Sand / Plat / Lift)
+## 9. Inspect и гизмо (Start / Exit / Door / Enemy / Sound / Light / Volume / FX Sand / Plat / Lift)
 
 Выбор:
 - Клик по объекту (включая маркеры `Start` / `Exit` / `Door` / `FX Sand` / `Plat` / `Lift`).
@@ -237,6 +237,7 @@
 - `Start`: заметка в Inspect («один на уровень»); позиция — гизмо `move` / повторная кисть; playable sprite — `LV.spawn.spriteId`.
 - `Exit`: слот **Target level** (`toId` = id уровня в `LEVELS`); пусто = `(none / MENU)` — на CONTINUE уходит в меню (`finishLevel` / `resolveExitNext`). Несколько выходов; `tryExit` читает `LV.exits`.
 - `Door`: **Required item** (bag kind или none); при выбранном предмете — **Consume item on activate** (`consume`, дефолт true). `locked = !!need`; значения синкаются на пару. Позиция — гизмо `move`.
+- `Enemy` (враги): клик по врагу открывает попап лута (если есть); кнопка "⚙" в его шапке открывает новое плавающее окно **Enemy AI Settings** (`src/editor/enemy-settings.js`). Параметры: **Walk speed** (слайдер базовой скорости, из `.v`), **Chase speed** (скорость погони px/s, по умолчанию `v×1.6`), **Sight range** (дальность видимости вперёд по направлению движения, дефолт 90px), **Hear range** (дальность слуха назад, дефолт 50px), **Can chase** (тумблер opt-in, дефолт false). Далее **Patrol points** (список точек x-координат, minimum 2): каждая с полем x и pause-задержкой; кнопки `+` / `−` как у Lift Floors. Враг патрулирует пинг-понгом между точками с паузой на каждой; при `canChase` и видимости игрока переходит в chase на `chaseV`; сброс в patrol если игрок вышел за `sightFwd` или враг упёрся в границу/препятствие. Persist: `enemyAiCfg` пакуется только при отличии от дефолта (2 точки x0/x1, нет пауз, `canChase=false`).
 - Light: `Color` / `Intensity` / `Radius` / `Sprite` (какой спрайт висит в точке света; `Lantern` — факел по умолчанию, без PNG рисуется процедурный; `None` — только свечение). Постановка Light сразу ставит факел (`sprite:'lantern'`).
 - `FX Sand`: `Shape` (point|square|circle|line); `Shape size` если не point; `Shape angle` если line; далее `Density` / `Speed` / `Speed rand` / `Color` / `Life` / `Life rand` / `Gravity` / `Size` (px зерна) / `Spread` / `Drag` / `Lift` (дефолты `SAND_EMIT_DEF`: shape=point, shapeSize=16, shapeAngle=0). Гизмо: `move` + контур формы при выборе + ручка `emitSize` (resize; у line ещё angle). Persist `packEmitter` (+ dump emitters) с shape/shapeSize/shapeAngle.
 - `Plat H` / `Plat V`: `Width` / `Height` / `Speed` / `Pause A` / `Pause B`; `Travel` (`pingpong`|`oneway`); `Loop` (`infinite`|`once`); `Trigger` (`auto`|`ride`); `On leave` (`continue`|`return`|`stop`). Гизмо: `move` + `platA`/`platB`. Persist `packPlat` (`PLAT_DEF`).
