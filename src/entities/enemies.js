@@ -63,6 +63,7 @@ export function mkEnemies(){
              chaseV: (aiCfg && aiCfg.chaseV) || v * AI_CHASE_MULT,
              sightFwd: (aiCfg && aiCfg.sightFwd) || AI_DEFAULT_SIGHT,
              hearBack: (aiCfg && aiCfg.hearBack) || AI_DEFAULT_HEAR,
+             jumpH: (aiCfg && aiCfg.jumpH) || 0,
              aiState: 'patrol', ptIdx: 0, ptDir: 1, pauseT: 0 };
   });
 }
@@ -140,17 +141,21 @@ export function stepEnemies(S, dt){
       if (e.aiState !== 'chase' && Math.abs(dxToTarget) <= moveAmt) e.x = targetX;
       else e.x += e.dir * moveAmt;
       var blocked = !rectFree(e.x, e.y, e.w, e.h);
+      if (blocked && e.jumpH > 0 && e.vy === 0 && rectFree(e.x, e.y - e.jumpH, e.w, e.h)){
+        e.vy = -Math.sqrt(2 * 620 * e.jumpH);        // перепрыгивает препятствие по пути
+        blocked = false;
+      }
       var atEdge = !blocked && e.vy === 0 && !solidAt(e.x + e.w/2, e.y + e.h + 3);
       if (blocked || atEdge) e.x = ex0;              // стена/обрыв — стоп
       if (e.aiState === 'chase'){
         var loX = Math.min.apply(null, e.points), hiX = Math.max.apply(null, e.points);
         var stillDx = (p.x + p.w/2) - (e.x + e.w/2);
-        if (blocked || atEdge || e.x <= loX || e.x >= hiX || Math.abs(stillDx) > e.sightFwd){
+        if ((blocked && e.vy === 0) || atEdge || e.x <= loX || e.x >= hiX || Math.abs(stillDx) > e.sightFwd){
           e.x = Math.max(loX, Math.min(hiX, e.x));
           e.aiState = 'patrol';
           e.ptIdx = nearestPointIdx(e);
         }
-      } else if (blocked || atEdge || e.x === targetX){
+      } else if ((blocked && e.vy === 0) || atEdge || e.x === targetX){
         e.aiState = 'pause';
         e.pauseT = e.pointPause[e.ptIdx] || 0;
       }

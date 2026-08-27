@@ -246,7 +246,7 @@ function mkEnemyAt(S, x, y, kind, loot, random, spriteId, objectKind){
                    random: !!random,
                    spriteId: spriteId || null, objectKind: objectKind || null,
                    points: [x-64, x+64], pointPause: [0, 0],
-                   canChase: false, chaseV: v * 1.6, sightFwd: 90, hearBack: 50,
+                   canChase: false, chaseV: v * 1.6, sightFwd: 90, hearBack: 50, jumpH: 0,
                    aiState: 'patrol', ptIdx: 0, ptDir: 1, pauseT: 0 });
 }
 function mkFlierAt(S, x, y, kind, loot, random, spriteId, objectKind){

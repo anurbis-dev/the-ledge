@@ -262,7 +262,7 @@ function clearLegacyLevelsLs(){
 export function enemyAiCfg(e){
   var pts = e.points || [e.x0, e.x1];
   var pause = e.pointPause || pts.map(function(){ return 0; });
-  var isDefault = pts.length === 2 && !pause.some(function(x){ return x; }) && !e.canChase;
+  var isDefault = pts.length === 2 && !pause.some(function(x){ return x; }) && !e.canChase && !e.jumpH;
   if (isDefault) return null;
   return {
     pts: pts.map(function(x){ return Math.round(x); }),
@@ -270,7 +270,8 @@ export function enemyAiCfg(e){
     canChase: !!e.canChase,
     chaseV: Math.round(e.chaseV || 0),
     sightFwd: Math.round(e.sightFwd || 0),
-    hearBack: Math.round(e.hearBack || 0)
+    hearBack: Math.round(e.hearBack || 0),
+    jumpH: Math.round(e.jumpH || 0)
   };
 }
 

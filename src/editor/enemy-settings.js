@@ -193,6 +193,7 @@ function fill(){
   var e = current;
   lootSection(body, e);
   slider(body, 'Walk speed', 8, 80, 1, e.v, function(v){ e.v = v; }, 26);
+  slider(body, 'Jump height', 0, 40, 1, e.jumpH || 0, function(v){ e.jumpH = v; }, 0);
   pointsSection(body, e);
   toggle(body, 'Can chase', e.canChase, function(v){ e.canChase = v; });
   if (e.canChase){
