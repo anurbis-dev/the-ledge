@@ -5,7 +5,7 @@ import {
   moveX, moveY, damage, isInvuln, updateBars, ease, updateClimb, updateHang, updateLadder,
   setStance, setH, slopeUnder, slopeUnderAt, slopeGradeUnder, groundSurfaceUnder, grounded, autoLadder, tryBars,
   tryLadder, tryGrab, tryClimbOut, tryCrawlEdge, ladderTopUnder, attach, mountLad, towardLadAxis, tryDescend,
-  tryMantle, footCenterX, snapFeet, wallSlideDir, unstickFromWall,
+  tryMantle, tryClimbWall, footCenterX, snapFeet, wallSlideDir, unstickFromWall,
   markGap, canDescend, awayFromEdge, startFallRecover, finishFallRecover,
   finishGetup, stanceFitsAt, stanceH, applyHeroBox, applyRollBox
 } from './player.js';
@@ -338,7 +338,8 @@ export function step(S, dt, inp){
       // забраться на крутой скос направлением+вверх было в принципе невозможно), но только когда
       // сама ходьба туда не пройдёт даже с STEP_UP
       if (rawBlocked && !canStepUp && stanceBefore === 0 && p.stance === 0 &&
-          (inp.upHeld || inp.upPressed) && tryMantle(S, p, p.facing)){
+          (inp.upHeld || inp.upPressed) &&
+          (tryMantle(S, p, p.facing) || tryClimbWall(S, p, p.facing))){
         crumbCheck(S, p); pickups(S, p);
         return;
       }

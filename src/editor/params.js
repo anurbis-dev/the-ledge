@@ -62,6 +62,7 @@ export var PARAM_GROUPS = [
     { key: 'CLIMB_DN', label: 'Climb down t', min: 0.1, max: 1.2, step: 0.01, hint: 'Длительность слезания с края в вис (сек).' },
     { key: 'TO_LAD', label: 'To ladder t', min: 0.05, max: 0.8, step: 0.01, hint: 'Время перехода с виса на низ лестницы в лазание (сек).' },
     { key: 'VAULT_T', label: 'Vault time', min: 0.08, max: 0.6, step: 0.01, hint: 'Mantle: залезть на ступень +1 тайл с земли (сек анимации).' },
+    { key: 'CLIMB_WALL_TILES', label: 'Climb wall tiles', min: 1, max: 6, step: 1, hint: 'Упор в стену + вверх с земли (без прыжка) лезет на стену высотой до стольки тайлов — как обычный прыжок+хват.' },
     { key: 'STAND_OFF', label: 'Stand offset', min: 2, max: 16, step: 1, hint: 'Смещение центра стоячего хитбокса внутрь от губы после подъёма (px).' },
     { key: 'EDGE_HOLD', label: 'Edge hold', min: 0, max: 0.6, step: 0.01, hint: 'Удержание у края перед авто-слезанием / скатыванием (сек).' }
   ]},

@@ -881,6 +881,37 @@ export function tryMantle(S, p, dir){
   startClimb(p, 1, step1.cx, step1.cy, dir, 'ledge', land);
   return true;
 }
+/* верх стены впереди высотой до C.CLIMB_WALL_TILES (как findChestStep, но без потолка в 1 тайл) —
+   находим первую снизу сплошную колонку и поднимаемся по ней, пока сплошно, до предела; тайл на
+   самом верху может быть и скосом (bestSlopeLand ниже сам разберётся с диагональю) */
+function findWallTop(p, dir){
+  var rG = Math.floor(Math.round(p.y + p.h) / T);
+  for (var d = 1; d <= T + 6; d++){
+    var wallX = dir > 0 ? p.x + p.w + d : p.x - d;
+    var col = Math.floor(wallX / T);
+    if (!fullStepTile(col, rG - 1)) continue;
+    if (pitTilesTo(p, dir, col) > 1) continue;
+    var row = rG - 1, n = 1;
+    while (n < C.CLIMB_WALL_TILES && fullStepTile(col, row - 1)){ row--; n++; }
+    if (fullStepTile(col, row - 1)) return null;     // стена выше предела — это уже прыжок+хват в воздухе
+    return { col: col, row: row, cx: dir > 0 ? col * T : (col + 1) * T, cy: row * T };
+  }
+  return null;
+}
+/* упор в стену выше 1 тайла (но не выше прыжка) + вверх — тот же подъём, что и mantle,
+   без прыжка: находим верх стены геометрически, а не по узкому окну высоты руки (оно рассчитано
+   на момент хвата в воздухе на подлёте и не совпадает с ростом при стоянии на земле) */
+export function tryClimbWall(S, p, dir){
+  if (p.inWater || p.grabCd > 0) return false;
+  if (p.state !== 'normal' || p.rollT > 0 || p.stance !== 0) return false;
+  if (!p.onGround && p.coyote <= 0) return false;
+  var top = findWallTop(p, dir);
+  if (!top) return false;
+  var land = bestSlopeLand(top.col, top.row, top.cx, top.cy, dir);
+  if (!land) return false;
+  startClimb(p, 1, top.cx, top.cy, dir, 'ledge', land);
+  return true;
+}
 /* --- спуск спиной с края --- */
 export function tryDescend(S, p, want){
   var d = findDescend(p, want);
