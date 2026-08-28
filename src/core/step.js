@@ -326,14 +326,23 @@ export function step(S, dt, inp){
       var aheadX = p.facing > 0 ? p.x + p.w + 2 : p.x - 2;
       var aheadRow = Math.floor((p.y + p.h - 1) / T);
       var aheadIsSlope = isSlopeV(tileAt(Math.floor(aheadX / T), aheadRow));
-      var blocked = !rectFree(p.x + p.facing*2, p.y, p.w, p.h) && slopeUnder(p) === null && !aheadIsSlope;
-      if (blocked) p.vx = 0;                      // упор в стену — не толкаемся (на склоне не мешаем)
-      // ступень +1 тайл: только вперёд+вверх; без ↑ — упор руками
-      if (blocked && stanceBefore === 0 && p.stance === 0 &&
+      var rawBlocked = !rectFree(p.x + p.facing*2, p.y, p.w, p.h) && slopeUnder(p) === null;
+      var blocked = rawBlocked && !aheadIsSlope;
+      // тот же STEP_UP-допуск, что и у moveX: если ходьба сама перешагнёт (пологий скос) — это
+      // не «упор», mantle не нужен, даже если ↑ зажат просто по привычке ходьбы
+      var canStepUp = false;
+      if (rawBlocked) for (var su = 1; su <= C.STEP_UP && !canStepUp; su++)
+        if (rectFree(p.x + p.facing*2, p.y - su, p.w, p.h)) canStepUp = true;
+      // ступень +1 тайл: только вперёд+вверх; без ↑ — упор руками. На скосе — так же, как на
+      // одиночном тайле: mantle пробуем по «сырому» упору (не глушим исключением для скоса, иначе
+      // забраться на крутой скос направлением+вверх было в принципе невозможно), но только когда
+      // сама ходьба туда не пройдёт даже с STEP_UP
+      if (rawBlocked && !canStepUp && stanceBefore === 0 && p.stance === 0 &&
           (inp.upHeld || inp.upPressed) && tryMantle(S, p, p.facing)){
         crumbCheck(S, p); pickups(S, p);
         return;
       }
+      if (blocked) p.vx = 0;                      // упор в стену — не толкаемся (на склоне не мешаем)
       if (blocked && stanceBefore === 0 && p.stance === 0) wallBlocked = true;
 
     } else {
