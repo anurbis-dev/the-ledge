@@ -250,14 +250,19 @@ export function solidAt(px, py){
   return solidTile(c, r);
 }
 export function ladderAt(px, py){ return ladderTile(Math.floor(px / T), Math.floor(py / T)); }
-/* потолочный скос (V-флип) блокирует AABB по нижней точке среза в пересечении бокса с тайлом по X —
-   иначе бег/присед/степ его вообще не видят (раньше только moveY при dy<0 через отдельный ceilYAt-проб). */
-function ceilSlopeBlocks(v, c, r, fl, x, y, w){
+/* скос блокирует AABB по гарантированно-сплошной грани тайла в пересечении бокса с тайлом по X —
+   иначе бег/присед/степ его вообще не видят (раньше только moveY через точечные groundYAt/ceilYAt).
+   fl&2 — сплошная часть сверху (низ среза — верхняя грань тайла), иначе снизу (верх среза — нижняя грань). */
+function slopeBlocks(v, c, r, fl, x, y, h, w){
   var xa = x == null ? c*T : Math.max(x, c*T);
   var xb = x == null ? c*T + T : Math.min(x + w, c*T + T);
   if (xa >= xb) return false;
-  var loY = Math.max(slopeTop(v, c, xa, fl), slopeTop(v, c, xb, fl));
-  return y < r*T + loY;
+  if (fl & 2){
+    var loY = Math.max(slopeTop(v, c, xa, fl), slopeTop(v, c, xb, fl));
+    return y < r*T + loY;
+  }
+  var hiY = Math.min(slopeTop(v, c, xa, fl), slopeTop(v, c, xb, fl));
+  return y + h > r*T + hiY;
 }
 export function tileBlocks(c, r, y, h, x, w){
   // ladderTop не блокирует AABB: опора через groundYAt / footSupported (как скос),
@@ -269,7 +274,7 @@ export function tileBlocks(c, r, y, h, x, w){
   if (d){
     if (d.climb || d.collide === 'none') return false;
     if (d.collide === 'slope-r' || d.collide === 'slope-l')
-      return isCeilSlope(v, fl) ? ceilSlopeBlocks(v, c, r, fl, x, y, w) : false;
+      return slopeBlocks(v, c, r, fl, x, y, h, w);
     var box = d.collide === 'custom' ? d.box
       : d.collide === 'full' ? { x: 0, y: 0, w: T, h: T }
       : d.collide === 'half' ? { x: 0, y: 0, w: T, h: 8 }
@@ -287,7 +292,7 @@ export function tileBlocks(c, r, y, h, x, w){
     return false;
   }
   if (isHalfV(v)) return y < r*T + 8;            // занята только верхняя половина
-  if (isSlopeV(v)) return isCeilSlope(v, fl) ? ceilSlopeBlocks(v, c, r, fl, x, y, w) : false;
+  if (isSlopeV(v)) return slopeBlocks(v, c, r, fl, x, y, h, w);
   return solidTile(c, r);
 }
 /* высота земли под точкой с учётом скосов */
@@ -301,7 +306,8 @@ export function groundYAt(px, py){
   var c = Math.floor(px / T), r = Math.floor(py / T);
   for (var k = 0; k < 2; k++){
     var rr = r + k, v = tileAt(c, rr), fl = tileFlipAt(c, rr);
-    if (isSlopeV(v) && !(fl & 2)){
+    if (isSlopeV(v)){
+      if (fl & 2) return rr*T;               // сплошная часть сверху — вся верхняя грань тайла
       var sy = rr*T + slopeTop(v, c, px, fl);
       if (py <= sy + 2) return sy;
     }
@@ -329,12 +335,14 @@ export function groundYAt(px, py){
   }
   return null;
 }
-/* нижняя грань потолочного скоса над точкой (V-флип) — аналог groundYAt для движения вверх */
+/* нижняя грань сплошной части скоса над точкой — аналог groundYAt для движения вверх.
+   fl&2 — сплошная часть сверху, низ среза = диагональ; иначе сплошная снизу — вся нижняя грань тайла. */
 export function ceilYAt(px, py){
   var c = Math.floor(px / T), r = Math.floor(py / T);
   for (var k = 0; k < 2; k++){
     var rr = r - k, v = tileAt(c, rr), fl = tileFlipAt(c, rr);
-    if (isCeilSlope(v, fl)){
+    if (isSlopeV(v)){
+      if (!(fl & 2)) return rr*T + T;
       var sy = rr*T + slopeTop(v, c, px, fl);
       if (py >= sy - 2) return sy;
     }

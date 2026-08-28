@@ -41,11 +41,12 @@ export function drawCollideOverlay(){
         else if (def.collide === 'slope-r' || def.collide === 'slope-l'){
           ctx.globalAlpha = 0.35;
           ctx.fillStyle = '#7ad0ff';
+          var yBase = G.isCeilSlope(v, fl) ? y : y + T;
           ctx.beginPath();
-          ctx.moveTo(x, y + T);
+          ctx.moveTo(x, yBase);
           for (k = 0; k <= T; k += 2)
             ctx.lineTo(x + k, y + G.slopeTop(v, c, c * T + k, fl));
-          ctx.lineTo(x + T, y + T);
+          ctx.lineTo(x + T, yBase);
           ctx.closePath();
           ctx.fill();
         } else rc(x, y, T, T, '#ff5a4a');
@@ -69,11 +70,12 @@ export function drawCollideOverlay(){
       } else if (G.isSlopeV(v)){
         ctx.globalAlpha = 0.35;
         ctx.fillStyle = '#7ad0ff';
+        var yBase2 = G.isCeilSlope(v, fl) ? y : y + T;
         ctx.beginPath();
-        ctx.moveTo(x, y + T);
+        ctx.moveTo(x, yBase2);
         for (k = 0; k <= T; k += 2)
           ctx.lineTo(x + k, y + G.slopeTop(v, c, c * T + k, fl));
-        ctx.lineTo(x + T, y + T);
+        ctx.lineTo(x + T, yBase2);
         ctx.closePath();
         ctx.fill();
         ctx.globalAlpha = 0.9;

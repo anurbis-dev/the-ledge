@@ -7,7 +7,6 @@ import { isMenu } from '../ui/menu.js';
 import { hushLift } from '../audio/sfx.js';
 import { findById } from '../entities/ids.js';
 import { BOULDER_DEF } from '../entities/boulders.js';
-import { isSlopeBrush, fitSlopeStroke } from './slopes.js';
 import { tileThumb, objThumb, spriteThumb, paintObjIcon, clearThumbCache } from './thumbs.js';
 import { renderParams, resetAllParams } from './params.js';
 import { getActiveLayer, getLayers, setActiveLayer, layerTile, layerVar, layerDeco, layerTileRaw, layerVarRaw, layerFlipRaw, isTileLayer, internGrade, layerGrade, copyGrade, GRADE_DEF, stashLayers, findLevelsUsingTile, wipeTileIdEverywhere } from '../core/layers.js';
@@ -80,7 +79,7 @@ var SORTKEY = 'ledge.ed.palSort';
 export var ED = {
   on: false, tab: 'tile', tool: 'tile', pal: 0, painting: false, erasing: false,
   panId: -1, panX: 0, panY: 0, camX: 0, camY: 0, last: null,
-  stroke: null, strokeOrig: null, waterShade: 0.75,
+  waterShade: 0.75,
   zoom: 1, icon: 28, hover: null,
   clickCell: null, clickBrush: -1,
   holdT: null, holdErased: false, holdX: 0, holdY: 0,
@@ -1841,12 +1840,6 @@ export function edApply(cell, isClick){
       markLevelDirty();
       return;
     }
-    if (isSlopeBrush(nv)){
-      // общий канал flip (бит0=H, бит1=V) — один спрайт зеркалится канвасом, geometry через slopeSpec(v,fl)
-      G.setFlip(cell.c, cell.r, (ED.flipH ? 1 : 0) | (ED.flipV ? 2 : 0));
-      edPaintSlope(cell, nv);
-      return;
-    }
     var old = brushTile(cell.c, cell.r);
     if (G.isWaterV(nv) && G.isWaterV(old)){
       setPondShade(cell.c, cell.r, ED.waterShade);
@@ -2171,32 +2164,6 @@ function edPlaceObject(cell){
   else if (kind === 'boulder') G.mkBoulderAt(S, cx, floorY);
   else if (kind.indexOf('npc_') === 0) G.mkNpcAt(S, cx, floorY, kind.slice(4), null, null, spriteId, objectKind);
   else G.mkItemAt(S, cx, cy, itemKind, spriteId, objectKind);
-}
-function edPaintSlope(cell, brush){
-  var S = world();
-  if (!ED.stroke){ ED.stroke = []; ED.strokeOrig = {}; }
-  ED.stroke.push({ c: cell.c, r: cell.r });
-  applySlopePlan(fitSlopeStroke(ED.stroke, brush));
-  G.buildGates(S);
-}
-function applySlopePlan(plan){
-  var keep = {}, i, p, k, cr;
-  for (i = 0; i < plan.length; i++){
-    p = plan[i];
-    k = p.c + ':' + p.r;
-    keep[k] = true;
-    if (ED.strokeOrig[k] === undefined) ED.strokeOrig[k] = G.tileAt(p.c, p.r);
-  }
-  for (k in ED.strokeOrig){
-    if (keep[k]) continue;
-    cr = k.split(':');
-    G.setTile(+cr[0], +cr[1], ED.strokeOrig[k]);
-    delete ED.strokeOrig[k];
-  }
-  for (i = 0; i < plan.length; i++){
-    p = plan[i];
-    G.setTile(p.c, p.r, p.v);
-  }
 }
 export function edExportText(){
   var S = world();
@@ -2967,7 +2934,7 @@ cv.addEventListener('pointerdown', function(e){
     }
     closeVarMenu();
     beginOp();
-    ED.erasing = true; ED.painting = true; ED.last = null; ED.stroke = null; ED.strokeOrig = null;
+    ED.erasing = true; ED.painting = true; ED.last = null;
     edErase(cell, wcell);
     try { cv.setPointerCapture(e.pointerId); } catch(_){}
     return;
@@ -3038,7 +3005,7 @@ cv.addEventListener('pointerdown', function(e){
     return;
   }
   beginOp();
-  ED.painting = true; ED.erasing = false; ED.last = null; ED.stroke = null; ED.strokeOrig = null;
+  ED.painting = true; ED.erasing = false; ED.last = null;
   ED.holdX = e.clientX; ED.holdY = e.clientY;
   var ospec0 = ED.tool === 'obj' ? ED_OBJS[ED.pal] : null;
   if (!(ospec0 && isSpecialKind(ospec0.kind))) startHold(cell, wcell);
@@ -3146,7 +3113,7 @@ function edUp(e){
   ED.pendHit = null;
   ED.painting = false; ED.erasing = false;
   ED.stampCover = false;
-  ED.last = null; ED.stroke = null; ED.strokeOrig = null;
+  ED.last = null;
   ED.giz = false;
   endGizmo();
   clearHold();

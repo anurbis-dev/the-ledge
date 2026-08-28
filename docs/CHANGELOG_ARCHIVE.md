@@ -1,5 +1,10 @@
 # Changelog archive
 
+## 2026-08-27 (2f8b9b5)
+
+- Feat(enemies): параметр врага **Jump height** (px, дефолт 0) — при движении в patrol/chase, если враг упирается в стену, но прыжок высотой jumpH расчищает путь (проверка `rectFree(x, y-jumpH, w, h)`), враг прыгает вместо остановки/разворота; использует ту же физику как hop через игрока (`vy = -sqrt(2*620*jumpH)`, гравитация 620). Если препятствие выше jumpH, враг разворачивается как раньше. Пока враг в воздухе (`vy !== 0`), стена не сбрасывает chase в patrol — это возможно только с земли. Runtime: `e.jumpH` (из `aiCfg.jumpH`); persist пакует в `enemyAiCfg` только при `jumpH > 0`. Редактор: новый слайдер **Jump height** (0–40px, дефолт 0) в Enemy AI попапе, рядом с Walk speed, независимо от Can chase.
+- Fix(editor): плавающие окна Enemy AI (`edEnemySettings`) и Rope Settings (`edRopeSettings`) не двигались за шапку и ПКМ-драг, так как их id были пропущены в списке `bindAllFloats()`. Оба id добавлены в базовый список окон, получающих функциональность drag/resize/scroll из единого механизма `src/editor/float.js`.
+
 ## 2026-08-27 (pre-commit, unreleased at commit 7e8d532)
 
 - Fix(enemies): скорость врагов/птиц компаундилась при каждом save/bake цикле — `mkEnemies()` / `mkFliers()` умножают `a[4]` на kind-множитель (enemy: kind1=1.4, kind2=0.7; flier: kind1=1.35, kind2=0.8), но `writeObjects()` / `edExportText()` писали уже умноженную v обратно без деления, за много циклов скорость улетала к миллиардам px/s. Экспортированы `enemySpeedMult(kind)` / `flierSpeedMult(kind)`; persist.js и editor.js делят на них при записи. Данные в `src/core/defaults.js` ручно поправлены для уровней 1 и 3 (18 значений скорости + 2 x-позиции врагов, разлетевшихся из-за прежней скорости).
