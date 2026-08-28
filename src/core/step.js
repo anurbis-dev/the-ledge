@@ -1,6 +1,6 @@
 import { T, C, ROCK } from './constants.js';
 import { runtime, setWorld } from './runtime.js';
-import { tileAt, rectFree, isWaterV, waterSurfaceY, ladderTile } from './map.js';
+import { tileAt, rectFree, isWaterV, waterSurfaceY, ladderTile, isSlopeV } from './map.js';
 import {
   moveX, moveY, damage, isInvuln, updateBars, ease, updateClimb, updateHang, updateLadder,
   setStance, setH, slopeUnder, slopeUnderAt, slopeGradeUnder, groundSurfaceUnder, grounded, autoLadder, tryBars,
@@ -232,7 +232,10 @@ export function step(S, dt, inp){
   var crouchMove = p.stance === 1 && (inp.x !== 0 || Math.abs(p.vx) > 8);
   var crouchRoll = crouchMove && (inp.downHeld || inp.downPressed);
   if (!talking && !rolling && p.onGround && !inCab && !onLadTop && !p.inWater && p.stanceT <= 0 && p.pickT <= 0){
-    if (inp.downPressed && p.stance < 2 && Math.abs(p.vx) <= 58 && !crouchRoll) setStance(S, p, p.stance + 1);
+    // лёжа (PRW шире тайла) не разворачивается под уклон — на скосе из приседа доступна только
+    // сама стойка приседа, не пытаемся втиснуть плоский широкий бокс поперёк диагонали
+    if (inp.downPressed && p.stance < 2 && Math.abs(p.vx) <= 58 && !crouchRoll &&
+        !(p.stance === 1 && slopeUnderAt(p, footCenterX(p)) !== null)) setStance(S, p, p.stance + 1);
     else if (!onEdge && inp.downHeld && p.stance === 0 && Math.abs(p.vx) <= 58) setStance(S, p, 1);
     if ((inp.upPressed || inp.upHeld || inp.jumpPressed) && p.stance > 0){
       if (setStance(S, p, p.stance - 1)) { p.buf = 0; }   // удержание ↑ — шаг стойки после анимации
@@ -317,7 +320,13 @@ export function step(S, dt, inp){
         if (edge === 2){ crumbCheck(S, p); pickups(S, p); return; }  // в вис
         if (edge === -1) p.vx = 0;                                   // упёрлись
       }
-      var blocked = !rectFree(p.x + p.facing*2, p.y, p.w, p.h) && slopeUnder(p) === null;
+      // «на склоне не мешаем» должно освобождать не только когда мы уже стоим на скосе (slopeUnder),
+      // но и когда скос только начинается впереди — иначе заход на пологий скос с ровного места
+      // всегда стопорится тут же, ещё до того как moveX успеет попробовать STEP_UP
+      var aheadX = p.facing > 0 ? p.x + p.w + 2 : p.x - 2;
+      var aheadRow = Math.floor((p.y + p.h - 1) / T);
+      var aheadIsSlope = isSlopeV(tileAt(Math.floor(aheadX / T), aheadRow));
+      var blocked = !rectFree(p.x + p.facing*2, p.y, p.w, p.h) && slopeUnder(p) === null && !aheadIsSlope;
       if (blocked) p.vx = 0;                      // упор в стену — не толкаемся (на склоне не мешаем)
       // ступень +1 тайл: только вперёд+вверх; без ↑ — упор руками
       if (blocked && stanceBefore === 0 && p.stance === 0 &&

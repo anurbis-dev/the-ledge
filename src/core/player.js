@@ -67,7 +67,10 @@ export function footCenterX(p){ return p.x + p.w * 0.5; }
 /* опора = центр текущей коробки (поза / ящик из редактора), не край AABB */
 function footSupported(p, noLadTop){
   var cx = footCenterX(p);
-  if (solidAt(cx, p.y + p.h) || solidAt(cx, p.y + p.h + 1)) return true;
+  // +2 — та же слабина, что у groundYAt (py<=sy+2): при заходе на скос предшаговый snap чуть
+  // подтягивает бокс к ещё не начавшейся диагонали, и точный +1 недобирает на долю пикселя,
+  // на miг роняя onGround и дёргая авто-подъём из приседа на ровном месте
+  if (solidAt(cx, p.y + p.h) || solidAt(cx, p.y + p.h + 1) || solidAt(cx, p.y + p.h + 2)) return true;
   if (noLadTop) return false;
   return ladderTopUnder(p, p.y + p.h) !== null || ladderTopUnder(p, p.y + p.h + 1) !== null;
 }
@@ -696,7 +699,11 @@ export function tryClimbOut(S, p, dir){
 
 export function stanceFitsAt(p, st){
   var h = stanceH(st), w = stanceW(st);
-  return rectFree(p.x + p.w / 2 - w / 2, p.y + p.h - h, w, h);
+  var x = p.x + p.w / 2 - w / 2, y = p.y + p.h - h, k = 0;
+  // тот же STEP_UP-допуск, что и у setStance/ходьбы — иначе на скосе однокадровый ложный "не влезает"
+  // на стыке тайлов ставит gapCrawl и тут же авто-встаёт из приседа, едва фит вернётся на кадр позже
+  while (k <= C.STEP_UP && !rectFree(x, y - k, w, h)) k++;
+  return k <= C.STEP_UP;
 }
 /* в щели (встать нельзя) — защёлкиваем; сбрасываем только встав или на одноразовом выходе */
 export function markGap(p){
