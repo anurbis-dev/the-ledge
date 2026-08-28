@@ -1,7 +1,7 @@
 import { T, C, LADR, LADL, LADW } from './constants.js';
 import { runtime, mapIx } from './runtime.js';
 import {
-  tileAt, rectFree, solidAt, isSlopeV, slopeTop, slopeSpec, slopeGrade, isLadV, ladderTop,
+  tileAt, rectFree, solidAt, isSlopeV, slopeTop, slopeGrade, isLadV, ladderTop,
   isBarV, ladderTile, solidTile, tileBlocks, isWaterV, groundYAt, tileFlipAt, ceilYAt, ledgeTopAt
 } from './map.js';
 import { dropTorch } from '../entities/torches.js';
@@ -357,21 +357,15 @@ export function bestLand(cx, cy, facing){
   }
   return null;
 }
-/* номинальный уклон скоса (без ease-множителя — на кривых он локально доходит до 45° у одного края,
-   но семейство в целом положе): круче SLOPE_WALL_ANGLE — при mantle это стена, а не пол. */
-function isSlopeWallV(v, fl){
-  var s = slopeSpec(v, fl);
-  if (!s) return false;
-  var grade = Math.abs(s.y1 - s.y0) / T;
-  return Math.atan(grade) * 180 / Math.PI >= C.SLOPE_WALL_ANGLE;
-}
-/* посадка после mantle на скос: крутая грань (или потолочная, уже плоская сверху) — на весь плоский
-   верх тайла, как обычная стена/уступ; пологая — по своей диагональной высоте в точке приземления
-   (иначе STAND_OFF сдвигает бокс в столбец с другой высотой, и rectFree бьётся об уходящий вверх солид). */
+/* посадка после mantle на скос: потолочный (уже плоский сверху) — на весь верх тайла, как стена;
+   любой другой уклон, включая 45° (это по-прежнему обычный ходибельный угол) — по своей диагональной
+   высоте в точке приземления, консервативно по наименее глубокой границе бокса (иначе STAND_OFF
+   сдвигает бокс в столбец с другой высотой, и плоское дно бокса зарывается в уходящий вверх солид —
+   либо наоборот, повисает над воздухом там, где у "стенового" варианта солида ещё нет). */
 function bestSlopeLand(tc, tr, cx, cy, facing){
   var v = tileAt(tc, tr), fl = tileFlipAt(tc, tr);
   if (!isSlopeV(v)) return bestLand(cx, cy, facing);
-  if ((fl & 2) || isSlopeWallV(v, fl)) return bestLand(cx, tr * T, facing);
+  if (fl & 2) return bestLand(cx, tr * T, facing);
   var tileL = facing > 0 ? cx : cx - T;
   for (var st = 0; st <= 2; st++){
     var h = stanceH(st), w = stanceW(st);
@@ -383,9 +377,11 @@ function bestSlopeLand(tc, tr, cx, cy, facing){
       if (x + w > tileL + T) x = tileL + T - w;
     }
     // консервативная (наименее глубокая) точка по всей ширине бокса — как slopeBlocks в map.js,
-    // иначе плоское дно бокса зарывается в поднимающийся дальше по x солид
+    // иначе плоское дно бокса зарывается в поднимающийся дальше по x солид; −1px запаса, иначе
+    // посадка садится ровно на грань rectFree, и следующий же кадр (анимация land слегка меняет
+    // p.h) сдвигает низ бокса на долю пикселя и страховка высоты (step.js) валит в лёжа
     var hiY = Math.min(slopeTop(v, tc, x, fl), slopeTop(v, tc, x + w, fl));
-    var y = tr * T + hiY - h;
+    var y = tr * T + hiY - h - 1;
     if (rectFree(x, y, w, h)) return { x: x, y: y, w: w, h: h, stance: st };
   }
   return null;

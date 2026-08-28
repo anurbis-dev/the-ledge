@@ -254,11 +254,19 @@ export function step(S, dt, inp){
   // проверяем не только над головой, но и с запасом по бокам — иначе можно «встать» внутри щели
   if (!rolling && p.onGround && p.h !== stanceH(p.stance)){
     var standH = stanceH(0), crouchH = stanceH(1), proneH = stanceH(2);
-    var fitStand = rectFree(p.x, p.y + p.h - standH, p.w, standH);
-    var fitCrouch = rectFree(p.x, p.y + p.h - crouchH, p.w, crouchH);
-    if (fitStand && p.stance === 0) setH(p, standH);
-    else if (!fitStand && fitCrouch && p.stance <= 1){ setH(p, crouchH); p.stance = 1; }
-    else if (!fitStand && !fitCrouch && p.h > proneH){ setH(p, proneH); p.stance = 2; }
+    var bottom0 = p.y + p.h;
+    // +1px допуск вверх: на скосе низ бокса стоит впритык к rectFree, и промежуточная анимационная
+    // высота (например land) на долю пикселя сдвигает bottom — без запаса это ложно валит в лёжа.
+    // При проходе только по допуску поднимаем bottom на этот же 1px — иначе setH ставит бокс
+    // обратно в позицию, которая только что не прошла строгую проверку
+    var standBottom = rectFree(p.x, bottom0 - standH, p.w, standH) ? bottom0
+      : (rectFree(p.x, bottom0 - standH - 1, p.w, standH) ? bottom0 - 1 : null);
+    var crouchBottom = rectFree(p.x, bottom0 - crouchH, p.w, crouchH) ? bottom0
+      : (rectFree(p.x, bottom0 - crouchH - 1, p.w, crouchH) ? bottom0 - 1 : null);
+    if (standBottom !== null && p.stance === 0){ p.y = standBottom - standH; setH(p, standH); }
+    else if (standBottom === null && crouchBottom !== null && p.stance <= 1){
+      p.y = crouchBottom - crouchH; setH(p, crouchH); p.stance = 1;
+    } else if (standBottom === null && crouchBottom === null && p.h > proneH){ setH(p, proneH); p.stance = 2; }
   }
   markGap(p);
 
@@ -487,7 +495,13 @@ export function step(S, dt, inp){
   var slPre = null;
   if (!wasAir){                                  // встаём на склон ДО шага, иначе упрёмся в ступень
     slPre = slopeUnderAt(p, footCenterX(p));
-    if (slPre !== null) p.y = slPre - p.h;
+    if (slPre !== null){
+      // высота по центру ноги годится как признак «мы на скосе», но не как высота посадки — на
+      // крутой диагонали край бокса требует другой высоты, и однопиксельный snap зарывает бокс в
+      // солид дальше по x; groundSurfaceUnder уже консервативен по всей ширине бокса (3 пробы, min)
+      var slSafe = groundSurfaceUnder(p);
+      p.y = (slSafe !== null ? slSafe : slPre) - p.h;
+    }
   }
   if (!wasAir) pushBoulders(S, p, dt, inp);
   if (wallBlocked) p.pushWall = true;             // упёрлись в стену на бегу — руки в стену, как при камне
