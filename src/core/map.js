@@ -193,6 +193,15 @@ export function slopeSurfaceY(c, r, px){
   if (!isSlopeV(v)) return null;
   return r*T + slopeTop(v, c, px, tileFlipAt(c, r));
 }
+/* точная верхняя грань солида в тайле под точкой (px,py): диагональ скоса на своей высоте по x,
+   а не грань тайла — иначе рука на кромке скоса цепляется за пустой верх квадрата (потолочный
+   скос уже сплошной сверху всей гранью — та же r*T, что и для обычного блока). */
+export function ledgeTopAt(px, py){
+  var c = Math.floor(px / T), r = Math.floor(py / T);
+  var v = tileAt(c, r), fl = tileFlipAt(c, r);
+  if (isSlopeV(v) && !(fl & 2)) return r*T + slopeTop(v, c, px, fl);
+  return r*T;
+}
 export function isHalfV(v){
   var d = getTileDef(v);
   if (d) return d.collide === 'half';

@@ -2,7 +2,7 @@ import { T, C, LADR, LADL, LADW } from './constants.js';
 import { runtime, mapIx } from './runtime.js';
 import {
   tileAt, rectFree, solidAt, isSlopeV, slopeTop, slopeGrade, isLadV, ladderTop,
-  isBarV, ladderTile, solidTile, tileBlocks, isWaterV, groundYAt, tileFlipAt, ceilYAt
+  isBarV, ladderTile, solidTile, tileBlocks, isWaterV, groundYAt, tileFlipAt, ceilYAt, ledgeTopAt
 } from './map.js';
 import { dropTorch } from '../entities/torches.js';
 import { platUnder } from '../entities/plats.js';
@@ -374,7 +374,7 @@ function findLedge(p, dir, extraUp){
   for (var dy = lo; dy <= hi; dy++){
     var py = handY + dy;
     if (pixSolid(hx, py) || !pixSolid(hx, py + 2)) continue;
-    var top = Math.floor((py + 2) / T) * T, wc = Math.floor(hx / T);
+    var top = ledgeTopAt(hx, py + 2), wc = Math.floor(hx / T);
     var d = Math.abs(top - handY);
     if (d >= bestD) continue;
     bestD = d;
