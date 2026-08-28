@@ -728,9 +728,10 @@ export function tryCrawlEdge(S, p, dir){
   return -1;
 }
 function findDescendTile(p, want){
-  var gy = Math.floor((p.y + p.h + 2) / T) * T;
+  var midX0 = p.x + p.w / 2;
+  var gy = ledgeTopAt(midX0, p.y + p.h + 2);   // аналитическая опора под ногами — скос своей высотой, не грань тайла
   // если у края вплотную стоит лестница — кромка не работает, уходим на лестницу
-  var lc0 = Math.floor((p.x + p.w/2) / T), lr0 = Math.floor((gy + 2) / T);
+  var lc0 = Math.floor(midX0 / T), lr0 = Math.floor((gy + 2) / T);
   if (ladderTile(lc0, lr0) || ladderTile(lc0 - 1, lr0) || ladderTile(lc0 + 1, lr0)) return null;
   var order = want ? [want, -want] : [p.facing, -p.facing];
   for (var i = 0; i < order.length; i++){
@@ -739,7 +740,9 @@ function findDescendTile(p, want){
       var px = dir > 0 ? p.x + p.w - 1 + d : p.x - d;
       if (!solidAt(px, gy + 2)){ col = Math.floor(px / T) - dir; break; }
     }
-    if (col == null || !solidTile(col, Math.floor((gy + 2) / T))) continue;
+    if (col == null) continue;
+    var row = Math.floor((gy + 2) / T);
+    if (!solidTile(col, row) && !isSlopeV(tileAt(col, row))) continue;   // скос — тоже опора, не пропасть
     var midX = p.x + p.w / 2;
     // опора = центр коробки: достаточно стоять на последнем тайле.
     // midTile отсекал лёжа (PRW>T/2) — губа уже под телом, центр ещё до середины
@@ -802,7 +805,7 @@ function pitTilesTo(p, dir, col){
   var c = dir > 0 ? Math.floor((p.x + p.w + 1) / T) : Math.floor((p.x - 1) / T);
   var n = 0;
   while (c !== col){
-    if (!solidTile(c, rG)) n++;
+    if (!solidTile(c, rG) && !isSlopeV(tileAt(c, rG))) n++;   // скос под ногами — опора, не пропасть
     c += dir;
     if (n > 1 || Math.abs(c - col) > 8) break;
   }
