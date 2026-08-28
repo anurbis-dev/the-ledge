@@ -310,9 +310,13 @@ export function setStance(S, p, st){
   if (p.stance === st) return true;
   var h = stanceH(st), w = stanceW(st);
   var b = p.y + p.h, cx = p.x + p.w/2;
-  var nx = cx - w/2, ny = b - h;
-  if (!rectFree(nx, ny, w, h)) return false;           // не разогнуться / не растянуться
-  p.x = nx; p.y = ny; p.w = w; p.h = h; p.stance = st;
+  var nx = cx - w/2, ny = b - h, k = 0;
+  // на скосе высота опоры зависит от высоты бокса (разный запас на разной высоте у одной и той же
+  // диагонали) — тот же STEP_UP-допуск, что и у ходьбы, иначе смена стойки бьётся об rectFree на
+  // ровном месте посреди склона, хотя в паре пикселей выше место есть
+  while (k <= C.STEP_UP && !rectFree(nx, ny - k, w, h)) k++;
+  if (k > C.STEP_UP) return false;                      // не разогнуться / не растянуться
+  p.x = nx; p.y = ny - k; p.w = w; p.h = h; p.stance = st;
   p.events.push(st === 0 ? 'stand' : (st === 1 ? 'crouch' : 'prone'));
   return true;
 }

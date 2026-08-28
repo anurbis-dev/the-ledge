@@ -263,9 +263,11 @@ export function step(S, dt, inp){
       : (rectFree(p.x, bottom0 - standH - 1, p.w, standH) ? bottom0 - 1 : null);
     var crouchBottom = rectFree(p.x, bottom0 - crouchH, p.w, crouchH) ? bottom0
       : (rectFree(p.x, bottom0 - crouchH - 1, p.w, crouchH) ? bottom0 - 1 : null);
-    if (standBottom !== null && p.stance === 0){ p.y = standBottom - standH; setH(p, standH); }
+    // задаём h/y напрямую одним шагом — setH сам берёт bottom из ещё-старого p.h, и после ручной
+    // правки p.y это даёт двойной сдвиг (утрояет запас в 1px в лишний скачок по Y)
+    if (standBottom !== null && p.stance === 0){ p.h = standH; p.y = standBottom - standH; }
     else if (standBottom === null && crouchBottom !== null && p.stance <= 1){
-      p.y = crouchBottom - crouchH; setH(p, crouchH); p.stance = 1;
+      p.h = crouchH; p.y = crouchBottom - crouchH; p.stance = 1;
     } else if (standBottom === null && crouchBottom === null && p.h > proneH){ setH(p, proneH); p.stance = 2; }
   }
   markGap(p);
