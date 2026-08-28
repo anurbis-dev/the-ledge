@@ -881,9 +881,22 @@ export function tryMantle(S, p, dir){
   startClimb(p, 1, step1.cx, step1.cy, dir, 'ledge', land);
   return true;
 }
+/* посадка впритык к грани (без обычного отступа STAND_OFF вглубь) — для педестала под скосом:
+   если у скоса над этим рядом открытый ближний край, впритык есть больше шансов влезть, не залезая
+   диагональю (STAND_OFF, рассчитанный на шаг ВГЛУБЬ плоского блока, тут же толкает бокс в подъём) */
+function edgeLand(cx, cy, facing){
+  for (var st = 0; st <= 2; st++){
+    var h = stanceH(st), w = stanceW(st);
+    var x = facing > 0 ? cx : cx - w;
+    if (rectFree(x, cy - h, w, h)) return { x: x, y: cy - h, w: w, h: h, stance: st };
+  }
+  return null;
+}
 /* верх стены впереди высотой до C.CLIMB_WALL_TILES (как findChestStep, но без потолка в 1 тайл) —
-   находим первую снизу сплошную колонку и поднимаемся по ней, пока сплошно, до предела; тайл на
-   самом верху может быть и скосом (bestSlopeLand ниже сам разберётся с диагональю) */
+   пробуем посадку на каждом ряду снизу вверх и берём первый, где она реально влезает: если сверху
+   скос с открытым (низким) ближним краем — влезем уже на педестал под ним (привязка к нижней грани
+   скоса), а не только на его пик; если сам скос там ещё недостаточно открыт (бокс шире зазора —
+   предел геометрии для крутых уклонов, не баг) — едем на ряд выше. */
 function findWallTop(p, dir){
   var rG = Math.floor(Math.round(p.y + p.h) / T);
   for (var d = 1; d <= T + 6; d++){
@@ -891,10 +904,15 @@ function findWallTop(p, dir){
     var col = Math.floor(wallX / T);
     if (!fullStepTile(col, rG - 1)) continue;
     if (pitTilesTo(p, dir, col) > 1) continue;
+    var cx = dir > 0 ? col * T : (col + 1) * T;
     var row = rG - 1, n = 1;
-    while (n < C.CLIMB_WALL_TILES && fullStepTile(col, row - 1)){ row--; n++; }
-    if (fullStepTile(col, row - 1)) return null;     // стена выше предела — это уже прыжок+хват в воздухе
-    return { col: col, row: row, cx: dir > 0 ? col * T : (col + 1) * T, cy: row * T };
+    for (;;){
+      var land = bestSlopeLand(col, row, cx, row * T, dir);
+      if (!land && isSlopeV(tileAt(col, row - 1))) land = edgeLand(cx, row * T, dir);
+      if (land) return { cx: cx, cy: row * T, land: land };
+      if (n >= C.CLIMB_WALL_TILES || !fullStepTile(col, row - 1)) return null;
+      row--; n++;
+    }
   }
   return null;
 }
@@ -907,9 +925,7 @@ export function tryClimbWall(S, p, dir){
   if (!p.onGround && p.coyote <= 0) return false;
   var top = findWallTop(p, dir);
   if (!top) return false;
-  var land = bestSlopeLand(top.col, top.row, top.cx, top.cy, dir);
-  if (!land) return false;
-  startClimb(p, 1, top.cx, top.cy, dir, 'ledge', land);
+  startClimb(p, 1, top.cx, top.cy, dir, 'ledge', top.land);
   return true;
 }
 /* --- спуск спиной с края --- */
