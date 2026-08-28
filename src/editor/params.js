@@ -63,6 +63,7 @@ export var PARAM_GROUPS = [
     { key: 'TO_LAD', label: 'To ladder t', min: 0.05, max: 0.8, step: 0.01, hint: 'Время перехода с виса на низ лестницы в лазание (сек).' },
     { key: 'VAULT_T', label: 'Vault time', min: 0.08, max: 0.6, step: 0.01, hint: 'Mantle: залезть на ступень +1 тайл с земли (сек анимации).' },
     { key: 'STAND_OFF', label: 'Stand offset', min: 2, max: 16, step: 1, hint: 'Смещение центра стоячего хитбокса внутрь от губы после подъёма (px).' },
+    { key: 'SLOPE_WALL_ANGLE', label: 'Slope wall angle', min: 0, max: 90, step: 1, hint: 'Скос круче этого угла — mantle кладёт на плоский верх тайла, как об стену; положе — стойка по диагонали.' },
     { key: 'EDGE_HOLD', label: 'Edge hold', min: 0, max: 0.6, step: 0.01, hint: 'Удержание у края перед авто-слезанием / скатыванием (сек).' }
   ]},
   { id: 'wall', name: 'Wall', items: [

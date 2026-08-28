@@ -21,6 +21,7 @@ export const C = {
   PLAT_GRAB: 12, PLAT_GRAB_Y: 9,
   CLIMB_UP: 0.5, CLIMB_DN: 0.46, TO_LAD: 0.3, VAULT_T: 0.24,
   STAND_OFF: 8,
+  SLOPE_WALL_ANGLE: 40,                                 // круче — скос при mantle как стена (плоский верх тайла, не диагональ)
   SLIDE_V: 62, WJ_X: 118, WJ_Y: -178, WJ_LOCK: 0.19, WJ_SAME_Y: -126, WJ_SAME_X: 74,
   WALK_V: 42, THROW_X: 155, THROW_Y: -135, ACT_R: 26, PUSH_V: 14,
   ATK_T: 0.3, ATK_R: 26, ATK_CD: 0.16, HURT_CD: 1.0, PICK_T: 0.32, THROW_T: 0.2, STANCE_T: 0.13,

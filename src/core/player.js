@@ -1,7 +1,7 @@
 import { T, C, LADR, LADL, LADW } from './constants.js';
 import { runtime, mapIx } from './runtime.js';
 import {
-  tileAt, rectFree, solidAt, isSlopeV, slopeTop, slopeGrade, isLadV, ladderTop,
+  tileAt, rectFree, solidAt, isSlopeV, slopeTop, slopeSpec, slopeGrade, isLadV, ladderTop,
   isBarV, ladderTile, solidTile, tileBlocks, isWaterV, groundYAt, tileFlipAt, ceilYAt, ledgeTopAt
 } from './map.js';
 import { dropTorch } from '../entities/torches.js';
@@ -357,6 +357,39 @@ export function bestLand(cx, cy, facing){
   }
   return null;
 }
+/* номинальный уклон скоса (без ease-множителя — на кривых он локально доходит до 45° у одного края,
+   но семейство в целом положе): круче SLOPE_WALL_ANGLE — при mantle это стена, а не пол. */
+function isSlopeWallV(v, fl){
+  var s = slopeSpec(v, fl);
+  if (!s) return false;
+  var grade = Math.abs(s.y1 - s.y0) / T;
+  return Math.atan(grade) * 180 / Math.PI >= C.SLOPE_WALL_ANGLE;
+}
+/* посадка после mantle на скос: крутая грань (или потолочная, уже плоская сверху) — на весь плоский
+   верх тайла, как обычная стена/уступ; пологая — по своей диагональной высоте в точке приземления
+   (иначе STAND_OFF сдвигает бокс в столбец с другой высотой, и rectFree бьётся об уходящий вверх солид). */
+function bestSlopeLand(tc, tr, cx, cy, facing){
+  var v = tileAt(tc, tr), fl = tileFlipAt(tc, tr);
+  if (!isSlopeV(v)) return bestLand(cx, cy, facing);
+  if ((fl & 2) || isSlopeWallV(v, fl)) return bestLand(cx, tr * T, facing);
+  var tileL = facing > 0 ? cx : cx - T;
+  for (var st = 0; st <= 2; st++){
+    var h = stanceH(st), w = stanceW(st);
+    var x;
+    if (w > T) x = facing > 0 ? cx : cx - w;
+    else {
+      x = cx + facing * C.STAND_OFF - w / 2;
+      if (x < tileL) x = tileL;
+      if (x + w > tileL + T) x = tileL + T - w;
+    }
+    // консервативная (наименее глубокая) точка по всей ширине бокса — как slopeBlocks в map.js,
+    // иначе плоское дно бокса зарывается в поднимающийся дальше по x солид
+    var hiY = Math.min(slopeTop(v, tc, x, fl), slopeTop(v, tc, x + w, fl));
+    var y = tr * T + hiY - h;
+    if (rectFree(x, y, w, h)) return { x: x, y: y, w: w, h: h, stance: st };
+  }
+  return null;
+}
 function dryOff(p){
   p.inWater = false; p.wading = false; p.atSurface = false; p.wasWet = false;
   p.rippleT = 0; p.swimLaunch = 0; p.apexY = p.y;
@@ -647,7 +680,7 @@ export function tryClimbOut(S, p, dir){
   if (!rectFree(p.x + 1, surf - 4, p.w - 2, 4)) return false; // потолок над водой — остаёмся
   var led = findLedge(p, dir, T + 4);                       // с поверхности достаём губу в тайл
   if (!led || led.top > surf + 2) return false;             // кромка под водой
-  var land = bestLand(led.cx, led.top, dir);
+  var land = bestSlopeLand(led.wc, led.tr, led.cx, led.top, dir);
   if (land){
     var lcx = land.x + land.w / 2, lcy = land.y + land.h / 2;
     if (isWaterV(tileAt(Math.floor(lcx / T), Math.floor(lcy / T)))) return false;
@@ -822,6 +855,7 @@ function findChestStep(p, dir){
     if (pitTilesTo(p, dir, col) > 1) continue;
     return {
       col: col,
+      row: rG - 1,
       cx: dir > 0 ? col * T : (col + 1) * T,
       cy: (rG - 1) * T
     };
@@ -835,7 +869,7 @@ export function tryMantle(S, p, dir){
   if (!p.onGround && p.coyote <= 0) return false;
   var step1 = findChestStep(p, dir);
   if (!step1) return false;
-  var land = bestLand(step1.cx, step1.cy, dir);
+  var land = bestSlopeLand(step1.col, step1.row, step1.cx, step1.cy, dir);
   if (!land) return false;
   startClimb(p, 1, step1.cx, step1.cy, dir, 'ledge', land);
   return true;
@@ -938,7 +972,7 @@ export function tryClimbUp(p){
       if (rectFree(x, y, b.w, b.h)){ land = { x: x, y: y, w: b.w, h: b.h, stance: st }; break; }
     }
   } else {
-    land = bestLand(p.hang.cx, p.hang.cy, p.facing);
+    land = bestSlopeLand(p.hang.tc, p.hang.tr, p.hang.cx, p.hang.cy, p.facing);
   }
   if (!land) return false;
   startClimb(p, 1, p.hang.cx, p.hang.cy, p.facing, 'ledge', land);
