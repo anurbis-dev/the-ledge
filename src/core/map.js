@@ -247,6 +247,11 @@ export function solidAt(px, py){
     if (d.collide === 'full') return solidTile(c, r);
     return false;
   }
+  if (isSlopeV(v)){
+    var fl2 = tileFlipAt(c, r);
+    var slopeSy2 = r * T + slopeTop(v, c, px, fl2);
+    return (fl2 & 2) ? py <= slopeSy2 : py >= slopeSy2;
+  }
   return solidTile(c, r);
 }
 export function ladderAt(px, py){ return ladderTile(Math.floor(px / T), Math.floor(py / T)); }

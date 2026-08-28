@@ -362,9 +362,7 @@ function dryOff(p){
   p.rippleT = 0; p.swimLaunch = 0; p.apexY = p.y;
 }
 function pixSolid(px, py){
-  var c = Math.floor(px / T), r = Math.floor(py / T);
-  if (isSlopeV(tileAt(c, r))) return false;    // уступ хватается только за плоский угол, не за диагональ скоса
-  return tileBlocks(c, r, py, 1, px, 1);
+  return tileBlocks(Math.floor(px / T), Math.floor(py / T), py, 1, px, 1);
 }
 function findLedge(p, dir, extraUp){
   var g = heroGrabWorld(p);
