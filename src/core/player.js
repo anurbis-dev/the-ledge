@@ -882,21 +882,24 @@ export function tryMantle(S, p, dir){
   return true;
 }
 /* посадка впритык к грани (без обычного отступа STAND_OFF вглубь) — для педестала под скосом:
-   если у скоса над этим рядом открытый ближний край, впритык есть больше шансов влезть, не залезая
-   диагональю (STAND_OFF, рассчитанный на шаг ВГЛУБЬ плоского блока, тут же толкает бокс в подъём) */
+   STAND_OFF рассчитан на шаг ВГЛУБЬ плоского блока и на скосе сразу толкает бокс в подъём; но даже
+   впритык самое начало диагонали чуть перекрывает низ бокса на пару px — тот же STEP_UP-допуск,
+   что у setStance/moveX, чтобы не отказывать от привязки к нижней грани из-за мелочи. */
 function edgeLand(cx, cy, facing){
   for (var st = 0; st <= 2; st++){
     var h = stanceH(st), w = stanceW(st);
     var x = facing > 0 ? cx : cx - w;
-    if (rectFree(x, cy - h, w, h)) return { x: x, y: cy - h, w: w, h: h, stance: st };
+    for (var k = 0; k <= C.STEP_UP; k++)
+      if (rectFree(x, cy - h - k, w, h)) return { x: x, y: cy - h - k, w: w, h: h, stance: st };
   }
   return null;
 }
 /* верх стены впереди высотой до C.CLIMB_WALL_TILES (как findChestStep, но без потолка в 1 тайл) —
    пробуем посадку на каждом ряду снизу вверх и берём первый, где она реально влезает: если сверху
-   скос с открытым (низким) ближним краем — влезем уже на педестал под ним (привязка к нижней грани
-   скоса), а не только на его пик; если сам скос там ещё недостаточно открыт (бокс шире зазора —
-   предел геометрии для крутых уклонов, не баг) — едем на ряд выше. */
+   скос с открытым (низким) ближним краем — сперва пробуем влезть впритык к его нижней грани
+   (педестал под ним, без сдвига STAND_OFF вглубь диагонали), а не сразу на пик; если сам скос там
+   ещё недостаточно открыт даже с допуском (бокс шире зазора — предел геометрии для крутых уклонов,
+   не баг) — едем на ряд выше через обычный bestSlopeLand. */
 function findWallTop(p, dir){
   var rG = Math.floor(Math.round(p.y + p.h) / T);
   for (var d = 1; d <= T + 6; d++){
@@ -907,8 +910,8 @@ function findWallTop(p, dir){
     var cx = dir > 0 ? col * T : (col + 1) * T;
     var row = rG - 1, n = 1;
     for (;;){
-      var land = bestSlopeLand(col, row, cx, row * T, dir);
-      if (!land && isSlopeV(tileAt(col, row - 1))) land = edgeLand(cx, row * T, dir);
+      var land = isSlopeV(tileAt(col, row - 1)) ? edgeLand(cx, row * T, dir) : null;
+      if (!land) land = bestSlopeLand(col, row, cx, row * T, dir);
       if (land) return { cx: cx, cy: row * T, land: land };
       if (n >= C.CLIMB_WALL_TILES || !fullStepTile(col, row - 1)) return null;
       row--; n++;
