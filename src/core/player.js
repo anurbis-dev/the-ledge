@@ -575,9 +575,18 @@ export function autoLadder(S, p, prevBottom){
       var ny = diag ? (r*T + T/2 - p.h/2) : p.y;
       if (!diag && !towardLadAxis(p, col, 0)) continue;
       if (!rectFree(nx, ny, p.w, p.h)) continue;
+      if (!diag){
+        // вертикальную лестницу в падении не забираем полным лазом — только цепляемся руками
+        var f = solidTile(col + 1, r) ? 1 : (solidTile(col - 1, r) ? -1 : p.facing);
+        var hb = hangBox(col*T + T/2, r*T, f, 'lad', p);
+        if (!rectFree(hb.x, hb.y, hb.w, hb.h)) continue;
+        if (p.rollT > 0){ p.rollT = 0; setStance(S, p, 0); }
+        grabTo(p, col*T + T/2, r*T, f, 'lad', col, r);
+        return true;
+      }
       if (p.rollT > 0){ p.rollT = 0; setStance(S, p, 0); }   // подкат прерывается
-      var ox = diag ? (col*T + T/2) - (nx + p.w/2) : 0;
-      var oy = diag ? (r*T + T/2) - (ny + p.h/2) : 0;
+      var ox = (col*T + T/2) - (nx + p.w/2);
+      var oy = (r*T + T/2) - (ny + p.h/2);
       return mountLad(p, nx, ny, v, col, ox, oy, col, r);
     }
   }
@@ -869,18 +878,6 @@ function findChestStep(p, dir){
   }
   return null;
 }
-/* залезть на ступень +1 тайл (анимация climb); вызов — только с вводом вверх */
-export function tryMantle(S, p, dir){
-  if (p.inWater) return false;
-  if (p.state !== 'normal' || p.rollT > 0 || p.stance !== 0) return false;
-  if (!p.onGround && p.coyote <= 0) return false;
-  var step1 = findChestStep(p, dir);
-  if (!step1) return false;
-  var land = bestSlopeLand(step1.col, step1.row, step1.cx, step1.cy, dir);
-  if (!land) return false;
-  startClimb(p, 1, step1.cx, step1.cy, dir, 'ledge', land);
-  return true;
-}
 /* посадка впритык к грани (без обычного отступа STAND_OFF вглубь) — для педестала под скосом:
    STAND_OFF рассчитан на шаг ВГЛУБЬ плоского блока и на скосе сразу толкает бокс в подъём; но даже
    впритык самое начало диагонали чуть перекрывает низ бокса на пару px — тот же STEP_UP-допуск,
@@ -894,12 +891,28 @@ function edgeLand(cx, cy, facing){
   }
   return null;
 }
+/* посадка в ряд row (граница ряда — cy): если сразу над ней скос с открытым (низким) ближним
+   краем — сперва пробуем впритык к его нижней грани (edgeLand), а не сразу на пик; иначе — обычный
+   bestSlopeLand. Общий шаг и для mantle (1 тайл), и для findWallTop (построчный подъём по стене). */
+function rowLand(col, row, cx, cy, dir){
+  var land = isSlopeV(tileAt(col, row - 1)) ? edgeLand(cx, cy, dir) : null;
+  return land || bestSlopeLand(col, row, cx, cy, dir);
+}
+/* залезть на ступень +1 тайл (анимация vault); вызов — только с вводом вверх */
+export function tryMantle(S, p, dir){
+  if (p.inWater) return false;
+  if (p.state !== 'normal' || p.rollT > 0 || p.stance !== 0) return false;
+  if (!p.onGround && p.coyote <= 0) return false;
+  var step1 = findChestStep(p, dir);
+  if (!step1) return false;
+  var land = rowLand(step1.col, step1.row, step1.cx, step1.cy, dir);
+  if (!land) return false;
+  startVault(p, dir, step1.cx, step1.cy, land);
+  return true;
+}
 /* верх стены впереди высотой до C.CLIMB_WALL_TILES (как findChestStep, но без потолка в 1 тайл) —
-   пробуем посадку на каждом ряду снизу вверх и берём первый, где она реально влезает: если сверху
-   скос с открытым (низким) ближним краем — сперва пробуем влезть впритык к его нижней грани
-   (педестал под ним, без сдвига STAND_OFF вглубь диагонали), а не сразу на пик; если сам скос там
-   ещё недостаточно открыт даже с допуском (бокс шире зазора — предел геометрии для крутых уклонов,
-   не баг) — едем на ряд выше через обычный bestSlopeLand. */
+   пробуем посадку на каждом ряду снизу вверх и берём первый, где она реально влезает (rowLand: педестал
+   под открытым скосом или обычный bestSlopeLand); если нигде не влезает — едем на ряд выше. */
 function findWallTop(p, dir){
   var rG = Math.floor(Math.round(p.y + p.h) / T);
   for (var d = 1; d <= T + 6; d++){
@@ -910,8 +923,7 @@ function findWallTop(p, dir){
     var cx = dir > 0 ? col * T : (col + 1) * T;
     var row = rG - 1, n = 1;
     for (;;){
-      var land = isSlopeV(tileAt(col, row - 1)) ? edgeLand(cx, row * T, dir) : null;
-      if (!land) land = bestSlopeLand(col, row, cx, row * T, dir);
+      var land = rowLand(col, row, cx, row * T, dir);
       if (land) return { cx: cx, cy: row * T, land: land };
       if (n >= C.CLIMB_WALL_TILES || !fullStepTile(col, row - 1)) return null;
       row--; n++;
@@ -963,6 +975,19 @@ export function startClimb(p, dir, cx, cy, facing, kind, land){
   if (st === 1) p.events.push('crouch');
   else if (st === 2) p.events.push('prone');
 }
+/* заскок на ступень +1 тайл с земли: рывок через колено (vaultPose), не хват-подтягивание —
+   рендер идёт от p.x/p.y (как обычный бокс), а не от фиксированного угла тайла, поэтому анимация
+   не может разойтись с посадкой даже на скосе (в отличие от cx/cy-анкора climb-ledge) */
+export function startVault(p, dir, cx, cy, land){
+  var from = { x: p.x, y: p.y };
+  dryOff(p);
+  p.facing = dir; p.state = 'climb'; p.vx = 0; p.vy = 0; p.onGround = false;
+  p.climb = { dir: 1, kind: 'vault', p: 0, dur: C.VAULT_T,
+              cx: cx, cy: cy, facing: dir, from: from, to: { x: land.x, y: land.y }, stance: land.stance };
+  p.events.push('vault');
+  if (land.stance === 1) p.events.push('crouch');
+  else if (land.stance === 2) p.events.push('prone');
+}
 export function releaseHang(p, push){
   p.state = 'normal'; p.hang = null; p.grabCd = C.GRAB_CD;
   p.vy = 12; p.onGround = false; p.apexY = p.y; p.ride = null;
@@ -1009,7 +1034,12 @@ export function updateHang(S, p, dt, inp){
   if (wantUp || toward){
     if (tryClimbUp(p)) return;
   }
-  if (inp.downPressed){ releaseHang(p, 0); return; }
+  if (inp.downPressed || (p.hang.kind === 'lad' && inp.downHeld)){
+    var wasLad = p.hang.kind === 'lad';
+    releaseHang(p, 0);
+    if (wasLad) p.ladCd = 0.25;        // висела над пропастью держа ↓ — падать сразу, без повторного нажатия
+    return;
+  }
   if (away) releaseHang(p, away);
 }
 export function tryClimbUp(p){
@@ -1069,7 +1099,8 @@ export function updateClimb(S, p, dt){
         p.stanceT = C.STANCE_T;
         p.gapCrawl = true;
       }
-      p.state = 'normal'; p.onGround = true; p.coyote = C.COYOTE; p.landT = 0.08;
+      p.state = 'normal'; p.onGround = true; p.coyote = C.COYOTE;
+      p.landT = cl.kind === 'vault' ? 0 : 0.08;             // vault уже сам заканчивается стоя, без доп. приседа
       p.hang = null; p.climb = null; p.events.push('mantled');
       if (cl.plat) p.ride = cl.plat;
     } else {
