@@ -577,11 +577,13 @@ export function autoLadder(S, p, prevBottom){
       if (!rectFree(nx, ny, p.w, p.h)) continue;
       if (!diag){
         // вертикальную лестницу в падении не забираем полным лазом — только цепляемся руками
+        // (та же линия хвата — низ клетки перекладины, что и у tryGrab/«низ висячей лестницы»)
         var f = solidTile(col + 1, r) ? 1 : (solidTile(col - 1, r) ? -1 : p.facing);
-        var hb = hangBox(col*T + T/2, r*T, f, 'lad', p);
+        var bot = (r + 1) * T;
+        var hb = hangBox(col*T + T/2, bot, f, 'lad', p);
         if (!rectFree(hb.x, hb.y, hb.w, hb.h)) continue;
         if (p.rollT > 0){ p.rollT = 0; setStance(S, p, 0); }
-        grabTo(p, col*T + T/2, r*T, f, 'lad', col, r);
+        grabTo(p, col*T + T/2, bot, f, 'lad', col, r);
         return true;
       }
       if (p.rollT > 0){ p.rollT = 0; setStance(S, p, 0); }   // подкат прерывается
@@ -924,7 +926,7 @@ function findWallTop(p, dir){
     var row = rG - 1, n = 1;
     for (;;){
       var land = rowLand(col, row, cx, row * T, dir);
-      if (land) return { cx: cx, cy: row * T, land: land };
+      if (land) return { cx: cx, cy: row * T, land: land, n: n };
       if (n >= C.CLIMB_WALL_TILES || !fullStepTile(col, row - 1)) return null;
       row--; n++;
     }
@@ -933,14 +935,19 @@ function findWallTop(p, dir){
 }
 /* упор в стену выше 1 тайла (но не выше прыжка) + вверх — тот же подъём, что и mantle,
    без прыжка: находим верх стены геометрически, а не по узкому окну высоты руки (оно рассчитано
-   на момент хвата в воздухе на подлёте и не совпадает с ростом при стоянии на земле) */
+   на момент хвата в воздухе на подлёте и не совпадает с ростом при стоянии на земле). n===1 (сетка
+   упёрлась в стену и тут же нашла посадку на первом ряду — тот же случай, что и обычный mantle, только
+   findChestStep его отсёк из-за скоса над стеной) — тот же vault, что и у tryMantle: рендер идёт от
+   p.x/p.y, поэтому не может разъехаться с педесталом edgeLand на скосе. Выше 1 тайла — настоящий
+   лаз, hang-подтягивание (startClimb). */
 export function tryClimbWall(S, p, dir){
   if (p.inWater || p.grabCd > 0) return false;
   if (p.state !== 'normal' || p.rollT > 0 || p.stance !== 0) return false;
   if (!p.onGround && p.coyote <= 0) return false;
   var top = findWallTop(p, dir);
   if (!top) return false;
-  startClimb(p, 1, top.cx, top.cy, dir, 'ledge', top.land);
+  if (top.n === 1) startVault(p, dir, top.cx, top.cy, top.land);
+  else startClimb(p, 1, top.cx, top.cy, dir, 'ledge', top.land);
   return true;
 }
 /* --- спуск спиной с края --- */
@@ -1034,10 +1041,10 @@ export function updateHang(S, p, dt, inp){
   if (wantUp || toward){
     if (tryClimbUp(p)) return;
   }
-  if (inp.downPressed || (p.hang.kind === 'lad' && inp.downHeld)){
+  if (inp.downPressed){
     var wasLad = p.hang.kind === 'lad';
     releaseHang(p, 0);
-    if (wasLad) p.ladCd = 0.25;        // висела над пропастью держа ↓ — падать сразу, без повторного нажатия
+    if (wasLad) p.ladCd = 0.25;
     return;
   }
   if (away) releaseHang(p, away);

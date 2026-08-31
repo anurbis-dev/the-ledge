@@ -81,6 +81,12 @@ export function climbPose(t){
     if (t <= CL_T[i]) return lerpPose(CL_K[i-1], CL_K[i], (t-CL_T[i-1])/(CL_T[i]-CL_T[i-1]));
   return CL_K[4];
 }
+/* mantle на ступень +1 тайл: рывок через колено (бег → присед-наклон → бег), не хват-подтягивание */
+export function vaultPose(t){
+  if (t <= 0) return RUN_0;
+  if (t >= 1) return RUN_1;
+  return t <= 0.5 ? lerpPose(RUN_0, VAULT_B, t/0.5) : lerpPose(VAULT_B, RUN_1, (t-0.5)/0.5);
+}
 /* поза, в которую откатывается подбор — стоя/на корточках/лёжа, смотря в какой стойке начали подбирать */
 export function stancePose(st){ return st === 2 ? PRONE0 : (st === 1 ? CROUCH : IDLE_A); }
 export function pickPose(t, stance){

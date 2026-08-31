@@ -5,7 +5,7 @@ import {
   K, IDLE_A, IDLE_B, RUN, FALLP, LANDP, SLIDEP, STUNP, SNAREP, ROLLP,
   LADP0, LADP1, LADF0, LADF1, ATK0, ATK1, ATK2, DIG0, DIG1, DIG2, DIGD0, DIGD1, DIGD2, CROUCH, CROUCH_W,
   PRONE0, PRONE1, BARS0, BARS1, LADD0, LADD1, SWIM0, SWIM1,
-  HANGL, HANG_A, HANG_B, lerpPose, climbPose, stancePose, pickPose, wallPickPose, throwPose, getupPose,
+  HANGL, HANG_A, HANG_B, lerpPose, climbPose, vaultPose, stancePose, pickPose, wallPickPose, throwPose, getupPose,
   BOW_STANCE, bowPose, bowHandOnString, bowReleaseFx,
   WALLPUSH, GRAPPLE_D, GRAPPLE_U
 } from './poses.js';
@@ -77,6 +77,7 @@ export function heroClip(p){
     var cp = p.climb.p;
     return ['climb', cp < 0.2 ? 0 : (cp < 0.4 ? 1 : (cp < 0.6 ? 2 : (cp < 0.8 ? 3 : 4)))];
   }
+  if (p.state === 'climb' && p.climb.kind === 'vault') return ['vault', 0];
   if (!p.onGround){
     if (p.sliding) return ['slide', 0];
     return ['fall', 0];                                 // в воздухе всегда fall
@@ -254,6 +255,7 @@ export function boxPose(p){
   if (p.state === 'hang' && p.hang.kind === 'lad') return HANGL;
   if (p.state === 'climb' && p.climb.kind === 'lad')
     return lerpPose(HANGL, (p.lad && p.lad.v === G.LADF) ? LADF0 : LADP0, p.climb.p);
+  if (p.state === 'climb' && p.climb.kind === 'vault') return vaultPose(p.climb.p);
   if (!p.onGround){
     if (p.sliding) return SLIDEP;
     return FALLP;                                       // в воздухе всегда fall
@@ -295,6 +297,10 @@ export function hero(){
   }
   var pose2 = boxPose(p), rot = 0, cxs = 0, cys = 0, rollWhole = p.rollT > 0;
   if (rollWhole){ rot = p.rollAng; cxs = ROLL_CX; cys = ROLL_CY; }
+  else if (p.state === 'climb' && p.climb.kind === 'vault'){
+    var vt = p.climb.p, lean = Math.sin(Math.min(1, Math.max(0, vt)) * Math.PI) * 0.5;
+    rot = lean * (p.facing > 0 ? 1 : -1); cxs = 6; cys = 12;  // рывок через колено с наклоном вперёд
+  }
   else if (p.state !== 'snare' && p.inWater && Math.abs(p.swimAng) > 0.02){
     rot = p.swimAng * (p.facing > 0 ? 1 : -1);            // наклон корпуса по ходу плавания
     cxs = 5; cys = 6;
@@ -394,24 +400,29 @@ function immerseHero(p){
   var pw = Math.max(1, Math.round(gw * z)), ph = Math.max(1, Math.round(gh * z));
   if (pw > 96) pw = 96;
   if (ph > 96) ph = 96;
-  var sc = wetScratch(pw, ph);
+  var maxDx = 2; // ceil(max amplitude 1.6) — запас по краям скретча под сдвиг строк
+  var scw = pw + maxDx * 2;
+  var sc = wetScratch(scw, ph);
   var sg = sc.getContext('2d');
   sg.setTransform(1, 0, 0, 1, 0, 0);
   sg.globalAlpha = 1;
   sg.globalCompositeOperation = 'source-over';
-  sg.clearRect(0, 0, pw, ph);
+  sg.clearRect(0, 0, scw, ph);
   sg.imageSmoothingEnabled = false;
-  sg.drawImage(cv, px, py, pw, ph, 0, 0, pw, ph);
+  sg.drawImage(cv, px - maxDx, py, scw, ph, 0, 0, scw, ph);
   var surfLocal = Math.round((surfY - cam.y - gy0) * z);
   if (surfLocal < 0) surfLocal = 0;
-  if (surfLocal >= ph) return;
+  // не опускаться ниже ступней — иначе полоса цепляет тайл под персонажем
+  var footLocal = Math.min(ph, Math.round((p.y + p.h - cam.y - gy0) * z));
+  if (surfLocal >= footLocal) return;
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.clearRect(px, py + surfLocal, pw, ph - surfLocal);
+  ctx.clearRect(px, py + surfLocal, pw, footLocal - surfLocal);
   var time = view.time, row, dx;
-  for (row = surfLocal; row < ph; row++){
+  for (row = surfLocal; row < footLocal; row++){
     dx = Math.round(Math.sin(time * 6.2 + row * 0.55) * (p.wading && !p.inWater ? 1 : 1.6));
-    ctx.drawImage(sc, 0, row, pw, 1, px + dx, py + row, pw, 1);
+    // сдвигаем источник, а не цель: место рисования всегда = очищенному px..px+pw, без прозрачных щелей на краях
+    ctx.drawImage(sc, maxDx - dx, row, pw, 1, px, py + row, pw, 1);
   }
   ctx.restore();
 }
