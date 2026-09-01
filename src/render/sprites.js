@@ -3,7 +3,29 @@ import { ctx, cam, view, viewW, rc, lb, world, setFill, pushEntA, popEntA, entA 
 import { P } from './palette.js';
 import { drawItemIcon } from './icons.js';
 import { spriteFrameImage, getSpriteDef, getAnimFrame } from '../core/spriteset.js';
-import { getFrameAnchor, legacyObjectKindFromSprite } from '../core/object-anchors.js';
+import { getFrameAnchor, legacyObjectKindFromSprite, spriteIdForObject } from '../core/object-anchors.js';
+import { defaultFrameAnchors } from './sprite-anchors.js';
+
+/* Предмет в руке/на своём месте — grip-точка (якорь 'weapon' objectKind, тот же
+   что и Object Details) совпадает с pivot (мировая точка); rot — поворот вокруг неё.
+   false, если для objectKind не привязан спрайт — вызывающий рисует процедурно. */
+export function blitHeldSprite(objectKind, anim, frame, pivotWX, pivotWY, rot){
+  var sid = spriteIdForObject(objectKind);
+  if (!sid) return false;
+  var img = spriteFrameImage(sid, anim, frame);
+  if (!img) return false;
+  var def = getSpriteDef(sid);
+  if (!def) return false;
+  var g = getFrameAnchor(objectKind, anim, frame, 'weapon') || defaultFrameAnchors(sid, anim, frame).weapon;
+  var sx = Math.round(pivotWX - cam.x), sy = Math.round(pivotWY - cam.y);
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.translate(sx, sy);
+  if (rot) ctx.rotate(rot);
+  ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, -g.x, -g.y, def.fw, def.fh);
+  ctx.restore();
+  return true;
+}
 
 /* pinCell: wx/wy = угол клетки 16×16, без origin (иконки предметов к тайлу) */
 function blitEntSprite(id, anim, frame, wx, wy, dir, pinCell, objectKind){
@@ -42,6 +64,7 @@ export function drawTorches(){
     var x = Math.round(t.x - cam.x), y = Math.round(t.y - cam.y);
     if (x < -14 || x > viewW()+14) continue;
     var a = t.held ? -Math.PI/2 : t.ang;
+    if (blitHeldSprite('torch', 'idle', t.lit ? 0 : 1, t.x, t.y, a)) continue;
     var hx3 = x, hy3 = y;                                  // рукоять
     var tx3 = x + Math.cos(a)*11, ty3 = y + Math.sin(a)*11; // навершие
     lb([hx3, hy3], [tx3, ty3], 3, P.woodD);

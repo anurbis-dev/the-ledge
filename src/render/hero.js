@@ -10,6 +10,7 @@ import {
   WALLPUSH, GRAPPLE_D, GRAPPLE_U
 } from './poses.js';
 import { figure, drawBow, drawHeldWeapon } from './figure.js';
+import { blitHeldSprite } from './sprites.js';
 import { isBowHand, isHarpoonHand, isPickaxeHand } from '../entities/gear.js';
 import { spriteFrameImage, getSpriteDef } from '../core/spriteset.js';
 import { getFrameAnchor } from '../core/object-anchors.js';
@@ -174,7 +175,9 @@ function overlayHeroWeapon(p, clip, def, wx, wy, facing, origin){
     var grip = xy, str = [xy[0] + facing * 6, xy[1]];
     drawBow({ hB: grip, hF: str }, facing, 0, bowHandOnString(bt), bowReleaseFx(bt));
   } else if (st.hs){
-    drawHeldWeapon(xy[0], xy[1], st.hs.ang, st.hs.type);
+    var pivotWX = xy[0] + cam.x, pivotWY = xy[1] + cam.y;
+    if (!blitHeldSprite(st.hs.type, 'idle', 0, pivotWX, pivotWY, st.hs.ang))
+      drawHeldWeapon(xy[0], xy[1], st.hs.ang, st.hs.type);
   }
 }
 

@@ -2442,7 +2442,7 @@ function fillBody(){
 
       weaponXEl = numInp(0, 0, fw - 1);
       weaponYEl = numInp(0, 0, fh - 1);
-      weaponXEl.title = 'Weapon hand on this frame';
+      weaponXEl.title = 'Weapon hand on this frame (hero) / grip point on this object (held item, e.g. torch, axe handle)';
       weaponYEl.title = weaponXEl.title;
       bindAnchorInp(weaponXEl, 'weapon', 'x');
       bindAnchorInp(weaponYEl, 'weapon', 'y');
