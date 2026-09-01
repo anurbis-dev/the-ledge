@@ -3399,36 +3399,28 @@ function importImageFiles(files){
   }).catch(function(){});
 }
 
+/* Один файл = один спрайт в его нативном разрешении, без нарезки на грид 16×16 —
+   спрайты (в отличие от тайлов) не привязаны к сетке, нарезка обрезала произвольную
+   картинку на куски (см. sliceSheet). */
 function importSpriteFiles(list){
   var chain = Promise.resolve(), added = [];
   list.forEach(function(file){
     chain = chain.then(function(){
       return loadImageFile(file).then(function(img){
-        var slices = sliceSheet(img, file.name);
-        var j, sl, frames, def;
-        if (slices.length > 1){
-          frames = slices.map(function(s){ return s.src; });
-          def = addSpriteDef({
-            name: (slices[0].name || file.name || 'Sprite').replace(/\s+\d+$/, ''),
-            fw: 16, fh: 16, ox: 0, oy: 0,
-            anims: [{ id: 'idle', name: 'Idle', n: frames.length }],
-            src: frames[0]
-          });
-          if (def){
-            setSpriteFrame(def.id, 'idle', 0, frames[0], true);
-            for (j = 1; j < frames.length; j++) setSpriteFrame(def.id, 'idle', j, frames[j], true);
-            added.push(def);
-          }
-        } else {
-          sl = slices[0];
-          def = addSpriteDef({
-            name: (sl && sl.name) || file.name || 'Sprite',
-            fw: 16, fh: 16, ox: 0, oy: 0,
-            anims: [{ id: 'idle', name: 'Idle', n: 1 }],
-            src: sl && sl.src
-          });
-          if (def) added.push(def);
-        }
+        var w = Math.max(8, Math.min(128, img.naturalWidth || img.width || 16));
+        var h = Math.max(8, Math.min(128, img.naturalHeight || img.height || 16));
+        var c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        var cx = c.getContext('2d');
+        cx.imageSmoothingEnabled = false;
+        cx.drawImage(img, 0, 0, img.naturalWidth || w, img.naturalHeight || h, 0, 0, w, h);
+        var def = addSpriteDef({
+          name: file.name || 'Sprite',
+          fw: w, fh: h, ox: 0, oy: 0,
+          anims: [{ id: 'idle', name: 'Idle', n: 1 }],
+          src: canvasToPng(c)
+        });
+        if (def) added.push(def);
       });
     });
   });

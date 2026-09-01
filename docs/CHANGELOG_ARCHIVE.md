@@ -1,5 +1,9 @@
 # Changelog archive
 
+## 2026-09-01 (pre-commit, unreleased at commit ae34aeb)
+
+- Fix(editor): импорт кадра спрайта (`applyImportFile`/`tile-edit.js`) больше не растягивает арт меньше текущей ячейки `fw*res×fh*res` на весь её размер (искажение пропорций) — одиночный кадр теперь вставляется 1:1 по центру, `res` поднимается только если картинка не помещается, без апскейла имеющегося контента. Лист кадров (размер кратен ячейке, больше одной) режется по сетке как раньше, без изменений.
+
 ## 2026-09-01 (pre-commit, unreleased at commit 0b498e6)
 
 - Feat(render/editor): развязка разрешения пиксель-арта спрайтов от мирового футпринта. Новое поле `res` (множитель 1–8, дефолт 1) в метаданных спрайта (`_meta`); `getSpriteMeta()` / `getSpriteDef()` возвращают `res`; `setSpriteRes(id, res)` устанавливает в `saved[id]._meta.res`. PNG-кадр спрайта/героини может быть нарисован в любом нативном разрешении (32×32+ вместо жёсткого 16×16), на экране масштабируется в мировые `fw×fh` пиксели через явный `ctx.drawImage(img, 0, 0, naturalWidth, naturalHeight, x, y, fw, fh)` в `render/sprites.js` / `render/hero.js` (по образцу `render/tiles.js` / `render/icons.js`). Хитбоксы, якоря (origin/grab/weapon/box), коллизия и физика не зависят от `res`. В редакторе спрайтов новый контрол **Res** (выпадающий 1×/2×/3×/4× в панели Size); холст редактора и импорт PNG масштабируются до `fw*res × fh*res`, якоря в логическом `fw×fh` пространстве. Для hero-family спрайтов при открытии sprite-edit материализуется `bakeHeroFrame()` (стартовый растровый silhouette по текущей процедурной позе для не нарисованных кадров). Поле `res` прокидывается при клоне/переименовании/undo-снапшотах (`cloneSavedOne`, `overlaySprites`, `cloneSpriteDef`, `renameSpriteDef`, `setSpriteTag`, `addSpriteDef`).
