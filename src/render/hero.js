@@ -176,7 +176,7 @@ function overlayHeroWeapon(p, clip, def, wx, wy, facing, origin){
     drawBow({ hB: grip, hF: str }, facing, 0, bowHandOnString(bt), bowReleaseFx(bt));
   } else if (st.hs){
     var pivotWX = xy[0] + cam.x, pivotWY = xy[1] + cam.y;
-    if (!blitHeldSprite(st.hs.type, 'idle', 0, pivotWX, pivotWY, st.hs.ang))
+    if (!blitHeldSprite(st.hs.type, 'idle', 0, pivotWX, pivotWY, st.hs.ang, facing))
       drawHeldWeapon(xy[0], xy[1], st.hs.ang, st.hs.type);
   }
 }

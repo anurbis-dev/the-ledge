@@ -8,10 +8,11 @@ import { defaultFrameAnchors } from './sprite-anchors.js';
 
 /* Предмет в руке/на своём месте — grip-точка (якорь 'weapon' objectKind, тот же
    что и Object Details) совпадает с pivot (мировая точка); rot (рад.) — поворот
-   вокруг неё от игровой логики (замах и т.п.), плюс weapon.rot (град., по кадрам,
-   поле Rot в Object Details) — доп. разворот арта поверх него.
+   вокруг неё от игровой логики (замах и т.п., уже учитывает facing сама, если
+   нужно), плюс weapon.rot (град., по кадрам, поле Rot в Object Details) — доп.
+   разворот арта поверх него, зеркалится по facing (лицом влево — в другую сторону).
    false, если для objectKind не привязан спрайт — вызывающий рисует процедурно. */
-export function blitHeldSprite(objectKind, anim, frame, pivotWX, pivotWY, rot){
+export function blitHeldSprite(objectKind, anim, frame, pivotWX, pivotWY, rot, facing){
   var sid = spriteIdForObject(objectKind);
   if (!sid) return false;
   var img = spriteFrameImage(sid, anim, frame);
@@ -19,7 +20,8 @@ export function blitHeldSprite(objectKind, anim, frame, pivotWX, pivotWY, rot){
   var def = getSpriteDef(sid);
   if (!def) return false;
   var g = getFrameAnchor(objectKind, anim, frame, 'weapon') || defaultFrameAnchors(sid, anim, frame).weapon;
-  var fullRot = (rot || 0) + ((g.rot || 0) * Math.PI / 180);
+  var rotDeg = (g.rot || 0) * (facing < 0 ? -1 : 1);
+  var fullRot = (rot || 0) + rotDeg * Math.PI / 180;
   var sx = Math.round(pivotWX - cam.x), sy = Math.round(pivotWY - cam.y);
   ctx.save();
   ctx.imageSmoothingEnabled = false;
@@ -67,7 +69,7 @@ export function drawTorches(){
     var x = Math.round(t.x - cam.x), y = Math.round(t.y - cam.y);
     if (x < -14 || x > viewW()+14) continue;
     var a = t.held ? -Math.PI/2 : t.ang;
-    if (blitHeldSprite('torch', 'idle', t.lit ? 0 : 1, t.x, t.y, a)) continue;
+    if (blitHeldSprite('torch', 'idle', t.lit ? 0 : 1, t.x, t.y, a, t.held ? S.p.facing : 1)) continue;
     var hx3 = x, hy3 = y;                                  // рукоять
     var tx3 = x + Math.cos(a)*11, ty3 = y + Math.sin(a)*11; // навершие
     lb([hx3, hy3], [tx3, ty3], 3, P.woodD);
