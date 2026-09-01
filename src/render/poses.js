@@ -138,3 +138,43 @@ export function bowReleaseFx(t){ return t >= 0.6 && t < 0.9; }
 /* рука с крюком: 45° вперёд или строго вверх */
 export const GRAPPLE_D = po({head:[5,3],neck:[5,7],hip:[5,14],eF:[9,6],hF:[13,2],eB:[4,10],hB:[3,13],kF:[7,17],fF:[8,21],kB:[3,18],fB:[3,22]});
 export const GRAPPLE_U = po({head:[5,2],neck:[5,6],hip:[5,14],eF:[6,3],hF:[6,-2],eB:[4,10],hB:[3,14],kF:[7,17],fF:[7,21],kB:[3,18],fB:[3,22]});
+
+/* animId -> кадры, для якорей кадра спрайта (sprite-anchors.js) и bake (sprite-bake.js) */
+export var HERO_POSES = {
+  idle: [IDLE_A, IDLE_B],
+  run: RUN,
+  jump: [JUMPP],
+  fall: [FALLP],
+  land: [LANDP],
+  slide: [SLIDEP],
+  crouch: [CROUCH],
+  crouchWalk: [CROUCH_W],
+  prone: [PRONE0, PRONE1],
+  wallPush: [WALLPUSH],
+  vault: [VAULT_B],
+  pick: [PICK_B],
+  pickCrouch: [CROUCH_PICK],
+  pickProne: [PRONE_PICK],
+  throw: [THROW_B],
+  attack: [ATK0, ATK1, ATK2],
+  dig: [DIG0, DIG1, DIG2],
+  digDown: [DIGD0, DIGD1, DIGD2],
+  roll: [ROLLP],
+  stun: [STUNP],
+  snare: [SNAREP],
+  ladder: [LADP0, LADP1],
+  ladderF: [LADF0, LADF1],
+  ladderD: [LADD0, LADD1],
+  /* Rope: climb = вертикальная лестница; swing = боковая, зеркало по facing */
+  ropeClimb: [LADP0, LADP1],
+  ropeSwing: [LADD0, LADD1],
+  bars: [BARS0, BARS1],
+  swim: [SWIM0, SWIM1],
+  dive: [DIVE0, DIVE1],
+  hangLad: [HANGL],
+  hang: [HANG_A, HANG_B],
+  climb: CL_K,
+  bow: [BOW_STANCE, BOW_DRAW, BOW_RELEASE],
+  grapple: [GRAPPLE_D, GRAPPLE_U],
+  getup: [PRONE0, CROUCH, IDLE_A]
+};

@@ -13,6 +13,7 @@ import { fireHarpoon, fireGrapple, tryHarpoonPickup } from './harpoons.js';
 import { fireArrow, tryArrowPickup } from './arrows.js';
 import { grantOne } from './craft.js';
 import { tryDig } from './mining.js';
+import { heroWeaponWorld } from '../core/sprite-grab.js';
 
 export function mkTorches(){
   var LV = runtime.LV;
@@ -28,13 +29,8 @@ export function stepTorches(S, dt){
     var t = S.torches[i];
     if (t.roomHide) continue;
     if (t.held){
-      // атач случился на нижней точке приседа — от неё и доводим руку до обычной высоты
-      var reachK = p.pickT > 0 ? Math.min(1, p.pickT / (C.PICK_T * (1 - PICK_APEX))) : 0;
-      if (p.stance === 2){                        // лёжа: рука вытянута дальше вперёд, факел выше головы
-        t.x = p.x + p.w/2 + p.facing*9; t.y = p.y + 6 + reachK*3;
-      } else {
-        t.x = p.x + p.w/2 + p.facing*7; t.y = p.y + 15 + reachK*7;
-      }
+      var hp = heroWeaponWorld(p);                 // рукоять факела — в якоре кисти, как у прочих предметов в руке
+      t.x = hp.x; t.y = hp.y;
       t.vx = 0; t.vy = 0;
       if (!t.lit){                                        // поджигаем от чужого огня
         for (var oi = 0; oi < S.torches.length; oi++){
