@@ -143,20 +143,22 @@ function heroWeaponState(p){
   var hs = null, onBack = false;
   if (harp){
     if (p.grapple){
+      /* ga — уже настоящий мировой угол (куда летит крюк), не "канонический
+         facing>0" — зеркалить спрайт по facing тут не нужно/неверно. */
       var ga = Math.atan2(p.grapple.y - (p.y + 8), p.grapple.x - (p.x + p.w / 2));
-      hs = { ang: ga, type: 'harpoon' };
+      hs = { ang: ga, canonAng: ga, mirror: false, type: 'harpoon' };
     } else onBack = true;
   } else if (pick){
     if (p.digT > 0){
       var td = 1 - p.digT / C.DIG_T;
       var a0d = p.digMode === 'digDown' ? (-0.3 + td*1.9) : (-2.1 + td*3.5);
-      hs = { ang: p.facing > 0 ? a0d : Math.PI - a0d, type: 'pickaxe' };
+      hs = { ang: p.facing > 0 ? a0d : Math.PI - a0d, canonAng: a0d, mirror: true, type: 'pickaxe' };
     } else onBack = true;
   } else if (p.stick && !bow){
     if (p.atkT > 0){
       var tt = 1 - p.atkT / C.ATK_T;
       var a0 = -2.1 + tt*3.5;
-      hs = { ang: p.facing > 0 ? a0 : Math.PI - a0,
+      hs = { ang: p.facing > 0 ? a0 : Math.PI - a0, canonAng: a0, mirror: true,
            type: p.gear.weapon && p.gear.weapon.type };
     } else onBack = true;
   } else if (bow && !bowHeld){
@@ -176,7 +178,10 @@ function overlayHeroWeapon(p, clip, def, wx, wy, facing, origin){
     drawBow({ hB: grip, hF: str }, facing, 0, bowHandOnString(bt), bowReleaseFx(bt));
   } else if (st.hs){
     var pivotWX = xy[0] + cam.x, pivotWY = xy[1] + cam.y;
-    if (!blitHeldSprite(st.hs.type, 'idle', 0, pivotWX, pivotWY, st.hs.ang, facing))
+    /* blitHeldSprite сам зеркалит по facing — передаём канонический (facing>0)
+       угол, а не уже отражённый st.hs.ang (тот — для процедурного фоллбэка). */
+    var spriteFacing = st.hs.mirror === false ? 1 : facing;
+    if (!blitHeldSprite(st.hs.type, 'idle', 0, pivotWX, pivotWY, st.hs.canonAng, spriteFacing))
       drawHeldWeapon(xy[0], xy[1], st.hs.ang, st.hs.type);
   }
 }

@@ -7,10 +7,15 @@ import { getFrameAnchor, legacyObjectKindFromSprite, spriteIdForObject } from '.
 import { defaultFrameAnchors } from './sprite-anchors.js';
 
 /* Предмет в руке/на своём месте — grip-точка (якорь 'weapon' objectKind, тот же
-   что и Object Details) совпадает с pivot (мировая точка); rot (рад.) — поворот
-   вокруг неё от игровой логики (замах и т.п., уже учитывает facing сама, если
-   нужно), плюс weapon.rot (град., по кадрам, поле Rot в Object Details) — доп.
-   разворот арта поверх него, зеркалится по facing (лицом влево — в другую сторону).
+   что и Object Details) совпадает с pivot (мировая точка). rot (рад., от вызывающего)
+   и weapon.rot (град., по кадрам, поле Rot в Object Details) складываются и задают
+   поворот арта, авторски нарисованного как бы лицом вправо (facing>0). Для facing<0
+   — настоящее горизонтальное зеркало (ctx.scale(-1,1) вокруг той же grip-точки,
+   до поворота), а не смена знака угла: так асимметричный арт (несимметричные
+   детали относительно оси кисти) зеркалится корректно, а не просто "крутится
+   в другую сторону". Вызывающий обязан передавать канонический (для facing>0)
+   угол — уже отражённые под facing формулы (as `p.facing>0?a:Math.PI-a`) сюда
+   не подходят, это для процедурного фоллбэка.
    false, если для objectKind не привязан спрайт — вызывающий рисует процедурно. */
 export function blitHeldSprite(objectKind, anim, frame, pivotWX, pivotWY, rot, facing){
   var sid = spriteIdForObject(objectKind);
@@ -20,12 +25,12 @@ export function blitHeldSprite(objectKind, anim, frame, pivotWX, pivotWY, rot, f
   var def = getSpriteDef(sid);
   if (!def) return false;
   var g = getFrameAnchor(objectKind, anim, frame, 'weapon') || defaultFrameAnchors(sid, anim, frame).weapon;
-  var rotDeg = (g.rot || 0) * (facing < 0 ? -1 : 1);
-  var fullRot = (rot || 0) + rotDeg * Math.PI / 180;
+  var fullRot = (rot || 0) + ((g.rot || 0) * Math.PI / 180);
   var sx = Math.round(pivotWX - cam.x), sy = Math.round(pivotWY - cam.y);
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   ctx.translate(sx, sy);
+  if (facing < 0) ctx.scale(-1, 1);
   if (fullRot) ctx.rotate(fullRot);
   ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, -g.x, -g.y, def.fw, def.fh);
   ctx.restore();
