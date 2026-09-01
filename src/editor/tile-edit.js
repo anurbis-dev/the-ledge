@@ -11,7 +11,7 @@ import {
 import { initSliders } from './slider.js';
 import {
   getSpriteDef, getSpriteFrameSrc, setSpriteFrame, clearSpriteFrame,
-  isSpriteFrameDirty, setSpriteSize, setSpriteRes,
+  isSpriteFrameDirty, setSpriteSize,
   getAnimFrameCount, setAnimFrameCount, reorderAnimFrames,
   getAnimSpeed, setAnimSpeed,
   addSpriteDef, spriteFrameImage, addAnimDef, renameSpriteDef, setSpriteTag,
@@ -37,10 +37,6 @@ var mode = 'tile';
 var objCurrent = null;
 var spriteSlotEl = null;
 var fw = 16, fh = 16;
-/* Множитель разрешения арта (см. spriteset.setSpriteRes): холст painting/export =
-   fw*res × fh*res, но fw/fh (футпринт, якоря, хитбокс) остаются логическими и без
-   изменений — сохранились для tile-режима (там всегда 1). */
-var res = 1;
 var animId = '';
 var frameI = 0;
 var onChange = null;
@@ -229,7 +225,7 @@ export function openTileEdit(spec, clientX, clientY){
   stopPlay();
   mode = 'tile';
   objCurrent = null;
-  fw = 16; fh = 16; res = 1;
+  fw = 16; fh = 16;
   animId = '';
   frameI = 0;
   animFilter = '';
@@ -284,7 +280,6 @@ export function openSpriteEdit(def, clientX, clientY, keepObject){
   current = getSpriteDef(def.id) || def;
   fw = current.fw || 16;
   fh = current.fh || 16;
-  res = current.res || 1;
   animId = def.anims && def.anims[0] ? def.anims[0].id : '';
   frameI = 0;
   animFilter = '';
@@ -312,12 +307,11 @@ export function openObjectEdit(meta, clientX, clientY){
     current = sd;
     fw = current.fw || 16;
     fh = current.fh || 16;
-    res = current.res || 1;
     animId = current.anims && current.anims[0] ? current.anims[0].id : '';
     frameI = 0;
   } else {
     current = meta;
-    fw = 16; fh = 16; res = 1;
+    fw = 16; fh = 16;
     animId = '';
     frameI = 0;
   }
@@ -706,7 +700,7 @@ export function refreshTileEdit(){
     var sidR = resolveObjSpriteId(objCurrent);
     if (sidR){
       current = getSpriteDef(sidR) || current;
-      if (current && current.fw){ fw = current.fw; fh = current.fh || fh; res = current.res || res; }
+      if (current && current.fw){ fw = current.fw; fh = current.fh || fh; }
     }
     fillBody();
     return;
@@ -716,7 +710,6 @@ export function refreshTileEdit(){
     if (!current){ closeTileEdit(); return; }
     fw = current.fw || fw;
     fh = current.fh || fh;
-    res = current.res || res;
     fillBody();
     return;
   }
@@ -748,7 +741,7 @@ function field(label, el){
 
 function makeBuf(){
   var c = document.createElement('canvas');
-  c.width = fw * res; c.height = fh * res;
+  c.width = fw; c.height = fh;
   var cx = c.getContext('2d', { willReadFrequently: true });
   cx.imageSmoothingEnabled = false;
   return c;
@@ -782,8 +775,8 @@ function loadBuf(src, done){
     if (gen !== loadGen) return;
     var cx = buf.getContext('2d');
     cx.imageSmoothingEnabled = false;
-    cx.clearRect(0, 0, fw * res, fh * res);
-    cx.drawImage(img, 0, 0, img.naturalWidth || fw * res, img.naturalHeight || fh * res, 0, 0, fw * res, fh * res);
+    cx.clearRect(0, 0, fw, fh);
+    cx.drawImage(img, 0, 0, img.naturalWidth || fw, img.naturalHeight || fh, 0, 0, fw, fh);
     if (done) done();
   };
   img.onerror = function(){ if (gen !== loadGen) return; if (done) done(); };
@@ -805,16 +798,15 @@ function rgbToHex(r, g, b){
 
 function cellOf(e, can){
   var r = can.getBoundingClientRect();
-  var bw = fw * res, bh = fh * res;
-  var x = Math.floor((e.clientX - r.left) / r.width * bw);
-  var y = Math.floor((e.clientY - r.top) / r.height * bh);
-  if (x < 0) x = 0; if (x > bw - 1) x = bw - 1;
-  if (y < 0) y = 0; if (y > bh - 1) y = bh - 1;
+  var x = Math.floor((e.clientX - r.left) / r.width * fw);
+  var y = Math.floor((e.clientY - r.top) / r.height * fh);
+  if (x < 0) x = 0; if (x > fw - 1) x = fw - 1;
+  if (y < 0) y = 0; if (y > fh - 1) y = fh - 1;
   return { x: x, y: y };
 }
 
-/* Как cellOf, но в логическом fw×fh (не buf fw*res×fh*res) — для якорей
-   origin/grab/weapon, которые всегда в логических координатах. */
+/* Якоря origin/grab/weapon бьются по тем же логическим fw×fh, что и cellOf —
+   отдельная функция на случай если буфер снова разъедется с footprint. */
 function cellOfLogical(e, can){
   var r = can.getBoundingClientRect();
   var x = Math.floor((e.clientX - r.left) / r.width * fw);
@@ -910,7 +902,7 @@ function commitSrc(){
 
 function uniqueColors(){
   if (!buf) return [];
-  var data = buf.getContext('2d').getImageData(0, 0, fw * res, fh * res).data;
+  var data = buf.getContext('2d').getImageData(0, 0, fw, fh).data;
   var seen = {}, out = [], i, key;
   for (i = 0; i < data.length; i += 4){
     if (data[i + 3] < 8) continue;
@@ -1211,7 +1203,8 @@ function bindAnchorInp(el, kind, axis){
   });
 }
 
-function resizeSpriteFrames(id, nw, nh, done, scaled){
+/** Footprint resize (fw/fh): пиксели остаются 1:1, канва просто расширяется/обрезается. */
+function resizeSpriteFrames(id, nw, nh, done){
   var def = getSpriteDef(id), jobs = [], r, i, src;
   if (!def){ if (done) done(); return; }
   for (r = 0; r < def.anims.length; r++){
@@ -1230,11 +1223,7 @@ function resizeSpriteFrames(id, nw, nh, done, scaled){
       c.width = nw; c.height = nh;
       var cx = c.getContext('2d');
       cx.imageSmoothingEnabled = false;
-      /* Footprint resize (fw/fh): пиксели остаются 1:1, канва просто расширяется/обрезается.
-         Res resize (scaled=true): контент растягивается в новый холст — стартовая точка
-         для перерисовки на более высоком разрешении, без потери. */
-      if (scaled) cx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, nw, nh);
-      else cx.drawImage(img, 0, 0);
+      cx.drawImage(img, 0, 0);
       setSpriteFrame(id, job.anim, job.i, canvasToPng(c), true);
       left--;
       if (!left && done) done();
@@ -1254,27 +1243,10 @@ function applySpriteSize(nw, nh){
   clearBakeCache();
   current = getSpriteDef(current.id) || current;
   fw = current.fw; fh = current.fh;
-  resizeSpriteFrames(current.id, fw * res, fh * res, function(){
+  resizeSpriteFrames(current.id, fw, fh, function(){
     notify();
     fillBody();
   });
-}
-
-function applySpriteRes(nr){
-  if (!isSprite() || !current) return;
-  nr = nr | 0;
-  if (nr < 1) nr = 1;
-  if (nr > 8) nr = 8;
-  if (nr === res) return;
-  markOp();
-  setSpriteRes(current.id, nr);
-  clearBakeCache();
-  current = getSpriteDef(current.id) || current;
-  res = current.res || nr;
-  resizeSpriteFrames(current.id, fw * res, fh * res, function(){
-    notify();
-    fillBody();
-  }, true);
 }
 
 function syncCursor(){
@@ -1295,13 +1267,11 @@ function paintCanvas(){
   if (!preview) return;
   var can = preview;
   var cx = can.getContext('2d');
-  var bw = fw * res, bh = fh * res;
-  var sx = can.width / bw, sy = can.height / bh;    // буфер (fw*res×fh*res) → экран
-  var k = can.width / fw;                           // логика (fw×fh: якоря/бокс) → экран
+  var k = can.width / fw;                           // логика (fw×fh: якоря/бокс/буфер) → экран
   var a, b, animName;
   cx.imageSmoothingEnabled = false;
-  fillChecker(cx, bw, bh, sx, sy);
-  if (buf) cx.drawImage(buf, 0, 0, bw, bh, 0, 0, can.width, can.height);
+  fillChecker(cx, fw, fh, k, k);
+  if (buf) cx.drawImage(buf, 0, 0, fw, fh, 0, 0, can.width, can.height);
   else if (current && mode === 'tile' && !current.custom) paintTileIcon(cx, current, can.width);
   if (canEditAnchors()){
     if (tool === 'hitbox'){ drawSpriteBox(cx, k, true); drawAnchors(cx, k); }
@@ -1903,18 +1873,16 @@ function paintStrips(){
   applyStripH();
 }
 
-/* Импорт картинки в кадр спрайта. Лист (размер кратен текущей ячейке fw*res×fh*res,
-   больше одной ячейки) режется как раньше — по сетке, без искажений. Одиночный кадр
-   вставляется 1:1 по центру без растяжения; если картинка не помещается в ячейку —
-   res поднимается ровно настолько, чтобы вместить её без масштабирования. */
+/* Импорт картинки в кадр спрайта. Лист (размер кратен fw×fh, больше одной ячейки)
+   режется по сетке, без искажений. Одиночная картинка любого размера масштабируется
+   целиком в fw×fh — холст спрайта всегда 1:1 с footprint, без отдельного разрешения арта. */
 function applySpriteImport(img){
   var w = img.naturalWidth || img.width;
   var h = img.naturalHeight || img.height;
-  var cellW = fw * res, cellH = fh * res;
   var a = current.anims.filter(function(x){ return x.id === animId; })[0];
-  if (w >= cellW && h >= cellH && w % cellW === 0 && h % cellH === 0 && (w > cellW || h > cellH)){
-    markOp();
-    var slices = sliceSheet(img, current.id, cellW, cellH);
+  markOp();
+  if (w >= fw && h >= fh && w % fw === 0 && h % fh === 0 && (w > fw || h > fh)){
+    var slices = sliceSheet(img, current.id, fw, fh);
     if (!slices.length) return;
     if (slices.length === 1){
       setSpriteFrame(current.id, animId, frameI, slices[0].src, true);
@@ -1927,34 +1895,21 @@ function applySpriteImport(img){
     fillBody();
     return;
   }
-  markOp();
-  var needRes = Math.max(res, Math.min(8, Math.max(Math.ceil(w / fw), Math.ceil(h / fh))));
-  var paste = function(){
-    var c = document.createElement('canvas');
-    c.width = fw * res; c.height = fh * res;
-    var cx = c.getContext('2d');
-    cx.imageSmoothingEnabled = false;
-    cx.drawImage(img, Math.floor((fw * res - w) / 2), Math.floor((fh * res - h) / 2));
-    setSpriteFrame(current.id, animId, frameI, canvasToPng(c), true);
-    notify();
-    fillBody();
-  };
-  if (needRes !== res){
-    setSpriteRes(current.id, needRes);
-    clearBakeCache();
-    current = getSpriteDef(current.id) || current;
-    res = current.res || needRes;
-    resizeSpriteFrames(current.id, fw * res, fh * res, paste, true);
-  } else {
-    paste();
-  }
+  var c = document.createElement('canvas');
+  c.width = fw; c.height = fh;
+  var cx = c.getContext('2d');
+  cx.imageSmoothingEnabled = false;
+  cx.drawImage(img, 0, 0, w, h, 0, 0, fw, fh);
+  setSpriteFrame(current.id, animId, frameI, canvasToPng(c), true);
+  notify();
+  fillBody();
 }
 
 function applyImportFile(file){
   if (!current || !file || !canPaint()) return;
   loadImageFile(file).then(function(img){
     if (isSprite()){ applySpriteImport(img); return; }
-    var slices = sliceSheet(img, file.name, fw * res, fh * res);
+    var slices = sliceSheet(img, file.name, fw, fh);
     if (!slices.length) return;
     markOp();
     if (slices.length > 1){
@@ -2376,26 +2331,6 @@ function fillBody(){
       sizeW.addEventListener('change', onSize);
       sizeH.addEventListener('change', onSize);
       xyRow('Size', '', sizeW, sizeH, '×', rollBody);
-
-      var resSel = document.createElement('select');
-      [1, 2, 3, 4].forEach(function(v){
-        var opt = document.createElement('option');
-        opt.value = String(v);
-        opt.textContent = v + '×';
-        if (v === res) opt.selected = true;
-        resSel.appendChild(opt);
-      });
-      resSel.title = 'Art resolution — paints/imports at fw*res × fh*res, on-screen footprint stays fw×fh';
-      resSel.addEventListener('change', function(){
-        applySpriteRes(parseInt(resSel.value, 10) || 1);
-      });
-      var resRow = document.createElement('label');
-      resRow.className = 'ed-field';
-      var resLab = document.createElement('span');
-      resLab.textContent = 'Res';
-      resRow.appendChild(resLab);
-      resRow.appendChild(resSel);
-      rollBody.appendChild(resRow);
     }
 
     if (anchors){

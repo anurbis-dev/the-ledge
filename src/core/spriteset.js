@@ -282,7 +282,7 @@ function overlaySprites(dst, src){
     if (!dst[id]) dst[id] = {};
     m = src[id] && src[id]._meta;
     if (m && typeof m === 'object') dst[id]._meta = {
-      fw: m.fw, fh: m.fh, ox: m.ox, oy: m.oy, fx: m.fx, res: m.res
+      fw: m.fw, fh: m.fh, ox: m.ox, oy: m.oy, fx: m.fx
     };
     for (anim in src[id]){
       if (!Object.prototype.hasOwnProperty.call(src[id], anim) || anim === '_meta') continue;
@@ -372,7 +372,6 @@ function normalizeCustomDef(d){
     ox: d.ox | 0,
     oy: d.oy | 0,
     fx: d.fx != null ? (d.fx | 0) : 0,
-    res: d.res > 0 ? Math.min(8, d.res | 0) : 1,
     kind: d.kind || d.id,
     family: d.family || null,
     anims: cloneAnimList(d.anims && d.anims.length ? d.anims : [{ id: 'idle', name: 'Idle', n: 1 }]),
@@ -448,8 +447,7 @@ export function getSpriteMeta(id){
     fh: m && m.fh != null ? m.fh | 0 : b.fh,
     ox: m && m.ox != null ? m.ox | 0 : b.ox,
     oy: m && m.oy != null ? m.oy | 0 : b.oy,
-    fx: m && m.fx != null ? m.fx | 0 : (b.fx != null ? b.fx : 0),
-    res: m && m.res != null ? m.res | 0 : (b.res != null ? b.res : 1)
+    fx: m && m.fx != null ? m.fx | 0 : (b.fx != null ? b.fx : 0)
   };
 }
 
@@ -566,7 +564,7 @@ export function getSpriteDef(id){
   return {
     id: b.id, name: b.name, tag: b.tag || '', kind: b.kind, family: b.family || null,
     custom: !!b.custom, anims: liveAnims(b, id),
-    fw: m.fw, fh: m.fh, ox: m.ox, oy: m.oy, fx: m.fx, res: m.res
+    fw: m.fw, fh: m.fh, ox: m.ox, oy: m.oy, fx: m.fx
   };
 }
 
@@ -601,7 +599,7 @@ export function cloneSpriteDef(srcId, name){
     id: id,
     name: name || ((src.name || srcId) + ' copy'),
     tag: src.tag || '',
-    fw: src.fw, fh: src.fh, ox: src.ox, oy: src.oy, fx: src.fx, res: src.res,
+    fw: src.fw, fh: src.fh, ox: src.ox, oy: src.oy, fx: src.fx,
     kind: isHeroFamily(srcId) ? 'hero' : (src.kind || id),
     family: isHeroFamily(srcId) ? 'hero' : (src.family || null),
     anims: src.anims
@@ -620,7 +618,7 @@ function cloneSavedOne(srcRec){
   if (!srcRec) return out;
   m = srcRec._meta;
   if (m && typeof m === 'object') out._meta = {
-    fw: m.fw, fh: m.fh, ox: m.ox, oy: m.oy, fx: m.fx, res: m.res
+    fw: m.fw, fh: m.fh, ox: m.ox, oy: m.oy, fx: m.fx
   };
   for (anim in srcRec){
     if (!Object.prototype.hasOwnProperty.call(srcRec, anim) || anim === '_meta') continue;
@@ -647,7 +645,6 @@ export function addSpriteDef(partial){
     ox: partial && partial.ox,
     oy: partial && partial.oy,
     fx: partial && partial.fx,
-    res: partial && partial.res,
     kind: (partial && partial.kind) || id,
     family: partial && partial.family,
     anims: (partial && partial.anims) || [{ id: 'idle', name: 'Idle', n: 1 }]
@@ -670,7 +667,7 @@ export function renameSpriteDef(id, name){
     if (customDefs[i].id === id){
       customDefs[i] = normalizeCustomDef({
         id: customDefs[i].id, name: next, tag: customDefs[i].tag, fw: customDefs[i].fw, fh: customDefs[i].fh,
-        ox: customDefs[i].ox, oy: customDefs[i].oy, fx: customDefs[i].fx, res: customDefs[i].res,
+        ox: customDefs[i].ox, oy: customDefs[i].oy, fx: customDefs[i].fx,
         kind: customDefs[i].kind, family: customDefs[i].family, anims: customDefs[i].anims
       });
       rebuildById();
@@ -696,7 +693,7 @@ export function setSpriteTag(id, tag){
     if (customDefs[i].id === id){
       customDefs[i] = normalizeCustomDef({
         id: customDefs[i].id, name: customDefs[i].name, tag: next, fw: customDefs[i].fw, fh: customDefs[i].fh,
-        ox: customDefs[i].ox, oy: customDefs[i].oy, fx: customDefs[i].fx, res: customDefs[i].res,
+        ox: customDefs[i].ox, oy: customDefs[i].oy, fx: customDefs[i].fx,
         kind: customDefs[i].kind, family: customDefs[i].family, anims: customDefs[i].anims
       });
       rebuildById();
@@ -758,20 +755,6 @@ export function setSpriteSize(id, fw, fh){
   if (meta.ox > fw - 1) saved[id]._meta.ox = fw - 1;
   if (meta.oy > fh - 1) saved[id]._meta.oy = fh - 1;
   emit('size');
-  return getSpriteMeta(id);
-}
-
-/** Множитель разрешения арта: холст редактора/экспорт = fw*res × fh*res,
-    но футпринт на экране (fw/fh, якоря, хитбокс) не меняется — blitEntSprite/
-    blitHeroSprite всегда рисуют в fw×fh, downscale делает drawImage. */
-export function setSpriteRes(id, res){
-  var def = byId[id];
-  if (!def) return null;
-  res = clampS(res, 1, 8);
-  if (!saved[id]) saved[id] = {};
-  if (!saved[id]._meta) saved[id]._meta = {};
-  saved[id]._meta.res = res;
-  emit('res');
   return getSpriteMeta(id);
 }
 
