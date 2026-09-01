@@ -27,9 +27,11 @@ var ABC = {
 var introLine = '';
 
 var IW = 148, IH = 52;
-var IX = ((VW - IW) / 2) | 0, IY = ((VH - IH) / 2) | 0;
+function introX(){ return ((VW - IW) / 2) | 0; }
+function introY(){ return ((VH - IH) / 2) | 0; }
 var OW = 176, OH = 112;
-var OX = ((VW - OW) / 2) | 0, OY = ((VH - OH) / 2) | 0;
+function outroX(){ return ((VW - OW) / 2) | 0; }
+function outroY(){ return ((VH - OH) / 2) | 0; }
 var BTN_W = 76, BTN_H = 13, BTN_Y = 90;
 
 var introCv = document.createElement('canvas');
@@ -153,10 +155,10 @@ export function pickOutro(kind){
 export function hitOutro(sx, sy){
   if (!isOutroReady()) return null;
   var btns = outroBtns();
-  var ids = ['replay', 'continue'], i, b;
+  var ids = ['replay', 'continue'], i, b, ox = outroX(), oy = outroY();
   for (i = 0; i < ids.length; i++){
     b = btns[ids[i]];
-    if (sx >= OX + b.x && sx <= OX + b.x + b.w && sy >= OY + b.y && sy <= OY + b.y + b.h)
+    if (sx >= ox + b.x && sx <= ox + b.x + b.w && sy >= oy + b.y && sy <= oy + b.y + b.h)
       return b.id;
   }
   return null;
@@ -317,7 +319,7 @@ export function drawIntro(){
   if (Math.sin(time * 4) > 0) textPixC(introLine, IW / 2, 38, '#8f88bb', 1);
   setCtx(main);
   dimFold(introFold.fold);
-  foldBlit(introCv, IW, IH, introFold.ox, introFold.oy, IX, IY, introFold.fold);
+  foldBlit(introCv, IW, IH, introFold.ox, introFold.oy, introX(), introY(), introFold.fold);
 }
 export function drawPaused(){
   panel(VW/2 - 46, VH/2 - 20, 92, 40);
@@ -361,7 +363,7 @@ export function drawOutro(){
   }
   setCtx(main);
   dimFold(outroFold.fold);
-  foldBlit(outroCv, OW, OH, outroFold.ox, outroFold.oy, OX, OY, outroFold.fold);
+  foldBlit(outroCv, OW, OH, outroFold.ox, outroFold.oy, outroX(), outroY(), outroFold.fold);
 }
 export function drawDead(over){
   var fade = Math.min(0.58, over.t / 0.85 * 0.58);

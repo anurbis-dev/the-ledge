@@ -1,4 +1,4 @@
-export { cv, ctx, VW, VH, BUF_W, BUF_H, hv, viewBox, cam, view, rc, viewScale, setViewScale, viewW, viewH, paintHud, clearHud } from './ctx.js';
+export { cv, ctx, VW, VH, BUF_W, BUF_H, RENDER_SCALE, setViewport, hv, viewBox, cam, view, rc, viewScale, setViewScale, viewW, viewH, paintHud, clearHud } from './ctx.js';
 export { applyPal } from './palette.js';
 export { tiles, tilesFront, tilesLayer } from './tiles.js';
 export { invalidateChunk, invalidateAll, addWaterRipple, clearWaterRipples, stepHeroWaterRipples, drawWaterImmersion } from './tiles.js';

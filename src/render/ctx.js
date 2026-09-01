@@ -1,25 +1,50 @@
 import GAME from '../core/game.js';
 
-export const VW = 320, VH = 180;
-export const BUF_W = VW + 1, BUF_H = VH + 1;
+export let VW = 320, VH = 180;
+export let BUF_W = VW + 1, BUF_H = VH + 1;
+/* Плотность пикселей канваса, независима от VW/VH (мирового FOV) и viewScale (зум редактора) —
+   те же мировые единицы, просто больше реальных пикселей на них. */
+export var RENDER_SCALE = 2;
+export let viewportRev = 0;
 export const cv = document.getElementById('c');
 export const hv = document.getElementById('h');
 export const viewBox = document.getElementById('view');
-if (cv){ cv.width = BUF_W; cv.height = BUF_H; }
 export let ctx = cv.getContext('2d');
-ctx.imageSmoothingEnabled = false;
 export const hx = hv ? hv.getContext('2d') : null;
-if (hx) hx.imageSmoothingEnabled = false;
+
+export const lc = document.createElement('canvas');
+export const lx = lc.getContext('2d');
+
+/* Ресайз .width/.height сам сбрасывает 2D-контекст (transform/smoothing) — переналагаем каждый раз. */
+function applyCanvasSizes(){
+  if (cv){
+    cv.width = BUF_W * RENDER_SCALE; cv.height = BUF_H * RENDER_SCALE;
+    ctx.imageSmoothingEnabled = false;
+  }
+  if (hv && hx){
+    hv.width = VW * RENDER_SCALE; hv.height = VH * RENDER_SCALE;
+    hx.imageSmoothingEnabled = false;
+    hx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
+  }
+  lc.width = BUF_W * RENDER_SCALE; lc.height = BUF_H * RENDER_SCALE;
+  lx.imageSmoothingEnabled = false;
+  lx.setTransform(1, 0, 0, 1, 0, 0);
+  lx.scale(RENDER_SCALE, RENDER_SCALE);
+}
+applyCanvasSizes();
+
+/** Адаптивный вьюпорт (только геймплей — редактор держит фиксированные 320×180, см. loop.js resize()). */
+export function setViewport(vw, vh){
+  if (vw === VW && vh === VH) return;
+  VW = vw; VH = vh; BUF_W = vw + 1; BUF_H = vh + 1;
+  viewportRev++;
+  applyCanvasSizes();
+}
 
 export var viewScale = 1;
 export function setViewScale(z){ viewScale = z > 0 ? z : 1; }
 export function viewW(){ return VW / viewScale; }
 export function viewH(){ return VH / viewScale; }
-
-export const lc = document.createElement('canvas');
-lc.width = BUF_W; lc.height = BUF_H;
-export const lx = lc.getContext('2d');
-lx.imageSmoothingEnabled = false;
 
 export const cam = { x: 0, y: 0, lead: 0, look: 0, ax: 0, ay: 0 };
 export const view = {
@@ -37,7 +62,7 @@ export function getCtx(){ return ctx; }
 
 export function paintHud(fn){
   if (!hx){ fn(); return; }
-  hx.setTransform(1, 0, 0, 1, 0, 0);
+  hx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
   hx.clearRect(0, 0, VW, VH);
   var prev = ctx;
   setCtx(hx);

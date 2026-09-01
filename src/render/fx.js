@@ -2,13 +2,14 @@ import GAME from '../core/game.js';
 import { damage, isInvuln } from '../core/player.js';
 import { getLayers, layerShown, layerCssFilter } from '../core/layers.js';
 import { roomVisAt } from '../core/rooms.js';
-import { ctx, cam, view, VW, VH, rc, lb, setFill, world } from './ctx.js';
+import { ctx, cam, view, VW, VH, rc, lb, setFill, world, viewportRev } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
 
 var G = GAME, T = G.T;
 var WEEDS = [], FISH = [];
 var PONDS = [], SHORES = [], pondIx = null;
-var SKYG = null, skyRev = -1;
+var SKYG = null, skyRev = -1, skyViewportRev = -1;
+var vigViewportRev = -1;
 export var WATER_SHADE_PRESETS = [
   ['clear', 0],
   ['light', 0.35],
@@ -88,11 +89,12 @@ export function bonkDust(p, spd){
 }
 
 function fillSky(){
-  if (!SKYG || skyRev !== palRev){
+  if (!SKYG || skyRev !== palRev || skyViewportRev !== viewportRev){
     SKYG = ctx.createLinearGradient(0, 0, 0, VH);
     var sk = TINT.sky;
     SKYG.addColorStop(0, sk[0]); SKYG.addColorStop(0.42, sk[1]); SKYG.addColorStop(1, sk[2]);
     skyRev = palRev;
+    skyViewportRev = viewportRev;
   }
   setFill(SKYG); ctx.fillRect(0, 0, VW + 1, VH + 1);
 }
@@ -533,9 +535,10 @@ export function drawFish(){
 }
 
 export function vignette(){
-  if (!VIGG){
+  if (!VIGG || vigViewportRev !== viewportRev){
     VIGG = ctx.createRadialGradient(VW/2, VH/2, VH*0.45, VW/2, VH/2, VH*1.05);
     VIGG.addColorStop(0, 'rgba(0,0,0,0)'); VIGG.addColorStop(1, 'rgba(6,3,14,0.40)');
+    vigViewportRev = viewportRev;
   }
   setFill(VIGG); ctx.fillRect(0, 0, VW, VH);
 }

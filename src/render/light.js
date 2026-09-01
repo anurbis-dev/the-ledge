@@ -1,5 +1,5 @@
 import GAME from '../core/game.js';
-import { ctx, cam, view, VW, VH, lc, lx, rc, world, entA, pushEntA, popEntA } from './ctx.js';
+import { ctx, cam, view, VW, VH, BUF_W, BUF_H, lc, lx, rc, world, entA, pushEntA, popEntA } from './ctx.js';
 import { P } from './palette.js';
 import { spriteFrameImage, getSpriteDef } from '../core/spriteset.js';
 import { getFrameAnchor } from '../core/object-anchors.js';
@@ -131,6 +131,6 @@ export function lightPass(){
   else add(S.p.x + 5 - cam.x, S.p.y + 10 - cam.y, 16, 'rgba(140,140,190,0.4)', 0.4);
   if (flash > 0) add(S.p.x + 5 - cam.x, S.p.y + 10 - cam.y, 120*flash, 'rgba(255,255,255,0.9)', flash);
   ctx.globalCompositeOperation = 'multiply';
-  ctx.drawImage(lc, 0, 0);
+  ctx.drawImage(lc, 0, 0, lc.width, lc.height, 0, 0, BUF_W, BUF_H);
   ctx.globalCompositeOperation = 'source-over';
 }

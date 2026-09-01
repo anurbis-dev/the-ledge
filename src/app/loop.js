@@ -1,6 +1,6 @@
 import GAME from '../core/game.js';
 import {
-  cv, ctx, VW, VH, BUF_W, BUF_H, viewBox, hv, cam, view,
+  cv, ctx, VW, VH, BUF_W, BUF_H, RENDER_SCALE, setViewport, viewBox, hv, cam, view,
   sky, tiles, tilesFront, plats, lifts, caveExit, doors, chests, boulders, npcs,
   lootDrops, items, pickables, drawTorches, drawHarpoons, drawArrows, enemies, spiders, fliers, tendrils, ropes,
   hero, lightPass, drawWeeds, drawFish, drawParts, drawHearts,
@@ -486,10 +486,21 @@ function toggleFS(){
   }
   setTimeout(resize, 180);
 }
+var BASE_VW = 320, BASE_VH = 180, MAX_STRETCH = 1.5;
 function resize(){
   var land = innerWidth > innerHeight;
   var padB = ED.on ? 8 : (land ? 4 : 150);
-  var s = Math.min((innerWidth - (land ? 4 : 16))/VW, (innerHeight - padB)/VH);
+  var usableW = innerWidth - (land ? 4 : 16), usableH = innerHeight - padB;
+  if (ED.on){
+    setViewport(BASE_VW, BASE_VH);
+  } else {
+    var baseA = BASE_VW / BASE_VH, targetA = usableW / usableH;
+    if (targetA > baseA * MAX_STRETCH) targetA = baseA * MAX_STRETCH;
+    else if (targetA < baseA / MAX_STRETCH) targetA = baseA / MAX_STRETCH;
+    if (targetA > baseA) setViewport(Math.round(BASE_VH * targetA), BASE_VH);
+    else setViewport(BASE_VW, Math.round(BASE_VW / targetA));
+  }
+  var s = Math.min(usableW/VW, usableH/VH);
   s = Math.max(0.55, s);
   var dw = Math.floor(VW * s), dh = Math.floor(VH * s);
   if (viewBox){
@@ -533,10 +544,10 @@ function frame(now){
     var z = ED.zoom || 1;
     setViewScale(z);
     ctx.imageSmoothingEnabled = false;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
     ctx.clearRect(0, 0, BUF_W, BUF_H);
     sky();
-    ctx.setTransform(z, 0, 0, z, 0, 0);
+    ctx.setTransform(z * RENDER_SCALE, 0, 0, z * RENDER_SCALE, 0, 0);
     tiles();
     if (entitiesShown(true)){
       plats(); lifts(); caveExit(); doors(); boulders(); chests();
@@ -545,13 +556,13 @@ function frame(now){
     }
     tilesFront();
     drawParts(dt); drawHearts(dt);
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
     applyVolumes();
-    ctx.setTransform(z, 0, 0, z, 0, 0);
+    ctx.setTransform(z * RENDER_SCALE, 0, 0, z * RENDER_SCALE, 0, 0);
     drawWeeds();
     if (entitiesShown(true)) tendrils();
     if (ED.showGeo) drawCollideOverlay();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
     fore();
     vignette();
     edDrawOverlay();
@@ -570,6 +581,7 @@ function frame(now){
     if ((paused && !isInvOpen()) || outro || gameOver) hushMusic();
     else resumeMusic();
     var ovPrev = pushCamRender(S.shake);
+    ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
     ctx.clearRect(0, 0, BUF_W, BUF_H);
     sky(); tiles();
     if (entitiesShown(false)){
@@ -651,6 +663,7 @@ function frame(now){
   liftSound(anyMoving);
   stepSounds(S);
 
+  ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
   ctx.clearRect(0, 0, BUF_W, BUF_H);
   sky();
   tiles();

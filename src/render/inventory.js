@@ -24,19 +24,26 @@ var dropAsk = 1;       // сколько выбросить
 var askOn = false;     // модалка количества после DROP
 
 var AXIS_T = FOLD_AXIS;
-var PW = Math.round(VW * 0.7);
-var PH = Math.round(VH * 0.7);
-var PX = ((VW - PW) / 2) | 0;
-var PY = ((VH - PH) / 2) | 0;
 var GX = 6, GY = 26, CW = 30, CH = 26, COLS = 7;
-var CLOSE = { x: PW - 16, y: 3, w: 11, h: 11 };
-var GRID = { x: 2, y: GY - 1, w: PW - 4, h: PH - GY - 2 };
 var DRAG_T = 5;
+var PW, PH, PX, PY, CLOSE, GRID;
 
 var invCv = document.createElement('canvas');
-invCv.width = PW; invCv.height = PH;
 var invCx = invCv.getContext('2d');
-invCx.imageSmoothingEnabled = false;
+
+/* Панель — 70% от текущего вьюпорта; вьюпорт адаптивный (см. ctx.js setViewport), поэтому
+   геометрия и офскрин-канва пересчитываются при каждом открытии, а не один раз при загрузке. */
+function rebuildInvGeometry(){
+  PW = Math.round(VW * 0.7);
+  PH = Math.round(VH * 0.7);
+  PX = ((VW - PW) / 2) | 0;
+  PY = ((VH - PH) / 2) | 0;
+  CLOSE = { x: PW - 16, y: 3, w: 11, h: 11 };
+  GRID = { x: 2, y: GY - 1, w: PW - 4, h: PH - GY - 2 };
+  invCv.width = PW; invCv.height = PH;
+  invCx.imageSmoothingEnabled = false;
+}
+rebuildInvGeometry();
 
 function fillPanel(x, y, w, h){
   rc(x, y, w, h, '#120c20');
@@ -118,6 +125,7 @@ export function closeInv(instant){
 }
 
 export function openInv(){
+  rebuildInvGeometry();
   var o = foldHeroOrigin(G.W);
   ox = o.x; oy = o.y;
   if (!(open && dir > 0)) pingOpen();
