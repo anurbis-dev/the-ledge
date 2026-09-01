@@ -7,7 +7,9 @@ import { getFrameAnchor, legacyObjectKindFromSprite, spriteIdForObject } from '.
 import { defaultFrameAnchors } from './sprite-anchors.js';
 
 /* Предмет в руке/на своём месте — grip-точка (якорь 'weapon' objectKind, тот же
-   что и Object Details) совпадает с pivot (мировая точка); rot — поворот вокруг неё.
+   что и Object Details) совпадает с pivot (мировая точка); rot (рад.) — поворот
+   вокруг неё от игровой логики (замах и т.п.), плюс собственный якорь 'rot'
+   (град., по кадрам, Object Details) — доп. разворот арта поверх него.
    false, если для objectKind не привязан спрайт — вызывающий рисует процедурно. */
 export function blitHeldSprite(objectKind, anim, frame, pivotWX, pivotWY, rot){
   var sid = spriteIdForObject(objectKind);
@@ -17,11 +19,13 @@ export function blitHeldSprite(objectKind, anim, frame, pivotWX, pivotWY, rot){
   var def = getSpriteDef(sid);
   if (!def) return false;
   var g = getFrameAnchor(objectKind, anim, frame, 'weapon') || defaultFrameAnchors(sid, anim, frame).weapon;
+  var rotDeg = getFrameAnchor(objectKind, anim, frame, 'rot');
+  var fullRot = (rot || 0) + (rotDeg == null ? 0 : rotDeg * Math.PI / 180);
   var sx = Math.round(pivotWX - cam.x), sy = Math.round(pivotWY - cam.y);
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   ctx.translate(sx, sy);
-  if (rot) ctx.rotate(rot);
+  if (fullRot) ctx.rotate(fullRot);
   ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, -g.x, -g.y, def.fw, def.fh);
   ctx.restore();
   return true;

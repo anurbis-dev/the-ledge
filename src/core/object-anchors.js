@@ -44,12 +44,20 @@ function cloneBox(b){
   return { w: b.w | 0, h: b.h | 0 };
 }
 
+function cloneNums(arr){
+  if (!arr || !arr.length) return [];
+  var out = [], i;
+  for (i = 0; i < arr.length; i++) out[i] = arr[i] == null ? null : +arr[i];
+  return out;
+}
+
 function cloneAnimRec(rec){
   if (!rec || typeof rec !== 'object') return null;
   var out = {};
   if ('origin' in rec) out.origin = cloneOrigin(rec.origin);
   if ('grab' in rec) out.grab = cloneOrigin(rec.grab);
   if ('weapon' in rec) out.weapon = clonePts(rec.weapon);
+  if ('rot' in rec) out.rot = cloneNums(rec.rot);
   if ('box' in rec) out.box = cloneBox(rec.box);
   return out;
 }
@@ -84,6 +92,7 @@ function overlay(dst, src){
       if ('origin' in rec) drec.origin = cloneOrigin(rec.origin);
       if ('grab' in rec) drec.grab = cloneOrigin(rec.grab);
       if ('weapon' in rec) drec.weapon = clonePts(rec.weapon);
+      if ('rot' in rec) drec.rot = cloneNums(rec.rot);
       if ('box' in rec) drec.box = cloneBox(rec.box);
     }
   }
@@ -207,6 +216,7 @@ function animRecHasData(rec){
   if (rec.grab) return true;
   if (rec.box && rec.box.w != null) return true;
   if (rec.weapon && rec.weapon.some(Boolean)) return true;
+  if (rec.rot && rec.rot.some(function(v){ return v != null; })) return true;
   return false;
 }
 
@@ -221,6 +231,7 @@ function packKind(srcKind){
     if (rec.origin) a.origin = cloneOrigin(rec.origin);
     if (rec.grab) a.grab = cloneOrigin(rec.grab);
     if (rec.weapon && rec.weapon.length) a.weapon = clonePts(rec.weapon);
+    if (rec.rot && rec.rot.length) a.rot = cloneNums(rec.rot);
     if (rec.box) a.box = cloneBox(rec.box);
     if (animRecHasData(a)) out[anim] = a;
   }
@@ -350,11 +361,16 @@ export function setAnimBox(objectKind, anim, w, h){
 }
 
 export function getFrameAnchor(objectKind, anim, i, kind){
-  var rec = recOf(objectKind, anim), arr, p;
+  var rec = recOf(objectKind, anim), arr, p, v;
   if (kind === 'origin') return originFromRec(rec);
   if (kind === 'grab'){
     if (rec && rec.grab && rec.grab.x != null) return { x: rec.grab.x | 0, y: rec.grab.y | 0 };
     return null;
+  }
+  if (kind === 'rot'){
+    arr = rec && rec.rot;
+    v = arr && arr[i | 0];
+    return v == null ? null : +v;
   }
   if (kind !== 'weapon') return null;
   arr = rec && rec.weapon;
@@ -362,11 +378,19 @@ export function getFrameAnchor(objectKind, anim, i, kind){
   return p ? { x: p.x | 0, y: p.y | 0 } : null;
 }
 
+/** Для kind='rot' x — угол в градусах (y игнорируется), не точка. */
 export function setFrameAnchor(objectKind, anim, i, kind, x, y){
   var rec, meta, pt;
-  if (kind !== 'origin' && kind !== 'weapon' && kind !== 'grab') return null;
+  if (kind !== 'origin' && kind !== 'weapon' && kind !== 'grab' && kind !== 'rot') return null;
   rec = ensureRec(objectKind, anim);
   if (!rec) return null;
+  if (kind === 'rot'){
+    i = i | 0;
+    if (!rec.rot) rec.rot = [];
+    rec.rot[i] = ((x % 360) + 360) % 360;
+    emit('anchor');
+    return rec.rot[i];
+  }
   meta = metaSize(objectKind);
   pt = clampPt({ x: x, y: y }, meta.fw, meta.fh);
   if (kind === 'origin'){
@@ -396,6 +420,7 @@ export function clearFrameAnchor(objectKind, anim, i, kind){
   if (kind === 'origin') rec.origin = null;
   else if (kind === 'grab') rec.grab = null;
   else if (kind === 'weapon' && rec.weapon) rec.weapon[i | 0] = null;
+  else if (kind === 'rot' && rec.rot) rec.rot[i | 0] = null;
   else return;
   emit('anchor');
 }
@@ -406,6 +431,7 @@ export function clearAnimAnchors(objectKind, anim){
   rec.origin = null;
   rec.grab = null;
   rec.weapon = [];
+  rec.rot = [];
   rec.box = null;
   emit('anchor');
 }

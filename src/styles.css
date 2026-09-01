@@ -238,6 +238,7 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
 .ed-field.ed-anchor-b > span:first-child{color:#ffd0c4}
 .ed-field.ed-anchor-g > span:first-child{color:#ffcc66}
 .ed-field.ed-anchor-w > span:first-child{color:#ff7eb6}
+.ed-field.ed-anchor-rot > span:first-child{color:#b98cff}
 .ed-tilegeo.tool-anchor{cursor:move}
 #edInspectBody{padding:6px;display:flex;flex-direction:column;gap:5px}
 .ed-tileedit{width:300px;right:8px;top:48px;max-height:calc(100vh - 200px)}

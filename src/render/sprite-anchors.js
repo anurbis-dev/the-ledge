@@ -1,4 +1,5 @@
-/* Якоря кадра спрайта: origin (мир), grab (поиск кромки), weapon (кисть). */
+/* Якоря кадра спрайта: origin (мир), grab (поиск кромки), weapon (кисть),
+   rot (доп. поворот удерживаемого предмета вокруг weapon, град., по кадрам). */
 import { getSpriteDef, isHeroSprite } from '../core/spriteset.js';
 import { defaultGrabOff } from '../core/sprite-grab.js';
 import { HERO_POSES } from './poses.js';
@@ -28,5 +29,5 @@ export function defaultFrameAnchors(id, animId, frameI){
   } else {
     grab = clipPt(origin.x + 6, origin.y + 2, fw, fh);
   }
-  return { origin: origin, grab: grab, weapon: weapon };
+  return { origin: origin, grab: grab, weapon: weapon, rot: 0 };
 }
