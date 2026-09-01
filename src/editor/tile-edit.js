@@ -6,7 +6,7 @@ import {
   getTileFoamSize, getTileFoamRandom, getTileFoamSpeed, getTileSpraySpeed,
   getTileTaper, getTileTaperLen,
   getTileSpriteId, setTileSpriteId, tileBaseId, syncTileLegacyFromSprite,
-  tileFrameCount, tileFrameSrc, canvasToPng, loadImageFile, sliceSheet, addTile
+  tileFrameCount, tileFrameSrc, canvasToPng, loadImageFile, addTile
 } from '../core/tileset.js';
 import { initSliders } from './slider.js';
 import {
@@ -1883,26 +1883,26 @@ function applySpriteImport(img){
   fillBody();
 }
 
+/* Картинка на голый тайл (legacy src/frames, без привязанного спрайта) —
+   тот же принцип, что и applySpriteImport: как есть, без ресайза. paintCustom
+   (render/tiles.js) и так скейлит нативный размер в T×T при отрисовке. */
 function applyImportFile(file){
   if (!current || !file || !canPaint()) return;
   loadImageFile(file).then(function(img){
     if (isSprite()){ applySpriteImport(img); return; }
-    var slices = sliceSheet(img, file.name, fw, fh);
-    if (!slices.length) return;
+    var c = document.createElement('canvas');
+    c.width = img.naturalWidth || img.width;
+    c.height = img.naturalHeight || img.height;
+    var cx = c.getContext('2d');
+    cx.imageSmoothingEnabled = false;
+    cx.drawImage(img, 0, 0);
+    var src = canvasToPng(c);
     markOp();
-    if (slices.length > 1){
-      var srcs = slices.map(function(s){ return s.src; });
-      if (isCustomTile()){
-        updateTile(current.id, { src: srcs[0], frames: srcs });
-        current.src = srcs[0];
-      } else {
-        setTileGfx(current.id, { src: srcs[0], frames: srcs });
-      }
-    } else if (isCustomTile()){
-      updateTile(current.id, { src: slices[0].src });
-      current.src = slices[0].src;
+    if (isCustomTile()){
+      updateTile(current.id, { src: src });
+      current.src = src;
     } else {
-      setTileGfx(current.id, { src: slices[0].src });
+      setTileGfx(current.id, { src: src });
     }
     notify();
     fillBody();
