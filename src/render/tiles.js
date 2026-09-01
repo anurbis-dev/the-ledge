@@ -5,7 +5,7 @@ import { COVER_AIR, coverRaw, coverVarRaw, roomCoverA, rebuildRooms } from '../c
 import { getLayers, layerShown, lastCollideIndex, layerTileRaw, layerVarRaw, layerDeco, layerFlipRaw, isTileLayer, wrapSize, layerCssFilter, layerGrade, gradeCssFilter } from '../core/layers.js';
 import { getTileDef, tileImage, tileFrameImage, tileFrameCount, getTileSpeed, getTileShift, getTileWaveX, getTileSplash, getTileLength, getTileWave, getTileRandom, getTileOffset, getTileFade, getTileSpeed2, getTileLength2, getTileDensity2, getTileWave2, getTileFoam, getTileSpray, getTileFoamSize, getTileFoamRandom, getTileFoamSpeed, getTileSpraySpeed, getTileTaper, getTileTaperLen } from '../core/tileset.js';
 import { buildWater } from './fx.js';
-import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH, viewScale } from './ctx.js';
+import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH, viewScale, RENDER_SCALE } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
 import { waterDepthK } from './fx.js';
 import { emitSand } from './sand-fx.js';
@@ -13,6 +13,23 @@ import { emitSand } from './sand-fx.js';
 var G = GAME, T = G.T;
 var _L = null;
 var _paintCover = false;
+
+/* Тайловые кэши (chunk/stamp/cover) пекутся один раз в offscreen-канву и переиспользуются —
+   без RENDER_SCALE тут арт тайлов/спрайтов с повышенным нативным разрешением ужимался бы
+   до 1 мирового пикселя = 1 канвас-пиксель ещё на этапе запекания, до отрисовки на экран. */
+function makeBakeCanvas(w, h){
+  var c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(w * RENDER_SCALE));
+  c.height = Math.max(1, Math.round(h * RENDER_SCALE));
+  var g = c.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  g.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
+  return c;
+}
+/* Блит запечённой offscreen-канвы (сделанной makeBakeCanvas, w×h — мировые пиксели) на ctx. */
+function blitBake(can, w, h, dx, dy){
+  ctx.drawImage(can, 0, 0, can.width, can.height, dx, dy, w, h);
+}
 
 function tAt(c, r){
   if (_paintCover && _L && _L.cover){
@@ -473,11 +490,9 @@ export function drawWaterImmersion(){
 var _tintA = null, _tintB = null;
 function tintScratch(which, w){
   var c = which === 'a' ? _tintA : _tintB;
-  if (!c || c.width !== w){
-    c = document.createElement('canvas');
-    c.width = w; c.height = w;
-    var g = c.getContext('2d');
-    g.imageSmoothingEnabled = false;
+  if (!c || c._logW !== w){
+    c = makeBakeCanvas(w, w);
+    c._logW = w;
     if (which === 'a') _tintA = c; else _tintB = c;
   }
   return c;
@@ -488,7 +503,7 @@ function paintGraded(c, r, x, y, fn){
   var p = PAD, w = T + p * 2;
   var a = tintScratch('a', w), b = tintScratch('b', w);
   var ga = a.getContext('2d'), gb = b.getContext('2d');
-  ga.setTransform(1, 0, 0, 1, 0, 0);
+  ga.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
   ga.globalAlpha = 1;
   ga.globalCompositeOperation = 'source-over';
   ga.filter = 'none';
@@ -496,14 +511,14 @@ function paintGraded(c, r, x, y, fn){
   var saved = getCtx();
   setCtx(ga);
   try { fn(p, p); } finally { setCtx(saved); }
-  gb.setTransform(1, 0, 0, 1, 0, 0);
+  gb.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
   gb.globalAlpha = 1;
   gb.globalCompositeOperation = 'source-over';
   gb.clearRect(0, 0, w, w);
   gb.filter = css;
-  gb.drawImage(a, 0, 0);
+  gb.drawImage(a, 0, 0, a.width, a.height, 0, 0, w, w);
   gb.filter = 'none';
-  ctx.drawImage(b, Math.round(x - p), Math.round(y - p));
+  blitBake(b, w, w, Math.round(x - p), Math.round(y - p));
 }
 
 /* Низ столбца FALL: tipR, kind 'air'|'hit' (под низом пусто или любой тайл). */
@@ -1071,10 +1086,8 @@ function coverCanOf(L, rid){
   maxR = Math.min(G.mapMaxR() - 1, maxR + 1);
   var cw = (maxC - minC + 1) * T + PAD * 2;
   var ch = (maxR - minR + 1) * T + PAD * 2;
-  var can = document.createElement('canvas');
-  can.width = cw; can.height = ch;
+  var can = makeBakeCanvas(cw, ch);
   var g = can.getContext('2d');
-  g.imageSmoothingEnabled = false;
   if (hasTile){
     var saved = getCtx();
     var prevL = _L, prevP = _paintCover;
@@ -1099,7 +1112,7 @@ function coverCanOf(L, rid){
       _paintCover = prevP;
     }
   }
-  var out = { can: can, x: minC * T - PAD, y: minR * T - PAD, c0: minC, r0: minR, c1: maxC, r1: maxR };
+  var out = { can: can, w: cw, h: ch, x: minC * T - PAD, y: minR * T - PAD, c0: minC, r0: minR, c1: maxC, r1: maxR };
   cans[rid] = out;
   return out;
 }
@@ -1148,7 +1161,7 @@ function blitCover(camx, camy){
     z = viewScale;
     if (z !== 1){ dx = Math.round(dx * z) / z; dy = Math.round(dy * z) / z; }
     ctx.globalAlpha = a;
-    ctx.drawImage(g.can, dx, dy);
+    blitBake(g.can, g.w, g.h, dx, dy);
     ctx.globalAlpha = 1;
     paintCoverAnim(L, rid, a, camx, camy, g);
   }
@@ -1158,10 +1171,8 @@ export function chunkOf(cx, cy){
   syncPal();
   var key = cx + ',' + cy, ch = chunkCache[key];
   if (ch) return ch;
-  var cv2 = document.createElement('canvas');
-  cv2.width = CH*T + PAD*2; cv2.height = CH*T + PAD*2;
+  var cv2 = makeBakeCanvas(CH*T + PAD*2, CH*T + PAD*2);
   var g2 = cv2.getContext('2d');
-  g2.imageSmoothingEnabled = false;
   var saved = getCtx();
   setCtx(g2);                       // rc/lb пишут в чанк
   try {
@@ -1184,11 +1195,8 @@ export function chunkOf(cx, cy){
 function stampOf(L){
   if (L._stampCan) return L._stampCan;
   var s = wrapSize(L);
-  var can = document.createElement('canvas');
-  can.width = s.w * T + PAD * 2;
-  can.height = s.h * T + PAD * 2;
+  var can = makeBakeCanvas(s.w * T + PAD * 2, s.h * T + PAD * 2);
   var g = can.getContext('2d');
-  g.imageSmoothingEnabled = false;
   var saved = getCtx();
   setCtx(g);
   try {
@@ -1218,7 +1226,7 @@ function blitWrapLayer(L, camx, camy){
     for (x = -ox; x < vw + pw; x += pw){
       dx = x - PAD; dy = y - PAD;
       if (z !== 1){ dx = Math.round(dx * z) / z; dy = Math.round(dy * z) / z; }
-      ctx.drawImage(can, dx, dy);
+      blitBake(can, s.w * T + PAD * 2, s.h * T + PAD * 2, dx, dy);
     }
   }
 }
@@ -1236,7 +1244,7 @@ function blitLayer(camx, camy){
       dx = cx*CH*T - camx - PAD; dy = cy*CH*T - camy - PAD;
       z = viewScale;
       if (z !== 1){ dx = Math.round(dx * z) / z; dy = Math.round(dy * z) / z; }
-      ctx.drawImage(chunkOf(cx, cy), dx, dy);
+      blitBake(chunkOf(cx, cy), CH*T + PAD*2, CH*T + PAD*2, dx, dy);
     }
   }
   prepWaveStrip(view.time, c0, c1, r0, r1);

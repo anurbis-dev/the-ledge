@@ -6,7 +6,7 @@ import {
   getTileFoamSize, getTileFoamRandom, getTileFoamSpeed, getTileSpraySpeed,
   getTileTaper, getTileTaperLen,
   getTileSpriteId, setTileSpriteId, tileBaseId, syncTileLegacyFromSprite,
-  tileFrameCount, tileFrameSrc, canvasToPng, loadImageFile, sliceSheet, addTile, getTileRes
+  tileFrameCount, tileFrameSrc, canvasToPng, loadImageFile, sliceSheet, addTile
 } from '../core/tileset.js';
 import { initSliders } from './slider.js';
 import {
@@ -229,7 +229,7 @@ export function openTileEdit(spec, clientX, clientY){
   stopPlay();
   mode = 'tile';
   objCurrent = null;
-  fw = 16; fh = 16; res = (spec.id != null ? getTileRes(spec.id) : 0) || spec.res || 1;
+  fw = 16; fh = 16; res = 1;
   animId = '';
   frameI = 0;
   animFilter = '';
