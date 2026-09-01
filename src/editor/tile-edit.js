@@ -1008,22 +1008,20 @@ function fillChecker(cx, cols, rows, tw, th){
 }
 
 function liveAnchors(){
-  var ak, d, o, w, g, r;
+  var ak, d, o, w, g;
   ak = anchorKind();
   if (!canEditAnchors() || !ak) return null;
   d = defaultObjectAnchors(ak, animId, frameI);
   o = getFrameAnchor(ak, animId, frameI, 'origin') || d.origin;
   w = getFrameAnchor(ak, animId, frameI, 'weapon') || d.weapon;
   g = getFrameAnchor(ak, animId, frameI, 'grab') || d.grab;
-  r = getFrameAnchor(ak, animId, frameI, 'rot');
-  if (r == null) r = d.rot;
   if (pendingAnchor){
     if (pendingAnchor.kind === 'origin') o = { x: pendingAnchor.x, y: pendingAnchor.y };
-    else if (pendingAnchor.kind === 'weapon') w = { x: pendingAnchor.x, y: pendingAnchor.y };
+    else if (pendingAnchor.kind === 'weapon') w = { x: pendingAnchor.x, y: pendingAnchor.y, rot: w.rot || 0 };
     else if (pendingAnchor.kind === 'grab') g = { x: pendingAnchor.x, y: pendingAnchor.y };
   }
   if (pendingBox) o = { x: pendingBox.x, y: pendingBox.y };
-  return { origin: o, weapon: w, grab: g, rot: r };
+  return { origin: o, weapon: w, grab: g };
 }
 
 function drawMark(cx, pt, k, col, kind){
@@ -1146,7 +1144,7 @@ function syncAnchorFields(){
   if (grabYEl) grabYEl.value = String(a.grab.y);
   if (weaponXEl) weaponXEl.value = String(a.weapon.x);
   if (weaponYEl) weaponYEl.value = String(a.weapon.y);
-  if (rotEl) rotEl.value = String(a.rot);
+  if (rotEl) rotEl.value = String(a.weapon.rot || 0);
   b = liveBoxRect();
   if (boxWEl && b) boxWEl.value = String(b.w);
   if (boxHEl && b) boxHEl.value = String(b.h);
@@ -2454,12 +2452,12 @@ function fillBody(){
       rotEl = numInp(0, 0, 359);
       rotEl.title = 'Extra rotation of the held sprite on this frame (deg), added on top of any swing angle from game logic';
       rotEl.addEventListener('change', function(){
-        var ak = anchorKind(), n;
-        if (!canEditAnchors() || !ak) return;
+        var ak = anchorKind(), a = liveAnchors(), n;
+        if (!canEditAnchors() || !ak || !a) return;
         n = parseInt(rotEl.value, 10);
         if (isNaN(n)){ syncAnchorFields(); return; }
         markOp();
-        setFrameAnchor(ak, animId, frameI, 'rot', n, 0);
+        setFrameAnchor(ak, animId, frameI, 'weapon', a.weapon.x, a.weapon.y, n);
         notify();
         syncAnchorFields();
         paintCanvas();
