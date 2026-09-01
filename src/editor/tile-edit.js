@@ -1873,33 +1873,24 @@ function paintStrips(){
   applyStripH();
 }
 
-/* Импорт картинки в кадр спрайта. Лист (размер кратен fw×fh, больше одной ячейки)
-   режется по сетке, без искажений. Одиночная картинка любого размера масштабируется
-   целиком в fw×fh — холст спрайта всегда 1:1 с footprint, без отдельного разрешения арта. */
+/* Импорт картинки в кадр спрайта: без нарезки на лист и без подгонки под текущий
+   Size — картинка идёт как есть, её нативный размер становится Size спрайта
+   (footprint), холст всегда 1:1 с тем, что импортировано. */
 function applySpriteImport(img){
   var w = img.naturalWidth || img.width;
   var h = img.naturalHeight || img.height;
-  var a = current.anims.filter(function(x){ return x.id === animId; })[0];
   markOp();
-  if (w >= fw && h >= fh && w % fw === 0 && h % fh === 0 && (w > fw || h > fh)){
-    var slices = sliceSheet(img, current.id, fw, fh);
-    if (!slices.length) return;
-    if (slices.length === 1){
-      setSpriteFrame(current.id, animId, frameI, slices[0].src, true);
-    } else if (a){
-      var i, need = slices.length, have = getAnimFrameCount(current.id, animId);
-      if (need > have) setAnimFrameCount(current.id, animId, need);
-      for (i = 0; i < need; i++) setSpriteFrame(current.id, animId, i, slices[i].src, true);
-    }
-    notify();
-    fillBody();
-    return;
+  if (w !== fw || h !== fh){
+    setSpriteSize(current.id, w, h);
+    clearBakeCache();
+    current = getSpriteDef(current.id) || current;
+    fw = current.fw; fh = current.fh;
   }
   var c = document.createElement('canvas');
   c.width = fw; c.height = fh;
   var cx = c.getContext('2d');
   cx.imageSmoothingEnabled = false;
-  cx.drawImage(img, 0, 0, w, h, 0, 0, fw, fh);
+  cx.drawImage(img, 0, 0);
   setSpriteFrame(current.id, animId, frameI, canvasToPng(c), true);
   notify();
   fillBody();
