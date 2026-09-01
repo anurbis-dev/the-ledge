@@ -1902,25 +1902,60 @@ function paintStrips(){
   applyStripH();
 }
 
+/* Импорт картинки в кадр спрайта. Лист (размер кратен текущей ячейке fw*res×fh*res,
+   больше одной ячейки) режется как раньше — по сетке, без искажений. Одиночный кадр
+   вставляется 1:1 по центру без растяжения; если картинка не помещается в ячейку —
+   res поднимается ровно настолько, чтобы вместить её без масштабирования. */
+function applySpriteImport(img){
+  var w = img.naturalWidth || img.width;
+  var h = img.naturalHeight || img.height;
+  var cellW = fw * res, cellH = fh * res;
+  var a = current.anims.filter(function(x){ return x.id === animId; })[0];
+  if (w >= cellW && h >= cellH && w % cellW === 0 && h % cellH === 0 && (w > cellW || h > cellH)){
+    markOp();
+    var slices = sliceSheet(img, current.id, cellW, cellH);
+    if (!slices.length) return;
+    if (slices.length === 1){
+      setSpriteFrame(current.id, animId, frameI, slices[0].src, true);
+    } else if (a){
+      var i, need = slices.length, have = getAnimFrameCount(current.id, animId);
+      if (need > have) setAnimFrameCount(current.id, animId, need);
+      for (i = 0; i < need; i++) setSpriteFrame(current.id, animId, i, slices[i].src, true);
+    }
+    notify();
+    fillBody();
+    return;
+  }
+  markOp();
+  var needRes = Math.max(res, Math.min(8, Math.max(Math.ceil(w / fw), Math.ceil(h / fh))));
+  var paste = function(){
+    var c = document.createElement('canvas');
+    c.width = fw * res; c.height = fh * res;
+    var cx = c.getContext('2d');
+    cx.imageSmoothingEnabled = false;
+    cx.drawImage(img, Math.floor((fw * res - w) / 2), Math.floor((fh * res - h) / 2));
+    setSpriteFrame(current.id, animId, frameI, canvasToPng(c), true);
+    notify();
+    fillBody();
+  };
+  if (needRes !== res){
+    setSpriteRes(current.id, needRes);
+    clearBakeCache();
+    current = getSpriteDef(current.id) || current;
+    res = current.res || needRes;
+    resizeSpriteFrames(current.id, fw * res, fh * res, paste, true);
+  } else {
+    paste();
+  }
+}
+
 function applyImportFile(file){
   if (!current || !file || !canPaint()) return;
   loadImageFile(file).then(function(img){
+    if (isSprite()){ applySpriteImport(img); return; }
     var slices = sliceSheet(img, file.name, fw * res, fh * res);
     if (!slices.length) return;
     markOp();
-    if (isSprite()){
-      var a = current.anims.filter(function(x){ return x.id === animId; })[0];
-      if (slices.length === 1){
-        setSpriteFrame(current.id, animId, frameI, slices[0].src, true);
-      } else if (a){
-        var i, need = slices.length, have = getAnimFrameCount(current.id, animId);
-        if (need > have) setAnimFrameCount(current.id, animId, need);
-        for (i = 0; i < need; i++) setSpriteFrame(current.id, animId, i, slices[i].src, true);
-      }
-      notify();
-      fillBody();
-      return;
-    }
     if (slices.length > 1){
       var srcs = slices.map(function(s){ return s.src; });
       if (isCustomTile()){
