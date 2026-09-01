@@ -1,5 +1,5 @@
 import GAME from '../core/game.js';
-import { ctx, cv, VW, VH, cam, rc, setCtx, getCtx } from './ctx.js';
+import { ctx, cv, VW, VH, cam, rc, setCtx, getCtx, makeBakeCanvas, onViewportChange } from './ctx.js';
 import { textPix, textPixC, num } from './hud.js';
 import { drawItemIcon } from './icons.js';
 import { FOLD_AXIS, foldHeroOrigin, foldBlit } from './fold.js';
@@ -15,7 +15,7 @@ var inspect = -1;
 var slots = [];
 var fold = 0;          // 0 закрыт … 1 вертикаль … 2 полный
 var dir = 0;           // +1 раскрытие, −1 сворачивание
-var ox = VW / 2, oy = VH / 2;
+var ox = 0, oy = 0;
 var lastFold = 0;
 var tab = 'all';
 var scroll = 0;
@@ -40,10 +40,11 @@ function rebuildInvGeometry(){
   PY = ((VH - PH) / 2) | 0;
   CLOSE = { x: PW - 16, y: 3, w: 11, h: 11 };
   GRID = { x: 2, y: GY - 1, w: PW - 4, h: PH - GY - 2 };
-  invCv.width = PW; invCv.height = PH;
-  invCx.imageSmoothingEnabled = false;
+  invCv = makeBakeCanvas(PW, PH);
+  invCx = invCv.getContext('2d');
 }
 rebuildInvGeometry();
+onViewportChange(rebuildInvGeometry);
 
 function fillPanel(x, y, w, h){
   rc(x, y, w, h, '#120c20');

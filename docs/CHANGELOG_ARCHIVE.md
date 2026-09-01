@@ -1,5 +1,13 @@
 # Changelog archive
 
+## 2026-09-01 (pre-commit, unreleased at commit 03b6376)
+
+- Refactor(gameplay/editor): угол поворота удерживаемого предмета (`Rot` в Object Details) убран из отдельного якоря `rot` — свёрнут в уже существующий `weapon` (`core/object-anchors.js`: `rec.weapon[i] = {x,y,rot}` вместо параллельного массива), лишний clone/overlay/pack-код для четвёртого якоря убран. Правка X/Y теперь не сбрасывает Rot на этом же кадре (rot не передан в `setFrameAnchor` → сохраняется прежний). Поведение в игре не меняется.
+
+## 2026-09-01 (pre-commit, unreleased at commit 89472f0)
+
+- Fix(render): тайловые offscreen-кэши (`chunkOf`/`stampOf`/`coverCanOf`/`tintScratch` в `render/tiles.js`) пеклись в нативном разрешении (1 мировой пиксель = 1 канвас-пиксель), без учёта `RENDER_SCALE` — детализация арта тайла (в т.ч. со спрайтом, у которого поднят `res`) обрезалась до старого фиксированного бюджета ещё на этапе запекания в чанк, до того как дошло до экрана. Теперь все такие кэши создаются `×RENDER_SCALE` (общий хелпер `makeBakeCanvas`/`blitBake`), финальный блит на основной канвас — явным src/dest rect, чтобы не смасштабировать дважды.
+
 ## 2026-09-01 (pre-commit, unreleased at commit e35bc56)
 
 - Feat(gameplay/editor): угол поворота удерживаемого предмета (факел/оружие в руке) теперь задаётся по кадрам анимации — новый якорь `rot` (град., per-objectKind/anim/frame, рядом с Origin/Hands/Weapon в Object Details, поле «Rot») в `core/object-anchors.js` (`getFrameAnchor`/`setFrameAnchor`/`clearFrameAnchor`/`clearAnimAnchors`, нормализация в 0–359°). `blitHeldSprite` (`render/sprites.js`) складывает его с углом от игровой логики (замах атаки, копка и т.п.) поверх grip-точки — так дизайнер может донастроить разворот арта под конкретный кадр, когда он появится.

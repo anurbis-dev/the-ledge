@@ -1,4 +1,4 @@
-import { ctx, cam, viewW, viewH, viewScale, RENDER_SCALE } from './ctx.js';
+import { ctx, cam, viewW, viewH, deviceScale } from './ctx.js';
 import { world } from './ctx.js';
 import { maskAt, volLocal } from '../entities/volumes.js';
 
@@ -48,7 +48,7 @@ export function applyVolumes(){
   var S = world();
   var list = S && S.volumes;
   if (!list || !list.length) return;
-  var z = (viewScale || 1) * RENDER_SCALE;
+  var z = deviceScale();
   var sw = Math.max(1, Math.round(viewW() * z));
   var sh = Math.max(1, Math.round(viewH() * z));
   var i, v, hw, hh, pad, bw, bh, src, sx, sy, rgb, amt;

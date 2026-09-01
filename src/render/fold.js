@@ -35,5 +35,5 @@ export function foldBlit(src, pw, ph, ox, oy, px, py, fold){
     return;
   }
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(src, 0, 0, pw, ph, dx, dy, dw, dh);
+  ctx.drawImage(src, 0, 0, src.width, src.height, dx, dy, dw, dh);
 }

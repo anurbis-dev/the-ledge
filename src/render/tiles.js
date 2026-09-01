@@ -5,7 +5,7 @@ import { COVER_AIR, coverRaw, coverVarRaw, roomCoverA, rebuildRooms } from '../c
 import { getLayers, layerShown, lastCollideIndex, layerTileRaw, layerVarRaw, layerDeco, layerFlipRaw, isTileLayer, wrapSize, layerCssFilter, layerGrade, gradeCssFilter } from '../core/layers.js';
 import { getTileDef, tileImage, tileFrameImage, tileFrameCount, getTileSpeed, getTileShift, getTileWaveX, getTileSplash, getTileLength, getTileWave, getTileRandom, getTileOffset, getTileFade, getTileSpeed2, getTileLength2, getTileDensity2, getTileWave2, getTileFoam, getTileSpray, getTileFoamSize, getTileFoamRandom, getTileFoamSpeed, getTileSpraySpeed, getTileTaper, getTileTaperLen } from '../core/tileset.js';
 import { buildWater } from './fx.js';
-import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH, viewScale, RENDER_SCALE } from './ctx.js';
+import { ctx, cam, view, rc, lb, setCtx, getCtx, setFill, world, viewW, viewH, viewScale, RENDER_SCALE, makeBakeCanvas, blitBake } from './ctx.js';
 import { P, TINT, palRev } from './palette.js';
 import { waterDepthK } from './fx.js';
 import { emitSand } from './sand-fx.js';
@@ -13,23 +13,6 @@ import { emitSand } from './sand-fx.js';
 var G = GAME, T = G.T;
 var _L = null;
 var _paintCover = false;
-
-/* Тайловые кэши (chunk/stamp/cover) пекутся один раз в offscreen-канву и переиспользуются —
-   без RENDER_SCALE тут арт тайлов/спрайтов с повышенным нативным разрешением ужимался бы
-   до 1 мирового пикселя = 1 канвас-пиксель ещё на этапе запекания, до отрисовки на экран. */
-function makeBakeCanvas(w, h){
-  var c = document.createElement('canvas');
-  c.width = Math.max(1, Math.round(w * RENDER_SCALE));
-  c.height = Math.max(1, Math.round(h * RENDER_SCALE));
-  var g = c.getContext('2d');
-  g.imageSmoothingEnabled = false;
-  g.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
-  return c;
-}
-/* Блит запечённой offscreen-канвы (сделанной makeBakeCanvas, w×h — мировые пиксели) на ctx. */
-function blitBake(can, w, h, dx, dy){
-  ctx.drawImage(can, 0, 0, can.width, can.height, dx, dy, w, h);
-}
 
 function tAt(c, r){
   if (_paintCover && _L && _L.cover){
@@ -212,17 +195,15 @@ function splashAt(worldX, time){
 }
 
 function reuseCan(old, w, h){
-  if (old && old.width === w && old.height === h){
+  if (old && old._logW === w && old._logH === h){
     var g = old.getContext('2d');
-    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
     g.globalAlpha = 1;
     g.clearRect(0, 0, w, h);
     return old;
   }
-  var c = document.createElement('canvas');
-  c.width = w; c.height = h;
-  var g2 = c.getContext('2d');
-  g2.imageSmoothingEnabled = false;
+  var c = makeBakeCanvas(w, h);
+  c._logW = w; c._logH = h;
   return c;
 }
 function isWaterSurfaceAt(c, r){
@@ -442,8 +423,9 @@ function prepWaveStrip(time, c0, c1, r0, r1){
 }
 function blitWaves(c, x, y, deep){
   if (!wStrip.lo || c < wStrip.c0 || c > wStrip.c1) return false;
-  ctx.drawImage(deep ? wStrip.hi : wStrip.lo,
-    (c - wStrip.c0) * T, 0, T, WAVE_H,
+  var can = deep ? wStrip.hi : wStrip.lo;
+  ctx.drawImage(can,
+    (c - wStrip.c0) * T * RENDER_SCALE, 0, T * RENDER_SCALE, WAVE_H * RENDER_SCALE,
     Math.round(x), Math.round(y - WAVE_PAD), T, WAVE_H);
   return true;
 }

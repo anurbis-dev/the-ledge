@@ -5,7 +5,6 @@ export let BUF_W = VW + 1, BUF_H = VH + 1;
 /* Плотность пикселей канваса, независима от VW/VH (мирового FOV) и viewScale (зум редактора) —
    те же мировые единицы, просто больше реальных пикселей на них. */
 export var RENDER_SCALE = 2;
-export let viewportRev = 0;
 export const cv = document.getElementById('c');
 export const hv = document.getElementById('h');
 export const viewBox = document.getElementById('view');
@@ -33,18 +32,49 @@ function applyCanvasSizes(){
 }
 applyCanvasSizes();
 
+var _viewportListeners = [];
+/** Подписка на смену VW/VH (адаптивный вьюпорт) — вместо ручной проверки rev-счётчика
+    в каждом читателе: кэш, которому нужно протухнуть при ресайзе, регистрирует коллбек один раз. */
+export function onViewportChange(fn){ _viewportListeners.push(fn); }
+
 /** Адаптивный вьюпорт (только геймплей — редактор держит фиксированные 320×180, см. loop.js resize()). */
 export function setViewport(vw, vh){
   if (vw === VW && vh === VH) return;
   VW = vw; VH = vh; BUF_W = vw + 1; BUF_H = vh + 1;
-  viewportRev++;
   applyCanvasSizes();
+  for (var i = 0; i < _viewportListeners.length; i++) _viewportListeners[i]();
 }
 
 export var viewScale = 1;
 export function setViewScale(z){ viewScale = z > 0 ? z : 1; }
 export function viewW(){ return VW / viewScale; }
 export function viewH(){ return VH / viewScale; }
+
+/** Канвас-пикселей на мировую единицу прямо сейчас — зум редактора × плотность RENDER_SCALE. */
+export function deviceScale(){ return viewScale * RENDER_SCALE; }
+/** Ставит на главный ctx трансформацию мир→канвас (см. deviceScale) — единая точка,
+    которая физически не может забыть про RENDER_SCALE. */
+export function applyWorldTransform(){
+  var s = deviceScale();
+  ctx.setTransform(s, 0, 0, s, 0, 0);
+}
+
+/* Offscreen-кэш «запечь один раз в мировых координатах, переиспользовать» (chunk/stamp/cover/
+   wave-strip тайлов, HUD-панели) — размер и transform сразу учитывают RENDER_SCALE, чтобы
+   контент не терял детализацию на этапе запекания, до отрисовки на экран. */
+export function makeBakeCanvas(w, h){
+  var c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(w * RENDER_SCALE));
+  c.height = Math.max(1, Math.round(h * RENDER_SCALE));
+  var g = c.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  g.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
+  return c;
+}
+/** Блит запечённой canvas (сделанной makeBakeCanvas, w×h — мировые пиксели) на текущий ctx. */
+export function blitBake(can, w, h, dx, dy){
+  ctx.drawImage(can, 0, 0, can.width, can.height, dx, dy, w, h);
+}
 
 export const cam = { x: 0, y: 0, lead: 0, look: 0, ax: 0, ay: 0 };
 export const view = {

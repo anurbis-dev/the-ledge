@@ -1,5 +1,5 @@
 import GAME from '../core/game.js';
-import { ctx, view, VW, VH, rc, world, setCtx, getCtx } from './ctx.js';
+import { ctx, view, VW, VH, rc, world, setCtx, getCtx, makeBakeCanvas } from './ctx.js';
 import { P } from './palette.js';
 import { pickIntroLine } from '../core/intro.js';
 import { listHand, activeHandItem, isHarpoonHand } from '../entities/gear.js';
@@ -34,18 +34,14 @@ function outroX(){ return ((VW - OW) / 2) | 0; }
 function outroY(){ return ((VH - OH) / 2) | 0; }
 var BTN_W = 76, BTN_H = 13, BTN_Y = 90;
 
-var introCv = document.createElement('canvas');
-introCv.width = IW; introCv.height = IH;
+var introCv = makeBakeCanvas(IW, IH);
 var introCx = introCv.getContext('2d');
-introCx.imageSmoothingEnabled = false;
 
-var outroCv = document.createElement('canvas');
-outroCv.width = OW; outroCv.height = OH;
+var outroCv = makeBakeCanvas(OW, OH);
 var outroCx = outroCv.getContext('2d');
-outroCx.imageSmoothingEnabled = false;
 
-var introFold = { on: false, fold: 0, dir: 0, last: 0, ox: VW / 2, oy: VH / 2 };
-var outroFold = { on: false, fold: 0, dir: 0, last: 0, ox: VW / 2, oy: VH / 2, focus: 'continue', pick: null };
+var introFold = { on: false, fold: 0, dir: 0, last: 0, ox: 0, oy: 0 };
+var outroFold = { on: false, fold: 0, dir: 0, last: 0, ox: 0, oy: 0, focus: 'continue', pick: null };
 
 function pingOpen(){ blip(480, 0.08, 'triangle', 0.04); }
 function pingOpenH(){ blip(640, 0.07, 'triangle', 0.035); }

@@ -1,5 +1,5 @@
 import GAME from '../core/game.js';
-import { cam, view, world, ctx, rc, cv, viewScale, RENDER_SCALE } from './ctx.js';
+import { cam, view, world, ctx, rc, cv, deviceScale } from './ctx.js';
 import { waterTintAt } from './fx.js';
 import {
   K, IDLE_A, IDLE_B, RUN, FALLP, LANDP, SLIDEP, STUNP, SNAREP, ROLLP,
@@ -398,7 +398,7 @@ function immerseHero(p){
   var gy0 = Math.round(p.y - cam.y) - pad;
   var gw = p.w + pad * 2 + 4;
   var gh = p.h + pad * 2 + 4;
-  var z = (viewScale || 1) * RENDER_SCALE;
+  var z = deviceScale();
   var px = Math.round(gx0 * z), py = Math.round(gy0 * z);
   var pw = Math.max(1, Math.round(gw * z)), ph = Math.max(1, Math.round(gh * z));
   if (pw > 96) pw = 96;

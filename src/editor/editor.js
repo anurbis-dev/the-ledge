@@ -1,6 +1,6 @@
 import GAME from '../core/game.js';
 import {
-  cv, ctx, VW, VH, RENDER_SCALE, cam, view, rc, buildWater, clampCam, setViewScale,
+  cv, ctx, VW, VH, cam, view, rc, buildWater, clampCam, setViewScale, applyWorldTransform,
   setPondShade, getPondShade, waterExport, shadePresetName, WATER_SHADE_PRESETS
 } from '../render/index.js';
 import { isMenu } from '../ui/menu.js';
@@ -2336,7 +2336,7 @@ export function edDrawOverlay(){
   var visW = VW / z, visH = VH / z;
   var P = layerParallax();
   var camx = cam.x * P.px, camy = cam.y * P.py;
-  ctx.setTransform(z * RENDER_SCALE, 0, 0, z * RENDER_SCALE, 0, 0);
+  applyWorldTransform();
   var c0 = Math.floor(camx/T) - 1, c1 = Math.floor((camx+visW)/T) + 1;
   var r0 = Math.floor(camy/T) - 1, r1 = Math.floor((camy+visH)/T) + 1;
   ctx.globalAlpha = 0.22;
@@ -2440,7 +2440,7 @@ export function edDrawOverlay(){
   }
   var S = world();
   if (S) drawGizmos(S, ED.sel);
-  ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
+  applyWorldTransform();
   rc(0, 0, VW, 9, '#0d0a18cc');
   var spec = ED.tool === 'tile' ? palSpec() : (ED.tool === 'obj' ? ED_OBJS[ED.pal] : listSpriteDefs()[ED.pal]);
   var label = spec ? spec.name : ED.tool;

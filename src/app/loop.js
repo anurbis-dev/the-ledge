@@ -1,6 +1,6 @@
 import GAME from '../core/game.js';
 import {
-  cv, ctx, VW, VH, BUF_W, BUF_H, RENDER_SCALE, setViewport, viewBox, hv, cam, view,
+  cv, ctx, VW, VH, BUF_W, BUF_H, setViewport, viewBox, hv, cam, view,
   sky, tiles, tilesFront, plats, lifts, caveExit, doors, chests, boulders, npcs,
   lootDrops, items, pickables, drawTorches, drawHarpoons, drawArrows, enemies, spiders, fliers, tendrils, ropes,
   hero, lightPass, drawWeeds, drawFish, drawParts, drawHearts,
@@ -10,7 +10,7 @@ import {
   setOutroFocus, outroFocus,
   applyPal, buildWater, stepWater, invalidateAll, addWaterRipple, clearWaterRipples, stepHeroWaterRipples, drawWaterImmersion, fore, rc, getFish, spark, landDust, bonkDust, emitSand, rockChunks,
   resetCam, followCam, pushCamRender, popCamRender, clearCamPan, paintHud, clearHud,
-  setViewScale, applyVolumes, drawCollideOverlay,
+  setViewScale, applyVolumes, drawCollideOverlay, applyWorldTransform,
   isInvOpen, invInspecting, openInv, closeInv, toggleInv, stepInv, drawInventory, handleInvPointer, handleInvWheel, handleInvKey,
   clientToGame, hitsHero, giveInv, giveInvKit
 } from '../render/index.js';
@@ -544,10 +544,10 @@ function frame(now){
     var z = ED.zoom || 1;
     setViewScale(z);
     ctx.imageSmoothingEnabled = false;
-    ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
+    applyWorldTransform();
     ctx.clearRect(0, 0, BUF_W, BUF_H);
     sky();
-    ctx.setTransform(z * RENDER_SCALE, 0, 0, z * RENDER_SCALE, 0, 0);
+    applyWorldTransform();
     tiles();
     if (entitiesShown(true)){
       plats(); lifts(); caveExit(); doors(); boulders(); chests();
@@ -556,13 +556,13 @@ function frame(now){
     }
     tilesFront();
     drawParts(dt); drawHearts(dt);
-    ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
+    applyWorldTransform();
     applyVolumes();
-    ctx.setTransform(z * RENDER_SCALE, 0, 0, z * RENDER_SCALE, 0, 0);
+    applyWorldTransform();
     drawWeeds();
     if (entitiesShown(true)) tendrils();
     if (ED.showGeo) drawCollideOverlay();
-    ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
+    applyWorldTransform();
     fore();
     vignette();
     edDrawOverlay();
@@ -581,7 +581,7 @@ function frame(now){
     if ((paused && !isInvOpen()) || outro || gameOver) hushMusic();
     else resumeMusic();
     var ovPrev = pushCamRender(S.shake);
-    ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
+    applyWorldTransform();
     ctx.clearRect(0, 0, BUF_W, BUF_H);
     sky(); tiles();
     if (entitiesShown(false)){
@@ -663,7 +663,7 @@ function frame(now){
   liftSound(anyMoving);
   stepSounds(S);
 
-  ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
+  applyWorldTransform();
   ctx.clearRect(0, 0, BUF_W, BUF_H);
   sky();
   tiles();
