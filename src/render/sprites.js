@@ -25,9 +25,9 @@ function blitEntSprite(id, anim, frame, wx, wy, dir, pinCell, objectKind){
   if (dir < 0){
     ctx.translate(x + def.fw, y);
     ctx.scale(-1, 1);
-    ctx.drawImage(img, 0, 0);
+    ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, def.fw, def.fh);
   } else {
-    ctx.drawImage(img, x, y);
+    ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, x, y, def.fw, def.fh);
   }
   ctx.restore();
   return true;

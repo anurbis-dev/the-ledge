@@ -11,10 +11,11 @@ import {
 import { initSliders } from './slider.js';
 import {
   getSpriteDef, getSpriteFrameSrc, setSpriteFrame, clearSpriteFrame,
-  isSpriteFrameDirty, setSpriteSize,
+  isSpriteFrameDirty, setSpriteSize, setSpriteRes,
   getAnimFrameCount, setAnimFrameCount, reorderAnimFrames,
   getAnimSpeed, setAnimSpeed,
-  addSpriteDef, spriteFrameImage, addAnimDef, renameSpriteDef, setSpriteTag
+  addSpriteDef, spriteFrameImage, addAnimDef, renameSpriteDef, setSpriteTag,
+  isHeroSprite
 } from '../core/spriteset.js';
 import {
   getFrameAnchor, setFrameAnchor, getAnimBox, setAnimBox,
@@ -36,6 +37,10 @@ var mode = 'tile';
 var objCurrent = null;
 var spriteSlotEl = null;
 var fw = 16, fh = 16;
+/* Множитель разрешения арта (см. spriteset.setSpriteRes): холст painting/export =
+   fw*res × fh*res, но fw/fh (футпринт, якоря, хитбокс) остаются логическими и без
+   изменений — сохранились для tile-режима (там всегда 1). */
+var res = 1;
 var animId = '';
 var frameI = 0;
 var onChange = null;
@@ -224,7 +229,7 @@ export function openTileEdit(spec, clientX, clientY){
   stopPlay();
   mode = 'tile';
   objCurrent = null;
-  fw = 16; fh = 16;
+  fw = 16; fh = 16; res = 1;
   animId = '';
   frameI = 0;
   animFilter = '';
@@ -248,6 +253,13 @@ function isFoeSprite(id){
   return /^(enemy|flier|spider)\d+$/.test(k);
 }
 
+/** Раскладка процедурного бейка в стартовые растровые кадры — враги уже так
+    делают при открытии Sprite Edit; героине это даёт силуэт по текущей позе
+    вместо рисования ~30 анимаций с нуля (см. bakeHeroFrame). */
+function isBakeableOnOpen(id){
+  return isFoeSprite(id) || isHeroSprite(id);
+}
+
 function materializeBakes(id){
   var def = getSpriteDef(id), r, a, i, n;
   if (!def || !def.anims) return;
@@ -268,10 +280,11 @@ export function openSpriteEdit(def, clientX, clientY, keepObject){
   if (!keepObject) objCurrent = null;
   if (objCurrent) root.classList.add('ed-object');
   else root.classList.remove('ed-object');
-  if (isFoeSprite(def.id)) materializeBakes(def.id);
+  if (isBakeableOnOpen(def.id)) materializeBakes(def.id);
   current = getSpriteDef(def.id) || def;
   fw = current.fw || 16;
   fh = current.fh || 16;
+  res = current.res || 1;
   animId = def.anims && def.anims[0] ? def.anims[0].id : '';
   frameI = 0;
   animFilter = '';
@@ -299,11 +312,12 @@ export function openObjectEdit(meta, clientX, clientY){
     current = sd;
     fw = current.fw || 16;
     fh = current.fh || 16;
+    res = current.res || 1;
     animId = current.anims && current.anims[0] ? current.anims[0].id : '';
     frameI = 0;
   } else {
     current = meta;
-    fw = 16; fh = 16;
+    fw = 16; fh = 16; res = 1;
     animId = '';
     frameI = 0;
   }
@@ -692,7 +706,7 @@ export function refreshTileEdit(){
     var sidR = resolveObjSpriteId(objCurrent);
     if (sidR){
       current = getSpriteDef(sidR) || current;
-      if (current && current.fw){ fw = current.fw; fh = current.fh || fh; }
+      if (current && current.fw){ fw = current.fw; fh = current.fh || fh; res = current.res || res; }
     }
     fillBody();
     return;
@@ -702,6 +716,7 @@ export function refreshTileEdit(){
     if (!current){ closeTileEdit(); return; }
     fw = current.fw || fw;
     fh = current.fh || fh;
+    res = current.res || res;
     fillBody();
     return;
   }
@@ -733,7 +748,7 @@ function field(label, el){
 
 function makeBuf(){
   var c = document.createElement('canvas');
-  c.width = fw; c.height = fh;
+  c.width = fw * res; c.height = fh * res;
   var cx = c.getContext('2d', { willReadFrequently: true });
   cx.imageSmoothingEnabled = false;
   return c;
@@ -767,8 +782,8 @@ function loadBuf(src, done){
     if (gen !== loadGen) return;
     var cx = buf.getContext('2d');
     cx.imageSmoothingEnabled = false;
-    cx.clearRect(0, 0, fw, fh);
-    cx.drawImage(img, 0, 0, img.naturalWidth || fw, img.naturalHeight || fh, 0, 0, fw, fh);
+    cx.clearRect(0, 0, fw * res, fh * res);
+    cx.drawImage(img, 0, 0, img.naturalWidth || fw * res, img.naturalHeight || fh * res, 0, 0, fw * res, fh * res);
     if (done) done();
   };
   img.onerror = function(){ if (gen !== loadGen) return; if (done) done(); };
@@ -789,6 +804,18 @@ function rgbToHex(r, g, b){
 }
 
 function cellOf(e, can){
+  var r = can.getBoundingClientRect();
+  var bw = fw * res, bh = fh * res;
+  var x = Math.floor((e.clientX - r.left) / r.width * bw);
+  var y = Math.floor((e.clientY - r.top) / r.height * bh);
+  if (x < 0) x = 0; if (x > bw - 1) x = bw - 1;
+  if (y < 0) y = 0; if (y > bh - 1) y = bh - 1;
+  return { x: x, y: y };
+}
+
+/* Как cellOf, но в логическом fw×fh (не buf fw*res×fh*res) — для якорей
+   origin/grab/weapon, которые всегда в логических координатах. */
+function cellOfLogical(e, can){
   var r = can.getBoundingClientRect();
   var x = Math.floor((e.clientX - r.left) / r.width * fw);
   var y = Math.floor((e.clientY - r.top) / r.height * fh);
@@ -883,7 +910,7 @@ function commitSrc(){
 
 function uniqueColors(){
   if (!buf) return [];
-  var data = buf.getContext('2d').getImageData(0, 0, fw, fh).data;
+  var data = buf.getContext('2d').getImageData(0, 0, fw * res, fh * res).data;
   var seen = {}, out = [], i, key;
   for (i = 0; i < data.length; i += 4){
     if (data[i + 3] < 8) continue;
@@ -1183,7 +1210,7 @@ function bindAnchorInp(el, kind, axis){
   });
 }
 
-function resizeSpriteFrames(id, nw, nh, done){
+function resizeSpriteFrames(id, nw, nh, done, scaled){
   var def = getSpriteDef(id), jobs = [], r, i, src;
   if (!def){ if (done) done(); return; }
   for (r = 0; r < def.anims.length; r++){
@@ -1202,7 +1229,11 @@ function resizeSpriteFrames(id, nw, nh, done){
       c.width = nw; c.height = nh;
       var cx = c.getContext('2d');
       cx.imageSmoothingEnabled = false;
-      cx.drawImage(img, 0, 0);
+      /* Footprint resize (fw/fh): пиксели остаются 1:1, канва просто расширяется/обрезается.
+         Res resize (scaled=true): контент растягивается в новый холст — стартовая точка
+         для перерисовки на более высоком разрешении, без потери. */
+      if (scaled) cx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, nw, nh);
+      else cx.drawImage(img, 0, 0);
       setSpriteFrame(id, job.anim, job.i, canvasToPng(c), true);
       left--;
       if (!left && done) done();
@@ -1222,10 +1253,27 @@ function applySpriteSize(nw, nh){
   clearBakeCache();
   current = getSpriteDef(current.id) || current;
   fw = current.fw; fh = current.fh;
-  resizeSpriteFrames(current.id, fw, fh, function(){
+  resizeSpriteFrames(current.id, fw * res, fh * res, function(){
     notify();
     fillBody();
   });
+}
+
+function applySpriteRes(nr){
+  if (!isSprite() || !current) return;
+  nr = nr | 0;
+  if (nr < 1) nr = 1;
+  if (nr > 8) nr = 8;
+  if (nr === res) return;
+  markOp();
+  setSpriteRes(current.id, nr);
+  clearBakeCache();
+  current = getSpriteDef(current.id) || current;
+  res = current.res || nr;
+  resizeSpriteFrames(current.id, fw * res, fh * res, function(){
+    notify();
+    fillBody();
+  }, true);
 }
 
 function syncCursor(){
@@ -1246,16 +1294,18 @@ function paintCanvas(){
   if (!preview) return;
   var can = preview;
   var cx = can.getContext('2d');
-  var sx = can.width / fw, sy = can.height / fh;
+  var bw = fw * res, bh = fh * res;
+  var sx = can.width / bw, sy = can.height / bh;    // буфер (fw*res×fh*res) → экран
+  var k = can.width / fw;                           // логика (fw×fh: якоря/бокс) → экран
   var a, b, animName;
   cx.imageSmoothingEnabled = false;
-  fillChecker(cx, fw, fh, sx, sy);
-  if (buf) cx.drawImage(buf, 0, 0, fw, fh, 0, 0, can.width, can.height);
+  fillChecker(cx, bw, bh, sx, sy);
+  if (buf) cx.drawImage(buf, 0, 0, bw, bh, 0, 0, can.width, can.height);
   else if (current && mode === 'tile' && !current.custom) paintTileIcon(cx, current, can.width);
   if (canEditAnchors()){
-    if (tool === 'hitbox'){ drawSpriteBox(cx, sx, true); drawAnchors(cx, sx); }
+    if (tool === 'hitbox'){ drawSpriteBox(cx, k, true); drawAnchors(cx, k); }
   } else if (!hasSpriteFrames()){
-    drawHitShape(cx, can.width, sx, tool === 'hitbox');
+    drawHitShape(cx, can.width, k, tool === 'hitbox');
   }
   if (hitLab){
     if (canEditAnchors()){
@@ -1384,7 +1434,7 @@ function bindPreview(can){
       syncCursor();
     }
     if (pendingAnchor){
-      var c = cellOf(e, can);
+      var c = cellOfLogical(e, can);
       pendingAnchor.x = c.x;
       pendingAnchor.y = c.y;
       paintCanvas();
@@ -1855,7 +1905,7 @@ function paintStrips(){
 function applyImportFile(file){
   if (!current || !file || !canPaint()) return;
   loadImageFile(file).then(function(img){
-    var slices = sliceSheet(img, file.name, fw, fh);
+    var slices = sliceSheet(img, file.name, fw * res, fh * res);
     if (!slices.length) return;
     markOp();
     if (isSprite()){
@@ -2290,6 +2340,26 @@ function fillBody(){
       sizeW.addEventListener('change', onSize);
       sizeH.addEventListener('change', onSize);
       xyRow('Size', '', sizeW, sizeH, '×', rollBody);
+
+      var resSel = document.createElement('select');
+      [1, 2, 3, 4].forEach(function(v){
+        var opt = document.createElement('option');
+        opt.value = String(v);
+        opt.textContent = v + '×';
+        if (v === res) opt.selected = true;
+        resSel.appendChild(opt);
+      });
+      resSel.title = 'Art resolution — paints/imports at fw*res × fh*res, on-screen footprint stays fw×fh';
+      resSel.addEventListener('change', function(){
+        applySpriteRes(parseInt(resSel.value, 10) || 1);
+      });
+      var resRow = document.createElement('label');
+      resRow.className = 'ed-field';
+      var resLab = document.createElement('span');
+      resLab.textContent = 'Res';
+      resRow.appendChild(resLab);
+      resRow.appendChild(resSel);
+      rollBody.appendChild(resRow);
     }
 
     if (anchors){
