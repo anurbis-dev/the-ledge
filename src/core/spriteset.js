@@ -758,6 +758,20 @@ export function setSpriteSize(id, fw, fh){
   return getSpriteMeta(id);
 }
 
+/** Точка привязки на холсте кадра (см. blitEntSprite/blitHeroSprite ox/oy/fx) —
+    отдельно от setSpriteSize, т.к. смена Size не пересчитывает её сама. */
+export function setSpriteOrigin(id, ox, oy, fx){
+  var def = byId[id];
+  if (!def) return null;
+  if (!saved[id]) saved[id] = {};
+  if (!saved[id]._meta) saved[id]._meta = {};
+  saved[id]._meta.ox = ox | 0;
+  saved[id]._meta.oy = oy | 0;
+  if (fx != null) saved[id]._meta.fx = fx | 0;
+  emit('origin');
+  return getSpriteMeta(id);
+}
+
 function recOf(id, anim){
   return saved[id] && saved[id][anim] ? saved[id][anim] : null;
 }

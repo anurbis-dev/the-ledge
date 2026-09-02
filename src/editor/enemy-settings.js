@@ -43,9 +43,10 @@ export function openEnemySettings(e, clientX, clientY){
   setTimeout(function(){ document.addEventListener('pointerdown', onOutside, true); }, 0);
 }
 
-function slider(parent, label, min, max, step, val, set, def){
+function slider(parent, label, min, max, step, val, set, def, tip){
   var wrap = document.createElement('label');
   wrap.className = 'slider-wrap';
+  if (tip) wrap.title = tip;
   wrap.innerHTML = '<div class="slider-label-overlay"><span>' + label + '</span><span></span></div>';
   var inp = document.createElement('input');
   inp.type = 'range'; inp.min = min; inp.max = max; inp.step = step;
@@ -193,7 +194,9 @@ function fill(){
   var e = current;
   lootSection(body, e);
   slider(body, 'Walk speed', 8, 80, 1, e.v, function(v){ e.v = v; }, 26);
-  slider(body, 'Jump height', 0, 40, 1, e.jumpH || 0, function(v){ e.jumpH = v; }, 0);
+  slider(body, 'Jump height', 0, 40, 1, e.jumpH || 0, function(v){ e.jumpH = v; }, 0,
+    'Arc apex, px above ground (tile = 16px): ~18 clears a 1-tile block, ~34 clears 2 tiles. ' +
+    'Also the deepest drop the enemy will step off a ledge for — same value works both ways.');
   pointsSection(body, e);
   toggle(body, 'Can chase', e.canChase, function(v){ e.canChase = v; });
   if (e.canChase){

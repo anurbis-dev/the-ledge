@@ -1,6 +1,6 @@
 import { C } from '../core/constants.js';
 import { runtime } from '../core/runtime.js';
-import { rectFree, solidAt } from '../core/map.js';
+import { rectFree, solidAt, groundYAt } from '../core/map.js';
 import { damage, isInvuln, slopeUnder } from '../core/player.js';
 import {
   getAnimBox, legacyObjectKindFromSprite, resolveEntityObjectKind
@@ -88,6 +88,11 @@ function advancePoint(e){
   else if (e.ptIdx < 0){ e.ptIdx = 1; e.ptDir = 1; }
   e.aiState = 'patrol';
 }
+/** есть ли опора не глубже maxD px под ногами — чтобы спрыгнуть вниз, а не свалиться в пропасть */
+function dropWithin(x, feetY, maxD){
+  for (var d = 4; d <= maxD; d += 4) if (solidAt(x, feetY + d)) return true;
+  return false;
+}
 export function stepEnemies(S, dt){
   var p = S.p;
   for (var i = 0; i < S.enemies.length; i++){
@@ -106,7 +111,11 @@ export function stepEnemies(S, dt){
     }
     if (e.vy !== 0){
       e.vy += 620*dt; e.y += e.vy*dt;
-      if (e.y >= e.baseY){ e.y = e.baseY; e.vy = 0; }
+      if (e.vy > 0){                                  // падение — ищет реальную опору, а не старую baseY
+        var landY = groundYAt(e.x + e.w/2, e.y + e.h);
+        if (landY !== null && e.y + e.h >= landY){ e.y = landY - e.h; e.vy = 0; e.baseY = e.y; }
+        else if (e.y - e.baseY > 240){ e.baseY = e.y; e.vy = 0; } // опору не нашёл — аварийный стоп вместо вечного падения
+      }
     }
     // прыжок героини сверху убивает
     if (!e.dead && p.vy > 60 && p.state === 'normal' &&
@@ -142,10 +151,17 @@ export function stepEnemies(S, dt){
       else e.x += e.dir * moveAmt;
       var blocked = !rectFree(e.x, e.y, e.w, e.h);
       if (blocked && e.jumpH > 0 && e.vy === 0 && rectFree(e.x, e.y - e.jumpH, e.w, e.h)){
-        e.vy = -Math.sqrt(2 * 620 * e.jumpH);        // перепрыгивает препятствие по пути
+        e.vy = -Math.sqrt(2 * 620 * e.jumpH);        // перепрыгивает препятствие / забирается на блок
         blocked = false;
       }
-      var atEdge = !blocked && e.vy === 0 && !solidAt(e.x + e.w/2, e.y + e.h + 3);
+      var atEdge = false;
+      if (!blocked && e.vy === 0 && !solidAt(e.x + e.w/2, e.y + e.h + 3)){
+        if (e.jumpH > 0 && dropWithin(e.x + e.w/2, e.y + e.h, e.jumpH)){
+          e.vy = 1; e.x += e.dir * 4;                 // безопасный спуск — доносит за кромку, чтобы не зацепиться углом при посадке
+        } else {
+          atEdge = true;
+        }
+      }
       if (blocked || atEdge) e.x = ex0;              // стена/обрыв — стоп
       if (e.aiState === 'chase'){
         var loX = Math.min.apply(null, e.points), hiX = Math.max.apply(null, e.points);
