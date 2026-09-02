@@ -3,7 +3,7 @@
 // sprite frames (+spriteDefs), objects/objectAnchors, optional settings/mix/talk/intro.
 // Written only by the editor's Bake button — no localStorage draft ever overrides this file.
 export var BAKED = {
-  "savedAt": 1788371335459,
+  "savedAt": 1788373472949,
   "levels": {
     "1": {
       "id": 1,
@@ -417793,8 +417793,8 @@ export var BAKED = {
     },
     "key": {
       "_meta": {
-        "fw": 24,
-        "fh": 24
+        "fw": 16,
+        "fh": 16
       },
       "idle": {
         "frames": [
@@ -418021,8 +418021,8 @@ export var BAKED = {
     },
     "s_9": {
       "_meta": {
-        "fw": 32,
-        "fh": 32
+        "fw": 16,
+        "fh": 16
       },
       "idle": {
         "frames": [
@@ -418790,8 +418790,8 @@ export var BAKED = {
     },
     "s_14": {
       "_meta": {
-        "fw": 32,
-        "fh": 32
+        "fw": 16,
+        "fh": 16
       },
       "idle": {
         "frames": [
