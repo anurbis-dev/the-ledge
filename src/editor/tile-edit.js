@@ -847,21 +847,39 @@ function cellOf(e, can){
   return { x: x, y: y };
 }
 
-/* Якоря origin/grab/weapon — всегда в логическом footprint fw×fh, не в
-   разрешении арта (bufW/bufH может быть другим). */
+/* box/anchors хранятся в footprint fw×fh (мировые пиксели, см. object-anchors.js),
+   но снаппим клик к сетке арта (bufW×bufH) — иначе точность ограничена шагом
+   footprint-клетки, который может быть в разы крупнее одного пикселя арта.
+   Шаг ОДИН на обе оси (см. fitExact/fitFrame) — если снаппить X и Y порознь
+   (fw/bufW vs fh/bufH), при леттербоксе (арт не того же аспекта, что footprint)
+   клики в паддинге вокруг арта съезжают на неверную границу. artStep()/artPadX/Y
+   — тот же uniform-scale леттербокс, что и в paintCanvas, только в footprint-
+   единицах, а не в канвас-пикселях. */
+function artStep(){ return (bufW > 0 && bufH > 0) ? Math.min(fw / bufW, fh / bufH) : 1; }
+function artPadX(){ return (fw - bufW * artStep()) / 2; }
+function artPadY(){ return (fh - bufH * artStep()) / 2; }
+
 function cellOfLogical(e, can){
   var r = can.getBoundingClientRect();
-  var x = Math.floor((e.clientX - r.left) / r.width * fw);
-  var y = Math.floor((e.clientY - r.top) / r.height * fh);
-  if (x < 0) x = 0; if (x > fw - 1) x = fw - 1;
-  if (y < 0) y = 0; if (y > fh - 1) y = fh - 1;
+  var rawX = (e.clientX - r.left) / r.width * fw;
+  var rawY = (e.clientY - r.top) / r.height * fh;
+  var s = artStep(), px0 = artPadX(), py0 = artPadY();
+  var ix = Math.floor((rawX - px0) / s);
+  var iy = Math.floor((rawY - py0) / s);
+  var x = ix * s + px0, y = iy * s + py0;
+  if (x < 0) x = 0; if (x > fw - s) x = fw - s;
+  if (y < 0) y = 0; if (y > fh - s) y = fh - s;
   return { x: x, y: y };
 }
 
 function edgeOf(e, can){
   var r = can.getBoundingClientRect();
-  var x = Math.round((e.clientX - r.left) / r.width * fw);
-  var y = Math.round((e.clientY - r.top) / r.height * fh);
+  var rawX = (e.clientX - r.left) / r.width * fw;
+  var rawY = (e.clientY - r.top) / r.height * fh;
+  var s = artStep(), px0 = artPadX(), py0 = artPadY();
+  var ix = Math.round((rawX - px0) / s);
+  var iy = Math.round((rawY - py0) / s);
+  var x = ix * s + px0, y = iy * s + py0;
   if (x < 0) x = 0; if (x > fw) x = fw;
   if (y < 0) y = 0; if (y > fh) y = fh;
   return { x: x, y: y };
@@ -1059,7 +1077,7 @@ function liveAnchors(){
 }
 
 function drawMark(cx, pt, k, col, kind){
-  var x = (pt.x + 0.5) * k, y = (pt.y + 0.5) * k;
+  var x = (pt.x + artStep() / 2) * k, y = (pt.y + artStep() / 2) * k;
   cx.save();
   cx.strokeStyle = col;
   cx.fillStyle = col;
@@ -1114,8 +1132,8 @@ function drawSpriteBox(cx, k, filled){
 function drawAnchors(cx, k){
   var a = liveAnchors(), ox, oy;
   if (!a) return;
-  ox = (a.origin.x + 0.5) * k;
-  oy = (a.origin.y + 0.5) * k;
+  ox = (a.origin.x + artStep() / 2) * k;
+  oy = (a.origin.y + artStep() / 2) * k;
   cx.save();
   cx.strokeStyle = ORIGIN_COL;
   cx.globalAlpha = 0.4;
@@ -1155,8 +1173,8 @@ function hitAnchor(e, can){
   r = can.getBoundingClientRect();
   k = r.width / fw;
   function dist(pt){
-    var dx = e.clientX - r.left - (pt.x + 0.5) * k;
-    var dy = e.clientY - r.top - (pt.y + 0.5) * k;
+    var dx = e.clientX - r.left - (pt.x + artStep() / 2) * k;
+    var dy = e.clientY - r.top - (pt.y + artStep() / 2) * k;
     return dx * dx + dy * dy;
   }
   rad = 14 * 14;
@@ -1191,19 +1209,27 @@ function hitBoxHandle(e, can){
   return h || null;
 }
 
+/* Округление только для отображения в текстовых полях (3 знака хватает, чтобы не
+   терять точность привязки к арт-пикселю) — хранится и передаётся полное число. */
+function fmtN(n){ return String(Math.round(n * 1000) / 1000); }
+
 function syncAnchorFields(){
-  var a = liveAnchors(), b;
+  var a = liveAnchors(), b, sx, sy;
   if (!a) return;
-  if (originXEl) originXEl.value = String(a.origin.x);
-  if (originYEl) originYEl.value = String(a.origin.y);
-  if (grabXEl) grabXEl.value = String(a.grab.x);
-  if (grabYEl) grabYEl.value = String(a.grab.y);
-  if (weaponXEl) weaponXEl.value = String(a.weapon.x);
-  if (weaponYEl) weaponYEl.value = String(a.weapon.y);
+  /* step/max создаются в fillBody() до того, как асинхронный loadBuf успевает
+     обновить bufW/bufH под конкретный кадр — держим их актуальными здесь,
+     paintCanvas() зовёт syncAnchorFields() при каждой перерисовке. */
+  sx = artStep(); sy = artStep();
+  if (originXEl){ originXEl.value = fmtN(a.origin.x); originXEl.step = String(sx); originXEl.max = String(fw); }
+  if (originYEl){ originYEl.value = fmtN(a.origin.y); originYEl.step = String(sy); originYEl.max = String(fh); }
+  if (grabXEl){ grabXEl.value = fmtN(a.grab.x); grabXEl.step = String(sx); grabXEl.max = String(fw); }
+  if (grabYEl){ grabYEl.value = fmtN(a.grab.y); grabYEl.step = String(sy); grabYEl.max = String(fh); }
+  if (weaponXEl){ weaponXEl.value = fmtN(a.weapon.x); weaponXEl.step = String(sx); weaponXEl.max = String(fw); }
+  if (weaponYEl){ weaponYEl.value = fmtN(a.weapon.y); weaponYEl.step = String(sy); weaponYEl.max = String(fh); }
   if (rotEl) rotEl.value = String(a.weapon.rot || 0);
   b = liveBoxRect();
-  if (boxWEl && b) boxWEl.value = String(b.w);
-  if (boxHEl && b) boxHEl.value = String(b.h);
+  if (boxWEl && b){ boxWEl.value = fmtN(b.w); boxWEl.step = String(sx); }
+  if (boxHEl && b){ boxHEl.value = fmtN(b.h); boxHEl.step = String(sy); }
 }
 
 function clampCell(n, max){
@@ -1224,13 +1250,13 @@ function commitAnchor(kind, x, y){
   paintStrips();
 }
 
-function numInp(val, min, max){
+function numInp(val, min, max, step){
   var el = document.createElement('input');
   el.type = 'number';
   el.value = String(val);
   el.min = String(min);
   el.max = String(max);
-  el.step = '1';
+  el.step = step != null ? String(step) : '1';
   el.addEventListener('keydown', function(e){ e.stopPropagation(); });
   return el;
 }
@@ -1256,11 +1282,12 @@ function xyRow(label, cls, a, b, sep, parent){
 
 function bindAnchorInp(el, kind, axis){
   el.addEventListener('change', function(){
-    var a = liveAnchors(), n, x, y;
+    var a = liveAnchors(), n, x, y, max;
     if (!a || !current) return;
-    n = parseInt(el.value, 10);
+    n = parseFloat(el.value);
     if (isNaN(n)) { syncAnchorFields(); return; }
-    n = clampCell(n, axis === 'x' ? fw - 1 : fh - 1);
+    max = axis === 'x' ? fw : fh;
+    if (n < 0) n = 0; else if (n > max) n = max;
     x = a[kind].x; y = a[kind].y;
     if (axis === 'x') x = n; else y = n;
     commitAnchor(kind, x, y);
@@ -1328,10 +1355,10 @@ function paintCanvas(){
       a = liveAnchors();
       b = liveBoxRect();
       hitLab.textContent = 'Frame ' + (frameI + 1) + ' · ' + animName +
-        (a ? ' · origin ' + a.origin.x + ',' + a.origin.y +
-          (b ? ' · box ' + b.w + '×' + b.h : '') +
-          ' · hands ' + a.grab.x + ',' + a.grab.y +
-          ' · weapon ' + a.weapon.x + ',' + a.weapon.y : '');
+        (a ? ' · origin ' + fmtN(a.origin.x) + ',' + fmtN(a.origin.y) +
+          (b ? ' · box ' + fmtN(b.w) + '×' + fmtN(b.h) : '') +
+          ' · hands ' + fmtN(a.grab.x) + ',' + fmtN(a.grab.y) +
+          ' · weapon ' + fmtN(a.weapon.x) + ',' + fmtN(a.weapon.y) : '');
     } else if (hasSpriteFrames()){
       animName = (current.anims.filter(function(an){ return an.id === animId; })[0] || { name: animId }).name;
       hitLab.textContent = 'Frame ' + (frameI + 1) + ' · ' + animName;
@@ -1354,12 +1381,13 @@ function syncTools(){
 }
 
 function applySpriteHitbox(x0, y0, x1, y1){
+  var minW = artStep(), minH = artStep();
   var x = Math.min(x0, x1), y = Math.min(y0, y1);
-  var w = Math.max(1, Math.abs(x1 - x0)), h = Math.max(1, Math.abs(y1 - y0));
+  var w = Math.max(minW, Math.abs(x1 - x0)), h = Math.max(minH, Math.abs(y1 - y0));
   if (x + w > fw) w = fw - x;
   if (y + h > fh) h = fh - y;
-  if (w < 1) w = 1;
-  if (h < 1) h = 1;
+  if (w < minW) w = minW;
+  if (h < minH) h = minH;
   pendingBox = { x: x, y: y, w: w, h: h };
   paintCanvas();
 }
@@ -2487,20 +2515,20 @@ function fillBody(){
     }
 
     if (anchors){
-      originXEl = numInp(0, 0, fw - 1);
-      originYEl = numInp(0, 0, fh - 1);
+      originXEl = numInp(0, 0, fw, artStep());
+      originYEl = numInp(0, 0, fh, artStep());
       bindAnchorInp(originXEl, 'origin', 'x');
       bindAnchorInp(originYEl, 'origin', 'y');
       originXEl.title = 'World attach for this action (every frame in the row)';
       originYEl.title = originXEl.title;
       xyRow('Origin', 'ed-anchor-o', originXEl, originYEl, ',', rollBody);
 
-      boxWEl = numInp(10, 2, fw);
-      boxHEl = numInp(22, 2, fh);
+      boxWEl = numInp(10, 2, fw, artStep());
+      boxHEl = numInp(22, 2, fh, artStep());
       boxWEl.title = 'Collision width for this action (from origin)';
       boxHEl.title = 'Collision height for this action (from origin). Ground is the bottom edge.';
       boxWEl.addEventListener('change', function(){
-        var n = parseInt(boxWEl.value, 10), cur, ak = anchorKind();
+        var n = parseFloat(boxWEl.value), cur, ak = anchorKind();
         if (!ak || isNaN(n)) { syncAnchorFields(); return; }
         cur = getAnimBox(ak, animId);
         markOp();
@@ -2510,7 +2538,7 @@ function fillBody(){
         paintCanvas();
       });
       boxHEl.addEventListener('change', function(){
-        var n = parseInt(boxHEl.value, 10), cur, ak = anchorKind();
+        var n = parseFloat(boxHEl.value), cur, ak = anchorKind();
         if (!ak || isNaN(n)) { syncAnchorFields(); return; }
         cur = getAnimBox(ak, animId);
         markOp();
@@ -2521,16 +2549,16 @@ function fillBody(){
       });
       xyRow('Box', 'ed-anchor-b', boxWEl, boxHEl, '×', rollBody);
 
-      grabXEl = numInp(0, 0, fw - 1);
-      grabYEl = numInp(0, 0, fh - 1);
+      grabXEl = numInp(0, 0, fw, artStep());
+      grabYEl = numInp(0, 0, fh, artStep());
       grabXEl.title = 'Hands that search for a ledge (this action)';
       grabYEl.title = grabXEl.title;
       bindAnchorInp(grabXEl, 'grab', 'x');
       bindAnchorInp(grabYEl, 'grab', 'y');
       xyRow('Hands', 'ed-anchor-g', grabXEl, grabYEl, ',', rollBody);
 
-      weaponXEl = numInp(0, 0, fw - 1);
-      weaponYEl = numInp(0, 0, fh - 1);
+      weaponXEl = numInp(0, 0, fw, artStep());
+      weaponYEl = numInp(0, 0, fh, artStep());
       weaponXEl.title = 'Weapon hand on this frame (hero) / grip point on this object (held item, e.g. torch, axe handle)';
       weaponYEl.title = weaponXEl.title;
       bindAnchorInp(weaponXEl, 'weapon', 'x');

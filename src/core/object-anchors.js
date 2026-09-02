@@ -22,13 +22,19 @@ var BOX_MIN = 2;
 var saved = {};
 var onChange = null;
 
+/* Координаты box/anchors — мировые пиксели (footprint), но НЕ обязательно целые:
+   footprint часто грубее разрешения арта (напр. у героя 20×24 при арте 48×48),
+   и редактор снаппит рамку/якоря по сетке арта — округление до целого здесь
+   не даёт точно попасть на границу арт-пикселя. num() просто гарантирует число. */
+function num(n){ n = +n; return isNaN(n) ? 0 : n; }
+
 function clonePts(arr){
   if (!arr || !arr.length) return [];
   var out = [], i, p;
   for (i = 0; i < arr.length; i++){
     p = arr[i];
     out[i] = p && typeof p === 'object'
-      ? (p.rot != null ? { x: p.x | 0, y: p.y | 0, rot: +p.rot } : { x: p.x | 0, y: p.y | 0 })
+      ? (p.rot != null ? { x: num(p.x), y: num(p.y), rot: +p.rot } : { x: num(p.x), y: num(p.y) })
       : null;
   }
   return out;
@@ -37,13 +43,13 @@ function clonePts(arr){
 function cloneOrigin(o){
   if (!o) return null;
   if (Array.isArray(o)) return clonePts(o);
-  if (typeof o === 'object' && o.x != null) return { x: o.x | 0, y: o.y | 0 };
+  if (typeof o === 'object' && o.x != null) return { x: num(o.x), y: num(o.y) };
   return null;
 }
 
 function cloneBox(b){
   if (!b || b.w == null || b.h == null) return null;
-  return { w: b.w | 0, h: b.h | 0 };
+  return { w: num(b.w), h: num(b.h) };
 }
 
 function cloneAnimRec(rec){
@@ -109,7 +115,7 @@ function emit(why){
 }
 
 function clampS(n, lo, hi){
-  n = n | 0;
+  n = num(n);
   if (n < lo) return lo;
   if (n > hi) return hi;
   return n;
@@ -117,7 +123,7 @@ function clampS(n, lo, hi){
 
 function clampPt(p, fw, fh){
   if (!p) return null;
-  return { x: clampS(p.x, 0, fw - 1), y: clampS(p.y, 0, fh - 1) };
+  return { x: clampS(p.x, 0, fw), y: clampS(p.y, 0, fh) };
 }
 
 function originFromRec(rec){
@@ -125,10 +131,10 @@ function originFromRec(rec){
   if (!rec || rec.origin == null) return null;
   o = rec.origin;
   if (!Array.isArray(o))
-    return (o && o.x != null) ? { x: o.x | 0, y: o.y | 0 } : null;
+    return (o && o.x != null) ? { x: num(o.x), y: num(o.y) } : null;
   for (j = 0; j < o.length; j++){
     p = o[j];
-    if (p) return { x: p.x | 0, y: p.y | 0 };
+    if (p) return { x: num(p.x), y: num(p.y) };
   }
   return null;
 }
@@ -326,8 +332,8 @@ export function defaultAnimBox(objectKind, anim){
 export function getAnimBox(objectKind, anim){
   var rec = recOf(objectKind, anim), d = defaultAnimBox(objectKind, anim), b;
   b = rec && rec.box;
-  if (!b || b.w == null || b.h == null) return { w: d.w | 0, h: d.h | 0 };
-  return { w: b.w | 0, h: b.h | 0 };
+  if (!b || b.w == null || b.h == null) return { w: num(d.w), h: num(d.h) };
+  return { w: num(b.w), h: num(b.h) };
 }
 
 export function setAnimBox(objectKind, anim, w, h){
@@ -339,8 +345,8 @@ export function setAnimBox(objectKind, anim, w, h){
   maxW = meta ? meta.fw : 16;
   maxH = meta ? meta.fh : 16;
   if (o){
-    maxW = Math.max(BOX_MIN, maxW - (o.x | 0));
-    maxH = Math.max(BOX_MIN, maxH - (o.y | 0));
+    maxW = Math.max(BOX_MIN, maxW - num(o.x));
+    maxH = Math.max(BOX_MIN, maxH - num(o.y));
   }
   w = clampS(w, BOX_MIN, maxW);
   h = clampS(h, BOX_MIN, maxH);
@@ -355,14 +361,14 @@ export function getFrameAnchor(objectKind, anim, i, kind){
   var rec = recOf(objectKind, anim), arr, p;
   if (kind === 'origin') return originFromRec(rec);
   if (kind === 'grab'){
-    if (rec && rec.grab && rec.grab.x != null) return { x: rec.grab.x | 0, y: rec.grab.y | 0 };
+    if (rec && rec.grab && rec.grab.x != null) return { x: num(rec.grab.x), y: num(rec.grab.y) };
     return null;
   }
   if (kind !== 'weapon') return null;
   arr = rec && rec.weapon;
   p = arr && arr[i | 0];
   if (!p) return null;
-  return p.rot != null ? { x: p.x | 0, y: p.y | 0, rot: +p.rot } : { x: p.x | 0, y: p.y | 0 };
+  return p.rot != null ? { x: num(p.x), y: num(p.y), rot: +p.rot } : { x: num(p.x), y: num(p.y) };
 }
 
 /** rot (только для kind='weapon') — доп. угол в градусах для этого кадра;
