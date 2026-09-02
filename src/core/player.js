@@ -11,12 +11,12 @@ import { heroGrabOffset, heroGrabWorld, heroHandY, heroBoxAnim } from './sprite-
 import { getAnimBox, legacyObjectKindFromSprite } from './object-anchors.js';
 
 export function activeHeroId(){
-  var sp = runtime.LV && runtime.LV.spawn;
+  var sp = runtime.mountSkin || (runtime.LV && runtime.LV.spawn);
   return (sp && sp.spriteId) || 'hero';
 }
 
 export function activeObjectKind(){
-  var sp = runtime.LV && runtime.LV.spawn;
+  var sp = runtime.mountSkin || (runtime.LV && runtime.LV.spawn);
   return (sp && sp.objectKind) || legacyObjectKindFromSprite(sp && sp.spriteId) || 'hero';
 }
 
@@ -43,6 +43,7 @@ export function mkPlayer(){
     stanceT: 0, stanceFrom: 0, lookUp: 0, pushWall: false,
     gapCrawl: false, edgeHoldT: 0,
     recoverSt: 0, knockedOut: false, gettingUp: false, getupT: 0,
+    mount: null, mountSaved: null,
     events: []
   };
 }
@@ -437,7 +438,10 @@ export function damage(S, n, stun){
   S.shake = Math.min(7, 3 + n * 2); S.hitStop = 0.09;
   S.p.events.push('hurt');
   breakTalk(S, 'hit');
-  if (S.hp <= 0){ S.hp = 0; S.dead = true; S.p.events.push('dead'); }
+  if (S.hp <= 0){
+    S.hp = 0; S.dead = true; S.p.events.push('dead');
+    if (S.p.mount){ runtime.mountSkin = null; S.p.mount = null; S.p.mountSaved = null; }
+  }
   return true;
 }
 /* приземление: залипаем в приседе (среднее) или лёжа (высокое), без управления */

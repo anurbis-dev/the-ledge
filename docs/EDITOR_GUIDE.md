@@ -149,6 +149,7 @@
 - `Sound`, `Light`, `Volume` — Light: params + Sprite slot + якоря (по умолчанию `lantern`); Edit → кадры фонаря.
 - `FX Sand` (`kind: 'fx_sand'`) — непрерывный песчаный эмиттер (`LV.emitters` / `S.emitters`, `mkEmitterAt`); role `marker`. Постановка сразу выбирает объект и открывает Inspect/гизмо `move` (позиция = `x,y`). Форма спавна: `shape` point|square|circle|line (`EMIT_SHAPES`), `shapeSize` (px: сторона / диаметр / длина), `shapeAngle` (deg, только line); `stepEmitters` → `sampleEmitterPoint` → `emitSand`. Те же частицы, что у CRUMB (`SAND_DEF`).
 - `Boulder` — рисуется спрайтом 'boulder' (центрированным и повёрнутым вокруг центра, если запечён, иначе процедурно).
+- `Vehicle` (`kind: 'vehicle'`) — плейсбл объект транспорта для посадки в режиме маунта (`LV.vehicles` / `S.vehicles`, `mkVehicleAt` / `tryMount` / `tryDismount`). Role `prop`. Рисуется спрайтом 'vehicle' (если запечён) или процедурно как фиолетовая коробка; при посадке игрока скрывается (герой его "носит"). Параметры в плавающем окне **Vehicle Settings** (`#edVehicleSettings`) при клике по объекту: слайдеры **Contact damage** (0–5, дефолт 0, урон-от-движения при посадке) и **Speed multiplier** (0.5–3, дефолт 1, множитель ускорения; пока не подключен к физике). Внешний вид (spriteId/objectKind) задаётся как у других объектов через generic-механизм клонирования (спрайт связывается в Details / Sprite slot). Persist `packVehicle`.
 - `Rope V` (`kind: 'rope_v'`) / `Rope H` (`kind: 'rope_h'`) — вертикальный / горизонтальный канат (`LV.ropes`). Постановка `mkRopeAt`; гизмо: handles `a`/`b` + move span; клик → `#edRopeSettings` (H: Length+ 0=длина=span, сдвиг добавляет px; Segments; Elasticity 0..1 с кривой ^2.6; Swing force только V; Wind; Climb; Grab). Play: V — лёгкий wobble при хвате, ↑↓ после отпускания захвата, тап L/R; H — bars, ↓ отцеп. В Play канат сталкивается с solid-тайлами (новых контролов в редакторе нет). Persist `packRope` (`lengthExtra`/`length` для H). Role `marker`.
 - `Plat H` (`kind: 'plat_h'`) / `Plat V` (`kind: 'plat_v'`) — движущаяся платформа (`LV.plats` / `S.plats`, `mkPlatAt`; `vert` из kind). Role `marker`. Рисуется спрайтом (если запечён, растягивается на w×h бокса платформы, иначе процедурно); кабельные/маячковые детали остаются процедурными. Постановка сразу выбирает объект и открывает Inspect; гизмо `move` (сдвиг всего пути) + ручки `platA`/`platB` (концы A=min / B=max). Persist `packPlat`. History `OBJ_KEYS` включает `plats`.
 - `Lift` (`kind: 'lift'`) — лифт по этажам (`LV.lifts` / `S.lifts`, `mkLiftAt` + `syncLiftFloors` / `buildGates`). Role `marker`. Рисуется спрайтом 'lift' с анимацией 'closed'|'open' (по состоянию дверей кабины), растягивается на бокс кабины; решётка/индикатор остаются процедурными фоллбэками только когда спрайта нет. Постановка сразу выбирает объект и открывает Inspect; гизмо `move` + ручки `liftFloor` по `floors[]`. Persist `packLift`. History включает `lifts`. Call-кнопки на этажах работают только при `trigger==='call'`.
@@ -214,7 +215,7 @@
 
 ## 8. Плавающие окна
 
-Плавающие окна: Layers, Inspect, Chest Loot, NPC Talk, Boulder Settings, Enemy AI (`#edEnemySettings`), Rope Settings (`#edRopeSettings`), Tile. **Все окна используют единый базовый механизм** `bindFloat()`/`bindAllFloats()` из `src/editor/float.js`, обеспечивающий одинаковое поведение: drag за шапку, ПКМ-драг, ресайз, скролл.
+Плавающие окна: Layers, Inspect, Chest Loot, NPC Talk, Boulder Settings, Vehicle Settings (`#edVehicleSettings`), Enemy AI (`#edEnemySettings`), Rope Settings (`#edRopeSettings`), Tile. **Все окна используют единый базовый механизм** `bindFloat()`/`bindAllFloats()` из `src/editor/float.js`, обеспечивающий одинаковое поведение: drag за шапку, ПКМ-драг, ресайз, скролл.
 
 Управление:
 - Drag за шапку.
@@ -281,6 +282,17 @@
 
 Значения пишутся в объект валуна и попадают в persist.
 
+## 11б. Vehicle Settings
+
+Открытие:
+- Клик по транспорту (Vehicle объект).
+
+Параметры:
+- `Contact damage` (0–5, дефолт 0) — урон-от-движения при посадке игрока; эффективный урам = max(C.PLAYER_DMG, vehicle.dmg).
+- `Speed multiplier` (0.5–3 шаг 0.1, дефолт 1) — множитель ускорения (пока не подключен к физике, задел на будущее).
+
+Значения пишутся в объект транспорта и попадают в persist.
+
 ## 12. Params / Intro / Gear / Mix
 
 `Params`:
@@ -290,6 +302,7 @@
 - `Reset all` сбрасывает все параметры к заводским.
 - Группа `Camera` (`src/render/camera.js`): `CAM_DZ_X/Y` (мёртвая зона якоря, 10×8), `CAM_FOLLOW` (резина, выше = резче, 6.5), `CAM_SNAP` (липнет при Δ≤snap, 1px — без pixel crawl на стопе), `CAM_SUBPX` (0/1, дефолт 1 — мир `floor(cam)` на буфере 321×181, доля CSS `translate` `#c` в `#view` шагом экрана; HUD на `#h` без сдвига; 0 и редактор — старый `Math.round(cam)`), `CAM_LEAD` / `CAM_LEAD_IDLE` / `CAM_LEAD_V` / `CAM_LEAD_K` (взгляд вперёд), `CAM_LOOK_DN` / `CAM_LOOK_UP` / `CAM_LOOK_V` / `CAM_LOOK_K` (↑↓ стоя).
 - Группа `Fall / Damage`: `SAFE` / `HURT` (без переката), `ROLL_HURT` / `ROLL_HURT_T` (dir-roll на приземлении всё ещё даёт 1 урон выше порога; stun при этом).
+- Группа `Mining / Contact`: `PLAYER_DMG` (0–5, дефолт 0, базовый урон-от-движения игрока о стену при ходьбе без инструмента), `CONTACT_DMG_RATE` (0.2–6 шаг 0.1, дефолт 2, множитель: hp тайла/сек на единицу урона при контакте). Эффективный урон на маунте = max(PLAYER_DMG, vehicle.dmg).
 
 `Intro`:
 - Поле `This level` = индивидуальная фраза уровня (`LV.intro`).

@@ -14,6 +14,7 @@ import { fireArrow, tryArrowPickup } from './arrows.js';
 import { grantOne } from './craft.js';
 import { tryDig } from './mining.js';
 import { heroWeaponWorld } from '../core/sprite-grab.js';
+import { tryMount, tryDismount } from './vehicles.js';
 
 export function mkTorches(){
   var LV = runtime.LV;
@@ -160,6 +161,8 @@ export function resolvePickup(S){
 }
 export function tryAction(S, inp){
   var p = S.p;
+  if (p.mount) return tryDismount(S);   // за рулём — Act всегда высаживает, высший приоритет
+  if (tryMount(S)) return true;         // рядом запаркованный транспорт — сесть, раньше подбора предметов
   // подбор предмета — всегда в приоритете, даже если рядом сундук или NPC
   if (p.torch < 0){
     var pk = S.pick;

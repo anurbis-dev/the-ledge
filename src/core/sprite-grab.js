@@ -6,13 +6,13 @@ import { runtime } from './runtime.js';
 import { HERO_POSES } from '../render/poses.js';
 
 function heroId(){
-  var sp = runtime.LV && runtime.LV.spawn;
+  var sp = runtime.mountSkin || (runtime.LV && runtime.LV.spawn);
   return (sp && sp.spriteId) || 'hero';
 }
 
 /* Не импортировать activeObjectKind из player — цикл player ↔ sprite-grab. */
 function objectKind(){
-  var sp = runtime.LV && runtime.LV.spawn;
+  var sp = runtime.mountSkin || (runtime.LV && runtime.LV.spawn);
   return (sp && sp.objectKind) || legacyObjectKindFromSprite(sp && sp.spriteId) || 'hero';
 }
 

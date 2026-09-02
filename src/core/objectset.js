@@ -18,7 +18,7 @@ var ROLES = ['actor', 'pickup', 'loot', 'prop', 'marker'];
 
 var PICKUP_KINDS = { coin:1, gem:1, shroom:1, relic:1, tank:1, pickaxe:1 };
 var LOOT_KINDS = { key:1, helmet:1, shield:1, sword:1, scuba:1, flippers:1, harpoon:1, bow:1 };
-var PROP_KINDS = { chest:1, chestL:1, torch:1, boulder:1, light:1 };
+var PROP_KINDS = { chest:1, chestL:1, torch:1, boulder:1, vehicle:1, light:1 };
 var MARKER_KINDS = { sound:1, volume:1, fx_sand:1, level_exit:1, door:1, player_start:1, rope_v:1, rope_h:1, plat_h:1, plat_v:1, lift:1 };
 
 /** Builtin placeable list — source of truth for names/order (editor mutates live ED_OBJS copy). */
@@ -61,6 +61,7 @@ export var BUILTIN_OBJS = [
   { name: 'Volume',  kind: 'volume' },
   { name: 'FX Sand', kind: 'fx_sand' },
   { name: 'Boulder', kind: 'boulder' },
+  { name: 'Vehicle', kind: 'vehicle' },
   { name: 'Rope V',  kind: 'rope_v' },
   { name: 'Rope H',  kind: 'rope_h' },
   { name: 'Plat H',  kind: 'plat_h' },

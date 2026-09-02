@@ -92,6 +92,10 @@ export var PARAM_GROUPS = [
     { key: 'ROLL_CD', label: 'Roll cooldown', min: 0, max: 0.5, step: 0.01, hint: 'Пауза до следующего кувырка.' },
     { key: 'STAM_MAX', label: 'Stamina', min: 0.4, max: 6, step: 0.1, hint: 'Запас выносливости на рывки/действия (единицы).' }
   ]},
+  { id: 'mining', name: 'Mining / Contact', items: [
+    { key: 'PLAYER_DMG', label: 'Player contact dmg', min: 0, max: 5, step: 1, hint: 'Базовый урон игрока о стену на ходу (0 = выкл). Эффективный урон = max(PLAYER_DMG, транспорт.dmg).' },
+    { key: 'CONTACT_DMG_RATE', label: 'Contact dmg rate', min: 0.2, max: 6, step: 0.1, hint: 'HP тайла/сек на единицу урона при контакте (не кнопка-копка).' }
+  ]},
   { id: 'swim', name: 'Swim / Air', items: [
     { key: 'AIR_MAX', label: 'Air max', min: 3, max: 30, step: 0.5, hint: 'Запас воздуха без акваланга (сек под водой).' },
     { key: 'SCUBA_AIR', label: 'Scuba air', min: 10, max: 80, step: 1, hint: 'Запас воздуха со scuba (сек).' },

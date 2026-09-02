@@ -3,6 +3,7 @@ import { runtime } from './runtime.js';
 import { stashLayers } from './layers.js';
 import { BAKED } from './defaults.js';
 import { BOULDER_DEF } from '../entities/boulders.js';
+import { packVehicle } from '../entities/vehicles.js';
 import { packEmitter } from '../entities/emitters.js';
 import { packRope } from '../entities/ropes.js';
 import { packPlat } from '../entities/plats.js';
@@ -158,6 +159,7 @@ function packLevel(lv){
     plats: lv.plats || [],
     dark: lv.dark || [],
     boulders: lv.boulders || [],
+    vehicles: lv.vehicles || [],
     stick: lv.stick || null,
     key: lv.key || null,
     stash: packStash(lv._stash)
@@ -211,6 +213,7 @@ function applyRecord(lv, rec){
   if (rec.plats) lv.plats = rec.plats;
   if (rec.dark) lv.dark = rec.dark;
   if (rec.boulders) lv.boulders = rec.boulders;
+  if (rec.vehicles) lv.vehicles = rec.vehicles;
   if (rec.stick) lv.stick = rec.stick;
   if (rec.key) lv.key = rec.key;
   if (rec.stash) lv._stash = unpackStash(rec.stash);
@@ -237,6 +240,7 @@ function makeBlank(rec){
     torches: rec.torches || [], chests: rec.chests || [], npcs: rec.npcs || [],
     doors: rec.doors || [], lifts: rec.lifts || [], plats: rec.plats || [], dark: rec.dark || [],
     boulders: rec.boulders || [],
+    vehicles: rec.vehicles || [],
     water: rec.water || [],
     stick: rec.stick || { x: 40, y: 8 * T - 6 },
     key: rec.key || { x: 56, y: 8 * T - 6 },
@@ -393,6 +397,7 @@ function writeObjects(lv, S){
     }
     return row;
   });
+  lv.vehicles = (S.vehicles || []).map(packVehicle);
   if (S.pick && S.pick.stick) lv.stick = { x: S.pick.stick.x, y: S.pick.stick.y };
   if (S.pick && S.pick.key) lv.key = { x: S.pick.key.x, y: S.pick.key.y };
 }

@@ -7,6 +7,7 @@ import { isMenu } from '../ui/menu.js';
 import { hushLift } from '../audio/sfx.js';
 import { findById } from '../entities/ids.js';
 import { BOULDER_DEF } from '../entities/boulders.js';
+import { packVehicle } from '../entities/vehicles.js';
 import { tileThumb, objThumb, spriteThumb, paintObjIcon, clearThumbCache } from './thumbs.js';
 import { renderParams, resetAllParams } from './params.js';
 import { getActiveLayer, getLayers, setActiveLayer, layerTile, layerVar, layerDeco, layerTileRaw, layerVarRaw, layerFlipRaw, isTileLayer, internGrade, layerGrade, copyGrade, GRADE_DEF, stashLayers, findLevelsUsingTile, wipeTileIdEverywhere } from '../core/layers.js';
@@ -42,6 +43,7 @@ import { bindGearPanel, renderGearPanel } from './gear-settings.js';
 import { showInspect, bindInspect } from './inspect.js';
 import { bindNpcTalk, openNpcTalk, closeNpcTalk } from './npc-talk.js';
 import { bindBoulderSettings, openBoulderSettings, closeBoulderSettings } from './boulder-settings.js';
+import { bindVehicleSettings, openVehicleSettings, closeVehicleSettings } from './vehicle-settings.js';
 import { bindRopeSettings, openRopeSettings, closeRopeSettings } from './rope-settings.js';
 import { bindEnemySettings, openEnemySettings, closeEnemySettings } from './enemy-settings.js';
 import { enemySpeedMult } from '../entities/enemies.js';
@@ -259,6 +261,8 @@ var OBJ_KINDS = [
     pos: function(o){ return [o.x, o.y]; } },
   { type: 'boulder', get: function(S){ return S.boulders; },       set: function(S, a){ S.boulders = a; },
     pos: function(o){ return [o.x + 6, o.y + 5]; } },
+  { type: 'vehicle', get: function(S){ return S.vehicles || []; }, set: function(S, a){ S.vehicles = a; },
+    pos: function(o){ return [o.x + o.w/2, o.y + o.h/2]; } },
   { type: 'npc',     get: function(S){ return S.npcs || []; },     set: function(S, a){ S.npcs = a; },
     pos: function(o){ return [o.x + 5, o.y + 9]; } }
 ];
@@ -311,6 +315,7 @@ function respawnObjectAt(entry, cell){
   else if (entry.type === 'chest') G.mkChestAt(S, cell.c*T, floorY, o.loot, o.locked, o.random);
   else if (entry.type === 'item') G.mkItemAt(S, cx, cy, o.kind);
   else if (entry.type === 'boulder') G.mkBoulderAt(S, cx, floorY);
+  else if (entry.type === 'vehicle') G.mkVehicleAt(S, cx, floorY, o.spriteId, o.objectKind);
   else if (entry.type === 'npc') G.mkNpcAt(S, cx, floorY, o.tree, o.facing, o.dialog);
 }
 function newestOf(entry){
@@ -396,6 +401,7 @@ bindSpriteset({
 });
 bindNpcTalk({ onChange: function(){ markLevelDirty(); } });
 bindBoulderSettings({ onChange: function(){ markLevelDirty(); } });
+bindVehicleSettings({ onChange: function(){ markLevelDirty(); } });
 bindRopeSettings({ onChange: function(){ markLevelDirty(); } });
 bindEnemySettings({ onChange: function(){ markLevelDirty(); } });
 bindAllFloats();
@@ -1028,6 +1034,7 @@ export function edClose(){
   showInspect(null);
   closeNpcTalk();
   closeBoulderSettings();
+  closeVehicleSettings();
   closeRopeSettings();
   closeEnemySettings();
   closeTileEdit();
@@ -1982,6 +1989,7 @@ function kindCellKey(kind, o, T){
   if (kind === 'torch') return Math.floor(o.x / T) + ':' + Math.floor((o.y - 8) / T);
   if (kind === 'chest' || kind === 'chestL') return Math.floor((o.x + 10) / T) + ':' + Math.floor((o.y - 6) / T);
   if (kind === 'boulder') return Math.floor((o.x + 6) / T) + ':' + Math.floor((o.y + 5) / T);
+  if (kind === 'vehicle') return Math.floor((o.x + o.w / 2) / T) + ':' + Math.floor((o.y + o.h / 2) / T);
   if (kind.indexOf('npc_') === 0) return Math.floor((o.x + 5) / T) + ':' + Math.floor((o.y + 9) / T);
   return Math.floor(o.x / T) + ':' + Math.floor(o.y / T);
 }
@@ -2091,6 +2099,11 @@ function occupiedByKind(kind, cell, skip){
     for (i = 0; i < list.length; i++) if (list[i] !== skip && kindCellKey('boulder', list[i], T) === key) return true;
     return false;
   }
+  if (kind === 'vehicle'){
+    list = S.vehicles || [];
+    for (i = 0; i < list.length; i++) if (list[i] !== skip && kindCellKey('vehicle', list[i], T) === key) return true;
+    return false;
+  }
   if (kind.indexOf('npc_') === 0){
     list = S.npcs || [];
     for (i = 0; i < list.length; i++){
@@ -2162,6 +2175,7 @@ function edPlaceObject(cell){
   else if (kind === 'chest') G.mkChestAt(S, cell.c*T, floorY, [{ kind:'coin', qty:5 }], false);
   else if (kind === 'chestL') G.mkChestAt(S, cell.c*T, floorY, [{ kind:'gem', qty:3 }], true);
   else if (kind === 'boulder') G.mkBoulderAt(S, cx, floorY);
+  else if (kind === 'vehicle') G.mkVehicleAt(S, cx, floorY, spriteId, objectKind);
   else if (kind.indexOf('npc_') === 0) G.mkNpcAt(S, cx, floorY, kind.slice(4), null, null, spriteId, objectKind);
   else G.mkItemAt(S, cx, cy, itemKind, spriteId, objectKind);
 }
@@ -2258,6 +2272,9 @@ export function edExportText(){
         ',' + (b.rollMax != null ? b.rollMax : BOULDER_DEF.rollMax);
     }
     return '[' + row + ']';
+  }).join(',') + '],');
+  out.push('vehicles: [' + (S.vehicles || []).map(function(v){
+    return JSON.stringify(packVehicle(v));
   }).join(',') + '],');
   out.push('npcs: [' + (S.npcs || []).map(function(n){
     var row = '[' + Math.floor((n.x + 5) / T) + ',' + (Math.floor((n.y + 18) / T) - 1) +
@@ -2773,6 +2790,7 @@ function shiftAllObjects(dx, dy){
   shiftEntries(S.chests, [['x',dx],['y',dy]]);
   shiftEntries(S.items, [['x',dx],['y',dy]]);
   shiftEntries(S.boulders, [['x',dx],['y',dy]]);
+  shiftEntries(S.vehicles, [['x',dx],['y',dy]]);
   shiftEntries(S.npcs, [['x',dx],['y',dy]]);
   shiftEntries(S.doors, [['x',dx],['y',dy]]);
   shiftEntries(S.lights, [['x',dx],['y',dy]]);
@@ -2945,6 +2963,7 @@ cv.addEventListener('pointerdown', function(e){
   closeChestList();
   closeNpcTalk();
   closeBoulderSettings();
+  closeVehicleSettings();
   closeRopeSettings();
   closeEnemySettings();
   if (e.ctrlKey || e.metaKey){
@@ -3106,6 +3125,8 @@ function edUp(e){
       openNpcTalk(ph.obj, ED.pendHit.x, ED.pendHit.y);
     else if (ph && ph.type === 'boulder')
       openBoulderSettings(ph.obj, ED.pendHit.x, ED.pendHit.y);
+    else if (ph && ph.type === 'vehicle')
+      openVehicleSettings(ph.obj, ED.pendHit.x, ED.pendHit.y);
     else if (ph && ph.type === 'rope')
       openRopeSettings(ph.obj, ED.pendHit.x, ED.pendHit.y);
   }

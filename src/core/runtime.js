@@ -7,6 +7,7 @@ let activeLayer = 0;
 let soloLayer = 0;
 let LV = null, LVI = 0;
 let W = null;                     // активный мир (для solid-запросов)
+let mountSkin = null;             // {spriteId,objectKind} — оверрайд скина игрока, пока за рулём транспорта; не персистится
 let roomsOn = null;               // null = не подменять cover (редактор); {}/map = активные комнаты
 let roomsVis = {};                // key → 0..1 визуал (1 = комната проявлена)
 var GROW = 16;
@@ -36,6 +37,8 @@ export const runtime = {
   set LVI(v){ LVI = v; },
   get W(){ return W; },
   set W(v){ W = v; },
+  get mountSkin(){ return mountSkin; },
+  set mountSkin(v){ mountSkin = v; },
   get roomsOn(){ return roomsOn; },
   set roomsOn(v){ roomsOn = v; },
   get roomsVis(){ return roomsVis; },

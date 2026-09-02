@@ -344,6 +344,21 @@ export function boulders(){
   }
   popEntA();
 }
+export function vehicles(){
+  var S = world(), time = view.time;
+  var list = S.vehicles || [];
+  for (var i = 0; i < list.length; i++){
+    var v = list[i];
+    if (!v.parked || !pushEntA(v)) continue;               // сейчас в нём едут — не рисуем, герой его "носит"
+    var x = Math.round(v.x - cam.x), y = Math.round(v.y - cam.y);
+    if (x < -32 || x > viewW() + 32) continue;
+    var kind = v.objectKind || v.spriteId || 'vehicle';
+    if (blitEntSprite(kind, 'idle', getAnimFrame(kind, 'idle', time), v.x, v.y, v.facing, false, v.objectKind)) continue;
+    rc(x, y, v.w, v.h, '#3a3a4e');
+    rc(x + 2, y + 2, v.w - 4, v.h - 4, '#57567a');
+  }
+  popEntA();
+}
 export function caveExit(){
   var S = world(), time = view.time, lv = G.levelSpec();
   var list = (lv && lv.exits) || (lv && lv.exit ? [lv.exit] : []);

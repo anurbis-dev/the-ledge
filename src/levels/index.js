@@ -47,7 +47,7 @@ export function addBlankLevel(){
     lights: [], sounds: [], volumes: [], emitters: [],
     items: function(){ return []; },
     enemies: [], fliers: [], spiders: [], tendrils: [], ropes: [],
-    torches: [], boulders: [], chests: [], npcs: [], doors: [], lifts: [], plats: [], dark: [],
+    torches: [], boulders: [], vehicles: [], chests: [], npcs: [], doors: [], lifts: [], plats: [], dark: [],
     stick: { x: 40, y: 8 * 16 - 6 },
     key: { x: 56, y: 8 * 16 - 6 },
     build: function(){

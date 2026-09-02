@@ -1,7 +1,7 @@
 import GAME from '../core/game.js';
 import {
   cv, ctx, VW, VH, BUF_W, BUF_H, setViewport, viewBox, hv, cam, view,
-  sky, tiles, tilesFront, plats, lifts, caveExit, doors, chests, boulders, npcs,
+  sky, tiles, tilesFront, plats, lifts, caveExit, doors, chests, boulders, npcs, vehicles,
   lootDrops, items, pickables, drawTorches, drawHarpoons, drawArrows, enemies, spiders, fliers, tendrils, ropes,
   hero, lightPass, drawWeeds, drawFish, drawParts, drawHearts,
   vignette, hud, drawIntro, drawPaused, drawOutro, drawDead, drawBubbles, hudHitsWeapon,
@@ -557,7 +557,7 @@ function frame(now){
     applyWorldTransform();
     tiles();
     if (entitiesShown(true)){
-      plats(); lifts(); caveExit(); boulders(); chests();
+      plats(); lifts(); caveExit(); boulders(); vehicles(); chests();
       lootDrops(); items(); pickables(); drawTorches(); drawHarpoons(); drawArrows(); enemies(); spiders(); fliers(); npcs();
       ropes(); hero(); doors(); drawWaterImmersion(); drawFish();
     }
@@ -592,7 +592,7 @@ function frame(now){
     clearFrame();
     sky(); tiles();
     if (entitiesShown(false)){
-      plats(); lifts(); caveExit(); boulders(); chests();
+      plats(); lifts(); caveExit(); boulders(); vehicles(); chests();
       lootDrops(); items(); pickables(); drawTorches(); drawHarpoons(); drawArrows(); enemies(); spiders(); fliers(); npcs();
       ropes(); hero(); doors(); drawWaterImmersion(); drawFish();
     }
@@ -678,6 +678,7 @@ function frame(now){
   lifts();
   caveExit();
   boulders();
+  vehicles();
   chests();
   lootDrops();
   items();

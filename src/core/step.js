@@ -12,7 +12,7 @@ import {
 import { stepPlats, platUnder } from '../entities/plats.js';
 import { stepLifts, inLift, liftConstrain } from '../entities/lifts.js';
 import { stepCrumbs, crumbCheck } from '../entities/crumbs.js';
-import { stepDigShake } from '../entities/mining.js';
+import { stepDigShake, stepContactDamage } from '../entities/mining.js';
 import { stepTorches, tryAction, resolvePickup } from '../entities/torches.js';
 import { stepPlanks } from '../entities/planks.js';
 import { stepGive } from '../entities/give.js';
@@ -53,6 +53,7 @@ export function step(S, dt, inp){
   stepRopes(S, dt);
   stepCrumbs(S, dt);
   stepDigShake(S, dt);
+  stepContactDamage(S, dt);
   stepGive(S, dt);
   stepTorches(S, dt);
   stepPlanks(S, dt);
