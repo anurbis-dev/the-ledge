@@ -6,6 +6,15 @@ import { spriteFrameImage, getSpriteDef, getAnimFrame } from '../core/spriteset.
 import { getFrameAnchor, legacyObjectKindFromSprite, spriteIdForObject } from '../core/object-anchors.js';
 import { defaultFrameAnchors } from './sprite-anchors.js';
 
+/* fw×fh (footprint) — верхняя граница блита кадра, может быть не квадратной;
+   масштаб в неё всегда единый по X/Y, иначе арт-пиксели теряют квадратность.
+   Если аспект кадра не совпадает с fw:fh, лишнее место внутри footprint пустое. */
+export function fitFrame(natW, natH, fw, fh){
+  var s = Math.min(fw / natW, fh / natH);
+  var dw = Math.max(1, Math.round(natW * s)), dh = Math.max(1, Math.round(natH * s));
+  return { dw: dw, dh: dh, padX: Math.round((fw - dw) / 2), padY: Math.round((fh - dh) / 2) };
+}
+
 /* Предмет в руке/на своём месте — grip-точка (якорь 'weapon' objectKind, тот же
    что и Object Details) совпадает с pivot (мировая точка). rot (рад., от вызывающего)
    и weapon.rot (град., по кадрам, поле Rot в Object Details) складываются и задают
@@ -27,12 +36,13 @@ export function blitHeldSprite(objectKind, anim, frame, pivotWX, pivotWY, rot, f
   var g = getFrameAnchor(objectKind, anim, frame, 'weapon') || defaultFrameAnchors(sid, anim, frame).weapon;
   var fullRot = (rot || 0) + ((g.rot || 0) * Math.PI / 180);
   var sx = Math.round(pivotWX - cam.x), sy = Math.round(pivotWY - cam.y);
+  var fit = fitFrame(img.naturalWidth, img.naturalHeight, def.fw, def.fh);
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   ctx.translate(sx, sy);
   if (facing < 0) ctx.scale(-1, 1);
   if (fullRot) ctx.rotate(fullRot);
-  ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, -g.x, -g.y, def.fw, def.fh);
+  ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, -g.x + fit.padX, -g.y + fit.padY, fit.dw, fit.dh);
   ctx.restore();
   return true;
 }
@@ -52,14 +62,15 @@ function blitEntSprite(id, anim, frame, wx, wy, dir, pinCell, objectKind){
   }
   var x = Math.round(wx - ox - cam.x);
   var y = Math.round(wy - oy - cam.y);
+  var fit = fitFrame(img.naturalWidth, img.naturalHeight, def.fw, def.fh);
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   if (dir < 0){
     ctx.translate(x + def.fw, y);
     ctx.scale(-1, 1);
-    ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, def.fw, def.fh);
+    ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, fit.padX, fit.padY, fit.dw, fit.dh);
   } else {
-    ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, x, y, def.fw, def.fh);
+    ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, x + fit.padX, y + fit.padY, fit.dw, fit.dh);
   }
   ctx.restore();
   return true;

@@ -10,7 +10,7 @@ import {
   WALLPUSH, GRAPPLE_D, GRAPPLE_U
 } from './poses.js';
 import { figure, drawBow, drawHeldWeapon } from './figure.js';
-import { blitHeldSprite } from './sprites.js';
+import { blitHeldSprite, fitFrame } from './sprites.js';
 import { isBowHand, isHarpoonHand, isPickaxeHand } from '../entities/gear.js';
 import { spriteFrameImage, getSpriteDef } from '../core/spriteset.js';
 import { getFrameAnchor } from '../core/object-anchors.js';
@@ -108,19 +108,20 @@ function blitHeroSprite(img, def, wx, wy, facing, origin, rot){
   var fx = def.fx != null ? def.fx : 5;
   var x = Math.round(wx - ox - cam.x);
   var y = Math.round(wy - oy - cam.y);
+  var fit = fitFrame(img.naturalWidth, img.naturalHeight, def.fw, def.fh);
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   if (rot){
     ctx.translate(Math.round(wx + ROLL_CX - cam.x), Math.round(wy + ROLL_CY - cam.y));
     ctx.rotate(rot);
     if (facing < 0) ctx.scale(-1, 1);
-    ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, -(ox + ROLL_CX), -(oy + ROLL_CY), def.fw, def.fh);
+    ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, -(ox + ROLL_CX) + fit.padX, -(oy + ROLL_CY) + fit.padY, fit.dw, fit.dh);
   } else if (facing < 0){
     ctx.translate(x + ox + fx, y);
     ctx.scale(-1, 1);
-    ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, -(ox + fx), 0, def.fw, def.fh);
+    ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, -(ox + fx) + fit.padX, fit.padY, fit.dw, fit.dh);
   } else {
-    ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, x, y, def.fw, def.fh);
+    ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, x + fit.padX, y + fit.padY, fit.dw, fit.dh);
   }
   ctx.restore();
 }
