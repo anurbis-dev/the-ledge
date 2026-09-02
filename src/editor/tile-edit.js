@@ -17,7 +17,6 @@ import {
   addSpriteDef, spriteFrameImage, addAnimDef, renameSpriteDef, setSpriteTag,
   isHeroSprite
 } from '../core/spriteset.js';
-import { fitFrame } from '../render/sprites.js';
 import {
   getFrameAnchor, setFrameAnchor, getAnimBox, setAnimBox,
   clearAnimAnchors, defaultObjectAnchors, spriteIdForObject
@@ -69,7 +68,7 @@ var COLLIDE = [
 ];
 
 var HINT = {
-  pencil: 'LMB paint · RMB click erase, RMB drag zoom · MMB drag pan · Alt pick. Pixels are only a picture.',
+  pencil: 'LMB paint · RMB erase · Ctrl+LMB drag zoom · Ctrl+MMB drag pan · Alt pick. Pixels are only a picture.',
   hitbox: 'Drag the red frame. That box is collision — the picture does not change it.',
   sprite: 'Collision tool: red box = hitbox for this action (origin is its top-left), gold = hands, magenta = weapon. Drag an edge/corner to resize, drag inside to redraw.'
 };
@@ -821,16 +820,26 @@ function rgbToHex(r, g, b){
   return '#' + p(r) + p(g) + p(b);
 }
 
+/* Как fitFrame (render/sprites.js), но БЕЗ округления dw/dh до целых канвас-пикселей:
+   редактору нужно, чтобы масштаб по X и Y был математически идентичен, иначе на большом
+   зуме независимое округление каждой оси даёт разный эффективный масштаб — курсор
+   расходится с красящимся пикселем, а кисть красит то квадратный, то прямоугольный блок. */
+function fitExact(natW, natH, fw, fh){
+  var s = Math.min(fw / natW, fh / natH);
+  var dw = natW * s, dh = natH * s;
+  return { dw: dw, dh: dh, padX: (fw - dw) / 2, padY: (fh - dh) / 2 };
+}
+
 /* Клик по холсту рисования — в разрешении арта (bufW×bufH), может отличаться
    от footprint (fw×fh), см. bufW/bufH. Арт рисуется в canvas не на всю его
-   площадь, а через тот же fitFrame (единый масштаб + леттербокс), что и
+   площадь, а через тот же fitExact (единый масштаб + леттербокс), что и
    paintCanvas — так что попадание в пиксель обязано идти через тот же fit,
    иначе курсор расходится с тем, что реально красится. */
 function cellOf(e, can){
   var r = can.getBoundingClientRect();
   var px = (e.clientX - r.left) / r.width * can.width;
   var py = (e.clientY - r.top) / r.height * can.height;
-  var fit = fitFrame(bufW, bufH, can.width, can.height);
+  var fit = fitExact(bufW, bufH, can.width, can.height);
   var x = Math.floor((px - fit.padX) / fit.dw * bufW);
   var y = Math.floor((py - fit.padY) / fit.dh * bufH);
   if (x < 0) x = 0; if (x > bufW - 1) x = bufW - 1;
@@ -1285,9 +1294,9 @@ function syncCursor(){
   preview.classList.toggle('tool-anchor', onMark);
   preview.title = tool === 'hitbox'
     ? (canEditAnchors()
-      ? 'Drag an edge/corner of the red box to resize it, or drag inside to redraw. Origin is its top-left. RMB drag zooms, MMB drag pans.'
+      ? 'Drag an edge/corner of the red box to resize it, or drag inside to redraw. Origin is its top-left. Ctrl+LMB drag zooms, Ctrl+MMB drag pans.'
       : 'Drag to set the collision box (what the hero hits)')
-    : (pick ? 'Pick color' : 'Paint pixel · RMB click erases, drag zooms · MMB drag pans · Alt+click picks');
+    : (pick ? 'Pick color' : 'Paint pixel · RMB erase · Ctrl+LMB drag zooms · Ctrl+MMB drag pans · Alt+click picks');
 }
 
 function paintCanvas(){
@@ -1300,9 +1309,11 @@ function paintCanvas(){
   fillChecker(cx, fw, fh, k, k);
   if (buf){
     /* Буфер арта (bufW×bufH) может не совпадать по аспекту с footprint (fw×fh) —
-       масштаб в канвас всегда единый по X/Y (см. fitFrame), иначе арт-пиксели
-       теряют квадратность; то же самое уже делает рендер (blitEntSprite и т.п.). */
-    var fit = fitFrame(bufW, bufH, can.width, can.height);
+       масштаб в канвас всегда единый по X/Y (см. fitExact), иначе арт-пиксели
+       теряют квадратность; то же самое (с округлением до целых) делает рендер
+       (blitEntSprite и т.п.) — здесь округлять нельзя, иначе на большом зуме
+       разойдётся с cellOf(). */
+    var fit = fitExact(bufW, bufH, can.width, can.height);
     cx.drawImage(buf, 0, 0, bufW, bufH, fit.padX, fit.padY, fit.dw, fit.dh);
   }
   else if (current && mode === 'tile' && !current.custom) paintTileIcon(cx, current, can.width);
@@ -1415,7 +1426,7 @@ function bindPreview(can){
   can.addEventListener('contextmenu', function(e){ e.preventDefault(); e.stopPropagation(); });
   can.addEventListener('pointerdown', function(e){
     if (!canPaint() && !canEditAnchors()) return;
-    if (e.button === 1){
+    if (e.button === 1 && e.ctrlKey){
       e.preventDefault();
       e.stopPropagation();
       try { can.setPointerCapture(e.pointerId); } catch (_){}
@@ -1426,14 +1437,12 @@ function bindPreview(can){
     e.preventDefault();
     e.stopPropagation();
     try { can.setPointerCapture(e.pointerId); } catch (_){}
-    if (e.button === 2){
-      /* RMB drag = зум (см. bindPreviewZoom); простой RMB-клик без движения — erase одного пикселя. */
-      zoomDrag = { pointerId: e.pointerId, startY: e.clientY, startZoom: previewZoom, moved: false,
-        cell: canPaint() ? cellOf(e, can) : null };
+    if (e.button === 0 && e.ctrlKey){
+      zoomDrag = { pointerId: e.pointerId, startY: e.clientY, startZoom: previewZoom };
       return;
     }
     altPick = e.altKey;
-    if (canEditAnchors() && tool === 'hitbox' && !e.altKey){
+    if (e.button === 0 && canEditAnchors() && tool === 'hitbox' && !e.altKey){
       var hit = hitAnchor(e, can);
       if (hit){
         var a0 = liveAnchors();
@@ -1445,6 +1454,7 @@ function bindPreview(can){
     }
     syncCursor();
     if (tool === 'hitbox'){
+      if (e.button !== 0) return;
       if (canEditAnchors()){
         var rh = hitBoxHandle(e, can);
         if (rh){
@@ -1464,13 +1474,14 @@ function bindPreview(can){
       return;
     }
     if (!canPaint()) return;
-    if (e.altKey){
+    if (e.button === 0 && e.altKey){
       pickAt(e);
       return;
     }
+    var erase = e.button === 2;
     var p = cellOf(e, can);
-    painting = { erase: false, x: p.x, y: p.y };
-    stamp(p.x, p.y, false);
+    painting = { erase: erase, x: p.x, y: p.y };
+    stamp(p.x, p.y, erase);
     paintCanvas();
   });
   can.addEventListener('pointermove', function(e){
@@ -1484,8 +1495,6 @@ function bindPreview(can){
     if (zoomDrag){
       if (e.pointerId !== zoomDrag.pointerId) return;
       var dyz = e.clientY - zoomDrag.startY;
-      if (!zoomDrag.moved && Math.abs(dyz) < 4) return;
-      zoomDrag.moved = true;
       previewZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoomDrag.startZoom * Math.exp(-dyz / 150)));
       applyPreviewTransform(can);
       return;
@@ -1538,13 +1547,7 @@ function bindPreview(can){
     }
     if (zoomDrag){
       if (e && e.pointerId !== zoomDrag.pointerId) return;
-      var zd = zoomDrag;
       zoomDrag = null;
-      if (!zd.moved && zd.cell){
-        stamp(zd.cell.x, zd.cell.y, true);
-        commitSrc();
-        paintCanvas();
-      }
       return;
     }
     if (pendingAnchor){
@@ -1997,7 +2000,7 @@ function paintStrips(){
             cx.imageSmoothingEnabled = false;
             fillChecker(cx, fw, fh, 1, 1);
             var natW = img.naturalWidth || fw, natH = img.naturalHeight || fh;
-            var fit = fitFrame(natW, natH, fw, fh);
+            var fit = fitExact(natW, natH, fw, fh);
             cx.drawImage(img, 0, 0, natW, natH, fit.padX, fit.padY, fit.dw, fit.dh);
             drawThumbAnchors(cx, row.id, ii);
           };
