@@ -248,9 +248,10 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
 .ed-sprite-slot{width:40px;height:40px;border:1px dashed #6a628f;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;background:#1a1628;cursor:copy;flex-shrink:0}
 .ed-sprite-slot-img{width:32px;height:32px;image-rendering:pixelated}
 #edTileEditBody{padding:6px;display:flex;flex-direction:column;gap:6px}
-.ed-tilegeo{width:100%;height:auto;aspect-ratio:1;image-rendering:pixelated;image-rendering:crisp-edges;
-  background:#727278;border:1px solid #3a3460;border-radius:4px;cursor:crosshair;touch-action:none;
-  flex:0 0 auto}
+.ed-tilegeo-vp{width:100%;aspect-ratio:1;background:#727278;border:1px solid #3a3460;border-radius:4px;
+  overflow:hidden;position:relative;flex:0 0 auto}
+.ed-tilegeo{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges;
+  cursor:crosshair;touch-action:none;transform-origin:50% 50%}
 .ed-tile-strips{display:flex;flex-direction:column;gap:5px;flex:0 0 auto;min-height:36px;
   overflow:auto;overscroll-behavior:contain;padding:2px 0}
 .ed-tile-strips[hidden]{display:none}

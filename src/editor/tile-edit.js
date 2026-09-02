@@ -69,7 +69,7 @@ var COLLIDE = [
 ];
 
 var HINT = {
-  pencil: 'LMB paint · RMB erase · Alt pick. Pixels are only a picture.',
+  pencil: 'LMB paint · RMB click erase, RMB drag zoom · MMB drag pan · Alt pick. Pixels are only a picture.',
   hitbox: 'Drag the red frame. That box is collision — the picture does not change it.',
   sprite: 'Collision tool: red box = hitbox for this action (origin is its top-left), gold = hands, magenta = weapon. Drag an edge/corner to resize, drag inside to redraw.'
 };
@@ -111,6 +111,9 @@ var frameDrag = null;
 var animFilter = '';
 var animFilterEl = null;
 var previewZoom = 1;
+var previewPanX = 0, previewPanY = 0;
+var zoomDrag = null;
+var panDrag = null;
 
 try {
   var savedStrip = parseInt(localStorage.getItem(STRIP_KEY), 10);
@@ -819,11 +822,17 @@ function rgbToHex(r, g, b){
 }
 
 /* Клик по холсту рисования — в разрешении арта (bufW×bufH), может отличаться
-   от footprint (fw×fh), см. bufW/bufH. */
+   от footprint (fw×fh), см. bufW/bufH. Арт рисуется в canvas не на всю его
+   площадь, а через тот же fitFrame (единый масштаб + леттербокс), что и
+   paintCanvas — так что попадание в пиксель обязано идти через тот же fit,
+   иначе курсор расходится с тем, что реально красится. */
 function cellOf(e, can){
   var r = can.getBoundingClientRect();
-  var x = Math.floor((e.clientX - r.left) / r.width * bufW);
-  var y = Math.floor((e.clientY - r.top) / r.height * bufH);
+  var px = (e.clientX - r.left) / r.width * can.width;
+  var py = (e.clientY - r.top) / r.height * can.height;
+  var fit = fitFrame(bufW, bufH, can.width, can.height);
+  var x = Math.floor((px - fit.padX) / fit.dw * bufW);
+  var y = Math.floor((py - fit.padY) / fit.dh * bufH);
   if (x < 0) x = 0; if (x > bufW - 1) x = bufW - 1;
   if (y < 0) y = 0; if (y > bufH - 1) y = bufH - 1;
   return { x: x, y: y };
@@ -1276,9 +1285,9 @@ function syncCursor(){
   preview.classList.toggle('tool-anchor', onMark);
   preview.title = tool === 'hitbox'
     ? (canEditAnchors()
-      ? 'Drag an edge/corner of the red box to resize it, or drag inside to redraw. Origin is its top-left.'
+      ? 'Drag an edge/corner of the red box to resize it, or drag inside to redraw. Origin is its top-left. RMB drag zooms, MMB drag pans.'
       : 'Drag to set the collision box (what the hero hits)')
-    : (pick ? 'Pick color' : 'Paint pixel · RMB erase · Alt+click picks');
+    : (pick ? 'Pick color' : 'Paint pixel · RMB click erases, drag zooms · MMB drag pans · Alt+click picks');
 }
 
 function paintCanvas(){
@@ -1378,21 +1387,27 @@ function commitBox(){
   notify();
 }
 
-function applyPreviewZoom(can){
-  can.style.width = previewZoom === 1 ? '' : (previewZoom * 100) + '%';
+/* Зум — transform:scale (не width/height), окно превью (.ed-tilegeo-vp, overflow:hidden)
+   держит фиксированный размер — зум происходит "внутри" него, а не раздувает панель. */
+function applyPreviewTransform(can){
+  can.style.transform = (previewZoom === 1 && !previewPanX && !previewPanY)
+    ? ''
+    : 'translate(' + previewPanX + 'px,' + previewPanY + 'px) scale(' + previewZoom + ')';
 }
 
 /** Зум колесом мыши поверх окна превью — независим от paint/hitbox биндингов
-    (работает и на view-only канвасе Tile Details). Не даёт скроллить панель. */
+    (работает и на view-only канвасе Tile Details). Не даёт скроллить панель под курсором;
+    скролл содержимого панели вне окна превью не тронут. */
 function bindPreviewZoom(can){
   previewZoom = 1;
-  applyPreviewZoom(can);
+  previewPanX = 0; previewPanY = 0;
+  applyPreviewTransform(can);
   can.addEventListener('wheel', function(e){
     e.preventDefault();
     e.stopPropagation();
     var factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
     previewZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, previewZoom * factor));
-    applyPreviewZoom(can);
+    applyPreviewTransform(can);
   }, { passive: false });
 }
 
@@ -1400,12 +1415,25 @@ function bindPreview(can){
   can.addEventListener('contextmenu', function(e){ e.preventDefault(); e.stopPropagation(); });
   can.addEventListener('pointerdown', function(e){
     if (!canPaint() && !canEditAnchors()) return;
+    if (e.button === 1){
+      e.preventDefault();
+      e.stopPropagation();
+      try { can.setPointerCapture(e.pointerId); } catch (_){}
+      panDrag = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, x0: previewPanX, y0: previewPanY };
+      return;
+    }
     if (e.button !== 0 && e.button !== 2) return;
     e.preventDefault();
     e.stopPropagation();
     try { can.setPointerCapture(e.pointerId); } catch (_){}
+    if (e.button === 2){
+      /* RMB drag = зум (см. bindPreviewZoom); простой RMB-клик без движения — erase одного пикселя. */
+      zoomDrag = { pointerId: e.pointerId, startY: e.clientY, startZoom: previewZoom, moved: false,
+        cell: canPaint() ? cellOf(e, can) : null };
+      return;
+    }
     altPick = e.altKey;
-    if (e.button === 0 && canEditAnchors() && tool === 'hitbox' && !e.altKey){
+    if (canEditAnchors() && tool === 'hitbox' && !e.altKey){
       var hit = hitAnchor(e, can);
       if (hit){
         var a0 = liveAnchors();
@@ -1417,7 +1445,6 @@ function bindPreview(can){
     }
     syncCursor();
     if (tool === 'hitbox'){
-      if (e.button !== 0) return;
       if (canEditAnchors()){
         var rh = hitBoxHandle(e, can);
         if (rh){
@@ -1437,17 +1464,32 @@ function bindPreview(can){
       return;
     }
     if (!canPaint()) return;
-    if (e.button === 0 && e.altKey){
+    if (e.altKey){
       pickAt(e);
       return;
     }
-    var erase = e.button === 2;
     var p = cellOf(e, can);
-    painting = { erase: erase, x: p.x, y: p.y };
-    stamp(p.x, p.y, erase);
+    painting = { erase: false, x: p.x, y: p.y };
+    stamp(p.x, p.y, false);
     paintCanvas();
   });
   can.addEventListener('pointermove', function(e){
+    if (panDrag){
+      if (e.pointerId !== panDrag.pointerId) return;
+      previewPanX = panDrag.x0 + (e.clientX - panDrag.startX);
+      previewPanY = panDrag.y0 + (e.clientY - panDrag.startY);
+      applyPreviewTransform(can);
+      return;
+    }
+    if (zoomDrag){
+      if (e.pointerId !== zoomDrag.pointerId) return;
+      var dyz = e.clientY - zoomDrag.startY;
+      if (!zoomDrag.moved && Math.abs(dyz) < 4) return;
+      zoomDrag.moved = true;
+      previewZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoomDrag.startZoom * Math.exp(-dyz / 150)));
+      applyPreviewTransform(can);
+      return;
+    }
     if (e.altKey !== altPick){
       altPick = e.altKey;
       syncCursor();
@@ -1489,6 +1531,22 @@ function bindPreview(can){
     paintCanvas();
   });
   function end(e){
+    if (panDrag){
+      if (e && e.pointerId !== panDrag.pointerId) return;
+      panDrag = null;
+      return;
+    }
+    if (zoomDrag){
+      if (e && e.pointerId !== zoomDrag.pointerId) return;
+      var zd = zoomDrag;
+      zoomDrag = null;
+      if (!zd.moved && zd.cell){
+        stamp(zd.cell.x, zd.cell.y, true);
+        commitSrc();
+        paintCanvas();
+      }
+      return;
+    }
     if (pendingAnchor){
       var pa = pendingAnchor;
       pendingAnchor = null;
@@ -2033,8 +2091,11 @@ function fillTileParamsOnly(){
   can.width = fw * sc;
   can.height = fh * sc;
   can.className = 'ed-tilegeo';
-  can.style.aspectRatio = fw + ' / ' + fh;
-  body.appendChild(can);
+  var vpWrap = document.createElement('div');
+  vpWrap.className = 'ed-tilegeo-vp';
+  vpWrap.style.aspectRatio = fw + ' / ' + fh;
+  vpWrap.appendChild(can);
+  body.appendChild(vpWrap);
   preview = can;
   bindPreviewZoom(can);
 
@@ -2340,6 +2401,8 @@ function fillBody(){
   boxDrag = null;
   pendingBox = null;
   pendingAnchor = null;
+  zoomDrag = null;
+  panDrag = null;
   originXEl = originYEl = weaponXEl = weaponYEl = grabXEl = grabYEl = rotEl = null;
   boxWEl = boxHEl = null;
   spriteSlotEl = null;
@@ -2378,8 +2441,11 @@ function fillBody(){
   can.width = fw * sc;
   can.height = fh * sc;
   can.className = 'ed-tilegeo';
-  can.style.aspectRatio = fw + ' / ' + fh;
-  body.appendChild(can);
+  var vpWrap = document.createElement('div');
+  vpWrap.className = 'ed-tilegeo-vp';
+  vpWrap.style.aspectRatio = fw + ' / ' + fh;
+  vpWrap.appendChild(can);
+  body.appendChild(vpWrap);
   preview = can;
   bindPreviewZoom(can);
 
