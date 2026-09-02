@@ -59,6 +59,14 @@ export function applyWorldTransform(){
   ctx.setTransform(s, 0, 0, s, 0, 0);
 }
 
+/** Очистка всего канваса в мировых координатах — BUF_W/BUF_H это world-юниты при
+    viewScale=1, при зуме редактора (viewScale!=1) их надо делить на viewScale,
+    иначе при zoom<1 (отдалении) реально видимая область больше BUF_W×BUF_H
+    и clearRect не достаёт до краёв — старый кадр остаётся, копится «слоями». */
+export function clearFrame(){
+  ctx.clearRect(0, 0, BUF_W / viewScale, BUF_H / viewScale);
+}
+
 /* Offscreen-кэш «запечь один раз в мировых координатах, переиспользовать» (chunk/stamp/cover/
    wave-strip тайлов, HUD-панели) — размер и transform сразу учитывают RENDER_SCALE, чтобы
    контент не терял детализацию на этапе запекания, до отрисовки на экран. */

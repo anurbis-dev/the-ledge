@@ -10,7 +10,7 @@ import {
   setOutroFocus, outroFocus,
   applyPal, buildWater, stepWater, invalidateAll, addWaterRipple, clearWaterRipples, stepHeroWaterRipples, drawWaterImmersion, fore, rc, getFish, spark, landDust, bonkDust, emitSand, rockChunks,
   resetCam, followCam, pushCamRender, popCamRender, clearCamPan, paintHud, clearHud,
-  setViewScale, applyVolumes, drawCollideOverlay, applyWorldTransform,
+  setViewScale, applyVolumes, drawCollideOverlay, applyWorldTransform, clearFrame,
   isInvOpen, invInspecting, openInv, closeInv, toggleInv, stepInv, drawInventory, handleInvPointer, handleInvWheel, handleInvKey,
   clientToGame, hitsHero, giveInv, giveInvKit
 } from '../render/index.js';
@@ -552,7 +552,7 @@ function frame(now){
     setViewScale(z);
     ctx.imageSmoothingEnabled = false;
     applyWorldTransform();
-    ctx.clearRect(0, 0, BUF_W, BUF_H);
+    clearFrame();
     sky();
     applyWorldTransform();
     tiles();
@@ -589,7 +589,7 @@ function frame(now){
     else resumeMusic();
     var ovPrev = pushCamRender(S.shake);
     applyWorldTransform();
-    ctx.clearRect(0, 0, BUF_W, BUF_H);
+    clearFrame();
     sky(); tiles();
     if (entitiesShown(false)){
       plats(); lifts(); caveExit(); boulders(); chests();

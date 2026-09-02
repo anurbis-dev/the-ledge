@@ -2,7 +2,7 @@ import GAME from '../core/game.js';
 import { damage, isInvuln } from '../core/player.js';
 import { getLayers, layerShown, layerCssFilter } from '../core/layers.js';
 import { roomVisAt } from '../core/rooms.js';
-import { ctx, cam, view, VW, VH, rc, lb, setFill, world } from './ctx.js';
+import { ctx, cam, view, VW, VH, viewW, viewH, rc, lb, setFill, world } from './ctx.js';
 import { P, TINT } from './palette.js';
 
 var G = GAME, T = G.T;
@@ -87,26 +87,30 @@ export function bonkDust(p, spd){
 
 function fillSky(){
   /* Градиент дешёвый (не per-pixel) — пересоздаём каждый раз, чтобы не зависеть
-     от кэша, протухающего при смене палитры/вьюпорта. */
-  var g = ctx.createLinearGradient(0, 0, 0, VH);
+     от кэша, протухающего при смене палитры/вьюпорта. viewW/viewH (не VW/VH) —
+     при зуме редактора <1 видимая мировая область больше базового вьюпорта. */
+  var vw = viewW(), vh = viewH();
+  var g = ctx.createLinearGradient(0, 0, 0, vh);
   var sk = TINT.sky;
   g.addColorStop(0, sk[0]); g.addColorStop(0.42, sk[1]); g.addColorStop(1, sk[2]);
-  setFill(g); ctx.fillRect(0, 0, VW + 1, VH + 1);
+  setFill(g); ctx.fillRect(0, 0, vw + 1, vh + 1);
 }
 function drawStars(px, py){
+  var vw = viewW(), vh = viewH();
   for (var i = 0; i < 54; i++){
     var sx = (i*67 - cam.x * px) % 340; if (sx < 0) sx += 340;
     var sy = (i*29) % 90 - cam.y * py;
-    if (sy > -2 && sy < VH) rc(sx, sy, 1, 1, i%4 ? '#ffffff44' : '#ffd9a044');
+    if (sy > -2 && sy < vh) rc(sx, sy, 1, 1, i%4 ? '#ffffff44' : '#ffd9a044');
   }
 }
 function ridge(px, py, amp, y0, col){
-  setFill(col); ctx.beginPath(); ctx.moveTo(0, VH);
-  for (var x = 0; x <= VW; x += 4){
+  var vw = viewW(), vh = viewH();
+  setFill(col); ctx.beginPath(); ctx.moveTo(0, vh);
+  for (var x = 0; x <= vw; x += 4){
     var wx = x + cam.x * px;
     ctx.lineTo(x, (y0 - Math.abs(Math.sin(wx*0.011))*amp - Math.sin(wx*0.031)*amp*0.3 - cam.y * py)|0);
   }
-  ctx.lineTo(VW, VH); ctx.closePath(); ctx.fill();
+  ctx.lineTo(vw, vh); ctx.closePath(); ctx.fill();
 }
 export function sky(){
   var ls = getLayers(), i, L;
