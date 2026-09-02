@@ -12,11 +12,12 @@ import { initSliders } from './slider.js';
 import {
   getSpriteDef, getSpriteFrameSrc, setSpriteFrame, clearSpriteFrame,
   isSpriteFrameDirty, setSpriteSize,
-  getAnimFrameCount, setAnimFrameCount, reorderAnimFrames,
+  getAnimFrameCount, setAnimFrameCount, reorderAnimFrames, removeAnimFrame,
   getAnimSpeed, setAnimSpeed,
   addSpriteDef, spriteFrameImage, addAnimDef, renameSpriteDef, setSpriteTag,
   isHeroSprite
 } from '../core/spriteset.js';
+import { fitFrame } from '../render/sprites.js';
 import {
   getFrameAnchor, setFrameAnchor, getAnimBox, setAnimBox,
   clearAnimAnchors, defaultObjectAnchors, spriteIdForObject
@@ -70,7 +71,7 @@ var COLLIDE = [
 var HINT = {
   pencil: 'LMB paint · RMB erase · Alt pick. Pixels are only a picture.',
   hitbox: 'Drag the red frame. That box is collision — the picture does not change it.',
-  sprite: 'Collision tool: red box = hitbox for this action (origin is its top-left), gold = hands, magenta = weapon. Drag to set a new box.'
+  sprite: 'Collision tool: red box = hitbox for this action (origin is its top-left), gold = hands, magenta = weapon. Drag an edge/corner to resize, drag inside to redraw.'
 };
 
 var STRIP_KEY = 'ledge.ed.tileStripH';
@@ -80,6 +81,8 @@ var ORIGIN_COL = '#6ec8ff';
 var WEAPON_COL = '#ff7eb6';
 var GRAB_COL = '#ffcc66';
 var SIZE_MIN = 8, SIZE_MAX = 128;
+var HOLD_DELETE_MS = 550;
+var ZOOM_MIN = 0.5, ZOOM_MAX = 8;
 
 var tool = 'pencil';
 var color = '#e8dcc8';
@@ -107,6 +110,7 @@ var playBtn = null;
 var frameDrag = null;
 var animFilter = '';
 var animFilterEl = null;
+var previewZoom = 1;
 
 try {
   var savedStrip = parseInt(localStorage.getItem(STRIP_KEY), 10);
@@ -1147,6 +1151,28 @@ function hitAnchor(e, can){
   return best;
 }
 
+var HANDLE_TOL = 8; // px по каждой оси экрана — совпадает с CSS-курсором ниже
+var HANDLE_CURSOR = { n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize',
+  ne: 'nesw-resize', sw: 'nesw-resize', nw: 'nwse-resize', se: 'nwse-resize' };
+
+/** Хватание за сторону/угол текущего hitbox для ресайза (n/s/e/w и их комбинации). */
+function hitBoxHandle(e, can){
+  var b = liveBoxRect(), r, k, px, py, x0, y0, x1, y1, nearX0, nearX1, nearY0, nearY1, inX, inY, h;
+  if (!b || !can) return null;
+  r = can.getBoundingClientRect();
+  k = r.width / fw;
+  px = e.clientX - r.left; py = e.clientY - r.top;
+  x0 = b.x * k; y0 = b.y * k; x1 = (b.x + b.w) * k; y1 = (b.y + b.h) * k;
+  nearX0 = Math.abs(px - x0) <= HANDLE_TOL; nearX1 = Math.abs(px - x1) <= HANDLE_TOL;
+  nearY0 = Math.abs(py - y0) <= HANDLE_TOL; nearY1 = Math.abs(py - y1) <= HANDLE_TOL;
+  inX = px >= x0 - HANDLE_TOL && px <= x1 + HANDLE_TOL;
+  inY = py >= y0 - HANDLE_TOL && py <= y1 + HANDLE_TOL;
+  h = '';
+  if (nearY0 && inX) h += 'n'; else if (nearY1 && inX) h += 's';
+  if (nearX0 && inY) h += 'w'; else if (nearX1 && inY) h += 'e';
+  return h || null;
+}
+
 function syncAnchorFields(){
   var a = liveAnchors(), b;
   if (!a) return;
@@ -1244,12 +1270,13 @@ function syncCursor(){
   if (!preview) return;
   var pick = altPick;
   var onMark = canEditAnchors() && !!pendingAnchor;
+  preview.style.cursor = '';
   preview.classList.toggle('tool-pick', pick && !onMark);
   preview.classList.toggle('tool-hit', tool === 'hitbox' && !pick);
   preview.classList.toggle('tool-anchor', onMark);
   preview.title = tool === 'hitbox'
     ? (canEditAnchors()
-      ? 'Drag the red box: origin becomes its top-left, size is collision for this action'
+      ? 'Drag an edge/corner of the red box to resize it, or drag inside to redraw. Origin is its top-left.'
       : 'Drag to set the collision box (what the hero hits)')
     : (pick ? 'Pick color' : 'Paint pixel · RMB erase · Alt+click picks');
 }
@@ -1258,12 +1285,17 @@ function paintCanvas(){
   if (!preview) return;
   var can = preview;
   var cx = can.getContext('2d');
-  var k = can.width / fw;                           // логика (fw×fh: якоря/бокс) → экран
-  var sx = can.width / bufW, sy = can.height / bufH; // буфер арта (bufW×bufH) → экран
+  var k = can.width / fw; // логика (fw×fh: якоря/бокс) → экран, канвас всегда fw:fh
   var a, b, animName;
   cx.imageSmoothingEnabled = false;
-  fillChecker(cx, bufW, bufH, sx, sy);
-  if (buf) cx.drawImage(buf, 0, 0, bufW, bufH, 0, 0, can.width, can.height);
+  fillChecker(cx, fw, fh, k, k);
+  if (buf){
+    /* Буфер арта (bufW×bufH) может не совпадать по аспекту с footprint (fw×fh) —
+       масштаб в канвас всегда единый по X/Y (см. fitFrame), иначе арт-пиксели
+       теряют квадратность; то же самое уже делает рендер (blitEntSprite и т.п.). */
+    var fit = fitFrame(bufW, bufH, can.width, can.height);
+    cx.drawImage(buf, 0, 0, bufW, bufH, fit.padX, fit.padY, fit.dw, fit.dh);
+  }
   else if (current && mode === 'tile' && !current.custom) paintTileIcon(cx, current, can.width);
   if (canEditAnchors()){
     if (tool === 'hitbox'){ drawSpriteBox(cx, k, true); drawAnchors(cx, k); }
@@ -1346,6 +1378,24 @@ function commitBox(){
   notify();
 }
 
+function applyPreviewZoom(can){
+  can.style.width = previewZoom === 1 ? '' : (previewZoom * 100) + '%';
+}
+
+/** Зум колесом мыши поверх окна превью — независим от paint/hitbox биндингов
+    (работает и на view-only канвасе Tile Details). Не даёт скроллить панель. */
+function bindPreviewZoom(can){
+  previewZoom = 1;
+  applyPreviewZoom(can);
+  can.addEventListener('wheel', function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    var factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    previewZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, previewZoom * factor));
+    applyPreviewZoom(can);
+  }, { passive: false });
+}
+
 function bindPreview(can){
   can.addEventListener('contextmenu', function(e){ e.preventDefault(); e.stopPropagation(); });
   can.addEventListener('pointerdown', function(e){
@@ -1369,6 +1419,12 @@ function bindPreview(can){
     if (tool === 'hitbox'){
       if (e.button !== 0) return;
       if (canEditAnchors()){
+        var rh = hitBoxHandle(e, can);
+        if (rh){
+          var b0 = liveBoxRect();
+          boxDrag = { sprite: true, resize: rh, x0: b0.x, y0: b0.y, x1: b0.x + b0.w, y1: b0.y + b0.h };
+          return;
+        }
         var hs = edgeOf(e, can);
         boxDrag = { x0: hs.x, y0: hs.y, sprite: true };
         applySpriteHitbox(hs.x, hs.y, hs.x, hs.y);
@@ -1407,8 +1463,20 @@ function bindPreview(can){
       var over = tool === 'hitbox' ? hitAnchor(e, can) : null;
       preview.classList.toggle('tool-anchor', !!over);
       preview.classList.toggle('tool-pick', altPick && !over);
+      var overHandle = (tool === 'hitbox' && !over) ? hitBoxHandle(e, can) : null;
+      can.style.cursor = overHandle ? HANDLE_CURSOR[overHandle] : '';
     }
     if (boxDrag){
+      if (boxDrag.resize){
+        var rp = edgeOf(e, can);
+        var nx0 = boxDrag.x0, ny0 = boxDrag.y0, nx1 = boxDrag.x1, ny1 = boxDrag.y1;
+        if (boxDrag.resize.indexOf('n') >= 0) ny0 = rp.y;
+        if (boxDrag.resize.indexOf('s') >= 0) ny1 = rp.y;
+        if (boxDrag.resize.indexOf('w') >= 0) nx0 = rp.x;
+        if (boxDrag.resize.indexOf('e') >= 0) nx1 = rp.x;
+        applySpriteHitbox(nx0, ny0, nx1, ny1);
+        return;
+      }
       var b = edgeOf(e, can);
       if (boxDrag.sprite) applySpriteHitbox(boxDrag.x0, boxDrag.y0, b.x, b.y);
       else applyBox(boxDrag.x0, boxDrag.y0, b.x, b.y);
@@ -1574,7 +1642,29 @@ function reorderTileFrames(fromI, toI){
   loadBuf(currentSrc(), function(){ fillSwatches(); syncTools(); paintCanvas(); });
 }
 
+/** Удалить кадр анимации: markOp/remove/notify + починить выделение и стрипы. */
+function deleteAnimFrameAt(rowId, ii){
+  if (!isSprite() || !current) return;
+  var n = getAnimFrameCount(current.id, rowId);
+  if (n <= 1) return;
+  markOp();
+  removeAnimFrame(current.id, rowId, ii);
+  current = getSpriteDef(current.id) || current;
+  notify();
+  var newN = getAnimFrameCount(current.id, rowId);
+  var nextI = frameI;
+  if (rowId === animId && ii <= frameI) nextI = frameI - 1;
+  nextI = Math.max(0, Math.min(nextI, newN - 1));
+  selectFrame(rowId, nextI);
+  fillBody();
+}
+
 function bindFrameDrag(th, rowId, ii, n){
+  var holdTimer = null;
+  function clearHold(){
+    if (holdTimer){ clearTimeout(holdTimer); holdTimer = null; }
+    th.classList.remove('holding');
+  }
   th.addEventListener('pointerdown', function(e){
     if (e.button !== 0 || e.ctrlKey || e.metaKey || e.altKey) return;
     frameDrag = {
@@ -1582,11 +1672,22 @@ function bindFrameDrag(th, rowId, ii, n){
       moved: false, el: th, pointerId: e.pointerId, canReorder: n >= 2 && canPaint()
     };
     try { th.setPointerCapture(e.pointerId); } catch (_){}
+    if (isSprite() && canPaint() && n > 1){
+      th.classList.add('holding');
+      holdTimer = setTimeout(function(){
+        holdTimer = null;
+        if (!frameDrag || frameDrag.el !== th || frameDrag.moved) return;
+        frameDrag = null;
+        th.classList.remove('holding');
+        deleteAnimFrameAt(rowId, ii);
+      }, HOLD_DELETE_MS);
+    }
   });
   th.addEventListener('pointermove', function(e){
     if (!frameDrag || frameDrag.el !== th || e.pointerId !== frameDrag.pointerId) return;
-    if (!frameDrag.canReorder) return;
     var dx = e.clientX - frameDrag.startX, dy = e.clientY - frameDrag.startY;
+    if (holdTimer && dx * dx + dy * dy >= 25) clearHold();
+    if (!frameDrag.canReorder) return;
     if (!frameDrag.moved && dx * dx + dy * dy < 25) return;
     frameDrag.moved = true;
     th.classList.add('dragging');
@@ -1601,6 +1702,7 @@ function bindFrameDrag(th, rowId, ii, n){
     frameDrag.to = target;
   });
   function endDrag(e){
+    clearHold();
     if (!frameDrag || frameDrag.el !== th || e.pointerId !== frameDrag.pointerId) return;
     var from = frameDrag.from, to = frameDrag.to != null ? frameDrag.to : from, moved = frameDrag.moved;
     th.classList.remove('dragging');
@@ -1827,7 +1929,7 @@ function paintStrips(){
           if (isSprite() && isSpriteFrameDirty(current.id, row.id, ii))
             th.classList.add('dirty');
           th.title = canPaint()
-            ? (row.name + ' ' + (ii + 1) + ' — drag to reorder · drop tile swatch to replace')
+            ? (row.name + ' ' + (ii + 1) + ' — drag to reorder · hold to delete · drop tile swatch to replace')
             : (row.name + ' ' + (ii + 1));
           var cx = th.getContext('2d');
           cx.imageSmoothingEnabled = false;
@@ -1836,7 +1938,9 @@ function paintStrips(){
           img.onload = function(){
             cx.imageSmoothingEnabled = false;
             fillChecker(cx, fw, fh, 1, 1);
-            cx.drawImage(img, 0, 0, img.naturalWidth || fw, img.naturalHeight || fh, 0, 0, fw, fh);
+            var natW = img.naturalWidth || fw, natH = img.naturalHeight || fh;
+            var fit = fitFrame(natW, natH, fw, fh);
+            cx.drawImage(img, 0, 0, natW, natH, fit.padX, fit.padY, fit.dw, fit.dh);
             drawThumbAnchors(cx, row.id, ii);
           };
           img.src = frameSrcAt(row.id, ii);
@@ -1932,6 +2036,7 @@ function fillTileParamsOnly(){
   can.style.aspectRatio = fw + ' / ' + fh;
   body.appendChild(can);
   preview = can;
+  bindPreviewZoom(can);
 
   hitLab = document.createElement('div');
   hitLab.className = 'ed-tile-hitlab';
@@ -2276,6 +2381,7 @@ function fillBody(){
   can.style.aspectRatio = fw + ' / ' + fh;
   body.appendChild(can);
   preview = can;
+  bindPreviewZoom(can);
 
   hitLab = document.createElement('div');
   hitLab.className = 'ed-tile-hitlab';

@@ -544,6 +544,24 @@ export function reorderAnimFrames(id, anim, fromI, toI){
   return { from: fromI, to: toI };
 }
 
+/** Удалить один кадр анимации по индексу (не даёт стереть последний). */
+export function removeAnimFrame(id, anim, i){
+  var n = getAnimFrameCount(id, anim), rec, k;
+  i = i | 0;
+  if (n <= 1 || i < 0 || i >= n) return null;
+  rec = ensureRec(id, anim);
+  if (!rec) return null;
+  if (!rec.frames) rec.frames = [];
+  if (!rec.dirty) rec.dirty = [];
+  rec.frames.splice(i, 1);
+  rec.dirty.splice(i, 1);
+  rec.n = n - 1;
+  for (k = rec.n; k < n; k++) delete imgs[imgKey(id, anim, k)];
+  loadAll();
+  emit('frame');
+  return rec.n;
+}
+
 /** Добавить новую строку анимации кастомному спрайту (id уникален внутри def.anims). */
 export function addAnimDef(id, animId, name, n){
   var def = byId[id];
