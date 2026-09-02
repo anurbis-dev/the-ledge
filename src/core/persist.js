@@ -126,6 +126,7 @@ function packLevel(lv){
   return {
     id: lv.id, name: lv.name, pal: lv.pal, blank: !!lv.blank,
     intro: lv.intro || '',
+    camZoom: lv.camZoom || 100,
     gearDurability: lv.gearDurability || {},
     w: lv.w, h: lv.h,
     spawn: lv.spawn,
@@ -199,6 +200,7 @@ function applyRecord(lv, rec){
     lv.exit = lv.exits[0];
   }
   if (rec.intro != null) lv.intro = rec.intro;
+  if (rec.camZoom) lv.camZoom = rec.camZoom;
   if (rec.gearDurability) lv.gearDurability = rec.gearDurability;
   if (rec.w) lv.w = rec.w;
   if (rec.h) lv.h = rec.h;
@@ -220,6 +222,7 @@ function makeBlank(rec){
     id: rec.id, name: rec.name || 'LEVEL', pal: rec.pal || 'stone',
     w: rec.w || 16, h: rec.h || 16, blank: true,
     intro: rec.intro || '',
+    camZoom: rec.camZoom || 100,
     gearDurability: rec.gearDurability || {},
     spawn: rec.spawn || { x: 16, y: 6 * T - 22 },
     exit: rec.exit || (rec.exits && rec.exits[0]) || null,

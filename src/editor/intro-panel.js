@@ -3,6 +3,7 @@ import { markLevelDirty } from '../core/persist.js';
 import {
   getIntroLines, setIntroLineAt, addIntroLine, removeIntroLine, resetIntroLines
 } from '../core/intro.js';
+import { initSliders } from './slider.js';
 
 var host = null;
 
@@ -39,6 +40,29 @@ export function renderIntroPanel(){
     markLevelDirty();
   });
   secLv.appendChild(lvInp);
+
+  var zWrap = document.createElement('div');
+  zWrap.className = 'slider-wrap';
+  zWrap.title = 'camZoom — общий зум камеры уровня: насколько крупно рисуются мировые пиксели на экране. 100% = обычный размер, меньше — видно больше мира, больше — крупнее пиксели/меньше обзор.';
+  var zOver = document.createElement('div');
+  zOver.className = 'slider-label-overlay';
+  var zLab = document.createElement('span');
+  zLab.textContent = 'Camera zoom';
+  var zVal = document.createElement('span');
+  zOver.appendChild(zLab); zOver.appendChild(zVal);
+  var zInp = document.createElement('input');
+  zInp.type = 'range'; zInp.min = '25'; zInp.max = '400'; zInp.step = '5';
+  zInp.value = String((lv && lv.camZoom) || 100);
+  zInp.dataset.default = '100';
+  zInp.addEventListener('input', function(){
+    if (!lv) return;
+    lv.camZoom = +zInp.value;
+    markLevelDirty();
+  });
+  zWrap.appendChild(zOver);
+  zWrap.appendChild(zInp);
+  secLv.appendChild(zWrap);
+
   host.appendChild(secLv);
 
   var sec = document.createElement('section');
@@ -110,4 +134,5 @@ export function renderIntroPanel(){
     sec.appendChild(empty);
   }
   host.appendChild(sec);
+  initSliders(host);
 }

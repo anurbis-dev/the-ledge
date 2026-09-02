@@ -491,14 +491,21 @@ function resize(){
   var land = innerWidth > innerHeight;
   var padB = ED.on ? 8 : (land ? 4 : 150);
   var usableW = innerWidth - (land ? 4 : 16), usableH = innerHeight - padB;
+  /* Зум камеры уровня (LV.camZoom, редактор — вкладка Intro): меньше видимых мировых юнитов
+     на тот же физический экран = крупнее пиксели. В самом редакторе (ED.on) не действует —
+     там всегда фиксированные 320x180, свой zoom через Ctrl+RMB (viewScale). */
+  var lv = G.levelSpec();
+  var lvZoom = lv && lv.camZoom;
+  var z = (ED.on || !lvZoom) ? 1 : lvZoom / 100;
+  var bw = BASE_VW / z, bh = BASE_VH / z;
   if (ED.on){
     setViewport(BASE_VW, BASE_VH);
   } else {
-    var baseA = BASE_VW / BASE_VH, targetA = usableW / usableH;
+    var baseA = bw / bh, targetA = usableW / usableH;
     if (targetA > baseA * MAX_STRETCH) targetA = baseA * MAX_STRETCH;
     else if (targetA < baseA / MAX_STRETCH) targetA = baseA / MAX_STRETCH;
-    if (targetA > baseA) setViewport(Math.round(BASE_VH * targetA), BASE_VH);
-    else setViewport(BASE_VW, Math.round(BASE_VW / targetA));
+    if (targetA > baseA) setViewport(Math.round(bh * targetA), Math.round(bh));
+    else setViewport(Math.round(bw), Math.round(bw / targetA));
   }
   var s = Math.min(usableW/VW, usableH/VH);
   s = Math.max(0.55, s);

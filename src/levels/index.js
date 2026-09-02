@@ -40,7 +40,7 @@ function nextLevelId(){
 export function addBlankLevel(){
   var n = nextLevelId();
   var lv = {
-    id: n, name: 'LEVEL ' + n, pal: 'stone', w: 16, h: 16, blank: true, intro: '',
+    id: n, name: 'LEVEL ' + n, pal: 'stone', w: 16, h: 16, blank: true, intro: '', camZoom: 100,
     spawn: { x: 16, y: 6 * 16 - 22 },
     exit: null,
     exits: [],
