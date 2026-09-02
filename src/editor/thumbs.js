@@ -210,6 +210,10 @@ export function paintObjIcon(c, kind, s){
   } else if (kind === 'chestL'){
     r(2, 6, 12, 8, P.chestD); r(3, 7, 10, 6, P.chest); r(2, 4, 12, 3, P.chestD);
     r(3, 4, 10, 2, P.chestL); r(6, 5, 4, 4, P.lockC);
+  } else if (kind === 'chest_open'){
+    r(2, 6, 12, 8, P.chestD); r(3, 7, 10, 6, P.chest); r(4, 9, 8, 4, '#191228');
+    r(2, 2, 12, 3, P.chestD); r(3, 2, 10, 2, P.chest);
+    r(6, 3, 4, 5, P.coin); r(5, 4, 6, 3, P.coin);
   } else if (kind === 'coin'){
     r(5, 4, 6, 8, P.coin); r(4, 5, 8, 6, P.coin); r(6, 6, 1, 4, '#fff6c9');
   } else if (kind === 'gem'){
@@ -249,6 +253,10 @@ export function paintObjIcon(c, kind, s){
     r(3, 1, 10, 2, P.liftB); r(3, 13, 10, 2, P.liftB);
     r(3, 3, 2, 10, P.liftB); r(11, 3, 2, 10, P.liftB);
     r(5, 4, 6, 8, '#241d3d'); r(7, 2, 2, 1, '#ffd06a');
+  } else if (kind === 'lift_open'){
+    r(3, 1, 10, 2, P.liftB); r(3, 13, 10, 2, P.liftB);
+    r(3, 3, 2, 10, P.liftB); r(11, 3, 2, 10, P.liftB);
+    r(5, 4, 6, 8, '#08060f'); r(7, 2, 2, 1, '#7de08a');
   } else if (kind === 'npc_hermit' || kind === 'npc_wanderer'){
     var cloak = kind === 'npc_wanderer' ? '#3a5a4a' : '#4a3a68';
     var cloakD = kind === 'npc_wanderer' ? '#243830' : '#2e2446';

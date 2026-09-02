@@ -29,19 +29,21 @@ export function catalogIconSpriteIds(){
   return out;
 }
 
-/** Bake missing idle frames for icon catalog entries (idempotent). */
+/** Bake missing frames for icon catalog entries — все anim-состояния (idle/open/closed/...), не только первое. */
 export function ensureCatalogIconFrames(){
-  var ids = catalogIconSpriteIds(), i, id, def, anim, n, f, changed = 0;
+  var ids = catalogIconSpriteIds(), i, id, def, a, anim, n, f, changed = 0;
   for (i = 0; i < ids.length; i++){
     id = ids[i];
     def = getSpriteDef(id);
     if (!def || !def.anims || !def.anims.length) continue;
-    anim = def.anims[0].id;
-    n = Math.max(1, def.anims[0].n | 0);
-    for (f = 0; f < n; f++){
-      if (isSpriteFrameDirty(id, anim, f)) continue;
-      setSpriteFrame(id, anim, f, bakeSpriteFrameSrc(id, anim, f), true);
-      changed++;
+    for (a = 0; a < def.anims.length; a++){
+      anim = def.anims[a].id;
+      n = Math.max(1, def.anims[a].n | 0);
+      for (f = 0; f < n; f++){
+        if (isSpriteFrameDirty(id, anim, f)) continue;
+        setSpriteFrame(id, anim, f, bakeSpriteFrameSrc(id, anim, f), true);
+        changed++;
+      }
     }
   }
   return changed;

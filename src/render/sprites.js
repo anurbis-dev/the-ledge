@@ -54,7 +54,10 @@ function blitEntSprite(id, anim, frame, wx, wy, dir, pinCell, objectKind){
   var def = getSpriteDef(id);
   if (!def) return false;
   var ox = 0, oy = 0, origin, ok;
-  if (!pinCell){
+  if (pinCell){
+    ox = (def.fw - T) / 2;                          // центр footprint любого размера в клетке 16×16
+    oy = (def.fh - T) / 2;
+  } else {
     ok = objectKind || legacyObjectKindFromSprite(id) || id;
     origin = getFrameAnchor(ok, anim, frame, 'origin');
     ox = origin ? origin.x : (def.ox || 0);
@@ -72,6 +75,43 @@ function blitEntSprite(id, anim, frame, wx, wy, dir, pinCell, objectKind){
   } else {
     ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, x + fit.padX, y + fit.padY, fit.dw, fit.dh);
   }
+  ctx.restore();
+  return true;
+}
+
+/* Растягивает кадр ровно в w×h (без сохранения аспекта) — платформы/кабина лифта:
+   их коллижен-бокс произвольной длины сам задаёт границы, спрайт просто заполняет его. */
+function blitStretchSprite(id, anim, frame, wx, wy, w, h, dir){
+  var img = spriteFrameImage(id, anim, frame);
+  if (!img) return false;
+  var x = Math.round(wx - cam.x), y = Math.round(wy - cam.y);
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  if (dir < 0){
+    ctx.translate(x + w, y);
+    ctx.scale(-1, 1);
+    ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, w, h);
+  } else {
+    ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, x, y, w, h);
+  }
+  ctx.restore();
+  return true;
+}
+
+/* Кадр, вписанный в footprint (как blitEntSprite), но центрированный на (wcx,wcy) и
+   повёрнутый вокруг этого центра — катящийся камень. */
+function blitCenteredRotSprite(id, anim, frame, wcx, wcy, rot){
+  var img = spriteFrameImage(id, anim, frame);
+  if (!img) return false;
+  var def = getSpriteDef(id);
+  if (!def) return false;
+  var sx = Math.round(wcx - cam.x), sy = Math.round(wcy - cam.y);
+  var fit = fitFrame(img.naturalWidth, img.naturalHeight, def.fw, def.fh);
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.translate(sx, sy);
+  if (rot) ctx.rotate(rot);
+  ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, -fit.dw / 2, -fit.dh / 2, fit.dw, fit.dh);
   ctx.restore();
   return true;
 }
@@ -199,22 +239,27 @@ export function lifts(){
     if (x < -70 || x > viewW() + 70) continue;
     // трос до верха шахты
     rc(x + L.w/2 - 1, y - hh2 - 240, 2, 240, '#2a2444');
-    // кабина: пол, стены, крыша
-    rc(x - 2, y - hh2 - 4, L.w + 4, 4, P.liftB);
-    rc(x - 2, y - hh2 - 4, L.w + 4, 1, P.liftC);
-    rc(x - 2, y, L.w + 4, 6, P.liftB);
-    rc(x - 2, y, L.w + 4, 1, P.liftC);
-    rc(x - 2, y - hh2, 3, hh2, P.liftB);
-    rc(x + L.w - 1, y - hh2, 3, hh2, P.liftB);
-    rc(x + 1, y - hh2, L.w - 2, hh2, '#241d3d');       // тёмное нутро
-    // решётчатые двери: раскрыты на стоянке
+    // кабина: раскрыта на стоянке
     var open = (L.st === 'dwell' && L.t <= 0);
-    var dw = open ? 3 : (L.w/2 - 2);
-    rc(x + 1, y - hh2 + 2, dw, hh2 - 3, P.liftA);
-    rc(x + L.w - 1 - dw, y - hh2 + 2, dw, hh2 - 3, P.liftA);
-    for (var g = 0; g < hh2 - 4; g += 5){
-      rc(x + 1, y - hh2 + 3 + g, dw, 1, P.liftB);
-      rc(x + L.w - 1 - dw, y - hh2 + 3 + g, dw, 1, P.liftB);
+    var cabinSprite = blitStretchSprite('lift', open ? 'open' : 'closed', 0,
+      L.x - 2, L.y - hh2 - 4, L.w + 4, hh2 + 10, 1);
+    if (!cabinSprite){
+      // пол, стены, крыша
+      rc(x - 2, y - hh2 - 4, L.w + 4, 4, P.liftB);
+      rc(x - 2, y - hh2 - 4, L.w + 4, 1, P.liftC);
+      rc(x - 2, y, L.w + 4, 6, P.liftB);
+      rc(x - 2, y, L.w + 4, 1, P.liftC);
+      rc(x - 2, y - hh2, 3, hh2, P.liftB);
+      rc(x + L.w - 1, y - hh2, 3, hh2, P.liftB);
+      rc(x + 1, y - hh2, L.w - 2, hh2, '#241d3d');       // тёмное нутро
+      // решётчатые двери
+      var dw = open ? 3 : (L.w/2 - 2);
+      rc(x + 1, y - hh2 + 2, dw, hh2 - 3, P.liftA);
+      rc(x + L.w - 1 - dw, y - hh2 + 2, dw, hh2 - 3, P.liftA);
+      for (var g = 0; g < hh2 - 4; g += 5){
+        rc(x + 1, y - hh2 + 3 + g, dw, 1, P.liftB);
+        rc(x + L.w - 1 - dw, y - hh2 + 3 + g, dw, 1, P.liftB);
+      }
     }
     // индикатор движения
     var lampOn = (L.st === 'move') ? (Math.sin(time*9) > 0) : open;
@@ -229,15 +274,19 @@ export function plats(){
     var x = q.x - cam.x, y = q.y - cam.y;
     if (q.vert){
       rc(x + q.w/2 - 1, y - (q.y - q.y0) - 200, 2, 200 + (q.y - q.y0), '#2a2444');  // трос
-      rc(x, y, q.w, q.h, P.liftB);
-      rc(x, y, q.w, 2, P.liftA); rc(x, y, q.w, 1, P.liftC);
+      if (!blitStretchSprite('plat_v', 'idle', 0, q.x, q.y, q.w, q.h, 1)){
+        rc(x, y, q.w, q.h, P.liftB);
+        rc(x, y, q.w, 2, P.liftA); rc(x, y, q.w, 1, P.liftC);
+      }
       rc(x+1, y+3, 3, 2, P.liftA); rc(x+q.w-4, y+3, 3, 2, P.liftA);
       rc(x + q.w/2 - 3, y - 3, 6, 3, P.liftB); rc(x + q.w/2 - 2, y - 3, 4, 1, P.liftC);
       var st = Math.sin(time*3 + i) > 0 ? P.liftC : P.liftA;
       rc(x + 2, y + q.h - 2, 2, 2, st); rc(x + q.w - 4, y + q.h - 2, 2, 2, st);
     } else {
-      rc(x, y, q.w, q.h, P.woodD);
-      rc(x, y, q.w, 2, P.wood); rc(x, y, q.w, 1, P.woodL);
+      if (!blitStretchSprite('plat_h', 'idle', 0, q.x, q.y, q.w, q.h, 1)){
+        rc(x, y, q.w, q.h, P.woodD);
+        rc(x, y, q.w, 2, P.wood); rc(x, y, q.w, 1, P.woodL);
+      }
       rc(x+2, y+q.h, 2, 2, P.rockX); rc(x+q.w-4, y+q.h, 2, 2, P.rockX);
     }
   }
@@ -283,6 +332,7 @@ export function boulders(){
     var b = S.boulders[i]; if (!pushEntA(b)) continue;
     var x = Math.round(b.x - cam.x), y = Math.round(b.y - cam.y);
     if (x < -20 || x > viewW() + 20) continue;
+    if (blitCenteredRotSprite('boulder', 'idle', 0, b.x + 6, b.y + 5, b.rot || 0)) continue;
     var cx = x + 6, cy = y + 5;
     setFill('#302c46');
     ctx.beginPath(); ctx.arc(cx, cy + 1, 6, 0, Math.PI * 2); ctx.fill();
@@ -337,13 +387,16 @@ export function doors(){
     var d = S.doors[i]; if (!pushEntA(d)) continue;
     var x = Math.round(d.x - cam.x), y = Math.round(d.y - cam.y);
     if (x < -30 || x > viewW()+30) continue;
-    rc(x-1, y-27, 18, 27, '#241a30');
-    rc(x, y-25, 16, 25, P.doorD);
-    rc(x+1, y-24, 14, 23, P.door);
-    rc(x+1, y-24, 14, 1, P.doorL);
-    rc(x+7, y-24, 2, 23, P.doorD);
-    rc(x+2, y-20, 5, 7, P.doorD); rc(x+9, y-20, 5, 7, P.doorD);
-    rc(x+12, y-12, 2, 2, P.lockD);
+    var drSprite = blitEntSprite('door', 'idle', 0, d.x, d.y, 1, false, 'door_env');
+    if (!drSprite){
+      rc(x-1, y-27, 18, 27, '#241a30');
+      rc(x, y-25, 16, 25, P.doorD);
+      rc(x+1, y-24, 14, 23, P.door);
+      rc(x+1, y-24, 14, 1, P.doorL);
+      rc(x+7, y-24, 2, 23, P.doorD);
+      rc(x+2, y-20, 5, 7, P.doorD); rc(x+9, y-20, 5, 7, P.doorD);
+      rc(x+12, y-12, 2, 2, P.lockD);
+    }
     if (d.need || d.locked){
       var canOpen = d.need
         ? (d.need === 'key' ? (S.keys || 0) > 0 : !!(S.bag && S.bag[d.need] > 0))
@@ -361,7 +414,7 @@ export function doors(){
         rc(x+6, by2+7, 2, 4, hint);
         rc(x+8, by2+9, 2, 1, hint);
       }
-    } else {
+    } else if (!drSprite){
       rc(x+1, y-24, 14, 4, '#120d1e');
     }
   }
@@ -436,14 +489,26 @@ export function chests(){
     var x = Math.round(ch.x - cam.x), y = Math.round(ch.y - cam.y);
     if (x < -30 || x > viewW() + 30) continue;
     if (ch.t > 0) ch.t -= 1/60;
-    rc(x + 1, y - 11, 18, 11, P.chestD);            // корпус
-    rc(x + 2, y - 10, 16, 9, P.chest);
-    rc(x + 2, y - 10, 16, 1, P.chestL);
-    rc(x + 9, y - 10, 2, 9, P.chestD);
+    var chSid = ch.locked ? 'chestL' : 'chest';
+    var chAnim = ch.opened ? 'open' : 'idle';
+    if (!blitEntSprite(chSid, chAnim, 0, ch.x, ch.y, 1, false, 'chest_env')){
+      rc(x + 1, y - 11, 18, 11, P.chestD);            // корпус
+      rc(x + 2, y - 10, 16, 9, P.chest);
+      rc(x + 2, y - 10, 16, 1, P.chestL);
+      rc(x + 9, y - 10, 2, 9, P.chestD);
+      if (ch.opened){
+        rc(x + 1, y - 18, 18, 5, P.chestD);           // откинутая крышка
+        rc(x + 2, y - 17, 16, 3, P.chest);
+        rc(x + 4, y - 9, 12, 6, '#191228');
+      } else {
+        rc(x + 1, y - 15, 18, 5, P.chestD);           // закрытая крышка
+        rc(x + 2, y - 14, 16, 3, P.chest);
+        rc(x + 2, y - 14, 16, 1, P.chestL);
+        rc(x + 8, y - 13, 4, 5, ch.locked ? P.lockC : P.band);
+        rc(x + 9, y - 12, 2, 3, P.chestD);
+      }
+    }
     if (ch.opened){
-      rc(x + 1, y - 18, 18, 5, P.chestD);           // откинутая крышка
-      rc(x + 2, y - 17, 16, 3, P.chest);
-      rc(x + 4, y - 9, 12, 6, '#191228');
       if (ch.t > 0){
         var g = Math.min(1, ch.t / 1.6);
         var iy = y - 18 - (1 - g) * 16;                      // предмет всплывает над сундуком
@@ -464,17 +529,10 @@ export function chests(){
         else { rc(x+7, iy, 6, 8, P.coin); rc(x+6, iy+2, 8, 4, P.coin); }
         ctx.globalAlpha = entA(ch);
       }
-    } else {
-      rc(x + 1, y - 15, 18, 5, P.chestD);           // закрытая крышка
-      rc(x + 2, y - 14, 16, 3, P.chest);
-      rc(x + 2, y - 14, 16, 1, P.chestL);
-      rc(x + 8, y - 13, 4, 5, ch.locked ? P.lockC : P.band);
-      rc(x + 9, y - 12, 2, 3, P.chestD);
-      if (ch.locked && Math.sin(time*4) > 0.2 &&
-          Math.abs((S.p.x + S.p.w/2) - (ch.x + 10)) < 46){
-        rc(x + 6, y - 30, 8, 8, '#241a30');
-        rc(x + 8, y - 28, 4, 4, S.keys > 0 ? '#7de08a' : P.lockC);
-      }
+    } else if (ch.locked && Math.sin(time*4) > 0.2 &&
+        Math.abs((S.p.x + S.p.w/2) - (ch.x + 10)) < 46){
+      rc(x + 6, y - 30, 8, 8, '#241a30');
+      rc(x + 8, y - 28, 4, 4, S.keys > 0 ? '#7de08a' : P.lockC);
     }
   }
   popEntA();

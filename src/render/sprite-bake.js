@@ -44,6 +44,8 @@ export function bakeKindFrame(kind, animId, frameI){
   var def = getSpriteDef(kind);
   var w = def ? def.fw : 16, h = def ? def.fh : 16;
   var paintKind = (def && def.kind) || kind;
+  var primary = def && def.anims && def.anims[0] && def.anims[0].id;
+  if (animId && primary && animId !== primary) paintKind = paintKind + '_' + animId; // альт-состояние (open/closed/...) — свой icon-branch
   var can = makeCan(w, h);
   var cx = can.getContext('2d');
   var hop = (frameI | 0) % 2;

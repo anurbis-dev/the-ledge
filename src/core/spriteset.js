@@ -126,7 +126,7 @@ export var SPRITE_DEFS = [
     anims: [{ id: 'idle', name: 'Idle', n: 1 }] },
   { id: 'level_exit', name: 'Exit', fw: 16, fh: 16, ox: 0, oy: 0, kind: 'level_exit',
     anims: [{ id: 'idle', name: 'Idle', n: 1 }] },
-  { id: 'door', name: 'Door', fw: 16, fh: 16, ox: 0, oy: 0, kind: 'door',
+  { id: 'door', name: 'Door', fw: 16, fh: 16, ox: 0, oy: 16, kind: 'door',
     anims: [{ id: 'idle', name: 'Idle', n: 1 }] },
   { id: 'tendril0', name: 'Sting', fw: 16, fh: 16, ox: 0, oy: 0, kind: 'tendril0',
     anims: [{ id: 'idle', name: 'Idle', n: 1 }] },
@@ -134,9 +134,9 @@ export var SPRITE_DEFS = [
     anims: [{ id: 'idle', name: 'Idle', n: 1 }] },
   { id: 'torch', name: 'Torch', fw: 16, fh: 16, ox: 0, oy: 0, kind: 'torch',
     anims: [{ id: 'idle', name: 'Idle', n: 1 }] },
-  { id: 'chest', name: 'Chest', fw: 16, fh: 16, ox: 0, oy: 0, kind: 'chest',
-    anims: [{ id: 'idle', name: 'Idle', n: 1 }] },
-  { id: 'chestL', name: 'Locked', fw: 16, fh: 16, ox: 0, oy: 0, kind: 'chestL',
+  { id: 'chest', name: 'Chest', fw: 16, fh: 16, ox: 0, oy: 24, kind: 'chest',
+    anims: [{ id: 'idle', name: 'Idle', n: 1 }, { id: 'open', name: 'Open', n: 1 }] },
+  { id: 'chestL', name: 'Locked', fw: 16, fh: 16, ox: 0, oy: 16, kind: 'chestL',
     anims: [{ id: 'idle', name: 'Idle', n: 1 }] },
   { id: 'coin', name: 'Coin', fw: 16, fh: 16, ox: 0, oy: 0, kind: 'coin',
     anims: [{ id: 'idle', name: 'Idle', n: 1 }] },
@@ -181,7 +181,7 @@ export var SPRITE_DEFS = [
   { id: 'plat_v', name: 'Plat V', fw: 16, fh: 16, ox: 0, oy: 0, kind: 'plat_v',
     anims: [{ id: 'idle', name: 'Idle', n: 1 }] },
   { id: 'lift', name: 'Lift', fw: 16, fh: 16, ox: 0, oy: 0, kind: 'lift',
-    anims: [{ id: 'idle', name: 'Idle', n: 1 }] }
+    anims: [{ id: 'closed', name: 'Closed', n: 1 }, { id: 'open', name: 'Open', n: 1 }] }
 ];
 
 var byId = {};

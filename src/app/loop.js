@@ -557,9 +557,9 @@ function frame(now){
     applyWorldTransform();
     tiles();
     if (entitiesShown(true)){
-      plats(); lifts(); caveExit(); doors(); boulders(); chests();
+      plats(); lifts(); caveExit(); boulders(); chests();
       lootDrops(); items(); pickables(); drawTorches(); drawHarpoons(); drawArrows(); enemies(); spiders(); fliers(); npcs();
-      ropes(); hero(); drawWaterImmersion(); drawFish();
+      ropes(); hero(); doors(); drawWaterImmersion(); drawFish();
     }
     tilesFront();
     drawParts(dt); drawHearts(dt);
@@ -592,9 +592,9 @@ function frame(now){
     ctx.clearRect(0, 0, BUF_W, BUF_H);
     sky(); tiles();
     if (entitiesShown(false)){
-      plats(); lifts(); caveExit(); doors(); boulders(); chests();
+      plats(); lifts(); caveExit(); boulders(); chests();
       lootDrops(); items(); pickables(); drawTorches(); drawHarpoons(); drawArrows(); enemies(); spiders(); fliers(); npcs();
-      ropes(); hero(); drawWaterImmersion(); drawFish();
+      ropes(); hero(); doors(); drawWaterImmersion(); drawFish();
     }
     tilesFront(); lightPass(); applyVolumes(); drawWeeds(); tendrils();
     if (ED.showGeo) drawCollideOverlay();
@@ -677,7 +677,6 @@ function frame(now){
   plats();
   lifts();
   caveExit();
-  doors();
   boulders();
   chests();
   lootDrops();
@@ -692,6 +691,7 @@ function frame(now){
   npcs();
   ropes();
   hero();
+  doors();
   drawWaterImmersion();
   drawFish();
   tilesFront();
