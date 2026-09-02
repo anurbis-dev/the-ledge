@@ -7,7 +7,7 @@ import { BAKED } from './defaults.js';
 import { C } from './constants.js';
 import { notifyDraftChange } from './persist.js';
 import {
-  getSpriteDef, getSpriteMeta, isHeroSprite, snapshotSprites,
+  getSpriteDef, getSpriteMeta, spriteFrameImage, isHeroSprite, snapshotSprites,
   stripAnchorsFromSaved
 } from './spriteset.js';
 import {
@@ -174,8 +174,15 @@ export function isHeroObject(objectKind){
   return !!(sid && isHeroSprite(sid));
 }
 
-function metaSize(objectKind){
+/* Границы для origin/box — размер РЕАЛЬНОГО арта текущего кадра (anim, frame 0),
+   не отдельно хранимое число: раз рендер больше не скейлит (см. render/sprites.js
+   fitFrame), а рисует спрайт как есть, то и клампить якоря нужно по факту
+   загруженной картинки — иначе после импорта кадра большего размера бокс
+   остаётся зажат в границах старого (виртуального) footprint. */
+function metaSize(objectKind, anim){
   var sid = spriteIdForObject(objectKind);
+  var img = sid && anim ? spriteFrameImage(sid, anim, 0) : null;
+  if (img && img.naturalWidth) return { fw: img.naturalWidth, fh: img.naturalHeight, ox: 0, oy: 0 };
   var m = sid ? getSpriteMeta(sid) : null;
   if (m) return m;
   return { fw: 16, fh: 16, ox: 0, oy: 0 };
@@ -340,7 +347,7 @@ export function setAnimBox(objectKind, anim, w, h){
   var rec, meta, d, maxW, maxH, o;
   rec = ensureRec(objectKind, anim);
   if (!rec) return null;
-  meta = metaSize(objectKind);
+  meta = metaSize(objectKind, anim);
   o = originFromRec(rec);
   maxW = meta ? meta.fw : 16;
   maxH = meta ? meta.fh : 16;
@@ -378,7 +385,7 @@ export function setFrameAnchor(objectKind, anim, i, kind, x, y, rot){
   if (kind !== 'origin' && kind !== 'weapon' && kind !== 'grab') return null;
   rec = ensureRec(objectKind, anim);
   if (!rec) return null;
-  meta = metaSize(objectKind);
+  meta = metaSize(objectKind, anim);
   pt = clampPt({ x: x, y: y }, meta.fw, meta.fh);
   if (kind === 'origin'){
     rec.origin = pt;

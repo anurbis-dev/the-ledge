@@ -6,13 +6,11 @@ import { spriteFrameImage, getSpriteDef, getAnimFrame } from '../core/spriteset.
 import { getFrameAnchor, legacyObjectKindFromSprite, spriteIdForObject } from '../core/object-anchors.js';
 import { defaultFrameAnchors } from './sprite-anchors.js';
 
-/* fw×fh (footprint) — верхняя граница блита кадра, может быть не квадратной;
-   масштаб в неё всегда единый по X/Y, иначе арт-пиксели теряют квадратность.
-   Если аспект кадра не совпадает с fw:fh, лишнее место внутри footprint пустое. */
+/* Кадры блитятся строго 1:1 — как нарисован спрайт, так и рисуем, без масштаба.
+   fw/fh (footprint) больше не растягивают/сжимают арт: PNG обязан быть того же
+   размера, что и footprint (см. bake). Сигнатура сохранена ради вызывающих. */
 export function fitFrame(natW, natH, fw, fh){
-  var s = Math.min(fw / natW, fh / natH);
-  var dw = Math.max(1, Math.round(natW * s)), dh = Math.max(1, Math.round(natH * s));
-  return { dw: dw, dh: dh, padX: Math.round((fw - dw) / 2), padY: Math.round((fh - dh) / 2) };
+  return { dw: natW, dh: natH, padX: 0, padY: 0 };
 }
 
 /* Предмет в руке/на своём месте — grip-точка (якорь 'weapon' objectKind, тот же
@@ -55,8 +53,8 @@ function blitEntSprite(id, anim, frame, wx, wy, dir, pinCell, objectKind){
   if (!def) return false;
   var ox = 0, oy = 0, origin, ok;
   if (pinCell){
-    ox = (def.fw - T) / 2;                          // центр footprint любого размера в клетке 16×16
-    oy = (def.fh - T) / 2;
+    ox = (img.naturalWidth - T) / 2;                // центр арта любого размера в клетке 16×16
+    oy = (img.naturalHeight - T) / 2;
   } else {
     ok = objectKind || legacyObjectKindFromSprite(id) || id;
     origin = getFrameAnchor(ok, anim, frame, 'origin');
@@ -69,7 +67,7 @@ function blitEntSprite(id, anim, frame, wx, wy, dir, pinCell, objectKind){
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   if (dir < 0){
-    ctx.translate(x + def.fw, y);
+    ctx.translate(x + img.naturalWidth, y);
     ctx.scale(-1, 1);
     ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, fit.padX, fit.padY, fit.dw, fit.dh);
   } else {
@@ -387,7 +385,7 @@ export function doors(){
     var d = S.doors[i]; if (!pushEntA(d)) continue;
     var x = Math.round(d.x - cam.x), y = Math.round(d.y - cam.y);
     if (x < -30 || x > viewW()+30) continue;
-    var drSprite = blitEntSprite('door', 'idle', 0, d.x, d.y, 1, false, 'door_env');
+    var drSprite = blitEntSprite('door', 'idle', 0, d.x, d.y, 1, false, 'door');
     if (!drSprite){
       rc(x-1, y-27, 18, 27, '#241a30');
       rc(x, y-25, 16, 25, P.doorD);
@@ -491,7 +489,7 @@ export function chests(){
     if (ch.t > 0) ch.t -= 1/60;
     var chSid = ch.locked ? 'chestL' : 'chest';
     var chAnim = ch.opened ? 'open' : 'idle';
-    if (!blitEntSprite(chSid, chAnim, 0, ch.x, ch.y, 1, false, 'chest_env')){
+    if (!blitEntSprite(chSid, chAnim, 0, ch.x, ch.y, 1, false, 'chest')){
       rc(x + 1, y - 11, 18, 11, P.chestD);            // корпус
       rc(x + 2, y - 10, 16, 9, P.chest);
       rc(x + 2, y - 10, 16, 1, P.chestL);

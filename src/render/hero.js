@@ -13,7 +13,7 @@ import { figure, drawBow, drawHeldWeapon } from './figure.js';
 import { blitHeldSprite, fitFrame } from './sprites.js';
 import { isBowHand, isHarpoonHand, isPickaxeHand } from '../entities/gear.js';
 import { spriteFrameImage, getSpriteDef } from '../core/spriteset.js';
-import { getFrameAnchor } from '../core/object-anchors.js';
+import { getFrameAnchor, getAnimBox } from '../core/object-anchors.js';
 import { activeHeroId, activeObjectKind } from '../core/player.js';
 import { defaultFrameAnchors } from './sprite-anchors.js';
 
@@ -112,10 +112,14 @@ function blitHeroSprite(img, def, wx, wy, facing, origin, rot){
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   if (rot){
-    ctx.translate(Math.round(wx + ROLL_CX - cam.x), Math.round(wy + ROLL_CY - cam.y));
+    // пивот вращения — центр текущего хитбокса переката (box), а не центр
+    // спрайт-кадра: у разных героев origin/box переката разные, но крутиться
+    // спрайт должен вокруг физического хитбокса, иначе тело "уплывает" при роле
+    var rb = getAnimBox(activeObjectKind(), 'roll'), rcx = rb.w / 2, rcy = rb.h / 2;
+    ctx.translate(Math.round(wx + rcx - cam.x), Math.round(wy + rcy - cam.y));
     ctx.rotate(rot);
     if (facing < 0) ctx.scale(-1, 1);
-    ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, -(ox + ROLL_CX) + fit.padX, -(oy + ROLL_CY) + fit.padY, fit.dw, fit.dh);
+    ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, -(ox + rcx) + fit.padX, -(oy + rcy) + fit.padY, fit.dw, fit.dh);
   } else if (facing < 0){
     ctx.translate(x + ox + fx, y);
     ctx.scale(-1, 1);

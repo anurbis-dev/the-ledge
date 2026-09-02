@@ -1328,6 +1328,16 @@ function syncCursor(){
 
 function paintCanvas(){
   if (!preview) return;
+  /* footprint (fw×fh) больше не отдельное число, которое может разъехаться
+     с артом: рендер рисует спрайт 1:1 нативным размером (см. render/sprites.js
+     fitFrame), так что якоря/бокс обязаны мерить границы по факту загруженного
+     буфера, а не по старому значению — иначе после импорта кадра большего
+     размера бокс остаётся зажат в границах прежнего (виртуального) footprint. */
+  if ((isSprite() || isObjectOnly()) && current && current.id != null &&
+      bufW && bufH && (bufW !== fw || bufH !== fh)){
+    fw = bufW; fh = bufH;
+    setSpriteSize(current.id, fw, fh);
+  }
   var can = preview;
   var cx = can.getContext('2d');
   var k = can.width / fw; // логика (fw×fh: якоря/бокс) → экран, канвас всегда fw:fh
@@ -2072,6 +2082,9 @@ function applySpriteImport(img){
   cx.imageSmoothingEnabled = false;
   cx.drawImage(img, 0, 0);
   setSpriteFrame(current.id, animId, frameI, canvasToPng(c), true);
+  /* footprint следует за реальным размером арта сразу, до fillBody() — иначе
+     слайдеры origin/box успеют построиться со старым (виртуальным) max. */
+  if (w !== fw || h !== fh){ fw = w; fh = h; setSpriteSize(current.id, fw, fh); }
   notify();
   fillBody();
 }
