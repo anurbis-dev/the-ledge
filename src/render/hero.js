@@ -12,7 +12,7 @@ import {
 import { figure, drawBow, drawHeldWeapon } from './figure.js';
 import { blitHeldSprite, blitEntSprite, fitFrame } from './sprites.js';
 import { isBowHand, isHarpoonHand, isPickaxeHand } from '../entities/gear.js';
-import { spriteFrameImage, getSpriteDef, getAnimFrame, hasAnim } from '../core/spriteset.js';
+import { spriteFrameImage, getSpriteDef, getAnimFrame, hasAnim, getAnimFrameCount, getAnimSpeed } from '../core/spriteset.js';
 import { getFrameAnchor, getAnimBox } from '../core/object-anchors.js';
 import { activeHeroId, activeObjectKind } from '../core/player.js';
 import { defaultFrameAnchors } from './sprite-anchors.js';
@@ -213,8 +213,18 @@ function tryVehicleSprite(p){
   if (!skin) return false;
   var hid = skin.spriteId;
   if (!getSpriteDef(hid)) return false;
-  var animId = (p.mountAnimT > 0 && p.mountAnimKind) ? p.mountAnimKind : vehicleMoveAnim(p, hid);
-  var frameI = getAnimFrame(hid, animId, view.time);
+  var animId, frameI;
+  if (p.turning && hasAnim(hid, 'turn')){
+    /* разворот — прогресс кадра со счётчика p.turnT (core/step.js:stepMountTurn), а не
+       от view.time: только так реверс полпути честно доигрывает те же кадры назад. facing
+       остаётся старым (не флипается) до самого конца — art рисует сам поворот. */
+    animId = 'turn';
+    var n = getAnimFrameCount(hid, 'turn'), speed = getAnimSpeed(hid, 'turn');
+    frameI = (n > 1 && speed > 0) ? Math.min(n - 1, Math.floor(p.turnT * speed)) : 0;
+  } else {
+    animId = (p.mountAnimT > 0 && p.mountAnimKind) ? p.mountAnimKind : vehicleMoveAnim(p, hid);
+    frameI = getAnimFrame(hid, animId, view.time);
+  }
   /* blitEntSprite (не blitHeroSprite) — тот зеркалит вокруг геройского ox+fx,
      подобранного под кадр героини, а не вокруг физического бокса транспорта,
      из-за чего при facing<0 арт транспорта уезжал мимо хитбокса. */

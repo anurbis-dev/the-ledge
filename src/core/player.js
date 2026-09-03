@@ -45,6 +45,7 @@ export function mkPlayer(){
     gapCrawl: false, edgeHoldT: 0,
     recoverSt: 0, knockedOut: false, gettingUp: false, getupT: 0,
     mount: null, mountSaved: null, mountAnimT: 0, mountAnimKind: null, mountAnimSkin: null, mountAnimVehicle: null,
+    turning: false, turnT: 0,
     mv: buildMoveOverrides(),
     events: []
   };

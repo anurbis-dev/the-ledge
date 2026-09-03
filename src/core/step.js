@@ -7,14 +7,17 @@ import {
   tryLadder, tryGrab, tryClimbOut, tryCrawlEdge, ladderTopUnder, attach, mountLad, towardLadAxis, tryDescend,
   tryMantle, tryClimbWall, footCenterX, snapFeet, wallSlideDir, unstickFromWall,
   markGap, canDescend, awayFromEdge, startFallRecover, finishFallRecover,
-  finishGetup, stanceFitsAt, stanceH, applyHeroBox, applyRollBox
+  finishGetup, stanceFitsAt, stanceH, applyHeroBox, applyRollBox, activeHeroId
 } from './player.js';
+import { hasAnim } from './spriteset.js';
 import { stepPlats, platUnder } from '../entities/plats.js';
 import { stepLifts, inLift, liftConstrain } from '../entities/lifts.js';
 import { stepCrumbs, crumbCheck } from '../entities/crumbs.js';
 import { stepDigShake, stepContactDamage } from '../entities/mining.js';
 import { stepTorches, tryAction, resolvePickup } from '../entities/torches.js';
-import { finishDismount } from '../entities/vehicles.js';
+import {
+  finishDismount, stepMountTurn, mountSpeedMul, mountJumpMul, mountAllowsWallSlide
+} from '../entities/vehicles.js';
 import { stepPlanks } from '../entities/planks.js';
 import { stepGive } from '../entities/give.js';
 import { stepBoulders, pushBoulders } from '../entities/boulders.js';
@@ -240,12 +243,18 @@ export function step(S, dt, inp){
   var onEdge = p.onGround && !inCab && !onLadTop && !p.inWater && canDescend(p, inp.x);
   var crouchMove = p.stance === 1 && (inp.x !== 0 || Math.abs(p.vx) > 8);
   var crouchRoll = crouchMove && (inp.downHeld || inp.downPressed);
+  // за рулём транспорта присед/лёжа — только если у скина реально есть такая анимация
+  // (транспорт не обязан повторять весь вокабуляр героини, см. entities/vehicles.js)
+  var mountHid = p.mount ? activeHeroId() : null;
+  var mountAllowsCrouch = !p.mount || hasAnim(mountHid, 'crouch');
+  var mountAllowsProne = !p.mount || hasAnim(mountHid, 'prone');
   if (!talking && !rolling && p.onGround && !inCab && !onLadTop && !p.inWater && p.stanceT <= 0 && p.pickT <= 0){
     // лёжа (PRW шире тайла) не разворачивается под уклон — на скосе из приседа доступна только
     // сама стойка приседа, не пытаемся втиснуть плоский широкий бокс поперёк диагонали
     if (inp.downPressed && p.stance < 2 && Math.abs(p.vx) <= 58 && !crouchRoll &&
-        !(p.stance === 1 && slopeUnderAt(p, footCenterX(p)) !== null)) setStance(S, p, p.stance + 1);
-    else if (!onEdge && inp.downHeld && p.stance === 0 && Math.abs(p.vx) <= 58) setStance(S, p, 1);
+        !(p.stance === 1 && slopeUnderAt(p, footCenterX(p)) !== null) &&
+        (p.stance === 0 ? mountAllowsCrouch : mountAllowsProne)) setStance(S, p, p.stance + 1);
+    else if (!onEdge && inp.downHeld && p.stance === 0 && Math.abs(p.vx) <= 58 && mountAllowsCrouch) setStance(S, p, 1);
     if ((inp.upPressed || inp.upHeld || inp.jumpPressed) && p.stance > 0){
       if (setStance(S, p, p.stance - 1)) { p.buf = 0; }   // удержание ↑ — шаг стойки после анимации
     }
@@ -316,44 +325,55 @@ export function step(S, dt, inp){
     } else if (ax !== 0){
       var slow = p.stance > 0;
       p.walking = slow;
-      p.vx += ax * p.mv.ACC * dt;
-      var lim = p.inWater ? (p.dashT > 0 ? p.mv.DASH_V : C.SWIM_V) * (p.flippers ? C.FLIP_MUL : 1) :
-                (p.wading ? p.mv.WALK_V + 10 :
-                (p.stance === 2 ? p.mv.PRONE_V : (p.stance === 1 ? p.mv.CROUCH_V : p.mv.RUN)));
-      lim *= Math.max(0.45, Math.abs(ax));
-      if (p.vx > lim) p.vx = lim;
-      if (p.vx < -lim) p.vx = -lim;
-      p.facing = ax > 0 ? 1 : -1;
-      if (p.stance > 0 && p.onGround){
-        var edge = tryCrawlEdge(S, p, p.facing);
-        if (edge === 2){ crumbCheck(S, p); pickups(S, p); return; }  // в вис
-        if (edge === -1) p.vx = 0;                                   // упёрлись
+      // за рулём смена направления сперва доигрывает анимацию разворота (если она есть у
+      // скина) — разгон/флип в новую сторону только когда stepMountTurn вернул true; пока
+      // разворачиваемся, гасим ход трением, как без ввода (entities/vehicles.js:stepMountTurn)
+      var wantDir = ax > 0 ? 1 : -1;
+      var turnReady = p.mount ? stepMountTurn(p, wantDir, dt) : true;
+      if (!turnReady){
+        var tf = p.mv.FRIC * dt;
+        p.vx = Math.abs(p.vx) <= tf ? 0 : p.vx - (p.vx > 0 ? tf : -tf);
+      } else {
+        p.vx += ax * p.mv.ACC * dt;
+        var lim = p.inWater ? (p.dashT > 0 ? p.mv.DASH_V : C.SWIM_V) * (p.flippers ? C.FLIP_MUL : 1) :
+                  (p.wading ? p.mv.WALK_V + 10 :
+                  (p.stance === 2 ? p.mv.PRONE_V : (p.stance === 1 ? p.mv.CROUCH_V : p.mv.RUN)));
+        if (p.mount) lim *= mountSpeedMul(p);        // баг: спидмод транспорта раньше нигде не читался
+        lim *= Math.max(0.45, Math.abs(ax));
+        if (p.vx > lim) p.vx = lim;
+        if (p.vx < -lim) p.vx = -lim;
+        if (!p.mount) p.facing = ax > 0 ? 1 : -1;     // за рулём facing уже поставил stepMountTurn
+        if (p.stance > 0 && p.onGround){
+          var edge = tryCrawlEdge(S, p, p.facing);
+          if (edge === 2){ crumbCheck(S, p); pickups(S, p); return; }  // в вис
+          if (edge === -1) p.vx = 0;                                   // упёрлись
+        }
+        // «на склоне не мешаем» должно освобождать не только когда мы уже стоим на скосе (slopeUnder),
+        // но и когда скос только начинается впереди — иначе заход на пологий скос с ровного места
+        // всегда стопорится тут же, ещё до того как moveX успеет попробовать STEP_UP
+        var aheadX = p.facing > 0 ? p.x + p.w + 2 : p.x - 2;
+        var aheadRow = Math.floor((p.y + p.h - 1) / T);
+        var aheadIsSlope = isSlopeV(tileAt(Math.floor(aheadX / T), aheadRow));
+        var rawBlocked = !rectFree(p.x + p.facing*2, p.y, p.w, p.h) && slopeUnder(p) === null;
+        var blocked = rawBlocked && !aheadIsSlope;
+        // тот же STEP_UP-допуск, что и у moveX: если ходьба сама перешагнёт (пологий скос) — это
+        // не «упор», mantle не нужен, даже если ↑ зажат просто по привычке ходьбы
+        var canStepUp = false;
+        if (rawBlocked) for (var su = 1; su <= C.STEP_UP && !canStepUp; su++)
+          if (rectFree(p.x + p.facing*2, p.y - su, p.w, p.h)) canStepUp = true;
+        // ступень +1 тайл: только вперёд+вверх; без ↑ — упор руками. На скосе — так же, как на
+        // одиночном тайле: mantle пробуем по «сырому» упору (не глушим исключением для скоса, иначе
+        // забраться на крутой скос направлением+вверх было в принципе невозможно), но только когда
+        // сама ходьба туда не пройдёт даже с STEP_UP
+        if (rawBlocked && !canStepUp && stanceBefore === 0 && p.stance === 0 &&
+            (inp.upHeld || inp.upPressed) &&
+            (tryMantle(S, p, p.facing) || tryClimbWall(S, p, p.facing))){
+          crumbCheck(S, p); pickups(S, p);
+          return;
+        }
+        if (blocked) p.vx = 0;                      // упор в стену — не толкаемся (на склоне не мешаем)
+        if (blocked && stanceBefore === 0 && p.stance === 0) wallBlocked = true;
       }
-      // «на склоне не мешаем» должно освобождать не только когда мы уже стоим на скосе (slopeUnder),
-      // но и когда скос только начинается впереди — иначе заход на пологий скос с ровного места
-      // всегда стопорится тут же, ещё до того как moveX успеет попробовать STEP_UP
-      var aheadX = p.facing > 0 ? p.x + p.w + 2 : p.x - 2;
-      var aheadRow = Math.floor((p.y + p.h - 1) / T);
-      var aheadIsSlope = isSlopeV(tileAt(Math.floor(aheadX / T), aheadRow));
-      var rawBlocked = !rectFree(p.x + p.facing*2, p.y, p.w, p.h) && slopeUnder(p) === null;
-      var blocked = rawBlocked && !aheadIsSlope;
-      // тот же STEP_UP-допуск, что и у moveX: если ходьба сама перешагнёт (пологий скос) — это
-      // не «упор», mantle не нужен, даже если ↑ зажат просто по привычке ходьбы
-      var canStepUp = false;
-      if (rawBlocked) for (var su = 1; su <= C.STEP_UP && !canStepUp; su++)
-        if (rectFree(p.x + p.facing*2, p.y - su, p.w, p.h)) canStepUp = true;
-      // ступень +1 тайл: только вперёд+вверх; без ↑ — упор руками. На скосе — так же, как на
-      // одиночном тайле: mantle пробуем по «сырому» упору (не глушим исключением для скоса, иначе
-      // забраться на крутой скос направлением+вверх было в принципе невозможно), но только когда
-      // сама ходьба туда не пройдёт даже с STEP_UP
-      if (rawBlocked && !canStepUp && stanceBefore === 0 && p.stance === 0 &&
-          (inp.upHeld || inp.upPressed) &&
-          (tryMantle(S, p, p.facing) || tryClimbWall(S, p, p.facing))){
-        crumbCheck(S, p); pickups(S, p);
-        return;
-      }
-      if (blocked) p.vx = 0;                      // упор в стену — не толкаемся (на склоне не мешаем)
-      if (blocked && stanceBefore === 0 && p.stance === 0) wallBlocked = true;
 
     } else {
       var f = p.mv.FRIC * dt;
@@ -367,14 +387,15 @@ export function step(S, dt, inp){
   var inCabin = false;
   for (var lj = 0; lj < S.lifts.length; lj++) if (inLift(p, S.lifts[lj])) inCabin = true;
   if (inCabin) p.buf = 0;                        // в кабине не прыгаем
-  if (p.buf > 0 && p.coyote > 0 && !rolling && p.stance === 0){
-    p.vy = p.mv.JUMP; p.buf = 0; p.coyote = 0; p.onGround = false; p.jumping = true;
+  var jumpMul = mountJumpMul(p);                  // 0 за рулём транспорта без прыжка — прыжок недоступен
+  if (p.buf > 0 && p.coyote > 0 && !rolling && p.stance === 0 && jumpMul > 0){
+    p.vy = p.mv.JUMP * jumpMul; p.buf = 0; p.coyote = 0; p.onGround = false; p.jumping = true;
     p.grabCd = Math.max(p.grabCd, 0.25); p.ladCd = 0.3;
     p.apexY = p.y; p.events.push('jump');
-  } else if (p.buf > 0 && p.sliding !== 0 && !p.onGround){    // прыжок от стены
+  } else if (p.buf > 0 && p.sliding !== 0 && !p.onGround && jumpMul > 0){    // прыжок от стены
     var same = (p.lastWall === p.sliding);
     p.vx = -p.sliding * (same ? p.mv.WJ_SAME_X : p.mv.WJ_X);
-    p.vy = same ? p.mv.WJ_SAME_Y : p.mv.WJ_Y;                        // от той же стены — заметно слабее
+    p.vy = (same ? p.mv.WJ_SAME_Y : p.mv.WJ_Y) * jumpMul;             // от той же стены — заметно слабее
     p.facing = -p.sliding;
     p.lastWall = p.sliding;
     p.lock = 9; p.buf = 0; p.jumping = true; p.sliding = 0; p.apexY = p.y;
@@ -506,7 +527,7 @@ export function step(S, dt, inp){
   /* слайд по стене */
   p.sliding = 0;
   if (!p.onGround && p.vy > 0 && !rolling && (p.lock <= 0 || p.lock >= 9)){
-    var sd = wallSlideDir(p);
+    var sd = mountAllowsWallSlide(p) ? wallSlideDir(p) : 0;   // 0 за рулём транспорта без слайда
     if (sd !== 0){
       unstickFromWall(p, sd);                      // нахлёст с губы — выталкиваем на грань
       if (rectFree(p.x, p.y, p.w, p.h)){
@@ -543,7 +564,7 @@ export function step(S, dt, inp){
   if (!p.onGround && grounded(S, p) && p.vy >= 0){ p.onGround = true; p.vy = 0; }
 
   if (!p.onGround && p.state === 'normal' && !rolling){
-    var usd = wallSlideDir(p);
+    var usd = mountAllowsWallSlide(p) ? wallSlideDir(p) : 0;
     if (usd){
       unstickFromWall(p, usd);                     // не лететь, пересекая губу
       if (p.vy > 0 && (p.lock <= 0 || p.lock >= 9) && rectFree(p.x, p.y, p.w, p.h)){

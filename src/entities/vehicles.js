@@ -3,15 +3,19 @@ import { C } from '../core/constants.js';
 import { rectFree } from '../core/map.js';
 import { allocId } from './ids.js';
 import { getAnimBox, legacyObjectKindFromSprite } from '../core/object-anchors.js';
-import { applyHeroBox } from '../core/player.js';
+import { applyHeroBox, activeHeroId } from '../core/player.js';
+import { hasAnim, getAnimFrameCount, getAnimSpeed } from '../core/spriteset.js';
 
-export var VEHICLE_DEF = { dmg: 0, speedMul: 1 };
+/* jumpMul/wallSlideMul — множители прыжка/слайда по стене за рулём; 0 отключает
+   действие полностью (см. core/step.js). */
+export var VEHICLE_DEF = { dmg: 0, speedMul: 1, jumpMul: 1, wallSlideMul: 1 };
 
 function pick(a, key, d){
   return a && a[key] != null ? a[key] : d;
 }
 
-/** row = [col, row, spriteId, objectKind, dmg?, speedMul?] (уровневый формат, как у boulders/enemies). */
+/** row = [col, row, spriteId, objectKind, dmg?, speedMul?, jumpMul?, wallSlideMul?]
+    (уровневый формат, как у boulders/enemies). */
 function normVehicle(a, i){
   var T = 16, col = a[0], row = a[1], spriteId = a[2] || null, objectKind = a[3] || null;
   var ok = objectKind || legacyObjectKindFromSprite(spriteId) || 'vehicle';
@@ -23,6 +27,8 @@ function normVehicle(a, i){
     facing: 1, spriteId: spriteId, objectKind: objectKind,
     dmg: a[4] != null ? a[4] : VEHICLE_DEF.dmg,
     speedMul: a[5] != null ? a[5] : VEHICLE_DEF.speedMul,
+    jumpMul: a[6] != null ? a[6] : VEHICLE_DEF.jumpMul,
+    wallSlideMul: a[7] != null ? a[7] : VEHICLE_DEF.wallSlideMul,
     parked: true
   };
 }
@@ -41,6 +47,7 @@ export function mkVehicleAt(S, cx, floorY, spriteId, objectKind){
     x: cx - box.w / 2, y: floorY - box.h, w: box.w, h: box.h,
     facing: 1, spriteId: spriteId || null, objectKind: objectKind || null,
     dmg: VEHICLE_DEF.dmg, speedMul: VEHICLE_DEF.speedMul,
+    jumpMul: VEHICLE_DEF.jumpMul, wallSlideMul: VEHICLE_DEF.wallSlideMul,
     parked: true
   };
   S.vehicles.push(v);
@@ -55,9 +62,14 @@ export function packVehicle(v){
     v.spriteId || null,
     v.objectKind || null
   ];
-  if (v.dmg !== VEHICLE_DEF.dmg || v.speedMul !== VEHICLE_DEF.speedMul){
+  var jumpMul = v.jumpMul != null ? v.jumpMul : VEHICLE_DEF.jumpMul;
+  var wallSlideMul = v.wallSlideMul != null ? v.wallSlideMul : VEHICLE_DEF.wallSlideMul;
+  if (v.dmg !== VEHICLE_DEF.dmg || v.speedMul !== VEHICLE_DEF.speedMul ||
+      jumpMul !== VEHICLE_DEF.jumpMul || wallSlideMul !== VEHICLE_DEF.wallSlideMul){
     row.push(v.dmg != null ? v.dmg : VEHICLE_DEF.dmg);
     row.push(v.speedMul != null ? v.speedMul : VEHICLE_DEF.speedMul);
+    row.push(jumpMul);
+    row.push(wallSlideMul);
   }
   return row;
 }
@@ -95,6 +107,7 @@ export function tryMount(S){
      тогда копия v.x/v.y мимо центра/пола сдвинула бы её от места v. */
   p.x = v.x + v.w / 2 - p.w / 2; p.y = v.y + v.h - p.h;
   p.mountAnimT = 0.25; p.mountAnimKind = 'mount'; p.mountAnimSkin = null;
+  p.turning = false; p.turnT = 0;
   p.events.push('mount');
   return true;
 }
@@ -115,8 +128,62 @@ export function tryDismount(S){
   p.mountAnimVehicle = v;
   p.mount = null;
   p.mountAnimT = 0.25; p.mountAnimKind = 'unmount';
+  p.turning = false; p.turnT = 0;
   p.events.push('dismount');
   return true;
+}
+
+/* Множитель максимальной скорости за рулём (баг: раньше не читался нигде —
+   слайдер Speed multiplier в редакторе ни на что не влиял). 1 вне транспорта. */
+export function mountSpeedMul(p){
+  if (!p.mount) return 1;
+  var v = p.mount;
+  return v.speedMul != null ? v.speedMul : VEHICLE_DEF.speedMul;
+}
+
+/* Множитель прыжка за рулём; 0 — прыжок недоступен. 1 вне транспорта. */
+export function mountJumpMul(p){
+  if (!p.mount) return 1;
+  var v = p.mount;
+  return v.jumpMul != null ? v.jumpMul : VEHICLE_DEF.jumpMul;
+}
+
+/* Слайд по стене за рулём разрешён, пока множитель > 0. true вне транспорта. */
+export function mountAllowsWallSlide(p){
+  if (!p.mount) return true;
+  var v = p.mount;
+  var m = v.wallSlideMul != null ? v.wallSlideMul : VEHICLE_DEF.wallSlideMul;
+  return m > 0;
+}
+
+/** Разворот транспорта под сменой направления: не мгновенный флип, а анимация
+    'turn' (если у скина она есть) — facing реально меняется только когда
+    анимация доиграла. turnT — чистый прогресс (сек), не путь: смена желаемого
+    направления посреди разворота просто крутит его в другую сторону, поэтому
+    "передумать" воспроизводит те же кадры назад с текущего места. Возвращает
+    true, если можно разгоняться в wantDir прямо сейчас (не за рулём, уже туда
+    смотрим, скин без 'turn' — мгновенный фоллбэк, либо разворот только что
+    закончился), false — ещё разворачиваемся, разгон в новую сторону рано. */
+export function stepMountTurn(p, wantDir, dt){
+  if (!p.mount || !wantDir || wantDir === p.facing){
+    if (p.turning){                          // передумали — откручиваем к исходному facing
+      p.turnT = Math.max(0, (p.turnT || 0) - dt);
+      if (p.turnT <= 0){ p.turning = false; p.turnT = 0; }
+    }
+    return true;
+  }
+  var hid = activeHeroId();
+  if (!hasAnim(hid, 'turn')){                // нет анимации — как раньше, мгновенный флип
+    p.facing = wantDir; p.turning = false; p.turnT = 0;
+    return true;
+  }
+  var n = getAnimFrameCount(hid, 'turn'), speed = getAnimSpeed(hid, 'turn');
+  var dur = (n > 0 && speed > 0) ? n / speed : 0;
+  if (dur <= 0){ p.facing = wantDir; p.turning = false; p.turnT = 0; return true; }
+  p.turning = true;
+  p.turnT = Math.min(dur, (p.turnT || 0) + dt);
+  if (p.turnT >= dur){ p.facing = wantDir; p.turning = false; p.turnT = 0; return true; }
+  return false;
 }
 
 /** Конец анимации unmount (core/step.js, когда mountAnimT дошёл до 0): v уже

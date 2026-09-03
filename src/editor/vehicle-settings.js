@@ -62,6 +62,12 @@ function fill(){
   slider(body, 'Speed multiplier', 0.5, 3, 0.1,
     v.speedMul != null ? v.speedMul : VEHICLE_DEF.speedMul,
     function(x){ v.speedMul = x; }, VEHICLE_DEF.speedMul);
+  slider(body, 'Jump (0 = none)', 0, 2, 0.1,
+    v.jumpMul != null ? v.jumpMul : VEHICLE_DEF.jumpMul,
+    function(x){ v.jumpMul = x; }, VEHICLE_DEF.jumpMul);
+  slider(body, 'Wall slide (0 = none)', 0, 2, 0.1,
+    v.wallSlideMul != null ? v.wallSlideMul : VEHICLE_DEF.wallSlideMul,
+    function(x){ v.wallSlideMul = x; }, VEHICLE_DEF.wallSlideMul);
 }
 
 var closeBtn = document.getElementById('edVehicleSettingsX');
