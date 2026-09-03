@@ -244,14 +244,19 @@ export function step(S, dt, inp){
   var crouchMove = p.stance === 1 && (inp.x !== 0 || Math.abs(p.vx) > 8);
   var crouchRoll = crouchMove && (inp.downHeld || inp.downPressed);
   // за рулём транспорта присед/лёжа — только если у скина реально есть такая анимация
-  // (транспорт не обязан повторять весь вокабуляр героини, см. entities/vehicles.js)
+  // (транспорт не обязан повторять весь вокабуляр героини, см. entities/vehicles.js). Если у
+  // скина нет 'crouch', но есть 'block' — ↓ вместо приседа включает блок (чисто поза, стойка
+  // героини/хитбокс не трогаются, см. render/hero.js:vehicleMoveAnim)
   var mountHid = p.mount ? activeHeroId() : null;
-  var mountAllowsCrouch = !p.mount || hasAnim(mountHid, 'crouch');
+  var mountHasBlock = !!(p.mount && hasAnim(mountHid, 'block'));
+  var mountAllowsCrouch = !p.mount || (!mountHasBlock && hasAnim(mountHid, 'crouch'));
   var mountAllowsProne = !p.mount || hasAnim(mountHid, 'prone');
+  p.mountBlocking = false;
   if (!talking && !rolling && p.onGround && !inCab && !onLadTop && !p.inWater && p.stanceT <= 0 && p.pickT <= 0){
+    if (mountHasBlock && (inp.downHeld || inp.downPressed)) p.mountBlocking = true;
     // лёжа (PRW шире тайла) не разворачивается под уклон — на скосе из приседа доступна только
     // сама стойка приседа, не пытаемся втиснуть плоский широкий бокс поперёк диагонали
-    if (inp.downPressed && p.stance < 2 && Math.abs(p.vx) <= 58 && !crouchRoll &&
+    else if (inp.downPressed && p.stance < 2 && Math.abs(p.vx) <= 58 && !crouchRoll &&
         !(p.stance === 1 && slopeUnderAt(p, footCenterX(p)) !== null) &&
         (p.stance === 0 ? mountAllowsCrouch : mountAllowsProne)) setStance(S, p, p.stance + 1);
     else if (!onEdge && inp.downHeld && p.stance === 0 && Math.abs(p.vx) <= 58 && mountAllowsCrouch) setStance(S, p, 1);

@@ -204,6 +204,7 @@ function vehicleMoveAnim(p, hid){
   if (!p.onGround) return p.vy < 0 ? 'jump' : 'fall';
   if (p.landT > 0) return 'land';
   if (p.atkT > 0) return 'attack';
+  if (p.mountBlocking && hasAnim(hid, 'block')) return 'block';   // ↓ за рулём без crouch — блок
   if (Math.abs(p.vx) > 8) return hasAnim(hid, 'move') ? 'move' : 'run';
   return 'idle';
 }
