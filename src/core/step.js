@@ -128,7 +128,7 @@ export function step(S, dt, inp){
   if (p.landT > 0) p.landT = Math.max(0, p.landT - dt);
   if (p.mountAnimT > 0){
     p.mountAnimT = Math.max(0, p.mountAnimT - dt);
-    if (p.mountAnimT <= 0){ p.mountAnimKind = null; p.mountAnimSkin = null; }
+    if (p.mountAnimT <= 0){ p.mountAnimKind = null; p.mountAnimSkin = null; p.mountAnimVehicle = null; }
   }
   if (p.lock > 0 && p.lock < 9) p.lock = Math.max(0, p.lock - dt);
   if (p.stanceT > 0) p.stanceT = Math.max(0, p.stanceT - dt);

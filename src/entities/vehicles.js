@@ -104,6 +104,10 @@ export function tryDismount(S){
   v.parked = true;
   p.mount = null;
   applyHeroBox(p);
+  /* пока доигрывает unmount-анимация, героиня всё ещё рисуется "как транспорт"
+     на месте v (см. render/hero.js tryVehicleSprite) — запаркованный v скрываем
+     из vehicles(), иначе на те же 0.25с виден лишний дублирующий спрайт. */
+  p.mountAnimVehicle = v;
   p.mountAnimT = 0.25; p.mountAnimKind = 'unmount';
   p.events.push('dismount');
   return true;

@@ -46,7 +46,7 @@ export function blitHeldSprite(objectKind, anim, frame, pivotWX, pivotWY, rot, f
 }
 
 /* pinCell: wx/wy = угол клетки 16×16, без origin (иконки предметов к тайлу) */
-function blitEntSprite(id, anim, frame, wx, wy, dir, pinCell, objectKind){
+export function blitEntSprite(id, anim, frame, wx, wy, dir, pinCell, objectKind){
   var img = spriteFrameImage(id, anim, frame);
   if (!img) return false;
   var def = getSpriteDef(id);
@@ -349,6 +349,7 @@ export function vehicles(){
   var list = S.vehicles || [];
   for (var i = 0; i < list.length; i++){
     var v = list[i];
+    if (v === S.p.mountAnimVehicle) continue;               // доигрывает unmount — уже нарисован как "герой в транспорте"
     if (!v.parked || !pushEntA(v)) continue;               // сейчас в нём едут — не рисуем, герой его "носит"
     var x = Math.round(v.x - cam.x), y = Math.round(v.y - cam.y);
     if (x < -32 || x > viewW() + 32) continue;
