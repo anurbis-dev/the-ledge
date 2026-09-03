@@ -1338,16 +1338,15 @@ function syncCursor(){
 
 function paintCanvas(){
   if (!preview) return;
-  /* footprint (fw×fh) больше не отдельное число, которое может разъехаться
-     с артом: рендер рисует спрайт 1:1 нативным размером (см. render/sprites.js
-     fitFrame), так что якоря/бокс обязаны мерить границы по факту загруженного
-     буфера, а не по старому значению — иначе после импорта кадра большего
-     размера бокс остаётся зажат в границах прежнего (виртуального) footprint. */
-  if ((isSprite() || isObjectOnly()) && current && current.id != null &&
-      bufW && bufH && (bufW !== fw || bufH !== fh)){
-    fw = bufW; fh = bufH;
-    setSpriteSize(current.id, fw, fh);
-  }
+  /* footprint (fw×fh) — одно число на весь спрайт (все анимации меряют якоря/бокс
+     в нём), не за-кадр. Раньше здесь на каждый paintCanvas() footprint тянулся
+     к буферу ТЕКУЩЕГО кадра (bufW×bufH) — годится для sprite с одним размером
+     арта везде (герой), но у sprite с разными кадрами разного нативного размера
+     (например vehicle: idle нарисован, другие анимации ещё нет/другого размера)
+     каждое переключение кадра тихо переписывало footprint под просматриваемый
+     кадр и туда-обратно сбивало box/anchors всех остальных анимаций (рамка
+     не совпадала с курсором). Ресайз footprint — только по явному действию:
+     applySpriteImport (импорт PNG) или setSpriteSize (слайдер Size). */
   var can = preview;
   var cx = can.getContext('2d');
   var k = can.width / fw; // логика (fw×fh: якоря/бокс) → экран, канвас всегда fw:fh
@@ -1648,10 +1647,11 @@ function selectFrame(nextAnim, nextI, keepPlay){
   loadBuf(currentSrc(), function(){
     fillSwatches();
     syncTools();
+    paintCanvas();                 // buf/bufW/bufH грузятся асинхронно — перерисовать после load, иначе холст ещё кадр показывает предыдущий кадр
     if (keepPlay) syncStripOn();
     else paintStrips();
   });
-  paintCanvas();
+  paintCanvas();                   // синхронный первый проход — сразу что-то на экране, пока грузится src
 }
 
 function syncStripOn(){
@@ -2760,6 +2760,14 @@ if (root){
     if (!files || !files.length) return;
     e.preventDefault();
     e.stopPropagation();
+    /* Импорт всегда шёл в animId/frameI — то, что выбрано кликом, а не то,
+       на какой кадр реально навели файл; уронить PNG прямо на превью кадра
+       в другой анимации без предварительного клика по нему молча перезаписывало
+       текущий выбранный (обычно idle). Наводим по координатам дропа, как
+       hitDetailsDrop для драга из палитры. */
+    var hit = hitDetailsDrop(e.clientX, e.clientY);
+    if (hit && hit.kind === 'frame' && (hit.anim !== animId || hit.i !== frameI))
+      selectFrame(hit.anim, hit.i);
     applyImportFile(files[0]);
   });
 }
