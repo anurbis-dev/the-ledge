@@ -260,6 +260,12 @@ function animOf(def, animId){
   return null;
 }
 
+/** Есть ли у спрайта такой слот анимации — напр. катлог 'vehicle' знает 'move',
+    а геройский спрайт, надетый как скин транспорта, только 'run'. */
+export function hasAnim(id, animId){
+  return !!animOf(byId[id], animId);
+}
+
 function imgKey(id, anim, i){ return id + ':' + anim + ':' + i; }
 
 function loadSrc(key, src){

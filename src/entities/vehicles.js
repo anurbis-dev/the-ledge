@@ -92,23 +92,31 @@ export function tryMount(S){
 export function tryDismount(S){
   var p = S.p, v = p.mount;
   if (!v) return false;
-  /* косметическое окно на анимацию unmount (см. render/hero.js): физику/бокс/скин
-     героя это не трогает — они переключаются сразу, как раньше; отдельный снимок
-     скина транспорта живёт только для рендера позы unmount эти доли секунды. */
+  /* unmount доигрывает 0.25с НА боксе и скине транспорта (runtime.mountSkin
+     не трогаем, applyHeroBox не зовём) — иначе арт transporта рисуется поверх
+     уже схлопнувшегося геройского хитбокса и выглядит смещённым. Возврат
+     геройского скина/бокса и парковка v — только в finishDismount, по
+     завершении анимации (см. core/step.js). */
   p.mountAnimSkin = { spriteId: v.spriteId, objectKind: v.objectKind || legacyObjectKindFromSprite(v.spriteId) || 'vehicle' };
-  runtime.mountSkin = p.mountSaved || null;
-  p.mountSaved = null;
-  v.x = p.x + p.w / 2 - v.w / 2;
-  v.y = p.y + p.h - v.h;
-  v.facing = p.facing;
-  v.parked = true;
-  p.mount = null;
-  applyHeroBox(p);
-  /* пока доигрывает unmount-анимация, героиня всё ещё рисуется "как транспорт"
-     на месте v (см. render/hero.js tryVehicleSprite) — запаркованный v скрываем
-     из vehicles(), иначе на те же 0.25с виден лишний дублирующий спрайт. */
   p.mountAnimVehicle = v;
+  p.mount = null;
   p.mountAnimT = 0.25; p.mountAnimKind = 'unmount';
   p.events.push('dismount');
   return true;
+}
+
+/** Конец анимации unmount (core/step.js, когда mountAnimT дошёл до 0):
+    паркуем v на текущей (всё ещё "транспортной") позиции героя и только
+    теперь возвращаем геройский скин/бокс. */
+export function finishDismount(p){
+  var v = p.mountAnimVehicle;
+  if (v){
+    v.x = p.x + p.w / 2 - v.w / 2;
+    v.y = p.y + p.h - v.h;
+    v.facing = p.facing;
+    v.parked = true;
+  }
+  runtime.mountSkin = p.mountSaved || null;
+  p.mountSaved = null;
+  applyHeroBox(p);
 }

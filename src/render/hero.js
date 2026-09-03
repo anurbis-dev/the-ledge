@@ -12,7 +12,7 @@ import {
 import { figure, drawBow, drawHeldWeapon } from './figure.js';
 import { blitHeldSprite, blitEntSprite, fitFrame } from './sprites.js';
 import { isBowHand, isHarpoonHand, isPickaxeHand } from '../entities/gear.js';
-import { spriteFrameImage, getSpriteDef, getAnimFrame } from '../core/spriteset.js';
+import { spriteFrameImage, getSpriteDef, getAnimFrame, hasAnim } from '../core/spriteset.js';
 import { getFrameAnchor, getAnimBox } from '../core/object-anchors.js';
 import { activeHeroId, activeObjectKind } from '../core/player.js';
 import { defaultFrameAnchors } from './sprite-anchors.js';
@@ -196,16 +196,15 @@ function overlayHeroWeapon(p, clip, def, wx, wy, facing, origin){
    (см. core/spriteset.js SPRITE_DEFS 'vehicle'). Скин транспорта не обязан быть
    отдельным 'vehicle'-спрайтом — им может стать любой геройский спрайт (family
    'hero'), а у того слота 'move' нет, только 'run': если 'move' не определён у
-   def, едем на 'run', как у обычного персонажа. */
-function hasAnimId(def, id){
-  for (var i = 0; i < def.anims.length; i++) if (def.anims[i].id === id) return true;
-  return false;
-}
-function vehicleMoveAnim(p, def){
+   спрайта, едем на 'run', как у обычного персонажа. hasAnim(hid,'move') здесь
+   и в core/sprite-grab.js:heroBoxAnim ДОЛЖНЫ давать одинаковый выбор — box
+   (applyHeroBox, каждый кадр) и арт берут якорь/размер по одному и тому же
+   animId, иначе бокс героини и картинка транспорта разъезжаются. */
+function vehicleMoveAnim(p, hid){
   if (!p.onGround) return p.vy < 0 ? 'jump' : 'fall';
   if (p.landT > 0) return 'land';
   if (p.atkT > 0) return 'attack';
-  if (Math.abs(p.vx) > 8) return hasAnimId(def, 'move') ? 'move' : 'run';
+  if (Math.abs(p.vx) > 8) return hasAnim(hid, 'move') ? 'move' : 'run';
   return 'idle';
 }
 
@@ -213,9 +212,8 @@ function tryVehicleSprite(p){
   var skin = p.mount ? { spriteId: activeHeroId(), objectKind: activeObjectKind() } : p.mountAnimSkin;
   if (!skin) return false;
   var hid = skin.spriteId;
-  var def = getSpriteDef(hid);
-  if (!def) return false;
-  var animId = (p.mountAnimT > 0 && p.mountAnimKind) ? p.mountAnimKind : vehicleMoveAnim(p, def);
+  if (!getSpriteDef(hid)) return false;
+  var animId = (p.mountAnimT > 0 && p.mountAnimKind) ? p.mountAnimKind : vehicleMoveAnim(p, hid);
   var frameI = getAnimFrame(hid, animId, view.time);
   /* blitEntSprite (не blitHeroSprite) — тот зеркалит вокруг геройского ox+fx,
      подобранного под кадр героини, а не вокруг физического бокса транспорта,

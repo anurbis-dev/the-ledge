@@ -1,6 +1,6 @@
 /* Точка рук героини: поиск кромки / перекладины. Смещение от origin. */
 import { C, LADF, LADR, LADL } from './constants.js';
-import { getSpriteDef } from './spriteset.js';
+import { getSpriteDef, hasAnim } from './spriteset.js';
 import { getFrameAnchor, legacyObjectKindFromSprite } from './object-anchors.js';
 import { runtime } from './runtime.js';
 import { HERO_POSES } from '../render/poses.js';
@@ -61,7 +61,11 @@ export function heroBoxAnim(p){
   }
   if (p.landT > 0) return 'land';
   if (p.pushWall) return 'wallPush';
-  if (Math.abs(p.vx) > 8) return 'run';
+  /* та же развилка, что у render/hero.js:vehicleMoveAnim — скин транспорта
+     может быть геройским спрайтом без слота 'move' (только 'run'); бокс и
+     арт обязаны сойтись на одном animId, иначе хитбокс героини и картинка
+     транспорта разъезжаются (applyHeroBox зовётся каждый кадр в step.js). */
+  if (Math.abs(p.vx) > 8) return hasAnim(heroId(), 'move') ? 'move' : 'run';
   return 'idle';
 }
 
