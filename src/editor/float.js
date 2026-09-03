@@ -273,7 +273,7 @@ export function bindFloat(root){
 
 export function bindAllFloats(){
   var ids = ['edLayers', 'edInspect', 'edChestList', 'edNpcTalk', 'edBoulderSettings',
-             'edRopeSettings', 'edEnemySettings', 'edTileEdit'];
+             'edRopeSettings', 'edEnemySettings', 'edTileEdit', 'edVehicleSettings', 'edHeroMoveSettings'];
   for (var i = 0; i < ids.length; i++){
     var el = document.getElementById(ids[i]);
     if (el) bindFloat(el);
