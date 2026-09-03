@@ -126,6 +126,10 @@ export function step(S, dt, inp){
   if (p.ladCd > 0) p.ladCd = Math.max(0, p.ladCd - dt);
   if (p.rollCd > 0) p.rollCd = Math.max(0, p.rollCd - dt);
   if (p.landT > 0) p.landT = Math.max(0, p.landT - dt);
+  if (p.mountAnimT > 0){
+    p.mountAnimT = Math.max(0, p.mountAnimT - dt);
+    if (p.mountAnimT <= 0){ p.mountAnimKind = null; p.mountAnimSkin = null; }
+  }
   if (p.lock > 0 && p.lock < 9) p.lock = Math.max(0, p.lock - dt);
   if (p.stanceT > 0) p.stanceT = Math.max(0, p.stanceT - dt);
   if (p.getupT > 0){
@@ -146,7 +150,7 @@ export function step(S, dt, inp){
 
   if (p.state === 'stun'){
     p.stunT -= dt;
-    p.vx = 0; p.vy += C.GRAV * dt; moveY(S, p, p.vy * dt);
+    p.vx = 0; p.vy += p.mv.GRAV * dt; moveY(S, p, p.vy * dt);
     if (p.stunT <= 0){
       if (p.recoverSt && !S.dead){
         if (finishFallRecover(S, p)){
@@ -175,10 +179,10 @@ export function step(S, dt, inp){
       } else if (sn.air){
         p.state = 'normal'; p.onGround = false;
         p.vx = sn.vx || 0; p.vy = sn.vy || 0;
-        p.apexY = p.y; p.coyote = C.COYOTE;
+        p.apexY = p.y; p.coyote = p.mv.COYOTE;
       } else {
         p.state = 'normal'; p.onGround = true; p.apexY = p.y;
-        p.coyote = C.COYOTE; p.vx = 0; p.vy = 0;
+        p.coyote = p.mv.COYOTE; p.vx = 0; p.vy = 0;
       }
     } else {
       var se = ease(sn.p);
@@ -308,10 +312,10 @@ export function step(S, dt, inp){
     } else if (ax !== 0){
       var slow = p.stance > 0;
       p.walking = slow;
-      p.vx += ax * C.ACC * dt;
-      var lim = p.inWater ? (p.dashT > 0 ? C.DASH_V : C.SWIM_V) * (p.flippers ? C.FLIP_MUL : 1) :
-                (p.wading ? C.WALK_V + 10 :
-                (p.stance === 2 ? C.PRONE_V : (p.stance === 1 ? C.CROUCH_V : C.RUN)));
+      p.vx += ax * p.mv.ACC * dt;
+      var lim = p.inWater ? (p.dashT > 0 ? p.mv.DASH_V : C.SWIM_V) * (p.flippers ? C.FLIP_MUL : 1) :
+                (p.wading ? p.mv.WALK_V + 10 :
+                (p.stance === 2 ? p.mv.PRONE_V : (p.stance === 1 ? p.mv.CROUCH_V : p.mv.RUN)));
       lim *= Math.max(0.45, Math.abs(ax));
       if (p.vx > lim) p.vx = lim;
       if (p.vx < -lim) p.vx = -lim;
@@ -348,32 +352,32 @@ export function step(S, dt, inp){
       if (blocked && stanceBefore === 0 && p.stance === 0) wallBlocked = true;
 
     } else {
-      var f = C.FRIC * dt;
+      var f = p.mv.FRIC * dt;
       p.vx = Math.abs(p.vx) <= f ? 0 : p.vx - (p.vx > 0 ? f : -f);
     }
   }
 
-  if (inp.jumpPressed) p.buf = C.BUF;
+  if (inp.jumpPressed) p.buf = p.mv.BUF;
   p.buf -= dt; p.coyote -= dt;
 
   var inCabin = false;
   for (var lj = 0; lj < S.lifts.length; lj++) if (inLift(p, S.lifts[lj])) inCabin = true;
   if (inCabin) p.buf = 0;                        // в кабине не прыгаем
   if (p.buf > 0 && p.coyote > 0 && !rolling && p.stance === 0){
-    p.vy = C.JUMP; p.buf = 0; p.coyote = 0; p.onGround = false; p.jumping = true;
+    p.vy = p.mv.JUMP; p.buf = 0; p.coyote = 0; p.onGround = false; p.jumping = true;
     p.grabCd = Math.max(p.grabCd, 0.25); p.ladCd = 0.3;
     p.apexY = p.y; p.events.push('jump');
   } else if (p.buf > 0 && p.sliding !== 0 && !p.onGround){    // прыжок от стены
     var same = (p.lastWall === p.sliding);
-    p.vx = -p.sliding * (same ? C.WJ_SAME_X : C.WJ_X);
-    p.vy = same ? C.WJ_SAME_Y : C.WJ_Y;                        // от той же стены — заметно слабее
+    p.vx = -p.sliding * (same ? p.mv.WJ_SAME_X : p.mv.WJ_X);
+    p.vy = same ? p.mv.WJ_SAME_Y : p.mv.WJ_Y;                        // от той же стены — заметно слабее
     p.facing = -p.sliding;
     p.lastWall = p.sliding;
     p.lock = 9; p.buf = 0; p.jumping = true; p.sliding = 0; p.apexY = p.y;
     p.events.push(same ? 'walljumpweak' : 'walljump');
   }
   if (p.jumping && !inp.jumpHeld && p.vy < 0 && !p.inWater && p.swimLaunch <= 0){
-    p.vy *= C.CUT; p.jumping = false;
+    p.vy *= p.mv.CUT; p.jumping = false;
   }
 
   if (p.onGround && !rolling && !p.inWater && p.rollCd <= 0 && p.stance <= 1 &&
@@ -409,7 +413,7 @@ export function step(S, dt, inp){
   }
   if (inWater && p.swimLaunch > 0 && p.vy < 0){          // выпрыгнули — летим свободно только вверх
     p.swimLaunch -= dt;
-    p.vy += C.GRAV * dt;
+    p.vy += p.mv.GRAV * dt;
     p.atSurface = false;
   } else if (inWater){
     var surf = surf0;
@@ -491,8 +495,8 @@ export function step(S, dt, inp){
     if (p.swimLaunch > 0) p.swimLaunch = Math.max(0, p.swimLaunch - dt);
     p.atSurface = false;
     p.swimAng += (0 - p.swimAng) * Math.min(1, dt * 6);
-    p.vy += C.GRAV * dt;
-    if (p.vy > C.MAXFALL) p.vy = C.MAXFALL;
+    p.vy += p.mv.GRAV * dt;
+    if (p.vy > p.mv.MAXFALL) p.vy = p.mv.MAXFALL;
   }
 
   /* слайд по стене */
@@ -504,7 +508,7 @@ export function step(S, dt, inp){
       if (rectFree(p.x, p.y, p.w, p.h)){
         p.sliding = sd; p.facing = sd; p.lock = 0;
         p.apexY = Math.max(p.apexY, p.y - C.SAFE + 6);   // медленный спуск по стене не травмирует
-        if (p.vy > C.SLIDE_V) p.vy = C.SLIDE_V;
+        if (p.vy > p.mv.SLIDE_V) p.vy = p.mv.SLIDE_V;
         p.apexY = Math.min(p.apexY, p.y - 1);
         if (Math.random() < 0.3) p.events.push('spark');
       }
@@ -529,7 +533,7 @@ export function step(S, dt, inp){
   if (wallBlocked) p.pushWall = true;             // упёрлись в стену на бегу — руки в стену, как при камне
   p.onGround = false;
   var dx = p.vx * dt;
-  if (slPre !== null) dx *= C.SLOPE_ALONG / Math.hypot(1, slopeGradeUnder(p));
+  if (slPre !== null) dx *= p.mv.SLOPE_ALONG / Math.hypot(1, slopeGradeUnder(p));
   moveX(S, p, dx);
   moveY(S, p, p.vy * dt);
   if (!p.onGround && grounded(S, p) && p.vy >= 0){ p.onGround = true; p.vy = 0; }
@@ -541,7 +545,7 @@ export function step(S, dt, inp){
       if (p.vy > 0 && (p.lock <= 0 || p.lock >= 9) && rectFree(p.x, p.y, p.w, p.h)){
         p.sliding = usd; p.facing = usd; p.lock = 0;
         p.apexY = Math.max(p.apexY, p.y - C.SAFE + 6);
-        if (p.vy > C.SLIDE_V) p.vy = C.SLIDE_V;
+        if (p.vy > p.mv.SLIDE_V) p.vy = p.mv.SLIDE_V;
         p.apexY = Math.min(p.apexY, p.y - 1);
       }
     }
@@ -568,7 +572,7 @@ export function step(S, dt, inp){
     } else if (p.ride && rectFree(p.x, p.ride.y - p.h, p.w, p.h)){
       p.y = p.ride.y - p.h;              // держимся ровно на поверхности платформы/кабины
     }
-    p.vy = 0; p.coyote = C.COYOTE; p.jumping = false; p.lastWall = 0; p.lock = 0;
+    p.vy = 0; p.coyote = p.mv.COYOTE; p.jumping = false; p.lastWall = 0; p.lock = 0;
     if (wasAir){
       wetFeet = isWaterV(tileAt(Math.floor(cxw/T), Math.floor((p.y + p.h - 1)/T)));
       var fall = (p.inWater || p.wading || wetCenter || wetFeet) ? 0 : (p.y - p.apexY);

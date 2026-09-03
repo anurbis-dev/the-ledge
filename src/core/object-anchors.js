@@ -333,6 +333,7 @@ export function defaultAnimBox(objectKind, anim){
   tpl = (meta && (meta.template || meta.kind)) || objectKind;
   if (tpl === 'enemy2') return { w: 14, h: 18 };
   if (tpl === 'enemy0' || tpl === 'enemy1') return { w: 11, h: 14 };
+  if (tpl === 'vehicle') return { w: 20, h: 14 };
   return { w: 10, h: 14 };
 }
 

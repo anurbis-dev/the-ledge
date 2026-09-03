@@ -121,6 +121,18 @@ export var SPRITE_DEFS = [
     anims: [{ id: 'idle', name: 'Idle', n: 2, speed: 0.7 }] },
   { id: 'lantern', name: 'Lantern', fw: 16, fh: 16, ox: 8, oy: 8, kind: 'light',
     anims: [{ id: 'idle', name: 'Idle', n: 2 }] },
+  { id: 'vehicle', name: 'Vehicle', fw: 24, fh: 16, ox: 0, oy: 0, kind: 'vehicle',
+    anims: [
+      { id: 'idle', name: 'Idle (active)', n: 1 },
+      { id: 'idleOff', name: 'Idle (inactive)', n: 1 },
+      { id: 'move', name: 'Move', n: 1 },
+      { id: 'jump', name: 'Jump', n: 1 },
+      { id: 'fall', name: 'Fall', n: 1 },
+      { id: 'land', name: 'Land', n: 1 },
+      { id: 'attack', name: 'Attack', n: 1 },
+      { id: 'mount', name: 'Mount', n: 1 },
+      { id: 'unmount', name: 'Unmount', n: 1 }
+    ] },
   /* Object icons — bake idle at editor boot; ox/oy 0 (items blit at x-8,y-8). */
   { id: 'player_start', name: 'Start', fw: 16, fh: 16, ox: 0, oy: 0, kind: 'player_start',
     anims: [{ id: 'idle', name: 'Idle', n: 1 }] },

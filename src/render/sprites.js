@@ -353,7 +353,7 @@ export function vehicles(){
     var x = Math.round(v.x - cam.x), y = Math.round(v.y - cam.y);
     if (x < -32 || x > viewW() + 32) continue;
     var kind = v.objectKind || v.spriteId || 'vehicle';
-    if (blitEntSprite(kind, 'idle', getAnimFrame(kind, 'idle', time), v.x, v.y, v.facing, false, v.objectKind)) continue;
+    if (blitEntSprite(kind, 'idleOff', getAnimFrame(kind, 'idleOff', time), v.x, v.y, v.facing, false, v.objectKind)) continue;
     rc(x, y, v.w, v.h, '#3a3a4e');
     rc(x + 2, y + 2, v.w - 4, v.h - 4, '#57567a');
   }

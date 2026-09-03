@@ -84,6 +84,7 @@ export function tryMount(S){
   p.mount = v;
   v.parked = false;
   applyHeroBox(p);
+  p.mountAnimT = 0.25; p.mountAnimKind = 'mount'; p.mountAnimSkin = null;
   p.events.push('mount');
   return true;
 }
@@ -91,6 +92,10 @@ export function tryMount(S){
 export function tryDismount(S){
   var p = S.p, v = p.mount;
   if (!v) return false;
+  /* косметическое окно на анимацию unmount (см. render/hero.js): физику/бокс/скин
+     героя это не трогает — они переключаются сразу, как раньше; отдельный снимок
+     скина транспорта живёт только для рендера позы unmount эти доли секунды. */
+  p.mountAnimSkin = { spriteId: v.spriteId, objectKind: v.objectKind || legacyObjectKindFromSprite(v.spriteId) || 'vehicle' };
   runtime.mountSkin = p.mountSaved || null;
   p.mountSaved = null;
   v.x = p.x + p.w / 2 - v.w / 2;
@@ -99,6 +104,7 @@ export function tryDismount(S){
   v.parked = true;
   p.mount = null;
   applyHeroBox(p);
+  p.mountAnimT = 0.25; p.mountAnimKind = 'unmount';
   p.events.push('dismount');
   return true;
 }

@@ -12,7 +12,7 @@ import {
 import { figure, drawBow, drawHeldWeapon } from './figure.js';
 import { blitHeldSprite, fitFrame } from './sprites.js';
 import { isBowHand, isHarpoonHand, isPickaxeHand } from '../entities/gear.js';
-import { spriteFrameImage, getSpriteDef } from '../core/spriteset.js';
+import { spriteFrameImage, getSpriteDef, getAnimFrame } from '../core/spriteset.js';
 import { getFrameAnchor, getAnimBox } from '../core/object-anchors.js';
 import { activeHeroId, activeObjectKind } from '../core/player.js';
 import { defaultFrameAnchors } from './sprite-anchors.js';
@@ -191,7 +191,42 @@ function overlayHeroWeapon(p, clip, def, wx, wy, facing, origin){
   }
 }
 
+/* Пока герой в транспорте (или доигрывает unmount) — вокабуляр анимаций
+   транспорта, не героини: idle/idleOff/move/jump/fall/land/attack/mount/unmount
+   (см. core/spriteset.js SPRITE_DEFS 'vehicle'). */
+function vehicleMoveAnim(p){
+  if (!p.onGround) return p.vy < 0 ? 'jump' : 'fall';
+  if (p.landT > 0) return 'land';
+  if (p.atkT > 0) return 'attack';
+  if (Math.abs(p.vx) > 8) return 'move';
+  return 'idle';
+}
+
+function tryVehicleSprite(p){
+  var skin = p.mount ? { spriteId: activeHeroId(), objectKind: activeObjectKind() } : p.mountAnimSkin;
+  if (!skin) return false;
+  var hid = skin.spriteId;
+  var animId = (p.mountAnimT > 0 && p.mountAnimKind) ? p.mountAnimKind : vehicleMoveAnim(p);
+  var frameI = getAnimFrame(hid, animId, view.time);
+  var img = spriteFrameImage(hid, animId, frameI);
+  if (!img) return false;
+  var def = getSpriteDef(hid);
+  if (!def) return false;
+  var origin = frameOrigin(skin.objectKind, animId, frameI, def);
+  blitHeroSprite(img, def, p.x, p.y, p.facing, origin, 0);
+  return true;
+}
+
+/* Транспорт без нарисованного idle-арта — заглушка вместо тела героини,
+   тот же прямоугольник что и у запаркованного транспорта (render/sprites.js). */
+function drawMountFallback(p){
+  var x = Math.round(p.x - cam.x), y = Math.round(p.y - cam.y);
+  rc(x, y, p.w, p.h, '#3a3a4e');
+  rc(x + 2, y + 2, p.w - 4, p.h - 4, '#57567a');
+}
+
 function tryHeroSprite(p){
+  if (p.mount || (p.mountAnimT > 0 && p.mountAnimKind === 'unmount')) return tryVehicleSprite(p);
   var hid = activeHeroId();
   var clip = heroClip(p);
   var img = spriteFrameImage(hid, clip[0], clip[1]);
@@ -284,6 +319,7 @@ export function hero(){
   var p = S.p, i, k, pt = {}, frontal = (p.state === 'ladder' && p.lad.v === G.LADF) ||
       (p.state === 'hang' && p.hang.kind === 'lad' && G.tileAt(p.hang.tc, p.hang.tr) === G.LADF);
   if (tryHeroSprite(p)){ immerseHero(p); tintHeroBand(p); return; }
+  if (p.mount){ drawMountFallback(p); return; }        // в транспорте героиню саму не рисуем
   var hid = activeHeroId();
   var cxw = p.x + p.w/2, cyw = p.y + p.h/2;
   var wag = tail.a;

@@ -22,6 +22,7 @@ import {
   clearAnimAnchors, defaultObjectAnchors, spriteIdForObject
 } from '../core/object-anchors.js';
 import { updateObject, getObjectDef } from '../core/objectset.js';
+import { openHeroMoveSettings } from './hero-move-settings.js';
 import { runtime } from '../core/runtime.js';
 import { bakeSpriteFrameSrc, bakeBuiltinTileSrc, clearBakeCache } from '../render/sprite-bake.js';
 import { raiseFloat, placeFloat, hasFloatPos } from './float.js';
@@ -466,15 +467,13 @@ function fillObjectHeader(parent){
   if (last) box.appendChild(last);
 
   var roleSel = document.createElement('select');
-  ['actor', 'pickup', 'loot', 'prop', 'marker'].forEach(function(r){
+  ['actor', 'pickup', 'loot', 'prop', 'marker', 'vehicle'].forEach(function(r){
     var opt = document.createElement('option');
     opt.value = r; opt.textContent = r;
     if (objCurrent.role === r) opt.selected = true;
     roleSel.appendChild(opt);
   });
-  roleSel.disabled = !objCurrent.custom;
   roleSel.addEventListener('change', function(){
-    if (!objCurrent.custom) return;
     markOp();
     var next = updateObject(objCurrent.kind, { role: roleSel.value });
     if (!next) return;
@@ -532,6 +531,17 @@ function fillObjectHeader(parent){
     slotLab.appendChild(clr);
   }
   box.appendChild(slotLab);
+
+  if (objCurrent.template === 'player_start' || objCurrent.kind === 'player_start' ||
+      objCurrent.template === 'hero' || objCurrent.kind === 'hero'){
+    var moveBtn = document.createElement('button');
+    moveBtn.type = 'button';
+    moveBtn.className = 'edb wide';
+    moveBtn.textContent = 'Movement…';
+    moveBtn.title = 'Скорость/гравитация/прыжок героини для этого уровня — оверрайд поверх Params';
+    moveBtn.addEventListener('click', function(e){ openHeroMoveSettings(e.clientX, e.clientY); });
+    box.appendChild(moveBtn);
+  }
 
   if (objCurrent.custom){
     var note = document.createElement('div');

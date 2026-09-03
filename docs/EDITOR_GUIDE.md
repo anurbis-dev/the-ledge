@@ -165,7 +165,7 @@
 
 ### Role / Type
 
-- Роли: `actor` | `pickup` | `loot` | `prop` | `marker` (`objectset.ROLES`). У custom — селект Type в Details; у builtins — inferred (`builtinRole`: coin/gem/…=`pickup`, key/gear=`loot`, foes/NPC/Start=`actor`, chest/boulder/light=`prop`, Exit/Door/Sound/Volume/FX Sand/Rope V/Rope H/Plat H/Plat V/Lift=`marker`, …).
+- Роли: `actor` | `pickup` | `loot` | `prop` | `marker` | `vehicle` (`objectset.ROLES`). У custom — селект Type в Details; у builtins — раньше не было (inferred: coin/gem/…=`pickup`, key/gear=`loot`, foes/NPC/Start=`actor`, chest/boulder/light=`prop`, Exit/Door/…=`marker`, Vehicle=`vehicle`), теперь **все builtins** тоже имеют редактируемый Type-селект в Details (локальный оверрайд в `ledge.ed.objectRoles` localStorage, как для имён/тагов).
 - Влияет на постановку: `loot`/`pickup` — drag на сундук/врага/птицу; `loot` only — не ставится как мировой объект (только содержимое).
 
 ### Ctrl+D (Objects)
@@ -243,6 +243,7 @@
 - `FX Sand`: `Shape` (point|square|circle|line); `Shape size` если не point; `Shape angle` если line; далее `Density` / `Speed` / `Speed rand` / `Color` / `Life` / `Life rand` / `Gravity` / `Size` (px зерна) / `Spread` / `Drag` / `Lift` (дефолты `SAND_EMIT_DEF`: shape=point, shapeSize=16, shapeAngle=0). Гизмо: `move` + контур формы при выборе + ручка `emitSize` (resize; у line ещё angle). Persist `packEmitter` (+ dump emitters) с shape/shapeSize/shapeAngle.
 - `Plat H` / `Plat V`: `Width` / `Height` / `Speed` / `Pause A` / `Pause B`; `Travel` (`pingpong`|`oneway`); `Loop` (`infinite`|`once`); `Trigger` (`auto`|`ride`); `On leave` (`continue`|`return`|`stop`). Гизмо: `move` + `platA`/`platB`. Persist `packPlat` (`PLAT_DEF`).
 - `Lift`: `Width` / `Cabin H` / `Speed` / `Dwell` (пусто → `C.LIFT_V` / `C.LIFT_DWELL`); `Travel` (`pingpong`|`oneway`); `Loop` (`infinite`|`once`); `Trigger` (`call`|`auto`|`ride`); `On leave` (`stay`|`return`); `Home floor` + кнопки `+ Floor` / `− Floor` (минимум 2 этажа). Гизмо: `move` + `liftFloor`. Persist `packLift` (`LIFT_DEF`).
+- **Hero / Start — кнопка "Movement…"** (новая): открывает плавающее окно `#edHeroMoveSettings` с набором слайдеров для oвepрайда движения героини на уровень. Слайдеры соответствуют `HERO_MOVE_KEYS` (~19 ключей): `RUN`, `ACC`, `FRIC`, `WALK_V`, `CROUCH_V`, `PRONE_V`, `DASH_V`, `SLOPE_ALONG`, `GRAV`, `MAXFALL`, `JUMP`, `CUT`, `COYOTE`, `BUF`, `SLIDE_V`, `WJ_X`, `WJ_Y`, `WJ_LOCK`, `WJ_SAME_X`, `WJ_SAME_Y`. Значения хранятся в `LV.spawn.moveParams` (diff-store: значение = глобальному дефолту убирает ключ). Изменения слайдеров live-патчат `p.mv` в текущем мире для немедленной feedback в тестплей.
 - Через гизмо на канве:
 - `move`
 - `radius` (для света и sound falloff)

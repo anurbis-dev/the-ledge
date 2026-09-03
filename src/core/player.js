@@ -9,6 +9,7 @@ import { platUnder } from '../entities/plats.js';
 import { breakTalk } from '../speech/runtime.js';
 import { heroGrabOffset, heroGrabWorld, heroHandY, heroBoxAnim } from './sprite-grab.js';
 import { getAnimBox, legacyObjectKindFromSprite } from './object-anchors.js';
+import { buildMoveOverrides } from './hero-move.js';
 
 export function activeHeroId(){
   var sp = runtime.mountSkin || (runtime.LV && runtime.LV.spawn);
@@ -43,7 +44,8 @@ export function mkPlayer(){
     stanceT: 0, stanceFrom: 0, lookUp: 0, pushWall: false,
     gapCrawl: false, edgeHoldT: 0,
     recoverSt: 0, knockedOut: false, gettingUp: false, getupT: 0,
-    mount: null, mountSaved: null,
+    mount: null, mountSaved: null, mountAnimT: 0, mountAnimKind: null, mountAnimSkin: null,
+    mv: buildMoveOverrides(),
     events: []
   };
 }
@@ -516,7 +518,7 @@ export function tryBars(S, p){
 export function updateBars(S, p, dt, inp){
   var B = p.bars;
   if (inp.jumpPressed || inp.downPressed){
-    p.state = 'normal'; p.bars = null; p.vy = inp.jumpPressed ? C.JUMP*0.72 : 10;
+    p.state = 'normal'; p.bars = null; p.vy = inp.jumpPressed ? p.mv.JUMP*0.72 : 10;
     p.vx = inp.x * 70; p.apexY = p.y; p.grabCd = C.GRAB_CD;
     p.events.push(inp.jumpPressed ? 'jump' : 'release');
     return;
@@ -1036,8 +1038,8 @@ export function updateHang(S, p, dt, inp){
   if (inp.jumpPressed){
     if (away){                                       // прыжок спиной от стены
       p.state = 'normal'; p.hang = null; p.grabCd = C.GRAB_CD; p.ride = null;
-      p.vx = away * C.WJ_X * 0.9; p.vy = C.WJ_Y; p.facing = away;
-      p.lock = C.WJ_LOCK; p.apexY = p.y; p.events.push('backjump');
+      p.vx = away * p.mv.WJ_X * 0.9; p.vy = p.mv.WJ_Y; p.facing = away;
+      p.lock = p.mv.WJ_LOCK; p.apexY = p.y; p.events.push('backjump');
       return;
     }
     if (tryClimbUp(p)) return;
@@ -1110,7 +1112,7 @@ export function updateClimb(S, p, dt){
         p.stanceT = C.STANCE_T;
         p.gapCrawl = true;
       }
-      p.state = 'normal'; p.onGround = true; p.coyote = C.COYOTE;
+      p.state = 'normal'; p.onGround = true; p.coyote = p.mv.COYOTE;
       p.landT = cl.kind === 'vault' ? 0 : 0.08;             // vault уже сам заканчивается стоя, без доп. приседа
       p.hang = null; p.climb = null; p.events.push('mantled');
       if (cl.plat) p.ride = cl.plat;
@@ -1231,7 +1233,7 @@ export function exitTop(S, p, col, row, prefer){
 export function updateLadder(S, p, dt, inp){
   var L = p.lad, diag = (L.v === LADR || L.v === LADL);
   if (inp.jumpPressed){
-    p.state = 'normal'; p.lad = null; p.vy = C.JUMP * 0.84;
+    p.state = 'normal'; p.lad = null; p.vy = p.mv.JUMP * 0.84;
     p.vx = inp.x * 92; p.jumping = true; p.apexY = p.y;
     p.ladCd = 0.3;
     if (inp.x) p.facing = inp.x > 0 ? 1 : -1;
@@ -1310,6 +1312,6 @@ export function updateLadder(S, p, dt, inp){
   if (p.state === 'ladder' && grounded(S, p, true) && up < 0){
     p.state = 'normal'; p.onGround = true; p.lad = null; p.apexY = p.y;
     p.ladCd = 0.25;
-    p.coyote = C.COYOTE; p.events.push('offladder');
+    p.coyote = p.mv.COYOTE; p.events.push('offladder');
   }
 }

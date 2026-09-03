@@ -702,7 +702,7 @@ export function updateRope(S, p, dt, inp){
   if (inp.jumpPressed){
     var jvx = inp.x * 92;
     if (R.orient === 'v' && st.kickDir) jvx += st.kickDir * 40;
-    detachRope(S, p, { vx: jvx, vy: C.JUMP * 0.84, event: 'jump' });
+    detachRope(S, p, { vx: jvx, vy: p.mv.JUMP * 0.84, event: 'jump' });
     p.jumping = true;
     if (inp.x) p.facing = inp.x > 0 ? 1 : -1;
     return;
@@ -767,7 +767,7 @@ export function updateRope(S, p, dt, inp){
   if (onFloor && (vLand || hLand)){
     detachRope(S, p, { vx: 0, vy: 0, cd: 0.12, event: 'offrope' });
     p.onGround = true;
-    p.coyote = C.COYOTE;
+    p.coyote = p.mv.COYOTE;
     snapFeet(p);
   }
 }

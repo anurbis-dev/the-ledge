@@ -44,6 +44,7 @@ import { showInspect, bindInspect } from './inspect.js';
 import { bindNpcTalk, openNpcTalk, closeNpcTalk } from './npc-talk.js';
 import { bindBoulderSettings, openBoulderSettings, closeBoulderSettings } from './boulder-settings.js';
 import { bindVehicleSettings, openVehicleSettings, closeVehicleSettings } from './vehicle-settings.js';
+import { bindHeroMoveSettings, closeHeroMoveSettings } from './hero-move-settings.js';
 import { bindRopeSettings, openRopeSettings, closeRopeSettings } from './rope-settings.js';
 import { bindEnemySettings, openEnemySettings, closeEnemySettings } from './enemy-settings.js';
 import { enemySpeedMult } from '../entities/enemies.js';
@@ -402,6 +403,7 @@ bindSpriteset({
 bindNpcTalk({ onChange: function(){ markLevelDirty(); } });
 bindBoulderSettings({ onChange: function(){ markLevelDirty(); } });
 bindVehicleSettings({ onChange: function(){ markLevelDirty(); } });
+bindHeroMoveSettings({ onChange: function(){ markLevelDirty(); } });
 bindRopeSettings({ onChange: function(){ markLevelDirty(); } });
 bindEnemySettings({ onChange: function(){ markLevelDirty(); } });
 bindAllFloats();
@@ -1035,6 +1037,7 @@ export function edClose(){
   closeNpcTalk();
   closeBoulderSettings();
   closeVehicleSettings();
+  closeHeroMoveSettings();
   closeRopeSettings();
   closeEnemySettings();
   closeTileEdit();
@@ -2964,6 +2967,7 @@ cv.addEventListener('pointerdown', function(e){
   closeNpcTalk();
   closeBoulderSettings();
   closeVehicleSettings();
+  closeHeroMoveSettings();
   closeRopeSettings();
   closeEnemySettings();
   if (e.ctrlKey || e.metaKey){

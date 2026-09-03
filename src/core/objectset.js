@@ -14,11 +14,15 @@ var KEY = 'ledge.dev.objects';
 var NAMEKEY = 'ledge.ed.objectNames';
 /* Оверрайды tag builtin-kind — тот же принцип, отдельный ключ. */
 var TAGKEY = 'ledge.ed.objectTags';
-var ROLES = ['actor', 'pickup', 'loot', 'prop', 'marker'];
+/* Оверрайды role builtin-kind — тот же принцип, отдельный ключ (по умолчанию role
+   считается из PICKUP/LOOT/PROP/MARKER_KINDS ниже, но editor даёт переключить Type
+   и для builtin-объектов, не только custom). */
+var ROLEKEY = 'ledge.ed.objectRoles';
+var ROLES = ['actor', 'pickup', 'loot', 'prop', 'marker', 'vehicle'];
 
 var PICKUP_KINDS = { coin:1, gem:1, shroom:1, relic:1, tank:1, pickaxe:1 };
 var LOOT_KINDS = { key:1, helmet:1, shield:1, sword:1, scuba:1, flippers:1, harpoon:1, bow:1 };
-var PROP_KINDS = { chest:1, chestL:1, torch:1, boulder:1, vehicle:1, light:1 };
+var PROP_KINDS = { chest:1, chestL:1, torch:1, boulder:1, light:1 };
 var MARKER_KINDS = { sound:1, volume:1, fx_sand:1, level_exit:1, door:1, player_start:1, rope_v:1, rope_h:1, plat_h:1, plat_v:1, lift:1 };
 
 /** Builtin placeable list — source of truth for names/order (editor mutates live ED_OBJS copy). */
@@ -79,6 +83,8 @@ var seq = 1;
 var builtinNames = {};
 /** Tag overrides for builtin (non-custom) kinds — same pattern as builtinNames. */
 var builtinTags = {};
+/** Role (Type) overrides for builtin (non-custom) kinds — same pattern as builtinNames/Tags. */
+var builtinRoles = {};
 
 function emit(why){
   notifyDraftChange();
@@ -128,6 +134,21 @@ function writeBuiltinTags(){
   try { localStorage.setItem(TAGKEY, JSON.stringify(builtinTags)); } catch (_){}
 }
 
+function readBuiltinRoles(){
+  try {
+    var raw = localStorage.getItem(ROLEKEY);
+    if (raw){
+      var o = JSON.parse(raw);
+      if (o && typeof o === 'object') return o;
+    }
+  } catch (_){}
+  return null;
+}
+
+function writeBuiltinRoles(){
+  try { localStorage.setItem(ROLEKEY, JSON.stringify(builtinRoles)); } catch (_){}
+}
+
 function rebuild(){
   byId = {};
   var i, o;
@@ -137,15 +158,22 @@ function rebuild(){
   }
 }
 
-export function builtinRole(kind){
+function baseBuiltinRole(kind){
   if (!kind) return 'prop';
   if (kind === 'hero' || kind === 'player_start') return 'actor';
+  if (kind === 'vehicle') return 'vehicle';
   if (PICKUP_KINDS[kind]) return 'pickup';
   if (LOOT_KINDS[kind]) return 'loot';
   if (PROP_KINDS[kind]) return 'prop';
   if (MARKER_KINDS[kind]) return 'marker';
   if (/^(enemy|flier|spider|tendril)\d+$/.test(kind) || kind.indexOf('npc_') === 0) return 'actor';
   return 'prop';
+}
+
+/** builtin role — учитывает оверрайд из Type-селектора Object Details, если он был. */
+export function builtinRole(kind){
+  if (kind && builtinRoles[kind]) return builtinRoles[kind];
+  return baseBuiltinRole(kind);
 }
 
 export function builtinSpriteId(kind){
@@ -205,6 +233,9 @@ function boot(){
   builtinTags = {};
   var tags = readBuiltinTags();
   if (tags) builtinTags = tags;
+  builtinRoles = {};
+  var roles = readBuiltinRoles();
+  if (roles) builtinRoles = roles;
   rebuild();
 }
 
@@ -304,13 +335,17 @@ export function addObject(partial){
 export function updateObject(id, patch){
   var o = byId[id], k, next;
   if (!o){
-    if (patch && (patch.name || patch.tag != null)){
+    if (patch && (patch.name || patch.tag != null || (patch.role && ROLES.indexOf(patch.role) >= 0))){
       for (k = 0; k < BUILTIN_OBJS.length; k++){
         if (BUILTIN_OBJS[k].kind === id){
           if (patch.name) builtinNames[id] = String(patch.name);
           if (patch.tag != null){
             builtinTags[id] = String(patch.tag);
             writeBuiltinTags();
+          }
+          if (patch.role && ROLES.indexOf(patch.role) >= 0){
+            builtinRoles[id] = patch.role;
+            writeBuiltinRoles();
           }
           if (patch.name) writeBuiltinNames();
           emit('update');

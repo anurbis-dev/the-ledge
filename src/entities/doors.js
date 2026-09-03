@@ -154,6 +154,6 @@ export function updateWarp(S, p, dt){
   }
   if (w.t >= C.WARP_T){
     S.fade = 0; p.warp = null; p.state = 'normal';
-    p.onGround = true; p.coyote = C.COYOTE;
+    p.onGround = true; p.coyote = p.mv.COYOTE;
   }
 }
