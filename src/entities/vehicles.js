@@ -1,5 +1,6 @@
 import { runtime } from '../core/runtime.js';
 import { C } from '../core/constants.js';
+import { rectFree } from '../core/map.js';
 import { allocId } from './ids.js';
 import { getAnimBox, legacyObjectKindFromSprite } from '../core/object-anchors.js';
 import { applyHeroBox } from '../core/player.js';
@@ -83,11 +84,16 @@ export function tryMount(S){
   runtime.mountSkin = { spriteId: v.spriteId, objectKind: v.objectKind || legacyObjectKindFromSprite(v.spriteId) || 'vehicle' };
   p.mount = v;
   v.parked = false;
-  /* рендер в маунте берёт facing у героя (render/hero.js:tryVehicleSprite), а не у v —
-     без этого транспорт при посадке мгновенно перещёлкивался на то, куда смотрела
-     героиня при подходе, вместо того, чтобы остаться в своей припаркованной ориентации. */
+  /* рендер в маунте берёт x/y/facing у героя (render/hero.js:tryVehicleSprite), а не у v —
+     без явного снапа транспорт при посадке мгновенно перещёлкивался на то, где стояла и
+     куда смотрела героиня при подходе, вместо того чтобы остаться на своём месте и в своей
+     припаркованной ориентации ровно как перед посадкой. */
   p.facing = v.facing;
   applyHeroBox(p);
+  /* центр/пол, не сырой x/y — applyHeroBox мог дать герою бокс, отличный по
+     размеру от v.w/v.h (например если она садится не из состояния idle), и
+     тогда копия v.x/v.y мимо центра/пола сдвинула бы её от места v. */
+  p.x = v.x + v.w / 2 - p.w / 2; p.y = v.y + v.h - p.h;
   p.mountAnimT = 0.25; p.mountAnimKind = 'mount'; p.mountAnimSkin = null;
   p.events.push('mount');
   return true;
@@ -96,11 +102,15 @@ export function tryMount(S){
 export function tryDismount(S){
   var p = S.p, v = p.mount;
   if (!v) return false;
-  /* unmount доигрывает 0.25с НА боксе и скине транспорта (runtime.mountSkin
-     не трогаем, applyHeroBox не зовём) — иначе арт transporта рисуется поверх
-     уже схлопнувшегося геройского хитбокса и выглядит смещённым. Возврат
-     геройского скина/бокса и парковка v — только в finishDismount, по
-     завершении анимации (см. core/step.js). */
+  /* v фиксируется РОВНО там, где герой (ещё на транспортном боксе/скине) стоит
+     в момент нажатия высадки, — это и есть "место, где произошла высадка".
+     Дальше, все 0.25с unmount-анимации, v уже не двигается и не тянется за
+     героиней (её физическая поза может ещё чуть доехать по инерции) — иначе
+     транспорт визуально "плывёт" вслед за игроком, а не стоит на месте.
+     Центр/пол, не сырой x/y — p.w/p.h в момент высадки могут отличаться от
+     v.w/v.h (герой мог быть не в idle-позе, например ещё 'move' или 'land'),
+     иначе v.y "поплыл" бы мимо реального пола на разницу высот боксов. */
+  v.x = p.x + p.w / 2 - v.w / 2; v.y = p.y + p.h - v.h; v.facing = p.facing;
   p.mountAnimSkin = { spriteId: v.spriteId, objectKind: v.objectKind || legacyObjectKindFromSprite(v.spriteId) || 'vehicle' };
   p.mountAnimVehicle = v;
   p.mount = null;
@@ -109,14 +119,23 @@ export function tryDismount(S){
   return true;
 }
 
-/** Конец анимации unmount (core/step.js, когда mountAnimT дошёл до 0): транспорт —
-    не отдельная физическая сущность (см. tryMount/tryDismount), пока герой за рулём
-    его x/y/facing никто не двигает; при высадке v просто снова становится видимым
-    и интерактивным на том же месте, где стоял всегда, не подтягиваясь к героине. */
+/** Конец анимации unmount (core/step.js, когда mountAnimT дошёл до 0): v уже
+    зафиксирован в tryDismount и больше не двигается — тут только возвращаем
+    геройский скин/бокс и ставим героиню рядом с v, со стороны, куда он смотрит
+    (как выходят из машины в направлении движения), а не там, где её физически
+    оставила инерция за эти 0.25с. */
 export function finishDismount(p){
   var v = p.mountAnimVehicle;
-  if (v) v.parked = true;
   runtime.mountSkin = p.mountSaved || null;
   p.mountSaved = null;
   applyHeroBox(p);
+  if (v){
+    v.parked = true;
+    p.facing = v.facing;
+    var ny = v.y + v.h - p.h;
+    var nx = v.facing >= 0 ? (v.x + v.w) : (v.x - p.w);
+    var altX = v.facing >= 0 ? (v.x - p.w) : (v.x + v.w);
+    if (rectFree(nx, ny, p.w, p.h)){ p.x = nx; p.y = ny; }
+    else if (rectFree(altX, ny, p.w, p.h)){ p.x = altX; p.y = ny; }
+  }
 }
