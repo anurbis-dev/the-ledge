@@ -202,7 +202,7 @@ export function stepEnemies(S, dt){
 }
 export function attack(S){
   var p = S.p;
-  if (!p.stick || p.atkCd > 0 || p.atkT > 0) return false;
+  if (!p.stick || p.atkCd > 0 || p.atkT > 0 || p.turning) return false;   // за рулём разворот в приоритете
   if (p.stance > 0) return false;                        // бьём только стоя
   if (p.state !== 'normal' && p.state !== 'ladder' && p.state !== 'rope' && p.state !== 'snare') return false;
   p.atkT = C.ATK_T; p.atkCd = C.ATK_T + C.ATK_CD;

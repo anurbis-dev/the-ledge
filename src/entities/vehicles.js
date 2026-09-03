@@ -107,14 +107,14 @@ export function tryMount(S){
      тогда копия v.x/v.y мимо центра/пола сдвинула бы её от места v. */
   p.x = v.x + v.w / 2 - p.w / 2; p.y = v.y + v.h - p.h;
   p.mountAnimT = 0.25; p.mountAnimKind = 'mount'; p.mountAnimSkin = null;
-  p.turning = false; p.turnT = 0;
+  p.turning = false; p.turnT = 0; p.turnScrub = 0; p.turnLastDir = 0;
   p.events.push('mount');
   return true;
 }
 
 export function tryDismount(S){
   var p = S.p, v = p.mount;
-  if (!v) return false;
+  if (!v || p.turning) return false;   // высадка ждёт, пока доиграет разворот
   /* v фиксируется РОВНО там, где герой (ещё на транспортном боксе/скине) стоит
      в момент нажатия высадки, — это и есть "место, где произошла высадка".
      Дальше, все 0.25с unmount-анимации, v уже не двигается и не тянется за
@@ -128,7 +128,7 @@ export function tryDismount(S){
   p.mountAnimVehicle = v;
   p.mount = null;
   p.mountAnimT = 0.25; p.mountAnimKind = 'unmount';
-  p.turning = false; p.turnT = 0;
+  p.turning = false; p.turnT = 0; p.turnScrub = 0; p.turnLastDir = 0;
   p.events.push('dismount');
   return true;
 }
@@ -157,33 +157,43 @@ export function mountAllowsWallSlide(p){
 }
 
 /** Разворот транспорта под сменой направления: не мгновенный флип, а анимация
-    'turn' (если у скина она есть) — facing реально меняется только когда
-    анимация доиграла. turnT — чистый прогресс (сек), не путь: смена желаемого
-    направления посреди разворота просто крутит его в другую сторону, поэтому
-    "передумать" воспроизводит те же кадры назад с текущего места. Возвращает
-    true, если можно разгоняться в wantDir прямо сейчас (не за рулём, уже туда
-    смотрим, скин без 'turn' — мгновенный фоллбэк, либо разворот только что
-    закончился), false — ещё разворачиваемся, разгон в новую сторону рано. */
+    'turn' (если у скина она есть). Триггер — САМА смена желаемого направления
+    (edge, сравнение с запомненным p.turnLastDir), не удержание: один раз
+    спровоцированный разворот доигрывает сам по dt каждый кадр, даже если игрок
+    уже отпустил клавишу. Передумать можно только новым нажатием — если во время
+    разворота снова нажать исходное направление, это новый edge и turnT крутится
+    в обратную сторону (те же кадры, с текущего места, не с нуля). facing реально
+    меняется только когда анимация доигралась до конца. Вызывать каждый кадр,
+    пока p.mount, независимо от того, держит ли игрок направление (wantDir может
+    быть 0). Возвращает true, если можно разгоняться / прыгать / атаковать /
+    блокировать / высаживаться прямо сейчас, false — идёт разворот, эти действия
+    ждут (гейты добавлены в core/step.js и entities/torches.js). */
 export function stepMountTurn(p, wantDir, dt){
-  if (!p.mount || !wantDir || wantDir === p.facing){
-    if (p.turning){                          // передумали — откручиваем к исходному facing
-      p.turnT = Math.max(0, (p.turnT || 0) - dt);
-      if (p.turnT <= 0){ p.turning = false; p.turnT = 0; }
-    }
-    return true;
-  }
+  if (!p.mount){ p.turning = false; p.turnScrub = 0; return true; }
   var hid = activeHeroId();
   if (!hasAnim(hid, 'turn')){                // нет анимации — как раньше, мгновенный флип
-    p.facing = wantDir; p.turning = false; p.turnT = 0;
+    if (wantDir) p.facing = wantDir;
+    p.turning = false; p.turnT = 0; p.turnScrub = 0;
     return true;
   }
   var n = getAnimFrameCount(hid, 'turn'), speed = getAnimSpeed(hid, 'turn');
   var dur = (n > 0 && speed > 0) ? n / speed : 0;
-  if (dur <= 0){ p.facing = wantDir; p.turning = false; p.turnT = 0; return true; }
-  p.turning = true;
-  p.turnT = Math.min(dur, (p.turnT || 0) + dt);
-  if (p.turnT >= dur){ p.facing = wantDir; p.turning = false; p.turnT = 0; return true; }
-  return false;
+  if (dur <= 0){
+    if (wantDir) p.facing = wantDir;
+    p.turning = false; p.turnT = 0; p.turnScrub = 0;
+    return true;
+  }
+  if (wantDir && wantDir !== p.turnLastDir){          // новый запрос направления — (пере)включает scrub
+    p.turnScrub = (wantDir === p.facing) ? -1 : 1;
+    p.turnLastDir = wantDir;
+  }
+  if (p.turnScrub){
+    p.turnT = (p.turnT || 0) + p.turnScrub * dt;
+    if (p.turnT >= dur){ p.turnT = 0; p.facing = p.turnLastDir; p.turning = false; p.turnScrub = 0; }
+    else if (p.turnT <= 0){ p.turnT = 0; p.turning = false; p.turnScrub = 0; }
+    else p.turning = true;
+  }
+  return !p.turning;
 }
 
 /** Конец анимации unmount (core/step.js, когда mountAnimT дошёл до 0): v уже

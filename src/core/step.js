@@ -253,7 +253,7 @@ export function step(S, dt, inp){
   var mountAllowsProne = !p.mount || hasAnim(mountHid, 'prone');
   p.mountBlocking = false;
   if (!talking && !rolling && p.onGround && !inCab && !onLadTop && !p.inWater && p.stanceT <= 0 && p.pickT <= 0){
-    if (mountHasBlock && (inp.downHeld || inp.downPressed)) p.mountBlocking = true;
+    if (mountHasBlock && !p.turning && (inp.downHeld || inp.downPressed)) p.mountBlocking = true;
     // лёжа (PRW шире тайла) не разворачивается под уклон — на скосе из приседа доступна только
     // сама стойка приседа, не пытаемся втиснуть плоский широкий бокс поперёк диагонали
     else if (inp.downPressed && p.stance < 2 && Math.abs(p.vx) <= 58 && !crouchRoll &&
@@ -323,6 +323,11 @@ export function step(S, dt, inp){
     }
   } else {
     var ax = (p.lock > 0 || p.pickT > 0) ? 0 : inp.x;
+    // за рулём разворот тикает каждый кадр сам по dt, не только пока держат противоположную
+    // сторону — смена желаемого направления лишь триггерит scrub (edge), дальше он доигрывает
+    // автоматически, даже если игрок отпустил клавишу (entities/vehicles.js:stepMountTurn)
+    var wantDir = ax > 0 ? 1 : (ax < 0 ? -1 : 0);
+    var turnReady = p.mount ? stepMountTurn(p, wantDir, dt) : true;
     if (p.pickT > 0){
       p.vx = 0;                                 // подбор предмета — только анимация, без смещения
     } else if (p.lock > 0){
@@ -330,11 +335,8 @@ export function step(S, dt, inp){
     } else if (ax !== 0){
       var slow = p.stance > 0;
       p.walking = slow;
-      // за рулём смена направления сперва доигрывает анимацию разворота (если она есть у
-      // скина) — разгон/флип в новую сторону только когда stepMountTurn вернул true; пока
-      // разворачиваемся, гасим ход трением, как без ввода (entities/vehicles.js:stepMountTurn)
-      var wantDir = ax > 0 ? 1 : -1;
-      var turnReady = p.mount ? stepMountTurn(p, wantDir, dt) : true;
+      // разгон/флип в новую сторону только когда stepMountTurn вернул true; пока
+      // разворачиваемся, гасим ход трением, как без ввода
       if (!turnReady){
         var tf = p.mv.FRIC * dt;
         p.vx = Math.abs(p.vx) <= tf ? 0 : p.vx - (p.vx > 0 ? tf : -tf);
@@ -393,11 +395,11 @@ export function step(S, dt, inp){
   for (var lj = 0; lj < S.lifts.length; lj++) if (inLift(p, S.lifts[lj])) inCabin = true;
   if (inCabin) p.buf = 0;                        // в кабине не прыгаем
   var jumpMul = mountJumpMul(p);                  // 0 за рулём транспорта без прыжка — прыжок недоступен
-  if (p.buf > 0 && p.coyote > 0 && !rolling && p.stance === 0 && jumpMul > 0){
+  if (p.buf > 0 && p.coyote > 0 && !rolling && p.stance === 0 && jumpMul > 0 && !p.turning){
     p.vy = p.mv.JUMP * jumpMul; p.buf = 0; p.coyote = 0; p.onGround = false; p.jumping = true;
     p.grabCd = Math.max(p.grabCd, 0.25); p.ladCd = 0.3;
     p.apexY = p.y; p.events.push('jump');
-  } else if (p.buf > 0 && p.sliding !== 0 && !p.onGround && jumpMul > 0){    // прыжок от стены
+  } else if (p.buf > 0 && p.sliding !== 0 && !p.onGround && jumpMul > 0 && !p.turning){    // прыжок от стены
     var same = (p.lastWall === p.sliding);
     p.vx = -p.sliding * (same ? p.mv.WJ_SAME_X : p.mv.WJ_X);
     p.vy = (same ? p.mv.WJ_SAME_Y : p.mv.WJ_Y) * jumpMul;             // от той же стены — заметно слабее
