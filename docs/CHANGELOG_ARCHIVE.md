@@ -1,5 +1,10 @@
 # Changelog archive
 
+## 2026-09-03 (pre-commit, unreleased at commit 180bdf7)
+
+- Fix(core): `applyHeroBox` (вызывается каждый кадр в step.js) считал бокс для движения через `heroBoxAnim(p)`, который жёстко возвращал `'run'` — для транспорта с отдельно настроенным боксом на анимации `move` (отличным от generic-дефолта) физический хитбокс брался не тот, что был указан в редакторе, и картинка `move` visually съезжала с хитбокса. `heroBoxAnim` теперь берёт `'move'`, если такой слот есть у активного спрайта (`hasAnim`, новый экспорт core/spriteset.js), иначе `'run'` — та же развилка, что и в render/hero.js:`vehicleMoveAnim`, box и арт теперь всегда на одном animId.
+- Fix(entities,render): `tryDismount` реверсил `runtime.mountSkin` и звал `applyHeroBox` сразу же, пока unmount-анимация ещё 0.25с рисовала транспорт через `tryVehicleSprite` на позиции героя — арт транспорта (авторенный под транспортный бокс) визуально уезжал от уже схлопнувшегося геройского хитбокса. Возврат скина/бокса и парковка `v` вынесены в новый `finishDismount` (entities/vehicles.js), вызываемый из core/step.js только по завершении анимации (`mountAnimT` доходит до 0) — все 0.25с герой физически остаётся в транспортном боксе/скине, паркуется на итоговой позиции без второго смещённого спрайта.
+
 ## 2026-09-03 (pre-commit, unreleased at commit 4d9dc2d)
 
 - Feat(core,spriteset): добавлена новая запись каталога спрайтов `vehicle` (fw:24 fh:16, kind:'vehicle') с 9 слотами анимаций: idle (активный: едет), idleOff (припаркован, неактивный), move, jump, fall, land, attack, mount, unmount. Теперь Vehicle имеет реальный spriteId (раньше был null).

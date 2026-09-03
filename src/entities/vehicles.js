@@ -83,6 +83,10 @@ export function tryMount(S){
   runtime.mountSkin = { spriteId: v.spriteId, objectKind: v.objectKind || legacyObjectKindFromSprite(v.spriteId) || 'vehicle' };
   p.mount = v;
   v.parked = false;
+  /* рендер в маунте берёт facing у героя (render/hero.js:tryVehicleSprite), а не у v —
+     без этого транспорт при посадке мгновенно перещёлкивался на то, куда смотрела
+     героиня при подходе, вместо того, чтобы остаться в своей припаркованной ориентации. */
+  p.facing = v.facing;
   applyHeroBox(p);
   p.mountAnimT = 0.25; p.mountAnimKind = 'mount'; p.mountAnimSkin = null;
   p.events.push('mount');
@@ -105,17 +109,13 @@ export function tryDismount(S){
   return true;
 }
 
-/** Конец анимации unmount (core/step.js, когда mountAnimT дошёл до 0):
-    паркуем v на текущей (всё ещё "транспортной") позиции героя и только
-    теперь возвращаем геройский скин/бокс. */
+/** Конец анимации unmount (core/step.js, когда mountAnimT дошёл до 0): транспорт —
+    не отдельная физическая сущность (см. tryMount/tryDismount), пока герой за рулём
+    его x/y/facing никто не двигает; при высадке v просто снова становится видимым
+    и интерактивным на том же месте, где стоял всегда, не подтягиваясь к героине. */
 export function finishDismount(p){
   var v = p.mountAnimVehicle;
-  if (v){
-    v.x = p.x + p.w / 2 - v.w / 2;
-    v.y = p.y + p.h - v.h;
-    v.facing = p.facing;
-    v.parked = true;
-  }
+  if (v) v.parked = true;
   runtime.mountSkin = p.mountSaved || null;
   p.mountSaved = null;
   applyHeroBox(p);
