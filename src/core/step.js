@@ -120,6 +120,21 @@ export function step(S, dt, inp){
     inp.upHeld = false;
     inp.downHeld = false;
   }
+  // высадка с транспорта доигрывает unmount-анимацию (mountAnimT, см. ниже) ещё p.mount уже
+  // null — герой физически уже "свободна", но визуально всё ещё транспорт (render/hero.js);
+  // без этого гейта можно было тут же побежать/прыгнуть/атаковать/сесть обратно, пока на
+  // экране всё ещё стоит транспортный спрайт
+  if (S.p.mountAnimT > 0 && S.p.mountAnimKind === 'unmount'){
+    inp.x = 0;
+    inp.jumpPressed = false;
+    inp.jumpHeld = false;
+    inp.actPressed = false;
+    inp.upPressed = false;
+    inp.downPressed = false;
+    inp.upHeld = false;
+    inp.downHeld = false;
+    S.p.buf = 0;                    // не даём допрыгнуть по буферу, зажатому перед высадкой
+  }
   if (inp.upPressed && (tryExit(S) || tryDoor(S))) { /* вверх: пещера или дверь */ }
   else if (inp.actPressed) tryAction(S, inp);
 
