@@ -12,6 +12,17 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/session-start-hint.mjs",
+            "statusMessage": "Loading AGENTS.md hard constraints..."
+          }
+        ]
+      }
     ]
   }
 }

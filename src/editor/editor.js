@@ -3432,13 +3432,13 @@ function importSpriteFiles(list){
   list.forEach(function(file){
     chain = chain.then(function(){
       return loadImageFile(file).then(function(img){
-        var w = Math.max(8, Math.min(128, img.naturalWidth || img.width || 16));
-        var h = Math.max(8, Math.min(128, img.naturalHeight || img.height || 16));
+        var w = img.naturalWidth || img.width || 16;
+        var h = img.naturalHeight || img.height || 16;
         var c = document.createElement('canvas');
         c.width = w; c.height = h;
         var cx = c.getContext('2d');
         cx.imageSmoothingEnabled = false;
-        cx.drawImage(img, 0, 0, img.naturalWidth || w, img.naturalHeight || h, 0, 0, w, h);
+        cx.drawImage(img, 0, 0);
         var def = addSpriteDef({
           name: file.name || 'Sprite',
           fw: w, fh: h, ox: 0, oy: 0,
