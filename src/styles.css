@@ -378,4 +378,13 @@ body.edit-mode #ring,body.edit-mode #knob{display:none!important}
   opacity:0;transition:opacity .4s;pointer-events:none}
 .shint.show{opacity:.8;animation:shintpulse 1.6s ease-in-out infinite}
 @keyframes shintpulse{0%,100%{opacity:.45}50%{opacity:.9}}
-@media (prefers-reduced-motion:reduce){.shint.show{animation:none;opacity:.8}.splash-title,#splash.can-fade .splash-title{transition:none}} 
+@media (prefers-reduced-motion:reduce){.shint.show{animation:none;opacity:.8}.splash-title,#splash.can-fade .splash-title{transition:none}}
+
+#rotate,#rotate *{font-family:'Press Start 2P','Courier New',monospace;-webkit-font-smoothing:none;font-smooth:never}
+#rotate{display:none;position:fixed;inset:0;z-index:100;background:#07060fee;
+  flex-direction:column;align-items:center;justify-content:center;gap:14px;pointer-events:auto}
+#rotate .rot-ic{font-size:40px;color:#ffd9a0;animation:rotHint 1.6s ease-in-out infinite}
+#rotate .rot-msg{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#cfc6ff;text-align:center;line-height:1.8}
+@keyframes rotHint{0%,100%{transform:rotate(0deg)}50%{transform:rotate(90deg)}}
+@media (pointer:coarse) and (orientation:portrait){#rotate{display:flex}}
+@media (prefers-reduced-motion:reduce){#rotate .rot-ic{animation:none}}

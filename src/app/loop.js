@@ -21,6 +21,7 @@ import { ED, edOpen, edClose, edApply, edExportText, edDrawOverlay, bindEditor, 
 import { hooks } from '../core/runtime.js';
 import { prog, buildMenu, showMenu, showMenuHome, menuScreen, isMenu, setMenu, saveProgress, dropProgressAt, applyBootSettings, unlockAllLevels } from '../ui/menu.js';
 import { showSplash } from '../ui/splash.js';
+import { isFS, enterFS, exitFS } from './fullscreen.js';
 import { findById } from '../entities/ids.js';
 import { cycleHand } from '../entities/gear.js';
 import { entitiesShown } from '../core/layers.js';
@@ -471,19 +472,8 @@ function finishLevel(){
   saveProgress();
 }
 
-function isFS(){ return !!(document.fullscreenElement || document.webkitFullscreenElement); }
 function toggleFS(){
-  var el = document.documentElement;
-  if (!isFS()){
-    var rq = el.requestFullscreen || el.webkitRequestFullscreen;
-    if (rq){ try { var r = rq.call(el); if (r && r.catch) r.catch(function(){}); } catch(_){} }
-    if (screen.orientation && screen.orientation.lock){
-      try { var l = screen.orientation.lock('landscape'); if (l && l.catch) l.catch(function(){}); } catch(_){}
-    }
-  } else {
-    var ex = document.exitFullscreen || document.webkitExitFullscreen;
-    if (ex){ try { ex.call(document); } catch(_){} }
-  }
+  if (!isFS()) enterFS(); else exitFS();
   setTimeout(resize, 180);
 }
 var BASE_VW = 320, BASE_VH = 180, MAX_STRETCH = 1.5;

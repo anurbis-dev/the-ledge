@@ -1,3 +1,5 @@
+import { requestMobileFS } from '../app/fullscreen.js';
+
 var TITLE_FACE = "48px 'Press Start 2P'";
 
 if (typeof document !== 'undefined' && document.fonts && document.fonts.load){
@@ -65,6 +67,7 @@ export function showSplash(onDone){
     if (e && e.type === 'keydown' && (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT')) return;
     if (started) return;
     started = true;
+    requestMobileFS();
 
     if (menu){
       menu.classList.remove('hide');
