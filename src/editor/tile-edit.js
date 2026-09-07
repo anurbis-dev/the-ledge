@@ -20,7 +20,7 @@ import {
 import {
   getFrameAnchor, setFrameAnchor, getAnimBox, setAnimBox,
   clearAnimAnchors, defaultObjectAnchors, spriteIdForObject,
-  getFrameBox, setFrameBox, clearFrameBox
+  getFrameBox, setFrameBox, clearFrameBox, frameFootprint
 } from '../core/object-anchors.js';
 import { updateObject, getObjectDef } from '../core/objectset.js';
 import { openHeroMoveSettings } from './hero-move-settings.js';
@@ -219,6 +219,25 @@ function anchorKind(){
 function canEditAnchors(){
   return mode === 'object' && !!anchorKind() && !!current && !!current.anims;
 }
+/** Локальный (не персистентный — никогда не пишет в saved meta / setSpriteSize)
+    размер канвы Object Details и её drag-границ. В режиме якорей повторяет
+    frameFootprint(): если у текущей анимации уже есть свой нарисованный (dirty)
+    кадр 0 — канва меряется по его РЕАЛЬНОМУ размеру, иначе — общий footprint
+    спрайта. Без этого drag-ресайз бокса на канве, посчитанной по общему
+    footprint, при коммите тихо клэмпился setAnimBox/setFrameAnchor/setFrameBox
+    по другой границе (frameFootprint) — бокс "прыгал" на неочевидный размер.
+    Вне Object Details (чистое рисование пикселей, Sprites tab — там якорей нет)
+    footprint остаётся общий, как раньше. */
+function syncFootprint(){
+  if (!current) return;
+  if (canEditAnchors()){
+    var fp = frameFootprint(anchorKind(), animId);
+    fw = fp.fw; fh = fp.fh;
+    return;
+  }
+  fw = current.fw || fw || 16;
+  fh = current.fh || fh || 16;
+}
 function hasSpriteFrames(){
   return !!(current && current.anims && (isSprite() || isObjectOnly()));
 }
@@ -294,10 +313,9 @@ export function openSpriteEdit(def, clientX, clientY, keepObject){
   else root.classList.remove('ed-object');
   if (isBakeableOnOpen(def.id)) materializeBakes(def.id);
   current = getSpriteDef(def.id) || def;
-  fw = current.fw || 16;
-  fh = current.fh || 16;
   animId = def.anims && def.anims[0] ? def.anims[0].id : '';
   frameI = 0;
+  syncFootprint();
   animFilter = '';
   tool = 'pencil';
   root.classList.add('ed-sprite');
@@ -321,10 +339,9 @@ export function openObjectEdit(meta, clientX, clientY){
   sd = sid ? getSpriteDef(sid) : null;
   if (sd){
     current = sd;
-    fw = current.fw || 16;
-    fh = current.fh || 16;
     animId = current.anims && current.anims[0] ? current.anims[0].id : '';
     frameI = 0;
+    syncFootprint();
   } else {
     current = meta;
     fw = 16; fh = 16;
@@ -723,18 +740,15 @@ export function refreshTileEdit(){
   }
   if (isObjectOnly()){
     var sidR = resolveObjSpriteId(objCurrent);
-    if (sidR){
-      current = getSpriteDef(sidR) || current;
-      if (current && current.fw){ fw = current.fw; fh = current.fh || fh; }
-    }
+    if (sidR) current = getSpriteDef(sidR) || current;
+    syncFootprint();
     fillBody();
     return;
   }
   if (isSprite() && current){
     current = getSpriteDef(current.id) || current;
     if (!current){ closeTileEdit(); return; }
-    fw = current.fw || fw;
-    fh = current.fh || fh;
+    syncFootprint();
     fillBody();
     return;
   }
@@ -1361,15 +1375,21 @@ function syncCursor(){
 
 function paintCanvas(){
   if (!preview) return;
-  /* footprint (fw×fh) — одно число на весь спрайт (все анимации меряют якоря/бокс
-     в нём), не за-кадр. Раньше здесь на каждый paintCanvas() footprint тянулся
-     к буферу ТЕКУЩЕГО кадра (bufW×bufH) — годится для sprite с одним размером
-     арта везде (герой), но у sprite с разными кадрами разного нативного размера
-     (например vehicle: idle нарисован, другие анимации ещё нет/другого размера)
-     каждое переключение кадра тихо переписывало footprint под просматриваемый
-     кадр и туда-обратно сбивало box/anchors всех остальных анимаций (рамка
-     не совпадала с курсором). Ресайз footprint — только по явному действию:
-     applySpriteImport (импорт PNG) или setSpriteSize (слайдер Size). */
+  /* footprint (fw×fh) — общий на весь спрайт SAVED-размер (все анимации меряют
+     якоря/бокс в нём), меняется только явно — setSpriteSize (слайдер Size).
+     Раньше здесь на каждый paintCanvas() footprint тянулся к буферу ТЕКУЩЕГО
+     кадра (bufW×bufH) — годится для sprite с одним размером арта везде (герой),
+     но у sprite с разными кадрами разного нативного размера (например vehicle:
+     idle нарисован, другие анимации ещё нет/другого размера) каждое переключение
+     кадра тихо переписывало общий footprint и туда-обратно сбивало box/anchors
+     всех остальных анимаций (рамка не совпадала с курсором). Локальные (module)
+     fw/fh здесь — НЕ обязательно тот же saved-footprint: в Object Details
+     (canEditAnchors) syncFootprint() подменяет их на реальный размер уже
+     нарисованного кадра 0 ТЕКУЩЕЙ анимации (см. frameFootprint в object-anchors.js
+     — та же граница, что и коммит setAnimBox/setFrameAnchor/setFrameBox), не трогая
+     saved meta — так канва Object Details не расходится с тем, что реально
+     применится при коммите драг-ресайза. applySpriteImport (импорт PNG) тоже
+     больше не трогает saved footprint — только этот локальный syncFootprint(). */
   var can = preview;
   var cx = can.getContext('2d');
   var k = can.width / fw; // логика (fw×fh: якоря/бокс) → экран, канвас всегда fw:fh
@@ -1667,6 +1687,7 @@ function selectFrame(nextAnim, nextI, keepPlay){
   }
   animId = nextAnim;
   frameI = nextI;
+  syncFootprint();
   loadBuf(currentSrc(), function(){
     fillSwatches();
     syncTools();
@@ -2104,7 +2125,12 @@ function paintStrips(){
 /* Импорт картинки в кадр спрайта: без нарезки на лист, без подгонки/масштабирования
    под Size — картинка сохраняется как есть, в своём нативном разрешении (может
    быть крупнее или мельче footprint, рендер сам скейлит под fw×fh). Size (хитбокс)
-   этим импортом не трогается. */
+   этим импортом НЕ трогается — раньше здесь же вызывался setSpriteSize(w,h), что
+   двигало общий на весь спрайт footprint под размер кадра ОДНОЙ анимации и тем
+   самым на лету сбивало дефолтный origin/box (frameFootprint/defaultFrameAnchors)
+   у ВСЕХ остальных анимаций спрайта. syncFootprint() ниже — тот же эффект "канва
+   сразу видит новый размер кадра", но только локально для Object Details этой
+   анимации, без записи в общие saved meta. */
 function applySpriteImport(img){
   var w = img.naturalWidth || img.width;
   var h = img.naturalHeight || img.height;
@@ -2115,9 +2141,12 @@ function applySpriteImport(img){
   cx.imageSmoothingEnabled = false;
   cx.drawImage(img, 0, 0);
   setSpriteFrame(current.id, animId, frameI, canvasToPng(c), true);
-  /* footprint следует за реальным размером арта сразу, до fillBody() — иначе
-     слайдеры origin/box успеют построиться со старым (виртуальным) max. */
-  if (w !== fw || h !== fh){ fw = w; fh = h; setSpriteSize(current.id, fw, fh); }
+  /* syncFootprint() читает размер через spriteFrameImage — тот грузится асинхронно
+     (свежий Image только что создан setSpriteFrame), сразу после импорта ещё не
+     готов. Для кадра 0 (единственный, на который смотрит frameFootprint) размер
+     уже точно известен синхронно — подставляем его прямо, без ожидания decode. */
+  if (canEditAnchors() && frameI === 0){ fw = w; fh = h; }
+  else syncFootprint();
   notify();
   fillBody();
 }

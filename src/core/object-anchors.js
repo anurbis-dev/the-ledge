@@ -196,7 +196,10 @@ export function isHeroObject(objectKind){
    fitFrame), а рисует спрайт как есть, то и клампить якоря нужно по факту
    загруженной картинки — иначе после импорта кадра большего размера бокс
    остаётся зажат в границах старого (виртуального) footprint. */
-function metaSize(objectKind, anim){
+/** Публичная — так же нужна редактору (tile-edit.js) для размера канвы/drag-границ
+    Object Details, чтобы не расходиться с границами, которые реально применит
+    setAnimBox/setFrameAnchor/setFrameBox на commit (см. их использование ниже). */
+export function frameFootprint(objectKind, anim){
   var sid = spriteIdForObject(objectKind);
   var img = sid && anim ? spriteFrameImage(sid, anim, 0) : null;
   if (img && img.naturalWidth) return { fw: img.naturalWidth, fh: img.naturalHeight, ox: 0, oy: 0 };
@@ -366,7 +369,7 @@ export function setAnimBox(objectKind, anim, w, h){
   var rec, meta, d, maxW, maxH, o;
   rec = ensureRec(objectKind, anim);
   if (!rec) return null;
-  meta = metaSize(objectKind, anim);
+  meta = frameFootprint(objectKind, anim);
   o = originFromRec(rec);
   maxW = meta ? meta.fw : 16;
   maxH = meta ? meta.fh : 16;
@@ -404,7 +407,7 @@ export function setFrameAnchor(objectKind, anim, i, kind, x, y, rot){
   if (kind !== 'origin' && kind !== 'weapon' && kind !== 'grab') return null;
   rec = ensureRec(objectKind, anim);
   if (!rec) return null;
-  meta = metaSize(objectKind, anim);
+  meta = frameFootprint(objectKind, anim);
   pt = clampPt({ x: x, y: y }, meta.fw, meta.fh);
   if (kind === 'origin'){
     rec.origin = pt;
@@ -465,7 +468,7 @@ export function setFrameBox(objectKind, anim, i, x, y, w, h){
   var rec, meta, pt, maxW, maxH;
   rec = ensureRec(objectKind, anim);
   if (!rec) return null;
-  meta = metaSize(objectKind, anim);
+  meta = frameFootprint(objectKind, anim);
   pt = clampPt({ x: x, y: y }, meta.fw, meta.fh);
   maxW = Math.max(BOX_MIN, meta.fw - pt.x);
   maxH = Math.max(BOX_MIN, meta.fh - pt.y);
