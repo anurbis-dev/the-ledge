@@ -21,7 +21,7 @@ import { ED, edOpen, edClose, edApply, edExportText, edDrawOverlay, bindEditor, 
 import { hooks } from '../core/runtime.js';
 import { prog, buildMenu, showMenu, showMenuHome, menuScreen, isMenu, setMenu, saveProgress, dropProgressAt, applyBootSettings, unlockAllLevels } from '../ui/menu.js';
 import { showSplash } from '../ui/splash.js';
-import { isFS, enterFS, exitFS } from './fullscreen.js';
+import { isFS, enterFS, exitFS, requestMobileFS } from './fullscreen.js';
 import { findById } from '../entities/ids.js';
 import { cycleHand } from '../entities/gear.js';
 import { entitiesShown } from '../core/layers.js';
@@ -910,7 +910,10 @@ export function start(){
     if (document.hidden){ paused = true; hushLift(); hushSounds(); hushMusic(); }
   });
   addEventListener('resize', function(){ resize(); });
-  addEventListener('orientationchange', function(){ setTimeout(resize, 160); });
+  addEventListener('orientationchange', function(){
+    setTimeout(resize, 160);
+    setTimeout(requestMobileFS, 160);
+  });
 
   applyBootSettings();
   buildMenu({
