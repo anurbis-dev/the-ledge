@@ -782,8 +782,17 @@ function ensureRec(id, anim){
   return saved[id][anim];
 }
 
+/* ox/oy (Sprite Origin) — авторский дефолт, отдельный контрол (setSpriteOrigin),
+   здесь раньше молча подрезался под новый fw/fh. Он общий на весь спрайт и
+   фидит defaultFrameAnchors() для КАЖДОЙ анимации без явного override — импорт
+   картинки меньшего размера в один кадр одной анимации (footprint при импорте
+   без даунскейла следует за реальным арт-размером, см. applySpriteImport)
+   подрезал ox/oy и тем самым на лету двигал дефолтный origin/box сразу у всех
+   остальных анимаций спрайта ("сброс боксов на всех анимациях" по репорту).
+   defaultFrameAnchors уже сам клэмпит ox/oy в [0,fw)×[0,fh) через clipPt при
+   каждом обращении — второй клэмп здесь не нужен для защиты, только вреден. */
 export function setSpriteSize(id, fw, fh){
-  var def = byId[id], meta;
+  var def = byId[id];
   if (!def) return null;
   fw = clampS(fw, MIN_S, MAX_S);
   fh = clampS(fh, MIN_S, MAX_S);
@@ -791,9 +800,6 @@ export function setSpriteSize(id, fw, fh){
   if (!saved[id]._meta) saved[id]._meta = {};
   saved[id]._meta.fw = fw;
   saved[id]._meta.fh = fh;
-  meta = getSpriteMeta(id);
-  if (meta.ox > fw - 1) saved[id]._meta.ox = fw - 1;
-  if (meta.oy > fh - 1) saved[id]._meta.oy = fh - 1;
   emit('size');
   return getSpriteMeta(id);
 }
