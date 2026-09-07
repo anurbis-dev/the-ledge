@@ -3,7 +3,7 @@
 // sprite frames (+spriteDefs), objects/objectAnchors, optional settings/mix/talk/intro.
 // Written only by the editor's Bake button — no localStorage draft ever overrides this file.
 export var BAKED = {
-  "savedAt": 1788458475567,
+  "savedAt": 1788781359344,
   "levels": {
     "1": {
       "id": 1,
@@ -18,7 +18,8 @@ export var BAKED = {
       "spawn": {
         "x": -578,
         "y": 342,
-        "spriteId": "hero"
+        "spriteId": "hero",
+        "moveParams": {}
       },
       "exit": {
         "id": 0,
@@ -48,7 +49,7 @@ export var BAKED = {
       ],
       "enemies": [
         [
-          900,
+          929,
           352,
           816,
           944,
@@ -56,7 +57,7 @@ export var BAKED = {
           0
         ],
         [
-          2446,
+          2348,
           352,
           2304,
           2464,
@@ -64,7 +65,7 @@ export var BAKED = {
           1
         ],
         [
-          1837,
+          1731,
           352,
           1680,
           1840,
@@ -72,7 +73,7 @@ export var BAKED = {
           2
         ],
         [
-          2534,
+          2590,
           352,
           2496,
           2656,
@@ -88,7 +89,7 @@ export var BAKED = {
           1
         ],
         [
-          809,
+          647,
           640,
           624,
           912,
@@ -96,7 +97,7 @@ export var BAKED = {
           2
         ],
         [
-          1197,
+          1320,
           640,
           1072,
           1360,
@@ -104,7 +105,7 @@ export var BAKED = {
           0
         ],
         [
-          1908,
+          1922,
           640,
           1680,
           1968,
@@ -114,55 +115,55 @@ export var BAKED = {
       ],
       "fliers": [
         [
-          59,
-          87,
+          96,
+          91,
           48,
           112,
           26,
           0
         ],
         [
-          875,
-          175,
+          819,
+          153,
           800,
           896,
           35,
           1
         ],
         [
-          1600,
-          313,
+          1591,
+          315,
           1536,
           1632,
           19,
           2
         ],
         [
-          2084,
-          79,
+          2056,
+          70,
           2048,
           2176,
           32,
           3
         ],
         [
-          2638,
-          119,
+          2675,
+          133,
           2576,
           2752,
           38,
           1
         ],
         [
-          368,
-          512,
+          391,
+          519,
           336,
           480,
           19,
           2
         ],
         [
-          1255,
+          1238,
           512,
           1232,
           1344,
@@ -172,22 +173,22 @@ export var BAKED = {
       ],
       "spiders": [
         [
-          50,
+          53,
           8,
           0
         ],
         [
-          44,
+          47,
           14,
           1
         ],
         [
-          143,
+          150,
           14,
           2
         ],
         [
-          72,
+          70,
           16,
           0
         ],
@@ -1052,7 +1053,7 @@ export var BAKED = {
           "y0": 208,
           "y1": 208,
           "v": 26,
-          "dir": -1,
+          "dir": 1,
           "vert": false,
           "pause0": 0,
           "pause1": 0,
@@ -5485,7 +5486,7 @@ export var BAKED = {
               0,
               0,
               0,
-              0,
+              70,
               0,
               0,
               0,
@@ -5719,7 +5720,7 @@ export var BAKED = {
               0,
               0,
               0,
-              0,
+              70,
               0,
               0,
               0,
@@ -5953,7 +5954,7 @@ export var BAKED = {
               0,
               0,
               0,
-              0,
+              70,
               0,
               0,
               0,
@@ -6187,7 +6188,7 @@ export var BAKED = {
               0,
               0,
               0,
-              0,
+              70,
               0,
               0,
               0,
@@ -6421,7 +6422,7 @@ export var BAKED = {
               0,
               0,
               0,
-              0,
+              70,
               0,
               0,
               0,
@@ -418074,7 +418075,7 @@ export var BAKED = {
       },
       "jump": {
         "frames": [
-          "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAYCAYAAAD6S912AAAAkklEQVR42mNgGAWjYBRQCQjwyPyHYaoY9r8rGY6pYuCDMJv//5+fBGOqGAbC384uAnsZRpNl4EITVbBh+ttWwzHIQBAmy3UgA0/2p4ENynx2A+46slwIM7ArSAPuOpChFMU0SLNaYhcYu9gUg/HgM1BbNQCMqWYgzFBQWIIwxbkFZEC4gRT1DAQZBsNUyc+kFgwAtneVtwhhnywAAAAASUVORK5CYII="
+          "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAYCAYAAAD6S912AAABRElEQVR4AcSTv0tCURTHr0FLcxQ0RdAU0VAt8ag/oF2aChqK+jfaWqLFRRF1VBB1cHBTHoKgOIggPBAnQTcHXRyefA9ckOu55z5B8MH3nHN/fD/vHu57B2rHz36Bi04udDUknnAU95wA8wVWoIbhVJBptI1ZIGD14URBhc8f8rb+PsJew6daCizQNNy/FGnq+tGjLAUr8OnilHy/syuV/j6h+uj2NUaFEKxAtKt974mpgvRYylagZJLWWOB53o/pliUzt8YCs3eX4XrLnNE2xwK5zf2g5LwQ+FjgWzuIZAbAFAvEJg1deg8KuqkWIv2GViCguJjavIJSlTP/lF1BBJrmr/HAecqtgEE8ab5jY7wVcMPNTIjA5+4xWQ79JuXUWYuyFEQgvj0N1VmCYU0EYgOgEOooUCcQIAhQCLWkyEAJsr62AgAA//9Qk9JvAAAABklEQVQDABD3WTFsV7+DAAAAAElFTkSuQmCC"
         ],
         "dirty": [
           true
@@ -418082,7 +418083,7 @@ export var BAKED = {
       },
       "fall": {
         "frames": [
-          "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAYCAYAAAD6S912AAAAjElEQVR42mNgGAWjYBRQCQjwyPyHYaoY9r8rGY6pYuCDMJv//5+fBGOqGAbC384uotzLC01UwYbpb1sNxzCDSTYcpAFk4Mn+NLBBmc9ugDHIQLJci24gzFCyXQgzVC2xC4xdbIrBmKJwpImB2qoBYAxiwwwdXAaGG0iBMYjdFaQBxmR7myYG4sK49AAA+2SmZI+4sDIAAAAASUVORK5CYII="
+          "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAYCAYAAAD6S912AAABHklEQVR4AdyUOwrCQBCGJ15CrBRBvIBgI3gCS618FIK38AB6A+18VLaeQLERcgERRCvRS8T8gYE1mZkYKzFkMrsz+3+ZYZfNkfJcO41ASZlhFbi7PCiYDjNDVWCznKebf8oMVYGlzcFDlejPrTS4H82qReCbqDcigoVkxL1C3QuH6isCsRrigX82xVgXNxHIVSxqlWDZ6hIsLtTmIjBavJpTf7uOhvigYvg0E4HYhOVmn9By5YmEExCBnHdbdcecl7wIjFfXno0lrRgTgbwShxv2nMwJnuOWF4HfHBf+iQhEkqHFWhVTYh9NjI8KNDRm6g+AuMJw85h9OkmzZYD4CgPY0alDEwgV7zaDEbMsFchiBvNc8x8DNUA8/vvAFwAAAP//rALQrAAAAAZJREFUAwDPEVgxphSLHwAAAABJRU5ErkJggg=="
         ],
         "dirty": [
           true
@@ -418098,7 +418099,7 @@ export var BAKED = {
       },
       "slide": {
         "frames": [
-          "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAYCAYAAAD6S912AAAAoUlEQVR42mNgGAWjYBQMRiDAI/P/f1cyGIPYVDHwQZjN///PT4Lxt7OLwAaTbTjMQJBByJgsAxeaqIINA2lGN4xkA0EaQAaCaP1tq8E489kNyrwKMrArSANuIAhTHCHSVWVg7GJTDKYpimmQZrXELjAGGQjCFBu458ozMKaageEGUv+1VQPABlFsILKhoMiBYYoMBBkGwjAvgzDFLiQlIQMAA02ZJMFDGuQAAAAASUVORK5CYII="
+          "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAYCAYAAAD6S912AAABLklEQVR4AdyTL8sCQRDG9974YjApiEEEu6BRsJjsGrXpBzAIgsnsBzBqU7vJIhgV7IIYLDaDWE+ehYHh2JldweTBszczt/Obuf3zZ778/ADw2q7F0LxaikNWR/xlQCAOgf86LlSwCCys9lFm2LO83eVu3yGDCKRkQOvFrHVhW0MZVOB/pRPl6iNT3lxNaza2GMSsIQwqMJmz7k+Mb3NUIN8AdJos4PJFIIe5EqWYE0gw13p1D+dIgiHuBAIEYQLp1CwYHwxznUB8IAEEwfdtCOaoQALwg00xJLukAnkCoHTAeTxpq0C+ZmT7oCqQV8ev4n7j1vB40g4C8q4ez9vnx4ZXRVfwORS+pKAOCSpBeDwIiIRQaDCwURvEJBSQ5AWmU/kYOpyWZrufRpAEQ/wNAAD//1M+cQsAAAAGSURBVAMAkmdi1tTI4SAAAAAASUVORK5CYII="
         ],
         "dirty": [
           true
@@ -419258,7 +419259,7 @@ export var BAKED = {
       },
       "roll": {
         "origin": {
-          "x": 8,
+          "x": 7,
           "y": 13
         },
         "box": {
@@ -419278,12 +419279,12 @@ export var BAKED = {
       },
       "getup": {
         "origin": {
-          "x": 7,
-          "y": 11
+          "x": 6,
+          "y": 10
         },
         "box": {
-          "w": 6,
-          "h": 13
+          "w": 11,
+          "h": 6
         }
       },
       "grapple": {
@@ -419468,11 +419469,11 @@ export var BAKED = {
       },
       "fall": {
         "origin": {
-          "x": 8,
-          "y": 11
+          "x": 6,
+          "y": 2
         },
         "grab": {
-          "x": 14,
+          "x": 13,
           "y": 14
         },
         "weapon": [
@@ -419483,17 +419484,17 @@ export var BAKED = {
         ],
         "box": {
           "w": 5,
-          "h": 13
+          "h": 16
         }
       },
       "jump": {
         "origin": {
-          "x": 8,
-          "y": 11
+          "x": 7,
+          "y": 5
         },
         "grab": {
-          "x": 14,
-          "y": 13
+          "x": 11,
+          "y": 2
         },
         "weapon": [
           {
@@ -419503,7 +419504,7 @@ export var BAKED = {
         ],
         "box": {
           "w": 5,
-          "h": 13
+          "h": 16
         }
       },
       "climb": {
@@ -419522,7 +419523,11 @@ export var BAKED = {
             "x": 11,
             "y": 8
           }
-        ]
+        ],
+        "box": {
+          "w": 9,
+          "h": 13
+        }
       },
       "run": {
         "origin": {
@@ -419565,6 +419570,10 @@ export var BAKED = {
         }
       },
       "prone": {
+        "origin": {
+          "x": 7,
+          "y": 11
+        },
         "grab": {
           "x": 18,
           "y": 14
@@ -419578,9 +419587,17 @@ export var BAKED = {
             "x": 11,
             "y": 13
           }
-        ]
+        ],
+        "box": {
+          "w": 10,
+          "h": 6
+        }
       },
       "vault": {
+        "origin": {
+          "x": 8,
+          "y": 14
+        },
         "grab": {
           "x": 15,
           "y": 14
@@ -419590,9 +419607,17 @@ export var BAKED = {
             "x": 11,
             "y": 17
           }
-        ]
+        ],
+        "box": {
+          "w": 7,
+          "h": 8
+        }
       },
       "pickCrouch": {
+        "origin": {
+          "x": 8,
+          "y": 11
+        },
         "grab": {
           "x": 15,
           "y": 18
@@ -419602,7 +419627,138 @@ export var BAKED = {
             "x": 9,
             "y": 15
           }
-        ]
+        ],
+        "box": {
+          "w": 6,
+          "h": 9
+        }
+      },
+      "pickProne": {
+        "origin": {
+          "x": 7,
+          "y": 10
+        },
+        "box": {
+          "w": 11,
+          "h": 6
+        }
+      },
+      "dig": {
+        "origin": {
+          "x": 7,
+          "y": 11
+        },
+        "box": {
+          "w": 6,
+          "h": 13
+        }
+      },
+      "digDown": {
+        "origin": {
+          "x": 7,
+          "y": 10
+        },
+        "box": {
+          "w": 5,
+          "h": 14
+        }
+      },
+      "ladder": {
+        "origin": {
+          "x": 7,
+          "y": 12
+        },
+        "box": {
+          "w": 6,
+          "h": 12
+        }
+      },
+      "ladderF": {
+        "origin": {
+          "x": 7,
+          "y": 11
+        },
+        "box": {
+          "w": 6,
+          "h": 13
+        }
+      },
+      "ladderD": {
+        "origin": {
+          "x": 7,
+          "y": 11
+        },
+        "box": {
+          "w": 6,
+          "h": 13
+        }
+      },
+      "ropeClimb": {
+        "origin": {
+          "x": 7,
+          "y": 12
+        },
+        "box": {
+          "w": 5,
+          "h": 11
+        }
+      },
+      "ropeSwing": {
+        "origin": {
+          "x": 8,
+          "y": 11
+        },
+        "box": {
+          "w": 4,
+          "h": 13
+        }
+      },
+      "bars": {
+        "origin": {
+          "x": 7,
+          "y": 11
+        },
+        "box": {
+          "w": 5,
+          "h": 13
+        }
+      },
+      "dive": {
+        "origin": {
+          "x": 7,
+          "y": 11
+        },
+        "box": {
+          "w": 5,
+          "h": 12
+        }
+      },
+      "hangLad": {
+        "origin": {
+          "x": 7,
+          "y": 12
+        },
+        "box": {
+          "w": 5,
+          "h": 12
+        }
+      },
+      "hang": {
+        "origin": {
+          "x": 8,
+          "y": 11
+        },
+        "weapon": [
+          {
+            "x": 7,
+            "y": 10,
+            "rot": 0
+          }
+        ],
+        "box": {
+          "w": 7,
+          "h": 13
+        }
       }
     },
     "enemy0": {
