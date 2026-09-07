@@ -20,7 +20,6 @@ export const C = {
   /* plat grab: |handX−lip| и |handY−deck|; отдельно от tile TOL_UP/DN */
   PLAT_GRAB: 12, PLAT_GRAB_Y: 9,
   CLIMB_UP: 0.5, CLIMB_DN: 0.46, TO_LAD: 0.3, VAULT_T: 0.24,
-  CLIMB_WALL_TILES: 3,                                 // упор+вверх с земли лезет на стену высотой до стольки тайлов (как обычный прыжок+хват)
   STAND_OFF: 8,
   SLIDE_V: 62, WJ_X: 118, WJ_Y: -178, WJ_LOCK: 0.19, WJ_SAME_Y: -126, WJ_SAME_X: 74,
   WALK_V: 42, THROW_X: 155, THROW_Y: -135, ACT_R: 26, PUSH_V: 14,

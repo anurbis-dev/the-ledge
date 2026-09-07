@@ -919,9 +919,9 @@ export function tryMantle(S, p, dir){
   startVault(p, dir, step1.cx, step1.cy, land);
   return true;
 }
-/* верх стены впереди высотой до C.CLIMB_WALL_TILES (как findChestStep, но без потолка в 1 тайл) —
-   пробуем посадку на каждом ряду снизу вверх и берём первый, где она реально влезает (rowLand: педестал
-   под открытым скосом или обычный bestSlopeLand); если нигде не влезает — едем на ряд выше. */
+/* верх стены впереди высотой ровно 1 тайл над ногами (как findChestStep, но без потолка «нет скоса
+   сверху») — та же посадка, что и у mantle (rowLand: педестал под открытым скосом или обычный
+   bestSlopeLand). Стена выше 1 тайла — не сюда, это уже настоящий хват прыжком (tryGrab/findLedge). */
 function findWallTop(p, dir){
   var rG = Math.floor(Math.round(p.y + p.h) / T);
   for (var d = 1; d <= T + 6; d++){
@@ -930,31 +930,24 @@ function findWallTop(p, dir){
     if (!fullStepTile(col, rG - 1)) continue;
     if (pitTilesTo(p, dir, col) > 1) continue;
     var cx = dir > 0 ? col * T : (col + 1) * T;
-    var row = rG - 1, n = 1;
-    for (;;){
-      var land = rowLand(col, row, cx, row * T, dir);
-      if (land) return { cx: cx, cy: row * T, land: land, n: n };
-      if (n >= C.CLIMB_WALL_TILES || !fullStepTile(col, row - 1)) return null;
-      row--; n++;
-    }
+    var land = rowLand(col, rG - 1, cx, (rG - 1) * T, dir);
+    return land ? { cx: cx, cy: (rG - 1) * T, land: land } : null;
   }
   return null;
 }
-/* упор в стену выше 1 тайла (но не выше прыжка) + вверх — тот же подъём, что и mantle,
-   без прыжка: находим верх стены геометрически, а не по узкому окну высоты руки (оно рассчитано
-   на момент хвата в воздухе на подлёте и не совпадает с ростом при стоянии на земле). n===1 (сетка
-   упёрлась в стену и тут же нашла посадку на первом ряду — тот же случай, что и обычный mantle, только
-   findChestStep его отсёк из-за скоса над стеной) — тот же vault, что и у tryMantle: рендер идёт от
-   p.x/p.y, поэтому не может разъехаться с педесталом edgeLand на скосе. Выше 1 тайла — настоящий
-   лаз, hang-подтягивание (startClimb). */
+/* упор в стену высотой ровно 1 тайл (одиночный блок, либо блок со скосом сверху и открытым ближним
+   краем — findChestStep его отсекает из-за коарс-проверки fullStepTile, которая всегда считает скос
+   «стеной») + вверх с земли — тот же vault, что и у tryMantle: рендер идёт от p.x/p.y, поэтому не может
+   разъехаться с педесталом edgeLand на скосе. Стена выше 1 тайла с земли без прыжка не берётся —
+   такие уступы только через прыжок+хват (tryGrab → hang → tryClimbUp), иначе direction+up с земли
+   подменяет собой настоящий хват за край. */
 export function tryClimbWall(S, p, dir){
   if (p.inWater || p.grabCd > 0) return false;
   if (p.state !== 'normal' || p.rollT > 0 || p.stance !== 0) return false;
   if (!p.onGround && p.coyote <= 0) return false;
   var top = findWallTop(p, dir);
   if (!top) return false;
-  if (top.n === 1) startVault(p, dir, top.cx, top.cy, top.land);
-  else startClimb(p, 1, top.cx, top.cy, dir, 'ledge', top.land);
+  startVault(p, dir, top.cx, top.cy, top.land);
   return true;
 }
 /* --- спуск спиной с края --- */
