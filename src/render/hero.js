@@ -2,7 +2,7 @@ import GAME from '../core/game.js';
 import { cam, view, world, ctx, rc, cv, deviceScale } from './ctx.js';
 import { waterTintAt } from './fx.js';
 import {
-  K, IDLE_A, IDLE_B, RUN, FALLP, LANDP, SLIDEP, STUNP, SNAREP, ROLLP,
+  K, IDLE_A, IDLE_B, RUN, FALLP, JUMPP, LANDP, SLIDEP, STUNP, SNAREP, ROLLP,
   LADP0, LADP1, LADF0, LADF1, ATK0, ATK1, ATK2, DIG0, DIG1, DIG2, DIGD0, DIGD1, DIGD2, CROUCH, CROUCH_W,
   PRONE0, PRONE1, BARS0, BARS1, LADD0, LADD1, SWIM0, SWIM1,
   HANGL, HANG_A, HANG_B, lerpPose, climbPose, vaultPose, stancePose, pickPose, wallPickPose, throwPose, getupPose,
@@ -78,7 +78,7 @@ export function heroClip(p){
   if (p.state === 'climb' && p.climb.kind === 'vault') return ['vault', 0];
   if (!p.onGround){
     if (p.sliding) return ['slide', 0];
-    return ['fall', 0];                                 // в воздухе всегда fall
+    return [p.vy > 60 ? 'fall' : 'jump', 0];            // порог как в sprite-grab.js:heroBoxAnim
   }
   if (p.landT > 0) return ['land', 0];
   if (p.pushWall) return ['wallPush', 0];
@@ -323,7 +323,7 @@ export function boxPose(p){
   if (p.state === 'climb' && p.climb.kind === 'vault') return vaultPose(p.climb.p);
   if (!p.onGround){
     if (p.sliding) return SLIDEP;
-    return FALLP;                                       // в воздухе всегда fall
+    return p.vy > 60 ? FALLP : JUMPP;                   // порог как в sprite-grab.js:heroBoxAnim
   }
   if (p.landT > 0) return LANDP;
   if (p.pushWall) return WALLPUSH;                   // жмёт в стену — руки на уровне груди по стене
