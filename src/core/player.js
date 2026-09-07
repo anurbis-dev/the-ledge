@@ -1084,7 +1084,7 @@ export function ease(t){ return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2)/2; }
 /* индекс кадра climb-анимации по прогрессу — та же формула, что и heroClip (render/hero.js),
    держится в одном месте, иначе бокс (тут) и спрайт (там) разъедутся на разных кадрах */
 export function climbFrameIndex(cl){
-  var cp = cl.p;
+  var cp = cl.dir > 0 ? cl.p : 1 - cl.p;              // спуск (dir<0) — та же лента кадров задом наперёд
   return cp < 0.2 ? 0 : (cp < 0.4 ? 1 : (cp < 0.6 ? 2 : (cp < 0.8 ? 3 : 4)));
 }
 /* мировой бокс текущего кадра climb из per-frame override (редактор: Object Details →
