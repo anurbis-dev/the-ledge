@@ -102,10 +102,10 @@ function frameWeapon(objectKind, anim, i, spriteId){
   return defaultFrameAnchors(spriteId, anim, i).weapon;
 }
 
-function blitHeroSprite(img, def, wx, wy, facing, origin, rot){
+function blitHeroSprite(img, def, wx, wy, facing, origin, rot, fxOverride){
   var ox = origin ? origin.x : def.ox;
   var oy = origin ? origin.y : def.oy;
-  var fx = def.fx != null ? def.fx : 5;
+  var fx = fxOverride != null ? fxOverride : (def.fx != null ? def.fx : 5);
   var x = Math.round(wx - ox - cam.x);
   var y = Math.round(wy - oy - cam.y);
   var fit = fitFrame(img.naturalWidth, img.naturalHeight, def.fw, def.fh);
@@ -130,8 +130,8 @@ function blitHeroSprite(img, def, wx, wy, facing, origin, rot){
   ctx.restore();
 }
 
-function spriteLocalScreen(wx, wy, facing, origin, def, lx, ly){
-  var ox = origin.x, oy = origin.y, fx = def.fx != null ? def.fx : 5;
+function spriteLocalScreen(wx, wy, facing, origin, def, lx, ly, fxOverride){
+  var ox = origin.x, oy = origin.y, fx = fxOverride != null ? fxOverride : (def.fx != null ? def.fx : 5);
   var sy = Math.round(wy - oy + ly - cam.y);
   var sx;
   if (facing < 0) sx = Math.round(wx + ox + 2 * fx - lx - cam.x);
@@ -172,11 +172,11 @@ function heroWeaponState(p){
   return { hs: hs, onBack: onBack, bowHeld: bowHeld, bow: bow };
 }
 
-function overlayHeroWeapon(p, clip, def, wx, wy, facing, origin){
+function overlayHeroWeapon(p, clip, def, wx, wy, facing, origin, fxOverride){
   var st = heroWeaponState(p);
   if (st.onBack || (!st.hs && !st.bowHeld)) return;
   var weap = frameWeapon(activeObjectKind(), clip[0], clip[1], activeHeroId());
-  var xy = spriteLocalScreen(wx, wy, facing, origin, def, weap.x, weap.y);
+  var xy = spriteLocalScreen(wx, wy, facing, origin, def, weap.x, weap.y, fxOverride);
   if (st.bowHeld){
     var bt = p.bowT > 0 ? (1 - p.bowT / C.BOW_ANIM_T) : 0;
     var grip = xy, str = [xy[0] + facing * 6, xy[1]];
@@ -251,15 +251,20 @@ function tryHeroSprite(p){
   if (!img) return false;
   var def = getSpriteDef(hid);
   if (!def) return false;
-  var facing = p.facing, wx = p.x, wy = p.y;
+  var facing = p.facing, wx = p.x, wy = p.y, pinned = false;
   if (p.state === 'hang' && p.hang.kind === 'ledge'){
-    wx = p.hang.cx; wy = p.hang.cy; facing = p.facing;
+    wx = p.hang.cx; wy = p.hang.cy; facing = p.facing; pinned = true;
   } else if (p.state === 'climb' && p.climb.kind === 'ledge'){
-    wx = p.climb.cx; wy = p.climb.cy; facing = p.climb.facing;
+    wx = p.climb.cx; wy = p.climb.cy; facing = p.climb.facing; pinned = true;
   }
+  // pinned (вис/лаз за кромку): wx/wy — мировая точка хвата (cx/cy), не бокс, а origin — это и
+  // есть рука на кромке. fx=0 держит origin ровно в cx/cy при любом facing — обычный fx-пивот
+  // зеркалит вокруг "визуального центра от края бокса" (нужно только когда wx реально бокс, как
+  // при беге/стойке), а тут дал бы точку хвата, уехавшую на 2*fx при facing<0
+  var fxOverride = pinned ? 0 : undefined;
   var origin = frameOrigin(activeObjectKind(), clip[0], clip[1], def);
-  blitHeroSprite(img, def, wx, wy, facing, origin, p.rollT > 0 ? p.rollAng : 0);
-  overlayHeroWeapon(p, clip, def, wx, wy, facing, origin);
+  blitHeroSprite(img, def, wx, wy, facing, origin, p.rollT > 0 ? p.rollAng : 0, fxOverride);
+  overlayHeroWeapon(p, clip, def, wx, wy, facing, origin, fxOverride);
   return true;
 }
 
