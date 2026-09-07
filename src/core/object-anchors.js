@@ -18,7 +18,7 @@ import { defaultFrameAnchors } from '../render/sprite-anchors.js';
 var KEY = 'ledge.dev.objectAnchors';
 var BOX_MIN = 2;
 
-/* saved[objectKind][anim] = { origin, grab, weapon[], box } */
+/* saved[objectKind][anim] = { origin, grab, weapon[], box, boxFrames[] } */
 var saved = {};
 var onChange = null;
 
@@ -52,6 +52,21 @@ function cloneBox(b){
   return { w: num(b.w), h: num(b.h) };
 }
 
+/* per-frame box override: {x,y,w,h} в тех же локальных арт-координатах, что и origin/grab
+   (левый верхний угол бокса до учёта facing) — в отличие от анимного box (только размер,
+   позиция = origin), тут позиция независима от origin. null в массиве — кадр без override,
+   падает обратно на анимный box+origin (см. player.js climbFrameBox). */
+function cloneBoxFrame(b){
+  if (!b || b.w == null || b.h == null || b.x == null || b.y == null) return null;
+  return { x: num(b.x), y: num(b.y), w: num(b.w), h: num(b.h) };
+}
+function cloneBoxFrames(arr){
+  if (!arr || !arr.length) return [];
+  var out = [], i;
+  for (i = 0; i < arr.length; i++) out[i] = cloneBoxFrame(arr[i]);
+  return out;
+}
+
 function cloneAnimRec(rec){
   if (!rec || typeof rec !== 'object') return null;
   var out = {};
@@ -59,6 +74,7 @@ function cloneAnimRec(rec){
   if ('grab' in rec) out.grab = cloneOrigin(rec.grab);
   if ('weapon' in rec) out.weapon = clonePts(rec.weapon);
   if ('box' in rec) out.box = cloneBox(rec.box);
+  if ('boxFrames' in rec) out.boxFrames = cloneBoxFrames(rec.boxFrames);
   return out;
 }
 
@@ -93,6 +109,7 @@ function overlay(dst, src){
       if ('grab' in rec) drec.grab = cloneOrigin(rec.grab);
       if ('weapon' in rec) drec.weapon = clonePts(rec.weapon);
       if ('box' in rec) drec.box = cloneBox(rec.box);
+      if ('boxFrames' in rec) drec.boxFrames = cloneBoxFrames(rec.boxFrames);
     }
   }
 }
@@ -222,6 +239,7 @@ function animRecHasData(rec){
   if (rec.grab) return true;
   if (rec.box && rec.box.w != null) return true;
   if (rec.weapon && rec.weapon.some(Boolean)) return true;
+  if (rec.boxFrames && rec.boxFrames.some(Boolean)) return true;
   return false;
 }
 
@@ -428,6 +446,42 @@ export function clearAnimAnchors(objectKind, anim){
   rec.grab = null;
   rec.weapon = [];
   rec.box = null;
+  rec.boxFrames = [];
+  emit('anchor');
+}
+
+/** Per-frame box override — {x,y,w,h} в локальных арт-координатах (левый верхний угол,
+    как у origin/grab), независим от origin. null/нет записи — кадр без override (см.
+    player.js climbFrameBox: падает на анимный box, позиция = origin, как раньше). */
+export function getFrameBox(objectKind, anim, i){
+  var rec = recOf(objectKind, anim), arr, b;
+  arr = rec && rec.boxFrames;
+  b = arr && arr[i | 0];
+  if (!b) return null;
+  return { x: num(b.x), y: num(b.y), w: num(b.w), h: num(b.h) };
+}
+
+export function setFrameBox(objectKind, anim, i, x, y, w, h){
+  var rec, meta, pt, maxW, maxH;
+  rec = ensureRec(objectKind, anim);
+  if (!rec) return null;
+  meta = metaSize(objectKind, anim);
+  pt = clampPt({ x: x, y: y }, meta.fw, meta.fh);
+  maxW = Math.max(BOX_MIN, meta.fw - pt.x);
+  maxH = Math.max(BOX_MIN, meta.fh - pt.y);
+  pt.w = clampS(w, BOX_MIN, maxW);
+  pt.h = clampS(h, BOX_MIN, maxH);
+  i = i | 0;
+  if (!rec.boxFrames) rec.boxFrames = [];
+  rec.boxFrames[i] = pt;
+  emit('anchor');
+  return pt;
+}
+
+export function clearFrameBox(objectKind, anim, i){
+  var rec = recOf(objectKind, anim);
+  if (!rec || !rec.boxFrames) return;
+  rec.boxFrames[i | 0] = null;
   emit('anchor');
 }
 

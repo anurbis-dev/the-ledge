@@ -14,7 +14,7 @@ import { blitHeldSprite, blitEntSprite, fitFrame } from './sprites.js';
 import { isBowHand, isHarpoonHand, isPickaxeHand } from '../entities/gear.js';
 import { spriteFrameImage, getSpriteDef, getAnimFrame, hasAnim, getAnimFrameCount, getAnimSpeed } from '../core/spriteset.js';
 import { getFrameAnchor, getAnimBox } from '../core/object-anchors.js';
-import { activeHeroId, activeObjectKind } from '../core/player.js';
+import { activeHeroId, activeObjectKind, climbFrameIndex } from '../core/player.js';
 import { defaultFrameAnchors } from './sprite-anchors.js';
 
 var G = GAME, C = G.C;
@@ -74,10 +74,7 @@ export function heroClip(p){
   if (p.state === 'hang' && p.hang.kind === 'lad') return ['hangLad', 0];
   if (p.state === 'climb' && p.climb.kind === 'lad') return ['ladder', 0];
   if (p.state === 'hang' && p.hang.kind === 'ledge') return ['hang', Math.sin(view.time * 2.2) > 0 ? 0 : 1];
-  if (p.state === 'climb' && p.climb.kind === 'ledge'){
-    var cp = p.climb.p;
-    return ['climb', cp < 0.2 ? 0 : (cp < 0.4 ? 1 : (cp < 0.6 ? 2 : (cp < 0.8 ? 3 : 4)))];
-  }
+  if (p.state === 'climb' && p.climb.kind === 'ledge') return ['climb', climbFrameIndex(p.climb)];
   if (p.state === 'climb' && p.climb.kind === 'vault') return ['vault', 0];
   if (!p.onGround){
     if (p.sliding) return ['slide', 0];

@@ -19,7 +19,8 @@ import {
 } from '../core/spriteset.js';
 import {
   getFrameAnchor, setFrameAnchor, getAnimBox, setAnimBox,
-  clearAnimAnchors, defaultObjectAnchors, spriteIdForObject
+  clearAnimAnchors, defaultObjectAnchors, spriteIdForObject,
+  getFrameBox, setFrameBox, clearFrameBox
 } from '../core/object-anchors.js';
 import { updateObject, getObjectDef } from '../core/objectset.js';
 import { openHeroMoveSettings } from './hero-move-settings.js';
@@ -105,6 +106,7 @@ var pendingAnchor = null;
 var originXEl = null, originYEl = null, weaponXEl = null, weaponYEl = null;
 var grabXEl = null, grabYEl = null, rotEl = null;
 var boxWEl = null, boxHEl = null;
+var fboxOnEl = null, fboxXEl = null, fboxYEl = null, fboxWEl = null, fboxHEl = null;
 var playTimer = 0;
 var playBtn = null;
 var frameDrag = null;
@@ -1113,25 +1115,30 @@ function drawMark(cx, pt, k, col, kind){
 }
 
 function liveBoxRect(){
-  var a = liveAnchors(), b, ak;
+  var a = liveAnchors(), b, ak, fb;
   if (!a || !current) return null;
   if (pendingBox) return pendingBox;
   ak = anchorKind();
+  fb = getFrameBox(ak, animId, frameI);
+  if (fb) return { x: fb.x, y: fb.y, w: fb.w, h: fb.h };
   b = getAnimBox(ak, animId);
   return { x: a.origin.x, y: a.origin.y, w: b.w, h: b.h };
 }
 
 function drawSpriteBox(cx, k, filled){
-  var b = liveBoxRect(), x, y, w, h;
+  var b = liveBoxRect(), x, y, w, h, ak = anchorKind();
+  // per-frame override (Frame Box) — независим от origin, драг-ресайз хитбокса его не
+  // трогает (тот пишет origin+anim box); другой цвет, чтобы не путать с обычным боксом
+  var isFrameBox = !pendingBox && ak && !!getFrameBox(ak, animId, frameI);
   if (!b) return;
   x = b.x * k; y = b.y * k; w = b.w * k; h = b.h * k;
   cx.save();
-  cx.fillStyle = filled ? '#ff5a4a55' : 'rgba(255,90,74,0.18)';
-  cx.strokeStyle = '#ffd0c4';
+  cx.fillStyle = isFrameBox ? (filled ? '#4ac8ff55' : 'rgba(74,200,255,0.18)') : (filled ? '#ff5a4a55' : 'rgba(255,90,74,0.18)');
+  cx.strokeStyle = isFrameBox ? '#c4ecff' : '#ffd0c4';
   cx.lineWidth = 2;
   cx.fillRect(x, y, w, h);
   cx.strokeRect(x + 1, y + 1, Math.max(0, w - 2), Math.max(0, h - 2));
-  cx.strokeStyle = '#ffe8e0';
+  cx.strokeStyle = isFrameBox ? '#e0f6ff' : '#ffe8e0';
   cx.lineWidth = 1.5;
   cx.beginPath();
   cx.moveTo(x, y + h); cx.lineTo(x + w, y + h);
@@ -1237,9 +1244,25 @@ function syncAnchorFields(){
   if (weaponXEl){ weaponXEl.value = fmtN(a.weapon.x); weaponXEl.step = String(sx); weaponXEl.max = String(fw); }
   if (weaponYEl){ weaponYEl.value = fmtN(a.weapon.y); weaponYEl.step = String(sy); weaponYEl.max = String(fh); }
   if (rotEl) rotEl.value = String(a.weapon.rot || 0);
-  b = liveBoxRect();
+  // boxWEl/boxHEl — всегда анимный box (не liveBoxRect: тот при активном frame-override
+  // покажет чужие числа, а правка boxWEl всё равно пишет в anim box, не в frame box)
+  b = getAnimBox(anchorKind(), animId);
   if (boxWEl && b){ boxWEl.value = fmtN(b.w); boxWEl.step = String(sx); }
   if (boxHEl && b){ boxHEl.value = fmtN(b.h); boxHEl.step = String(sy); }
+  syncFrameBoxFields();
+}
+
+function syncFrameBoxFields(){
+  var ak = anchorKind(), fb, sx = artStep(), sy = artStep(), on;
+  if (!fboxOnEl) return;
+  fb = ak ? getFrameBox(ak, animId, frameI) : null;
+  on = !!fb;
+  fboxOnEl.checked = on;
+  if (!fb) fb = liveBoxRect() || { x: 0, y: 0, w: 10, h: 22 };
+  if (fboxXEl){ fboxXEl.value = fmtN(fb.x); fboxXEl.step = String(sx); fboxXEl.disabled = !on; }
+  if (fboxYEl){ fboxYEl.value = fmtN(fb.y); fboxYEl.step = String(sy); fboxYEl.disabled = !on; }
+  if (fboxWEl){ fboxWEl.value = fmtN(fb.w); fboxWEl.step = String(sx); fboxWEl.disabled = !on; }
+  if (fboxHEl){ fboxHEl.value = fmtN(fb.h); fboxHEl.step = String(sy); fboxHEl.disabled = !on; }
 }
 
 function clampCell(n, max){
@@ -2571,6 +2594,64 @@ function fillBody(){
         paintCanvas();
       });
       xyRow('Box', 'ed-anchor-b', boxWEl, boxHEl, '×', rollBody);
+
+      (function(){
+        // per-frame box override: позиция+размер хитбокса именно этого кадра, независимо
+        // от Origin — для поз, где колижен должен идти за позой (напр. climb pull-up), а не
+        // лететь по прямой from->to (см. player.js climbFrameBoxWorld/updateClimb)
+        var fboxRow = document.createElement('label');
+        fboxRow.className = 'ed-field ed-anchor-fbox-on';
+        var fboxLab = document.createElement('span');
+        fboxLab.textContent = 'Frame box';
+        fboxOnEl = document.createElement('input');
+        fboxOnEl.type = 'checkbox';
+        fboxOnEl.title = 'Override box position+size for just this frame (independent of Origin) — lets collision follow the actual pose instead of lerping in a straight line.';
+        fboxOnEl.addEventListener('keydown', function(e){ e.stopPropagation(); });
+        fboxRow.appendChild(fboxLab);
+        fboxRow.appendChild(fboxOnEl);
+        rollBody.appendChild(fboxRow);
+
+        fboxXEl = numInp(0, -fw, fw * 2, artStep());
+        fboxYEl = numInp(0, -fh, fh * 2, artStep());
+        xyRow('Frame pos', 'ed-anchor-fp', fboxXEl, fboxYEl, ',', rollBody);
+        fboxWEl = numInp(10, 2, fw, artStep());
+        fboxHEl = numInp(22, 2, fh, artStep());
+        xyRow('Frame size', 'ed-anchor-fs', fboxWEl, fboxHEl, '×', rollBody);
+
+        function commitFrameBox(){
+          var ak = anchorKind(), x, y, w, h;
+          if (!ak || !fboxOnEl.checked) return;
+          x = parseFloat(fboxXEl.value); y = parseFloat(fboxYEl.value);
+          w = parseFloat(fboxWEl.value); h = parseFloat(fboxHEl.value);
+          if (isNaN(x) || isNaN(y) || isNaN(w) || isNaN(h)){ syncFrameBoxFields(); return; }
+          markOp();
+          setFrameBox(ak, animId, frameI, x, y, w, h);
+          notify();
+          syncFrameBoxFields();
+          paintCanvas();
+          paintStrips();
+        }
+        fboxXEl.addEventListener('change', commitFrameBox);
+        fboxYEl.addEventListener('change', commitFrameBox);
+        fboxWEl.addEventListener('change', commitFrameBox);
+        fboxHEl.addEventListener('change', commitFrameBox);
+
+        fboxOnEl.addEventListener('change', function(){
+          var ak = anchorKind(), seed;
+          if (!ak) return;
+          markOp();
+          if (fboxOnEl.checked){
+            seed = getFrameBox(ak, animId, frameI) || liveBoxRect() || { x: 0, y: 0, w: 10, h: 22 };
+            setFrameBox(ak, animId, frameI, seed.x, seed.y, seed.w, seed.h);
+          } else {
+            clearFrameBox(ak, animId, frameI);
+          }
+          notify();
+          syncFrameBoxFields();
+          paintCanvas();
+          paintStrips();
+        });
+      })();
 
       grabXEl = numInp(0, 0, fw, artStep());
       grabYEl = numInp(0, 0, fh, artStep());

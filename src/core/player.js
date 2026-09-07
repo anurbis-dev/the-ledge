@@ -8,7 +8,9 @@ import { dropTorch } from '../entities/torches.js';
 import { platUnder } from '../entities/plats.js';
 import { breakTalk } from '../speech/runtime.js';
 import { heroGrabOffset, heroGrabWorld, heroHandY, heroBoxAnim } from './sprite-grab.js';
-import { getAnimBox, legacyObjectKindFromSprite } from './object-anchors.js';
+import {
+  getAnimBox, legacyObjectKindFromSprite, getFrameAnchor, getFrameBox, defaultObjectAnchors
+} from './object-anchors.js';
 import { buildMoveOverrides } from './hero-move.js';
 
 export function activeHeroId(){
@@ -1079,6 +1081,29 @@ export function tryClimbUp(p){
   return true;
 }
 export function ease(t){ return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2)/2; }
+/* индекс кадра climb-анимации по прогрессу — та же формула, что и heroClip (render/hero.js),
+   держится в одном месте, иначе бокс (тут) и спрайт (там) разъедутся на разных кадрах */
+export function climbFrameIndex(cl){
+  var cp = cl.p;
+  return cp < 0.2 ? 0 : (cp < 0.4 ? 1 : (cp < 0.6 ? 2 : (cp < 0.8 ? 3 : 4)));
+}
+/* мировой бокс текущего кадра climb из per-frame override (редактор: Object Details →
+   per-frame Box, setFrameBox в object-anchors.js) — в отличие от обычного anim-бокса
+   (позиция всегда = origin) тут позиция бокса независима от origin, чтобы колижен мог
+   идти по реальной позе, а не по прямой from→to. Мировая проекция — тот же pinned-принцип,
+   что у рендера виса/лаза (render/hero.js, fx=0): зеркалим ровно вокруг cx/cy, не вокруг
+   бокс-центрового fx-пивота (тот — только для обычного бега/стойки, где wx и есть физбокс).
+   null — для этого кадра override не задан, updateClimb падает на прежний линейный лерп. */
+function climbFrameBoxWorld(cl){
+  var kind = activeObjectKind();
+  var frameI = climbFrameIndex(cl);
+  var fb = getFrameBox(kind, 'climb', frameI);
+  if (!fb) return null;
+  var origin = getFrameAnchor(kind, 'climb', frameI, 'origin') || defaultObjectAnchors(kind, 'climb', frameI).origin;
+  var x = cl.facing < 0 ? (cl.cx + origin.x - fb.x - fb.w) : (cl.cx - origin.x + fb.x);
+  var y = cl.cy - origin.y + fb.y;
+  return { x: x, y: y, w: fb.w, h: fb.h };
+}
 export function updateClimb(S, p, dt){
   var cl = p.climb;
   if (cl.plat){                             // якорь/from/to едут с палубой (как updateHang)
@@ -1123,6 +1148,11 @@ export function updateClimb(S, p, dt){
       if (cl.plat) p.hang.plat = cl.plat;
       p.climb = null; p.grabCd = 0; p.ride = null; p.events.push('hanged');
     }
+    return;
+  }
+  var fb = cl.kind === 'ledge' ? climbFrameBoxWorld(cl) : null;
+  if (fb){
+    p.x = fb.x; p.y = fb.y; p.w = fb.w; p.h = fb.h;
     return;
   }
   var t = ease(cl.p);
