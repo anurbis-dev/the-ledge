@@ -407,21 +407,26 @@ function pixSolid(px, py){
 function findLedge(p, dir, extraUp){
   var g = heroGrabWorld(p);
   var handY = g.y;
-  var hx = g.x;
   var lo = -C.TOL_DN - (extraUp || 0);                    // extraUp — выше рук (берег)
   var hi = C.TOL_UP;
   var best = null, bestD = 1e9;
-  for (var dy = lo; dy <= hi; dy++){
-    var py = handY + dy;
-    if (pixSolid(hx, py) || !pixSolid(hx, py + 2)) continue;
-    var top = ledgeTopAt(hx, py + 2), wc = Math.floor(hx / T);
-    var d = Math.abs(top - handY);
-    if (d >= bestD) continue;
-    bestD = d;
-    best = {
-      cx: dir > 0 ? wc * T : (wc + 1) * T,
-      top: top, wc: wc, tr: Math.floor(top / T)
-    };
+  // допуск по X (0..TOL_X, вглубь по facing): moveX снимает упор в стену не всегда впритык
+  // (суб-пиксельный зазор после гашения скорости/STEP_UP на бегу и в прыжке) — без этого рука
+  // тестирует соседнюю пустую колонку и хват на высокой стене никогда не срабатывает
+  for (var dx = 0; dx <= C.TOL_X; dx++){
+    var hx = g.x + dir * dx;
+    for (var dy = lo; dy <= hi; dy++){
+      var py = handY + dy;
+      if (pixSolid(hx, py) || !pixSolid(hx, py + 2)) continue;
+      var top = ledgeTopAt(hx, py + 2), wc = Math.floor(hx / T);
+      var d = Math.abs(top - handY) + dx;
+      if (d >= bestD) continue;
+      bestD = d;
+      best = {
+        cx: dir > 0 ? wc * T : (wc + 1) * T,
+        top: top, wc: wc, tr: Math.floor(top / T)
+      };
+    }
   }
   return best;
 }

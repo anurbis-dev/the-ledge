@@ -54,6 +54,7 @@ export var PARAM_GROUPS = [
     { key: 'HAND', label: 'Hand offset', min: 1, max: 10, step: 1, hint: 'Fallback Y рук, если у кадра нет якоря grab (px от origin).' },
     { key: 'TOL_UP', label: 'Grab tol up', min: 1, max: 10, step: 1, hint: 'Тайловая кромка: насколько руки могут быть выше губы (px).' },
     { key: 'TOL_DN', label: 'Grab tol down', min: 1, max: 16, step: 1, hint: 'Тайловая кромка: насколько руки могут быть ниже губы (px).' },
+    { key: 'TOL_X', label: 'Grab tol X', min: 0, max: 8, step: 1, hint: 'Тайловая кромка: насколько рука может не дотягиваться по X до стены (px) — гасит суб-пиксельный зазор после упора в стену на бегу/прыжке.' },
     { key: 'GRAB_VY', label: 'Grab max vy', min: -260, max: -20, step: 1, hint: 'Хват только если vy ≥ этого (слишком быстрый взлёт — не цепляемся).' },
     { key: 'GRAB_CD', label: 'Grab cooldown', min: 0, max: 0.6, step: 0.01, hint: 'Пауза после срыва/отпускания, пока нельзя снова схватить край.' },
     { key: 'PLAT_GRAB', label: 'Plat grab X', min: 2, max: 28, step: 1, hint: 'Движ. платформа: макс. |X| между якорем рук (grab) и губой палубы. Больше — легче зацепиться сбоку.' },
